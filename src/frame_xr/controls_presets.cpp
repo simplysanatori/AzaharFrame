@@ -85,6 +85,48 @@ bool RestoreGyroAim() {
     return true;
 }
 
+namespace {
+// AzaharFrame kiuguns: a game's own switch in two bits of vr_controls_preset_done (0: global).
+void MirrorSwitch(Settings::SwitchableSetting<bool>& setting, uint32_t shift) {
+    auto& done = Settings::values.vr_controls_preset_done;
+    const uint32_t before = done.GetValue();
+    uint32_t now = before & ~(3u << shift);
+    if (!setting.UsingGlobal()) {
+        now |= (setting.GetValue() ? 2u : 1u) << shift;
+    }
+    if (now != before) {
+        done.SetGlobal(false);
+        done.SetValue(now);
+    }
+}
+
+bool RestoreSwitch(Settings::SwitchableSetting<bool>& setting, uint32_t shift, const char* name) {
+    const uint32_t mirror = (Settings::values.vr_controls_preset_done.GetValue() >> shift) & 3u;
+    if (mirror == 0 || mirror > 2 || !setting.UsingGlobal()) {
+        return false;
+    }
+    setting.SetGlobal(false);
+    setting.SetValue(mirror == 2);
+    LOG_INFO(Frontend, "xr: {} {} for this game, from vr_controls_preset_done (its key was "
+                       "dropped by an older build)",
+             name, mirror == 2 ? "on" : "off");
+    return true;
+}
+} // namespace
+
+void MirrorWeaponInHand() { // AzaharFrame kiuguns
+    MirrorSwitch(Settings::values.vr_light_gun_weapon, kWeaponMirrorShift);
+    MirrorSwitch(Settings::values.vr_light_gun_laser, kLaserMirrorShift);
+}
+
+bool RestoreWeaponInHand() { // AzaharFrame kiuguns
+    const bool weapon =
+        RestoreSwitch(Settings::values.vr_light_gun_weapon, kWeaponMirrorShift, "Weapon in Hand");
+    const bool laser =
+        RestoreSwitch(Settings::values.vr_light_gun_laser, kLaserMirrorShift, "Laser Sight");
+    return weapon || laser;
+}
+
 uint32_t ApplyControlsPreset(const ControlsPreset& preset, bool cstick_mod_installed) {
     auto& v = Settings::values;
     auto& done_setting = v.vr_controls_preset_done;

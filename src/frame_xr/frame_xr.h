@@ -325,6 +325,8 @@ enum class MenuSetting {
     TurnZone,        ///< `value` percent, 0 to 30 (vr_light_gun_turn_zone)
     TurnSpeed,       ///< `value` tenths of 1x, 2 to 40 (vr_light_gun_turn_speed)
     Recoil,          ///< `value` 0 or 1 (vr_light_gun_recoil)
+    WeaponInHand,    ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_weapon)
+    LaserSight,      ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_laser)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

@@ -57,6 +57,10 @@ public:
         Input::Posef aim; ///< LOCAL space, the display time of the frame
         float fade = 1.0f;
         ModelInputs input{};
+        /// AzaharFrame kiuguns: Kid Icarus: Uprising's weapon to draw in place of this hand's
+        /// controller (core/frame_weapon_models.h, fitted by weapon_fit.h), or -1. The
+        /// controller is drawn until the weapon's files are read and on the GPU.
+        int weapon = -1;
     };
 
     /// XR thread, each frame while models are wanted (anything shown or not): reads the files
@@ -70,9 +74,16 @@ public:
 private:
     void Setup(Runtime& rt);
     void Record(const ViewPose& views, const std::array<Hand, 2>& hands);
+    /// AzaharFrame kiuguns: reads, uploads and swaps the weapon in hand (XR thread, no waits).
+    void UpdateWeapon(int id);
+    void UploadWeapon();
 
     struct Files;
     struct Gpu;
+    struct WeaponLoad;
+    std::unique_ptr<WeaponLoad> weapon_load; ///< the read under way or done (loader thread)
+    std::thread weapon_loader;
+    std::atomic<int> weapon_load_state{0}; ///< 0 none, 1 reading, 2 read
     std::unique_ptr<Files> files;
     std::unique_ptr<Gpu> gpu;
     std::thread loader;

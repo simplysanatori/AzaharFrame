@@ -5,7 +5,7 @@
 // AzaharFrame
 // The controller models' shaders: Moonlight XR Native's shaders/model_tex.vert and .frag (same
 // author, GPLv3), with the strength of the model's fade (params.z, premultiplied out) added and
-// OUT_LINEAR as a #define. Compiled at run time with Azahar's glslang (vk_shader_util), on the
+// OUT_LINEAR as a #define, and (AzaharFrame kiuguns) params.w for a mirrored model. Compiled at run time with Azahar's glslang (vk_shader_util), on the
 // thread that reads the model files.
 //
 // The Frame's plastic is near black and fairly glossy, so, as under SteamVR, its shape shows in
@@ -22,7 +22,7 @@ layout(push_constant) uniform PC {
     vec4 eye;     // camera position, model space
     vec4 key;     // xyz: toward the key light, model space
     vec4 up;      // xyz: the room's up, model space
-    vec4 params;  // x: debug view, y: base colour gain, z: fade (0..1)
+    vec4 params;  // x: debug view, y: base colour gain, z: fade (0..1), w: mirrored (1)
 } pc;
 
 layout(location = 0) in vec3 a_position;
@@ -97,7 +97,9 @@ void main() {
     float ao = base.a;
 
     vec3 ng = normalize(v_normal);
-    if (!gl_FrontFacing) ng = -ng;
+    // AzaharFrame kiuguns: a mirrored model (a weapon's left-hand fit) turns its triangles over.
+    bool front = pc.params.w > 0.5 ? !gl_FrontFacing : gl_FrontFacing;
+    if (!front) ng = -ng;
     vec3 t = v_tangent.xyz - ng * dot(ng, v_tangent.xyz);
     t = dot(t, t) > 1e-10 ? normalize(t) : vec3(1.0, 0.0, 0.0);
     vec3 b = cross(ng, t) * (v_tangent.w < 0.0 ? -1.0 : 1.0);

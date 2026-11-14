@@ -509,6 +509,8 @@ struct FrameKeepControls {
           turn_zone{Settings::values.vr_light_gun_turn_zone},
           turn_speed{Settings::values.vr_light_gun_turn_speed},
           recoil{Settings::values.vr_light_gun_recoil},
+          weapon{Settings::values.vr_light_gun_weapon}, // AzaharFrame kiuguns
+          laser{Settings::values.vr_light_gun_laser},
           preset_done{Settings::values.vr_controls_preset_done} {}
     void Restore() {
         touchpad.Restore();
@@ -524,6 +526,8 @@ struct FrameKeepControls {
         turn_zone.Restore();
         turn_speed.Restore();
         recoil.Restore();
+        weapon.Restore();
+        laser.Restore();
         preset_done.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
@@ -539,6 +543,8 @@ struct FrameKeepControls {
     FrameKeepSetting<u32, true> turn_zone;
     FrameKeepSetting<float, true> turn_speed;
     FrameKeepSetting<bool, false> recoil;
+    FrameKeepSetting<bool, false> weapon; // AzaharFrame kiuguns
+    FrameKeepSetting<bool, false> laser;
     FrameKeepSetting<u32, false> preset_done;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
@@ -3566,7 +3572,9 @@ void GMainWindow::BootGame(const QString& filename) {
     if (Loader::ResultStatus::Success == res && !is_artic && FrameXr::Kiu::IsKidIcarus(title_id)) {
         std::shared_ptr<FileSys::RomFSReader> romfs;
         if (system.GetAppLoader().ReadRomFS(romfs) == Loader::ResultStatus::Success && romfs) {
-            FrameWeapons::OnGameBoot(title_id, std::move(romfs), true,
+            // Made now when Weapon in Hand is on, else the first time it is turned on.
+            FrameWeapons::OnGameBoot(title_id, std::move(romfs),
+                                     Settings::values.vr_light_gun_weapon.GetValue(),
                                      Settings::values.custom_textures.GetValue());
         }
     }
@@ -5389,6 +5397,13 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::Recoil:
         set(v.vr_light_gun_recoil, r.value != 0);
+        break;
+    case S::WeaponInHand: // AzaharFrame kiuguns
+        set(v.vr_light_gun_weapon, r.value != 0);
+        FrameWeapons::Request(); // the models are made the first time they are wanted
+        break;
+    case S::LaserSight: // AzaharFrame kiuguns
+        set(v.vr_light_gun_laser, r.value != 0);
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);

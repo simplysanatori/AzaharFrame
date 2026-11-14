@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -55,6 +56,95 @@ inline constexpr uint32_t kSchemeGyro = 1;
 constexpr uint32_t SchemeOf(uint32_t options_word) {
     return (options_word >> 21) & 7u;
 }
+
+// ---- AzaharFrame kiuguns: the equipped weapon and the shots, in the game's own code ----
+//
+// Weapon: the tail of the game's getWeaponId(character) (EUR retail 0x4AF16C):
+//     ldrb r1,[r4,#0x2c]; pop {r4-r8,lr}; add r2,r1,r1,lsl#3; rsb r1,r2,r1,lsl#6;
+//     add r0,r0,r1,lsl#4; b <get>       with <get> = ldrsb r0,[r0,#FIELD]; bx lr
+//   and `ldr r5,=PTR` in the 0x20 bytes before it. The fighters' records are at [PTR] + slot *
+//   0x370; the weapon is the signed byte at +FIELD (5): -1 none, else class * 12 + index. Found
+//   once in each of the 11 builds checked (EUR retail, EUR, USA and JPN with and without 16:9 /
+//   21:9 C-Stick & Gyro mod builds); PTR 0xD636B4 (EUR, USA), 0xD6364C (JPN).
+// Shots: the tail of the game's first shot function (EUR 0x4CFECC), just after its call to the
+//   attack maker: the lifetime "shots fired" record of the save, +1 per shot, capped at
+//   999,999,999:
+//     ldr r4,=CACHE; ldr r0,[r4]; cmp r0,#0; bne +1; bl <getter>; str r0,[r4];
+//     add r2,r0,#A; add r2,r2,#B; ldr r1,=999999999; ldr r0,[r2,#C]; add r0,r0,#1; cmp r0,#1;
+//     blo; cmp r0,r1; bls; mov r0,r1; str r0,[r2,#C]
+//   (the ldr offsets and the bl masked). The record is at [CACHE] + A + B + C (0xEF9814 in
+//   every build). Found once in each of the 11 builds. Only the game's three shot functions
+//   write it; the per-stage attack serial (EUR 0xD76B14) also counts other attacks.
+
+/// The fighters' records and the equipped weapon's byte in them.
+struct WeaponAddresses {
+    bool found = false;
+    uint32_t ptr = 0;   ///< where the records' address is kept (0xD636B4 in EUR)
+    uint32_t field = 0; ///< the weapon's offset in a record (5)
+};
+WeaponAddresses ScanForWeapon(const uint8_t* code, std::size_t size, uint32_t base);
+
+/// The shots-fired record.
+struct ShotAddresses {
+    bool found = false;
+    uint32_t cache = 0;  ///< where the record's object address is kept
+    uint32_t offset = 0; ///< the counter's offset in that object (0x16454)
+};
+ShotAddresses ScanForShots(const uint8_t* code, std::size_t size, uint32_t base);
+
+inline constexpr uint32_t kFighterRecordBytes = 0x370;
+inline constexpr int kFighterSlots = 6;
+inline constexpr int kWeaponCount = 108;
+inline constexpr uint32_t kShotsCap = 999'999'999u;
+
+/// One read of the fighters' records (s16 kind at +0, s8 weapon at +field), slots 0 to 5.
+struct FighterRecords {
+    std::array<int16_t, kFighterSlots> kind{};
+    std::array<int8_t, kFighterSlots> weapon{};
+};
+/// The weapon of the player (slot 0) in single player: -1 for none or when unsure (slot 0 not a
+/// fighter of kind 1 or 2, or another slot a fighter too: multiplayer, whose local slot is not
+/// known), or -2 for values out of range (not the record: a guard).
+int WeaponFromRecords(const FighterRecords& r);
+
+/// A weapon id shown only once it has held for kSettleNs of the game's time (a menu scrolling
+/// through weapons does not load each).
+class WeaponSettle {
+public:
+    static constexpr int64_t kSettleNs = 500'000'000;
+    /// `raw`: this read's id (-1 none). Returns the settled id.
+    int Update(int64_t now_ns, int raw);
+    int Settled() const {
+        return settled_;
+    }
+    void Reset() {
+        settled_ = -1;
+        candidate_ = -1;
+        since_ns_ = 0;
+        started_ = false;
+    }
+
+private:
+    int settled_ = -1;
+    int candidate_ = -1;
+    int64_t since_ns_ = 0;
+    bool started_ = false;
+};
+
+/// The shots from the record's reads: how many new ones since the last read. A drop (a save
+/// loaded, another file) or a jump of more than kMaxStep (the same) counts none and starts again.
+class ShotCounter {
+public:
+    static constexpr uint32_t kMaxStep = 16;
+    uint32_t Update(uint32_t value);
+    void Reset() {
+        has_ = false;
+    }
+
+private:
+    bool has_ = false;
+    uint32_t last_ = 0;
+};
 
 /// Kid Icarus: Uprising's title ids (Japan as the mod lists it, then the compatibility list's).
 constexpr bool IsKidIcarus(uint64_t title_id) {

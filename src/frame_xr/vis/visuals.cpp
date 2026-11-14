@@ -307,6 +307,9 @@ struct Visuals::Impl {
     // Beams, dots, models.
     std::array<HandActivity, 2> activity{};
     std::vector<Quad> top_beams, top_dots;
+    int weapon_hand = -1;      ///< AzaharFrame kiuguns: the weapon in hand, this frame
+    int weapon_id = -1;
+    Input::PanelQuad weapon_hide_over; ///< no beam or dot there for the weapon's hand
     int laser_hand = -1;       ///< AzaharFrame kiugyro: Light Gun's laser sight, this frame
     Vec3f laser_point{};
     const XrCompositionLayerBaseHeader* models_layer = nullptr;
@@ -454,6 +457,7 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
     Impl& m = *impl;
     static_cast<void>(info);
     m.laser_hand = -1; // AzaharFrame kiugyro: GameFrame sets it again for this frame
+    m.weapon_hand = -1; // AzaharFrame kiuguns: the same
     // AzaharFrame statspos: a grip with the beam on the stats (In Front) holds them; the hand's
     // grip and stick then move them and reach neither the screens nor the game.
     const ViewPose view = LatestViewPose();
@@ -887,6 +891,7 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
     }
     std::array<int, 16> dot_hand{};
     dot_hand.fill(-1);
+    std::array<bool, Input::kNumHands> no_dot{}; // AzaharFrame kiuguns: the weapon's hand
     for (int h = 0; h < Input::kNumHands; h++) {
         const Input::HandInput& hand = in.hand[static_cast<std::size_t>(h)];
         // AzaharFrame polish: the Bottom Screen Reticle's controller (in a game only) has no beam.
@@ -917,6 +922,17 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
         // AzaharFrame kiugyro: Light Gun's laser sight: to where the ray meets the top screen.
         if (h == m.laser_hand && where == Where::Game) {
             beam_end[h] = m.laser_point;
+        }
+        // AzaharFrame kiuguns: the weapon in hand aims at the top screen without a beam (the
+        // game's reticle shows where); the bottom screen, menus and the room keep it.
+        if (h == m.weapon_hand && h != m.laser_hand && where == Where::Game &&
+            m.weapon_hide_over.visible && beam_end[h]) {
+            const auto hit = Input::IntersectQuad(ray, m.weapon_hide_over);
+            if (hit.in_bounds && hit.t <= best + 0.01f &&
+                Input::Length(hit.point_world - *beam_end[h]) < 0.03f) {
+                beam_end[h].reset();
+                no_dot[static_cast<std::size_t>(h)] = true;
+            }
         }
         if (where != Where::Game) {
             for (const Quad& q : kept) {
@@ -1019,6 +1035,9 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             if (h >= 0 && m.activity[h].Beam() <= 0.02f) {
                 continue;
             }
+            if (h >= 0 && no_dot[static_cast<std::size_t>(h)]) {
+                continue; // AzaharFrame kiuguns
+            }
             m.top_dots.push_back(dots[d]);
         }
     } else {
@@ -1040,10 +1059,17 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             out.aim = m.activity[h].Pose();
             out.fade = m.activity[h].Model();
             out.input = ModelInputsFor(in, h);
+            out.weapon = h == m.weapon_hand ? m.weapon_id : -1; // AzaharFrame kiuguns
         }
     }
     m.models.Frame(rt, view, hands);
     m.models_layer = m.models.Layer();
+}
+
+void Visuals::SetWeapon(int hand, int id, const Input::PanelQuad& hide_over) {
+    impl->weapon_hand = hand;
+    impl->weapon_id = id;
+    impl->weapon_hide_over = hide_over;
 }
 
 void Visuals::SetLaser(int hand, const Input::Vec3f& point) {

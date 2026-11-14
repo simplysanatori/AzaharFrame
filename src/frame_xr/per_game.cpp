@@ -118,6 +118,12 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::Recoil:
         f(v.vr_light_gun_recoil);
         return true;
+    case Id::WeaponInHand: // AzaharFrame kiuguns
+        f(v.vr_light_gun_weapon);
+        return true;
+    case Id::LaserSight: // AzaharFrame kiuguns
+        f(v.vr_light_gun_laser);
+        return true;
     default:
         return false;
     }

@@ -30,6 +30,8 @@ add_executable(tests
     ../frame_xr/input/motion.cpp # AzaharFrame
     ../frame_xr/input/gyro_aim.cpp # AzaharFrame kiugyro
     ../frame_xr/kiu_scan.cpp # AzaharFrame kiugyro
+    ../frame_xr/vis/weapon_fit.cpp # AzaharFrame kiuguns
+    frame_xr/kiu_weapons.cpp # AzaharFrame kiuguns
     frame_xr/gyro_aim.cpp # AzaharFrame kiugyro
     ../frame_xr/immersive_layout.cpp # AzaharFrame
     frame_xr/immersive_layout.cpp # AzaharFrame

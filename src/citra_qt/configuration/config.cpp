@@ -624,12 +624,15 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_light_gun_turn_zone);
     ReadGlobalSetting(Settings::values.vr_light_gun_turn_speed);
     ReadGlobalSetting(Settings::values.vr_light_gun_recoil);
+    ReadGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
+    ReadGlobalSetting(Settings::values.vr_light_gun_laser);
     if (!global) {
         // AzaharFrame kiu: what the Controls preset already decided (a game's file only).
         ReadGlobalSetting(Settings::values.vr_controls_preset_done);
 #ifdef ENABLE_FRAME_XR
         // AzaharFrame kiugyro: a Gyro Aim an older build dropped comes back from its mirror.
         FrameXr::RestoreGyroAim();
+        FrameXr::RestoreWeaponInHand(); // AzaharFrame kiuguns
 #endif
     }
     // AzaharFrame: global only, so a per-application file never carries or overrides them.
@@ -1326,9 +1329,12 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_light_gun_turn_zone);
     WriteGlobalSetting(Settings::values.vr_light_gun_turn_speed);
     WriteGlobalSetting(Settings::values.vr_light_gun_recoil);
+    WriteGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
+    WriteGlobalSetting(Settings::values.vr_light_gun_laser);
     if (!global) {
 #ifdef ENABLE_FRAME_XR
         FrameXr::MirrorGyroAim(); // AzaharFrame kiugyro: kept by builds that drop vr_gyro_aim
+        FrameXr::MirrorWeaponInHand(); // AzaharFrame kiuguns: the same for vr_light_gun_weapon
 #endif
         WriteGlobalSetting(Settings::values.vr_controls_preset_done); // AzaharFrame kiu
     }

@@ -16,6 +16,10 @@
 #include "common/settings.h" // AzaharFrame curve
 #include "frame_xr/controls.h"
 #include "frame_xr/kiu_probe.h"     // AzaharFrame kiugyro: Light Gun
+#include "frame_xr/kiu_scan.h"      // AzaharFrame kiuguns: IsKidIcarus
+#include "frame_xr/kiu_weapon.h"    // AzaharFrame kiuguns: the weapon in hand, the shots
+#include "core/frame_weapon_models.h" // AzaharFrame kiuguns
+#include "common/frame_test_switches.h" // AzaharFrame kiuguns
 #include "frame_xr/test_switches.h" // AzaharFrame kiugyro: AZAHARFRAME_CSTICK_EDGE
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h" // AzaharFrame immersive2: kGripPress
@@ -1526,6 +1530,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         nudger.Reset(); // AzaharFrame vrsize
         was_holding = false;
         recoil.Reset(); // AzaharFrame kiugyro
+        Kiu::SetWanted(false, false);
         return;
     }
     ScreenPlacement place = GetScreenPlacement();
@@ -1762,10 +1767,36 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const Input::MapperOutput& out =
         bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample, &gyro_aim_frame);
     bridge_live = true;
+    // AzaharFrame kiuguns: what Kid Icarus: Uprising's memory is read for (kiu_weapon.h): the
+    // weapon in hand and the shots, only while Gyro Aim steers in the game.
+    const bool kiu = gyro_aim_hand >= 0 && Kiu::IsKidIcarus(GameTitleId());
+    const bool recoil_on = gyro_aim_hand >= 0 && Settings::values.vr_light_gun_recoil.GetValue();
+    const bool weapon_on = kiu && Settings::values.vr_light_gun_weapon.GetValue();
+    bool weapon_shown = false;
+    Kiu::SetWanted(weapon_on, false);
+    if (weapon_on) {
+        FrameWeapons::Request(); // made the first time they are wanted (once a boot)
+        // AZAHARFRAME_KIU_WEAPON=<id> (live): that weapon, for tuning its class's fit.
+        int id = Kiu::EquippedWeapon();
+        if (const auto forced = Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_WEAPON")) {
+            char* end = nullptr;
+            const long v = std::strtol(forced->c_str(), &end, 10);
+            if (end != forced->c_str() && v >= -1 && v < FrameWeapons::kWeapons) {
+                id = static_cast<int>(v);
+            }
+        }
+        if (id >= 0) {
+            // Laser Sight off: no beam or dot over the top screen (the game's reticle shows the
+            // aim; the weapon stays on the same ray).
+            visuals.SetWeapon(gyro_aim_hand, id,
+                              Settings::values.vr_light_gun_laser.GetValue() ? Input::PanelQuad{}
+                                                                              : panels.top);
+            weapon_shown = true;
+        }
+    }
     // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
     // steers (input/gyro_aim.h Recoil; the shot is the fire press, then a pace while held).
     {
-        const bool recoil_on = gyro_aim_hand >= 0 && Settings::values.vr_light_gun_recoil.GetValue();
         const Input::RecoilPulse pulse = recoil.Update(in.time_ns, bridge.gyro_fire(), recoil_on);
         if (pulse.fire) {
             actions.Pulse(info.session, gyro_aim_hand, pulse.duration_ns, Input::Recoil::kAmplitude);
@@ -1775,7 +1806,9 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     if (gyro_aim_hand >= 0) {
         const Input::HandInput& aim_hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
         const Input::LightGunTarget target = Input::LightGunTargetFor(aim_hand, panels.top);
-        if (Input::LaserSight(gyro_aim_frame.mode, true, Kiu::Locked(), target)) {
+        // AzaharFrame kiuguns: with the weapon in hand, only when Laser Sight is on.
+        if (Input::LaserSight(gyro_aim_frame.mode, true, Kiu::Locked(), target) &&
+            (!weapon_shown || Settings::values.vr_light_gun_laser.GetValue())) {
             visuals.SetLaser(gyro_aim_hand,
                              Input::IntersectQuad(Input::RayFromPose(aim_hand.aim), panels.top)
                                  .point_world);

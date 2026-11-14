@@ -35,6 +35,11 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_IMMERSIVE_HOLD",           "AZAHARFRAME_IMMERSIVE_ANCHOR_LAG",
         "AZAHARFRAME_CSTICK_EDGE", // AzaharFrame kiugyro
     };
+    // AzaharFrame kiuguns: the weapon in hand's tuning (vis/weapon_fit.h: AZAHARFRAME_KIU_FIT_
+    // <CLASS>, AZAHARFRAME_KIU_WEAPON, AZAHARFRAME_KIU_WEAPON_GLOW), read every frame.
+    if (name.rfind("AZAHARFRAME_KIU_", 0) == 0) {
+        return Apply::Live;
+    }
     return std::find(std::begin(kLive), std::end(kLive), name) != std::end(kLive) ? Apply::Live
                                                                                   : Apply::Restart;
 }
