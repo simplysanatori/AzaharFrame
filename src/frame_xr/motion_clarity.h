@@ -157,6 +157,17 @@ inline constexpr float kTwiceMax = 5.0f;
 /// An interval longer than this many refreshes is not counted (a stall or a loading screen is not
 /// the game's rate; 10 pictures a second at 120 Hz).
 inline constexpr uint32_t kMaxInterval = 12;
+/// flash3 (report 70, session 573): an interval of twice the full rate's or more (4 refreshes at
+/// 60 pictures on 120 Hz) while the game is fast or the rate is being learnt is a hitch (a race
+/// starting, a savestate loaded, a dropped frame), not the game's rate: it stays out of the
+/// history and the late picture flashes on the beat (Why::Late). One hitch of 11 or more in the
+/// history took the mean over kFastLeave and held the screen lit (Slow::Hold) until it left the
+/// history again: a brightness step after Quick Load (19 refreshes lit) and at race starts.
+/// A game that really runs slower is learnt from a run of kSlowRun such intervals in a row, each
+/// within kSlowSpread of the run's first (8 of 4 +-1 at 30 pictures on 120 Hz): then the history
+/// is that run and the rate rules decide (Hold) as before.
+inline constexpr uint32_t kSlowRun = 8;
+inline constexpr uint32_t kSlowSpread = 1;
 /// flash2: a gap without a game picture up to this long keeps the learnt rate: a swapchain made
 /// anew (a Dynamic Resolution step) has no image for a refresh or two, and relearning the rate
 /// after it held about 18 refreshes lit (150 ms), a bright flash at every step. A longer gap (a
@@ -187,7 +198,7 @@ public:
         last_picture_ns_ = r.time_ns;
         if (r.picture != picture_) {
             if (picture_ != 0 && clean_) {
-                Push(age_ + 1);
+                Push(age_ + 1, r.period_ns);
             }
             picture_ = r.picture;
             age_ = 0;
@@ -207,6 +218,10 @@ public:
         return d;
     }
 
+    /// flash3: intervals taken for hitches (kept out of the history) since the start.
+    uint32_t Hitches() const {
+        return hitches_;
+    }
     /// Refreshes per picture, the mean of the last kHistory (0: fewer known).
     float Mean() const {
         return filled_ < kHistory ? 0.0f : mean_;
@@ -323,11 +338,53 @@ private:
         mean_ = 0.0f;
         last_picture_ns_ = 0;
         lits_ = 0;
+        run_ = 0; // flash3
     }
-    void Push(uint32_t interval) {
+    /// A played interval (refreshes a picture was on view). flash3: while the game is fast, or
+    /// the rate is being learnt, one of twice the full rate's or more is a hitch (kSlowRun): kept
+    /// out of the history unless it is part of a steady run of them (a slower game).
+    void Push(uint32_t interval, int64_t period_ns) {
         if (interval > kMaxInterval) {
+            run_ = 0;
             return; // a stall or a loading screen, not the game's rate
         }
+        const bool known = filled_ >= kHistory;
+        if (known && !fast_) {
+            Add(interval); // a slow game's own rate (and its way back to the full one)
+            return;
+        }
+        // The full rate's interval: the learnt mean, or the beat while learning (2 at 120 Hz).
+        const float full = known ? mean_ : Beat(period_ns);
+        const bool hitch = static_cast<float>(interval) >= std::round(2.0f * full);
+        const uint32_t first = run_values_[0];
+        const bool fits =
+            run_ > 0 && (interval > first ? interval - first : first - interval) <= kSlowSpread;
+        if (hitch || fits) {
+            if (!fits) {
+                run_ = 0; // a new run starts at this interval
+            }
+            run_values_[run_ % kSlowRun] = interval;
+            run_++;
+            if (run_ >= kSlowRun) {
+                // A steady run: the game's rate now. The history becomes the run.
+                for (std::size_t i = 0; i < kHistory; i++) {
+                    history_[i] = run_values_[i % kSlowRun];
+                }
+                filled_ = kHistory;
+                next_ = 0;
+                run_ = 0;
+                return;
+            }
+            if (hitch) {
+                hitches_++;
+                return; // a hitch: not the game's rate (yet)
+            }
+        } else {
+            run_ = 0;
+        }
+        Add(interval);
+    }
+    void Add(uint32_t interval) {
         history_[next_] = interval;
         next_ = (next_ + 1) % kHistory;
         filled_ = std::min<std::size_t>(filled_ + 1, kHistory);
@@ -357,6 +414,10 @@ private:
     uint32_t lits_ = 0;              ///< flash2: refreshes `picture_` has been lit on
     uint32_t since_lit_ = kLongAgo;  ///< flash2: refreshes since the last lit one (1: the last)
     float credit_ = 0.0f;            ///< flash2: the beat's share since the last lit refresh
+    /// flash3: the run of long intervals (Push): its length and values (run_values_[0] its first).
+    uint32_t run_ = 0;
+    std::array<uint32_t, kSlowRun> run_values_{};
+    uint32_t hitches_ = 0;
 };
 
 /// The scheduler's picture id from what a release recorded: its game picture (ShownPicture::
@@ -467,8 +528,9 @@ public:
         return State::Off;
     }
     /// Once a second: the text to log (without "xr: "), "" for none. `mean`: Scheduler::Mean,
-    /// `period_ns` the display period, `backing` whether the backing is drawn (else left out).
-    std::string Second(float mean, int64_t period_ns, bool backing) {
+    /// `period_ns` the display period, `backing` whether the backing is drawn (else left out),
+    /// `hitches`: Scheduler::Hitches (flash3; the line gives the window's).
+    std::string Second(float mean, int64_t period_ns, bool backing, uint32_t hitches = 0) {
         const State state = StateOf(second_);
         second_.fill(0);
         seconds_++;
@@ -481,6 +543,7 @@ public:
                 steps_total_ += steps_;
                 steps_ = 0;
                 longest_run_ = lit_run_;
+                hitches_seen_ = hitches;
             }
             return {};
         }
@@ -500,18 +563,21 @@ public:
                           mean, hz > 0.0 ? hz / mean : 0.0, hz);
             rate = buf;
         }
-        char buf[448];
+        char buf[512];
         std::snprintf(buf, sizeof(buf),
                       "Motion Clarity %s: %s; over %u s, lit %u of %u refreshes (%.0f %%), %s %u; "
                       "brightness steps %u, longest lit run %u; lit for: new picture %u, late %u, "
-                      "menu or pause %u, learning %u; held: slow game %u, off %u; no picture %u",
+                      "menu or pause %u, learning %u; held: slow game %u, off %u; no picture %u; "
+                      "hitches not taken for the rate %u",
                       state == State::Flashing ? "flashing"
                       : state == State::Held   ? "holding"
                                                : "off",
                       rate.c_str(), seconds_, shown, shown + dark, 100.0 * LitShare(shown, dark),
                       backing ? "black backing" : "screen left out", dark, steps_, longest_run_,
                       n(Why::Fresh) + n(Why::Second), n(Why::Late), n(Why::Unsteady),
-                      n(Why::Learning), n(Why::Slow), n(Why::Off), n(Why::Gap));
+                      n(Why::Learning), n(Why::Slow), n(Why::Off), n(Why::Gap),
+                      hitches - std::min(hitches, hitches_seen_));
+        hitches_seen_ = hitches;
         window_.fill(0);
         seconds_ = 0;
         steps_total_ += steps_;
@@ -527,6 +593,7 @@ private:
     State state_ = State::Off;
     Level level_ = Level::None;
     uint32_t lit_run_ = 0, longest_run_ = 0, steps_ = 0, steps_total_ = 0;
+    uint32_t hitches_seen_ = 0; ///< flash3: Scheduler::Hitches at the last line
 };
 
 } // namespace FrameXr::MotionClarity

@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <initializer_list>
 #include <string>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
@@ -273,7 +274,34 @@ struct Session {
             Refresh(steady, false);
         }
     }
+    /// flash3: played pictures on view these many refreshes each.
+    void Intervals(const std::vector<int>& intervals) {
+        for (const int n : intervals) {
+            for (int i = 0; i < n; i++) {
+                Refresh(true, i == 0);
+            }
+        }
+    }
+    /// flash3: `n` refreshes without a picture (a swapchain made anew, a game stopping).
+    void Gap(int n) {
+        for (int i = 0; i < n; i++) {
+            Refresh(true, false, true, true);
+        }
+    }
 };
+
+/// flash3: `n` intervals of `every` refreshes.
+std::vector<int> Same(int n, int every = 2) {
+    return std::vector<int>(static_cast<std::size_t>(n), every);
+}
+
+std::vector<int> Join(std::initializer_list<std::vector<int>> parts) {
+    std::vector<int> all;
+    for (const auto& p : parts) {
+        all.insert(all.end(), p.begin(), p.end());
+    }
+    return all;
+}
 
 /// The lit share of each whole second (120 refreshes) of `s` from `from`, gaps left out.
 std::vector<float> LitPerSecond(const std::string& s, std::size_t from = 0) {
@@ -550,4 +578,113 @@ TEST_CASE("Motion Clarity: the top screen's layers keep their shape on every ref
     // Collapsed: under a millimetre for a 25 m immersive screen, never zero.
     CHECK(25.0f * MC::kCollapse < 0.001f);
     CHECK(MC::kCollapse > 0.0f);
+}
+
+// flash3 (report 70, session 573): after Quick Load the screen was held lit for 19 refreshes
+// (2 brightness steps): the rate was learnt again after the load (a gap), and one late picture
+// of 11-12 refreshes among the first 8 intervals made the mean 3.1, a "slow game" (Slow::Hold)
+// until it left the history. The pacing lines of t=17.8-19.8: on view 1/2/3/4/5/6+ refreshes
+// 1/30/0/0/0/1, 0/57/0/1/0/0, 1/57/2/0/0/0. A hitch is not taken for the rate.
+TEST_CASE("Motion Clarity: Quick Load's late pictures make no lit run", "[frame_xr][flash]") {
+    for (const int late : {6, 9, 11, 12}) {
+        for (const int at : {0, 3, 7, 12}) { // the hitch inside learning, or just after
+            Session x;
+            x.Play(240);
+            REQUIRE(x.s.Fast());
+            x.Still(60, false); // Quick Load's dialog under the VR menu
+            x.Gap(90);          // the screens made anew: the rate is learnt again
+            x.Still(214, true); // the savestate's stall (1785 ms) on the first picture
+            const std::size_t from = x.out.size();
+            std::vector<int> first = Join({{2, 1}, Same(30)});
+            first.insert(first.begin() + at, late);
+            x.Intervals(Join({first, Same(28), {4}, Same(29), {1}, Same(28), {3, 3}, Same(55)}));
+            x.Play(240);
+            const std::string run = x.out.substr(from);
+            INFO("late " << late << " at " << at);
+            CHECK(run.find("PPPPPP") == std::string::npos);
+            CHECK(run.find("PPP") == std::string::npos);
+            CHECK(x.log.Steps() == 0);
+            CHECK(x.s.Fast());
+            CHECK(x.s.Mean() <= 2.25f);
+            CHECK(x.s.Hitches() >= 2);
+            for (const float share : LitPerSecond(run)) {
+                CHECK(share <= 0.55f);
+            }
+        }
+    }
+}
+
+// flash3: 1.1.1-571's race start ("slow game 33" at t=18-20): stalls and late pictures as the
+// countdown starts (pacing at t=15.7-21.8: on view 1/9/0/0/0/1, 9/43/2/1/0/2, 2/28/0/0/0/2, a
+// second with no new picture, 2/38/1/0/0/1, 1/53/2/1/0/0), the long ones together, from a known
+// rate and while it is learnt.
+TEST_CASE("Motion Clarity: a race start's hitches make no lit run", "[frame_xr][flash]") {
+    for (const bool learnt : {true, false}) {
+        Session x;
+        if (learnt) {
+            x.Play(240);
+            REQUIRE(x.s.Fast());
+        } else {
+            x.Play(6);
+        }
+        const std::size_t from = x.out.size();
+        x.Intervals(Join({{1}, Same(9), {8}}));
+        x.Intervals(Join({{4, 7, 8, 3, 3}, Same(9, 1), Same(43), {6}}));
+        x.Intervals(Join({{1, 1}, Same(28), {9, 10}}));
+        x.Still(120, true); // the countdown's stall: no new picture for a second
+        x.Intervals(Join({{1, 1}, Same(38), {3, 7}}));
+        x.Intervals(Join({{1}, Same(53), {3, 3, 4}}));
+        x.Play(480);
+        const std::string run = x.out.substr(from);
+        INFO("learnt " << learnt);
+        CHECK(run.find("PPP") == std::string::npos);
+        CHECK(x.log.Steps() == 0);
+        CHECK(x.s.Fast());
+    }
+}
+
+// flash3: a game that really runs at 30 a second is still held (Slow::Hold): from 60 after a
+// steady run of kSlowRun intervals of 4 +-1 (flashing on the beat until then), and while the
+// rate is learnt; a 20 a second game (6 each) the same way.
+TEST_CASE("Motion Clarity: a real 30 a second game is still held", "[frame_xr][flash]") {
+    Session x;
+    x.Play(240);
+    REQUIRE(x.s.Fast());
+    std::vector<MC::Why> whys;
+    // 7 intervals of 4: still the full rate's game, late pictures on the beat.
+    const std::size_t from = x.out.size();
+    x.Intervals(Same(MC::kSlowRun - 1, 4));
+    CHECK(x.s.Fast());
+    CHECK(x.out.substr(from).find("PP") == std::string::npos);
+    // The 8th: the rate is 30 a second now, held.
+    x.Intervals(Same(2, 4));
+    CHECK_FALSE(x.s.Fast());
+    CHECK(x.s.Mean() == 4.0f);
+    const std::size_t held = x.out.size();
+    x.Intervals(Same(30, 4));
+    CHECK(x.out.substr(held) == std::string(120, 'P'));
+    CHECK(x.log.Steps() == 1); // one step, as before (the hysteresis)
+    // With the game's own jitter (3 to 5 refreshes).
+    Session y;
+    y.Play(240);
+    y.Intervals({4, 3, 5, 4, 4, 5, 3, 4, 4});
+    CHECK_FALSE(y.s.Fast());
+    // Learnt from the start, 30 and 20 a second.
+    for (const int every : {4, 6}) {
+        Session z;
+        z.Intervals(Same(12, every));
+        CHECK_FALSE(z.s.Fast());
+        CHECK(z.s.Mean() == static_cast<float>(every));
+        const std::size_t at = z.out.size();
+        z.Intervals(Same(10, every));
+        CHECK(z.out.substr(at) == std::string(static_cast<std::size_t>(10 * every), 'P'));
+    }
+    // A run broken by the full rate's pictures is not a slow game.
+    Session w;
+    w.Play(240);
+    for (int k = 0; k < 20; k++) {
+        w.Intervals(Join({Same(MC::kSlowRun - 1, 4), {2, 2}}));
+    }
+    CHECK(w.s.Fast());
+    CHECK(w.log.Steps() == 0);
 }

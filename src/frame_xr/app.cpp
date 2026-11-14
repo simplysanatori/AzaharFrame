@@ -1301,7 +1301,8 @@ void Runtime::FrameLoop() {
             }
             layers_most = layers_most_screens = 0;
             if (const std::string line = clarity_log.Second(
-                    clarity.Mean(), fs.predictedDisplayPeriod, flash_backing);
+                    clarity.Mean(), fs.predictedDisplayPeriod, flash_backing,
+                    clarity.Hitches()); // AzaharFrame flash3
                 !line.empty()) {
                 LOG_INFO(Frontend, "xr: {}", line); // AzaharFrame flash
             }
