@@ -33,7 +33,7 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_IMMERSIVE_LOCAL",          "AZAHARFRAME_IMMERSIVE_WORLD_TAG",
         "AZAHARFRAME_IMMERSIVE_TAG_OFFSET",     "AZAHARFRAME_IMMERSIVE_POSITION_SCALE",
         "AZAHARFRAME_XR_SINGLE_FLASH",          "AZAHARFRAME_XR_REFRESH_RATE",
-        "AZAHARFRAME_XR_FLASH_BACKING", // AzaharFrame flash
+        "AZAHARFRAME_XR_FLASH_BACKING", "AZAHARFRAME_XR_FLASH_SLOW", // AzaharFrame flash
         "AZAHARFRAME_IMMERSIVE_HOLD",           "AZAHARFRAME_XR_IMAGE_LAG",
         "AZAHARFRAME_CSTICK_EDGE", // AzaharFrame kiugyro
     };
@@ -131,7 +131,7 @@ inline bool HoldWarpFrom(const std::optional<std::string>& v) {
 // AzaharFrame imglag: AZAHARFRAME_XR_IMAGE_LAG=0|1 (live) replaces the A/B switch
 // AZAHARFRAME_IMMERSIVE_ANCHOR_LAG; its value is read by ImageLag::OverrideFrom (image_lag.h).
 
-/// A switch that is on with "1" (AZAHARFRAME_XR_SINGLE_FLASH).
+/// A switch that is on with "1" (AZAHARFRAME_CSTICK_EDGE).
 inline bool OnFrom(const std::optional<std::string>& v) {
     return v && !v->empty() && (*v)[0] == '1';
 }
@@ -152,22 +152,7 @@ inline bool BackingFrom(const std::optional<std::string>& v) {
     return !(v && *v == "0");
 }
 
-/// AZAHARFRAME_XR_SINGLE_FLASH (lane dbl): each top screen picture on one display refresh only.
-/// Hide: this refresh shows the same picture again, so its layer is left out. Follows the
-/// pictures while off too, so turning it on live never hides a new one.
-class SingleFlash {
-public:
-    bool Hide(bool on, bool has_image, uint64_t serial) {
-        if (!has_image) {
-            return false;
-        }
-        const bool again = serial == flashed_;
-        flashed_ = serial;
-        return on && again;
-    }
-
-private:
-    uint64_t flashed_ = 0;
-};
+// AZAHARFRAME_XR_SINGLE_FLASH (lane dbl) is Motion Clarity's override now, read with
+// AZAHARFRAME_XR_FLASH_SLOW by motion_clarity.h (AzaharFrame flash).
 
 } // namespace FrameXr::TestSwitches

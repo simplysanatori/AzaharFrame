@@ -5422,6 +5422,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::FollowScreen: // AzaharFrame natural
         set(v.vr_immersive_follow_screen, r.value != 0);
         break;
+    case S::MotionClarity: // AzaharFrame flash
+        set(v.vr_motion_clarity, r.value != 0);
+        break;
     case S::WorldScaleSaved: { // AzaharFrame natural: the game's own file, while it plays
         if (r.value > 0) {
             v.vr_immersive_world_scale.SetGlobal(false);
@@ -5568,6 +5571,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_world_scale{v.vr_immersive_world_scale}; // AzaharFrame natural
     FrameKeepSetting keep_immersive_depth{v.vr_immersive_depth};
     FrameKeepSetting keep_follow_screen{v.vr_immersive_follow_screen};
+    FrameKeepSetting keep_motion_clarity{v.vr_motion_clarity}; // AzaharFrame flash
     FrameKeepSetting keep_world_set{v.vr_immersive_world_set};
     FrameKeepSetting keep_eye_per_far{v.vr_immersive_eye_per_far};
     FrameKeepSetting keep_hide{v.vr_hide_bottom_screen};
@@ -5597,6 +5601,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     keep_world_scale.Restore();
     keep_immersive_depth.Restore();
     keep_follow_screen.Restore();
+    keep_motion_clarity.Restore();
     keep_world_set.Restore();
     keep_eye_per_far.Restore();
     keep_hide.Restore();

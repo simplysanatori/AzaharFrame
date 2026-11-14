@@ -53,6 +53,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Vertical Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
 | [World Scale](#world-scale) | 10% to 400%, 100% by default | 100% | global and per game | eased in |
 | [Follow Screen Size](#follow-screen-size) | on or off | on | global and per game | eased in |
+| [Motion Clarity](#motion-clarity) | on or off | on | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
 
@@ -215,6 +216,10 @@ At every value, your head moves the game camera as far as the 3D shows. A game s
 ## Follow Screen Size
 
 Full modes only. When you resize the immersive screen (grip and stick left or right), the world grows or shrinks with it. Off keeps the world's size: a bigger screen then moves nearer.
+
+## Motion Clarity
+
+Full modes only. Shows each game picture once, for one refresh of the headset, and black until the next one. Turning your head, the world stays sharp and single instead of doubling. The screen is dimmer: at 60 fps it is lit half the time, which looks about three quarters as bright, and some people notice a slight flicker at the edges of their view. Games that run under 60 fps, a game that pauses or stalls, and the VR menu show as before.
 
 ## View Matrix Register
 

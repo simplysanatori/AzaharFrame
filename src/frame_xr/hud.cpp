@@ -7,6 +7,7 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <vector> // AzaharFrame flash
 
 #include "common/logging/log.h"
 #include "common/settings.h"
@@ -55,11 +56,8 @@ constexpr XrTime kBadgeRedrawNs = 250'000'000;
 // The atlas holds the toasts and, below them, a 16x16 transparent square: the passthrough layer's
 // image (SteamVR allows 16 swapchains in a session, so they share one).
 constexpr uint32_t kPassthroughSize = 16;
-// AzaharFrame flash: and beside it, past a gap, a 16x16 opaque black square: Motion Clarity's
-// backing. The quad takes its middle 8x8 only, so the compositor's filtering at the rect's edges
-// never reaches the transparent pixels round it.
-constexpr uint32_t kBackingX = 2 * kPassthroughSize;
-constexpr uint32_t kBackingInset = 4;
+// AzaharFrame flash: Motion Clarity's backing, a swapchain of its own: 16x16 opaque black.
+constexpr uint32_t kBackingSize = 16;
 constexpr uint32_t kAtlasHeight =
     kToastHeight * kAtlasRows + kBadgePxH * kBadgeBands + kPassthroughSize;
 constexpr float kToastDistance = 0.9f;  // metres ahead of the head
@@ -366,20 +364,30 @@ void Hud::Create(Runtime& rt) {
             row_boxes[static_cast<std::size_t>(kind)] = DrawRow(atlas, kind, ToastText(kind));
         }
         DrawLabels(atlas); // AzaharFrame autosave
-        // AzaharFrame flash: Motion Clarity's backing, opaque black.
-        atlas.FillRect(static_cast<float>(kBackingX), static_cast<float>(kAtlasHeight - kPassthroughSize),
-                       static_cast<float>(kBackingX + kPassthroughSize),
-                       static_cast<float>(kAtlasHeight), frame_xr::ui::rgb(0, 0, 0, 1.0f));
         if (!badge_font.Ok()) { // AzaharFrame shaderbadge: decoded once, used on the XR thread only
             badge_font.LoadBase64(Menu::Fonts::kSans500);
         }
         toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
         toast_chain.Poll(); // starts the copy; released on a later frame
     }
+    // AzaharFrame flash: Motion Clarity's backing. A swapchain of its own (one of SteamVR's 16):
+    // the toast atlas, shared, showed its toasts and labels in the screen's place when SteamVR
+    // paired the atlas with the screen's bounds for a refresh (the owner's test of 1.1.1-524).
+    if (backing_chain.Create(rt.session, rt.vulkan->Device(), rt.vulkan->PhysicalDevice(),
+                             rt.vulkan->QueueFamily(), rt.queue_lock, rt.swapchain_format,
+                             kBackingSize, kBackingSize)) {
+        std::vector<uint8_t> black(kBackingSize * kBackingSize * 4, 0);
+        for (std::size_t i = 3; i < black.size(); i += 4) {
+            black[i] = 255;
+        }
+        backing_chain.Upload(black.data());
+        backing_chain.Poll();
+    }
 }
 
 void Hud::Destroy() {
     toast_chain.Destroy();
+    backing_chain.Destroy(); // AzaharFrame flash
     shown_kind = -1;
     text_row_waiting = -1;
     badge_ready = false; // AzaharFrame shaderbadge
@@ -427,16 +435,13 @@ bool Hud::PassthroughLayer(const ViewPose& pose, XrSpace space,
 }
 
 bool Hud::BackingImage(Quad& quad) const { // AzaharFrame flash
-    if (!toast_chain.HasImage()) {
+    if (!backing_chain.HasImage()) {
         return false;
     }
-    quad.swapchain = toast_chain.Handle();
-    quad.image_rect = {
-        {static_cast<int32_t>(kBackingX + kBackingInset),
-         static_cast<int32_t>(kAtlasHeight - kPassthroughSize + kBackingInset)},
-        {static_cast<int32_t>(kPassthroughSize - 2 * kBackingInset),
-         static_cast<int32_t>(kPassthroughSize - 2 * kBackingInset)}};
-    quad.flags = 0; // opaque: the texture's alpha (1 anyway) is not used
+    quad.swapchain = backing_chain.Handle();
+    quad.image_rect = {{0, 0},
+                       {static_cast<int32_t>(kBackingSize), static_cast<int32_t>(kBackingSize)}};
+    quad.flags = 0; // opaque (SteamVR: IgnoreTextureAlpha); its alpha is 1 anyway
     return true;
 }
 
@@ -750,6 +755,7 @@ bool Hud::BadgeQuad(const ViewPose& head, const BadgeAnchor& anchor, XrTime time
 bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad,
                     const std::vector<Input::PanelQuad>* screens) {
     toast_chain.Poll();
+    backing_chain.Poll(); // AzaharFrame flash: its one copy released
     if (!toast_chain.HasImage()) {
         toast_kind = -1;
         return false;

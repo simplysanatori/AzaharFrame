@@ -1122,6 +1122,8 @@ std::string SettingsSummary() {
                      v.vr_immersive_world_scale.GetValue());
     s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kFollowScreen,
                      on(v.vr_immersive_follow_screen.GetValue()));
+    s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kMotionClarity, // AzaharFrame flash
+                     on(v.vr_motion_clarity.GetValue()));
     s += fmt::format("{}: {}%\n", FrameXr::Immersive::Names::kImmersiveDepth,
                      v.vr_immersive_depth.GetValue());
     s += fmt::format("Window Scale: {}%\n", v.vr_window_scale.GetValue());

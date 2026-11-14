@@ -30,6 +30,7 @@
 #include "frame_xr/immersive.h" // AzaharFrame immersive mode
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
+#include "frame_xr/motion_clarity.h"   // AzaharFrame flash
 #include "frame_xr/session.h"
 #include "frame_xr/test_switches.h" // AzaharFrame integ9: the switch file, live
 #include "frame_xr/toast_depth.h"   // AzaharFrame integ9: ScreenUse
@@ -515,14 +516,22 @@ void Runtime::FrameLoop() {
     std::vector<Quad> ui_quads;
     std::vector<const XrCompositionLayerBaseHeader*> layer_ptrs;
     std::vector<Quad> top_quads; // AzaharFrame vrvis: over the controller models
-    // AzaharFrame dbl / integ9: AZAHARFRAME_XR_SINGLE_FLASH, live (test_switches.h).
-    TestSwitches::SingleFlash single_flash;
-    bool test_single_flash =
-        TestSwitches::OnFrom(Common::FrameTestSwitches::Value("AZAHARFRAME_XR_SINGLE_FLASH"));
-    // AzaharFrame flash: the black backing on a hidden refresh (AZAHARFRAME_XR_FLASH_BACKING=0:
-    // the layer left out, as before), live.
-    bool flash_backing =
-        TestSwitches::BackingFrom(Common::FrameTestSwitches::Value("AZAHARFRAME_XR_FLASH_BACKING"));
+    // AzaharFrame flash: Motion Clarity (motion_clarity.h): the setting vr_motion_clarity with
+    // AZAHARFRAME_XR_SINGLE_FLASH as its override, AZAHARFRAME_XR_FLASH_SLOW for slow games and
+    // AZAHARFRAME_XR_FLASH_BACKING for an A/B of the backing, all live (test_switches.h).
+    MotionClarity::Scheduler clarity;
+    MotionClarity::Log clarity_log;
+    std::optional<bool> clarity_override;
+    bool flash_backing = true;
+    const auto read_clarity_switches = [&] {
+        clarity_override = MotionClarity::OverrideFrom(
+            Common::FrameTestSwitches::Value("AZAHARFRAME_XR_SINGLE_FLASH"));
+        clarity.SetSlow(
+            MotionClarity::SlowFrom(Common::FrameTestSwitches::Value("AZAHARFRAME_XR_FLASH_SLOW")));
+        flash_backing = TestSwitches::BackingFrom(
+            Common::FrameTestSwitches::Value("AZAHARFRAME_XR_FLASH_BACKING"));
+    };
+    read_clarity_switches();
     // AzaharFrame integ9: the test-switch file read again when it changed (once a second, after
     // xrEndFrame): the live switches applied, each change logged and shown in a toast.
     const auto poll_test_switches = [&] {
@@ -537,10 +546,9 @@ void Runtime::FrameLoop() {
             if (c.env_wins || TestSwitches::ApplyFor(c.name) != TestSwitches::Apply::Live) {
                 continue;
             }
-            if (c.name == "AZAHARFRAME_XR_SINGLE_FLASH") {
-                test_single_flash = TestSwitches::OnFrom(Common::FrameTestSwitches::Value(c.name));
-            } else if (c.name == "AZAHARFRAME_XR_FLASH_BACKING") { // AzaharFrame flash
-                flash_backing = TestSwitches::BackingFrom(Common::FrameTestSwitches::Value(c.name));
+            if (c.name == "AZAHARFRAME_XR_SINGLE_FLASH" || c.name == "AZAHARFRAME_XR_FLASH_SLOW" ||
+                c.name == "AZAHARFRAME_XR_FLASH_BACKING") {
+                read_clarity_switches(); // AzaharFrame flash
             } else if (c.name == "AZAHARFRAME_XR_IMAGE_LAG") {
                 UpdateImageLag("test switch changed"); // AzaharFrame imglag
             } else if (c.name == "AZAHARFRAME_XR_REFRESH_RATE") {
@@ -786,30 +794,45 @@ void Runtime::FrameLoop() {
             place = WithSecondSlot(place); // AzaharFrame layout: as GetScreenPlacement
             // Immersive mode (immersive.cpp) may move the top screen and hide the bottom one.
             const Immersive::ScreenLayers shown = Immersive::Screens(local_space, view_space, place);
-            // AzaharFrame dbl: AZAHARFRAME_XR_SINGLE_FLASH=1 (a test switch): each game picture of
-            // the top screen on one display refresh only; the refreshes after it that would
-            // show it again show no top screen (black, or the room with passthrough). Dim and
-            // flickering, but no game picture is ever seen twice: an A/B for double images
-            // that come from a picture held on two refreshes.
-            // AzaharFrame integ9: live (test_switches.h; the switch file is read again while running).
-            // AzaharFrame imglag: judged on the picture this refresh would show (with the image
-            // lag the one the last frame carried), so no picture is seen on two refreshes.
+            // AzaharFrame flash: Motion Clarity (motion_clarity.h; it began as the test switch
+            // AZAHARFRAME_XR_SINGLE_FLASH): each game picture of the top screen on one display
+            // refresh only, in the Full modes while the game is played, at its full rate. Judged
+            // on the picture this refresh would show (with the image lag, the one the last frame
+            // carried), so no picture is seen on two refreshes. Held (as without it) with the VR
+            // menu, the game's keyboard, a pause or the bottom screen in focus, for a game under
+            // the full rate, and for a picture late past its time.
+            const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(shown) : VrUi::ScreenDraw{};
             bool hide_top = false;
+            MotionClarity::TopLayers top_layers;
+            Quad backing; // AzaharFrame flash: the backing's image (Hud::BackingImage)
             {
                 const ScreenChain& t = screens[static_cast<std::size_t>(VideoCore::XrScreen::TopLeft)];
-                hide_top = single_flash.Hide(
-                    test_single_flash, t.has_image,
-                    ImageLag::SerialOnView(t.frame_serial, sent_serial.load(), image_lag.load()));
+                MotionClarity::Refresh rf;
+                rf.on = MotionClarity::InEffect(Settings::values.vr_motion_clarity.GetValue(),
+                                                clarity_override, shown.head_driven);
+                rf.steady = ui && ui->PlayOnView() && !draw.swapped && shown.show_top;
+                if (t.handle != XR_NULL_HANDLE && t.has_image) {
+                    const uint64_t on_view = ImageLag::SerialOnView(
+                        t.frame_serial, sent_serial.load(), image_lag.load());
+                    const std::array<ShownPicture, kShownPictures> pics = ShownPictures();
+                    const ShownPicture* p = ImageLag::FindPicture(pics, on_view);
+                    rf.picture = MotionClarity::PictureId(p ? p->picture : 0, on_view);
+                }
+                const MotionClarity::Decision d = clarity.Next(rf);
+                // AzaharFrame flash: SteamVR makes each quad layer the overlay of its index and
+                // sets its texture, bounds, transform and size in separate calls; leaving the
+                // screens out hid and showed their overlays 60 times a second with nothing of ours
+                // over the view, and borrowing another swapchain for the dark refreshes showed
+                // that swapchain's other content in the screen's place. So the backing is a layer
+                // of its own under each eye's screen while Motion Clarity is in effect, and on a
+                // dark refresh the screen is only shrunk to nothing (TopLayersFor).
+                top_layers = MotionClarity::TopLayersFor(rf.on, flash_backing,
+                                                         hud.BackingImage(backing), !d.show);
+                hide_top = top_layers.omit || top_layers.collapse;
+                clarity_log.Note(hide_top ? MotionClarity::Why::Dark
+                                 : d.show ? d.why
+                                          : MotionClarity::Why::Off);
             }
-            // AzaharFrame flash: on a hidden refresh an opaque black quad takes the top screen's
-            // place in the layer list, with each eye's pose, size and shape. SteamVR makes each
-            // quad layer the overlay of its index (openxr_quadlayer_<i>) and hides the overlays
-            // past a frame's count: leaving the screens out hid and showed overlays 0 and 1 at
-            // 60 Hz, with nothing of ours over the view on the hidden refreshes, so the
-            // compositor's own background and overlays (and the controllers, drawn under every
-            // quad) flickered through. The list now keeps its shape on every refresh.
-            Quad backing;
-            const bool backing_ok = hide_top && flash_backing && hud.BackingImage(backing);
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
                                         XrExtent2Df size, XrEyeVisibility eye, float curve) {
                 // AzaharFrame doubling: a packed top screen is one swapchain, the left eye in
@@ -822,7 +845,7 @@ void Runtime::FrameLoop() {
                 // is left out this refresh (SINGLE_FLASH), so the toast's depth holds still.
                 const ToastDepth::ScreenUse use =
                     ToastDepth::UseOf(chain.handle != XR_NULL_HANDLE && chain.has_image,
-                                      top && hide_top);
+                                      top && top_layers.omit);
                 if (use.toast_input) {
                     // AzaharFrame kiu2: where it is in LOCAL space, for the toast (toast_depth.h).
                     Input::PanelQuad tq;
@@ -843,26 +866,32 @@ void Runtime::FrameLoop() {
                     tq.curve_radius = curve;
                     toast_screens.push_back(tq);
                 }
-                // AzaharFrame flash: shown once already: the black backing in its place.
-                const bool as_backing = top && hide_top && backing_ok &&
-                                        chain.handle != XR_NULL_HANDLE && chain.has_image;
-                if (!use.layer && !as_backing) {
-                    return; // no picture, or (AzaharFrame dbl) shown once already, no backing
+                if (!use.layer) {
+                    return; // no picture, or (AZAHARFRAME_XR_FLASH_BACKING=0) shown once already
                 }
-                if (s == VideoCore::XrScreen::TopLeft && !as_backing) { // AzaharFrame imglag
+                if (s == VideoCore::XrScreen::TopLeft) { // AzaharFrame imglag
                     top_carried = true;
                     top_serial = chain.frame_serial;
+                }
+                // AzaharFrame flash: the black backing, a layer of its own under the screen, the
+                // same pose, size, shape and eye, on every refresh while Motion Clarity is on.
+                if (top && top_layers.backing) {
+                    Quad b = backing;
+                    b.pose = pose;
+                    b.size = size;
+                    b.eye = eye;
+                    if (curve > 0.0f) {
+                        quad_layers.push_back(MakeCylinder(space, b, curve));
+                    } else {
+                        quad_layers.push_back(MakeQuad(space, b));
+                    }
                 }
                 Quad q;
                 q.swapchain = chain.handle;
                 q.image_rect = {{0, 0},
                                 {static_cast<int32_t>(chain.width),
                                  static_cast<int32_t>(chain.height)}};
-                if (as_backing) {
-                    q.swapchain = backing.swapchain;
-                    q.image_rect = backing.image_rect;
-                    q.flags = backing.flags;
-                } else if (packed_top && top) {
+                if (packed_top && top) {
                     const int32_t half =
                         static_cast<int32_t>((chain.height - VideoCore::kXrPackedGap) / 2);
                     q.image_rect.extent.height = half;
@@ -873,6 +902,10 @@ void Runtime::FrameLoop() {
                 }
                 q.pose = pose;
                 q.size = size;
+                if (top && top_layers.collapse) { // AzaharFrame flash: a dark refresh
+                    q.size = {size.width * MotionClarity::kCollapse,
+                              size.height * MotionClarity::kCollapse};
+                }
                 q.eye = eye;
                 if (curve > 0.0f) {
                     quad_layers.push_back(MakeCylinder(space, q, curve)); // AzaharFrame curve
@@ -881,8 +914,8 @@ void Runtime::FrameLoop() {
                 }
             };
             // AzaharFrame screenswap: with the bottom screen in focus the screens trade places
-            // (immersive is paused then); a hidden screen is not added.
-            const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(shown) : VrUi::ScreenDraw{};
+            // (immersive is paused then); a hidden screen is not added. (AzaharFrame flash: `draw`
+            // is taken above, for Motion Clarity.)
             label_top_ok = !draw.swapped && shown.show_top && shown.top_pointable &&
                            shown.top_space == local_space;
             label_top_pose = shown.top_pose[0];
@@ -1090,6 +1123,11 @@ void Runtime::FrameLoop() {
         if (since >= 1.0) {
             LogSummary(since, wait_count ? wait_sum_ms / wait_count : 0.0, wait_max_ms, worst);
             pacing.Second(since); // AzaharFrame pacing
+            if (const std::string line = clarity_log.Second(
+                    clarity.Mean(), fs.predictedDisplayPeriod, flash_backing);
+                !line.empty()) {
+                LOG_INFO(Frontend, "xr: {}", line); // AzaharFrame flash
+            }
             poll_test_switches(); // AzaharFrame integ9
             last_log = log_now;
             wait_sum_ms = wait_max_ms = 0.0;

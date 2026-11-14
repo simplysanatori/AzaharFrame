@@ -295,6 +295,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_immersive_depth.SetGlobal(true);   // AzaharFrame natural
     values.vr_immersive_world_scale.SetGlobal(true);
     values.vr_immersive_follow_screen.SetGlobal(true);
+    values.vr_motion_clarity.SetGlobal(true); // AzaharFrame flash
     values.vr_immersive_world_set.SetGlobal(true);
     values.vr_immersive_eye_per_far.SetGlobal(true);
     values.vr_hide_bottom_screen.SetGlobal(true);

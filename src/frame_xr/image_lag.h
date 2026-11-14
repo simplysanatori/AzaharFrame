@@ -32,6 +32,10 @@ namespace FrameXr {
 struct ShownPicture {
     uint64_t serial = 0; ///< 0: none
     VideoCore::XrContentPose content{};
+    /// AzaharFrame flash: which game picture it is: the game's top screen swaps when it was drawn,
+    /// plus 1 (0: not known). A release with no swap since the one before shows the same picture
+    /// again (a game at 30 pictures a second releases each one twice).
+    uint64_t picture = 0;
 };
 /// AzaharFrame imglag: 8 (was 4): the picture on view is found by its serial, one or more
 /// releases behind the newest (two releases inside one refresh, a frame loop that fell behind).

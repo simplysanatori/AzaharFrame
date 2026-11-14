@@ -2066,6 +2066,7 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
         NoteSlip(anchored, anchor_head, out.top_pose);
         out.top_pointable = false;
         out.show_bottom = false;
+        out.head_driven = true; // AzaharFrame flash
     }
     const float top_distance = out.top_space == view_space || (g.engaged && IsViewMode(g.mode))
                                    ? g.solved.distance

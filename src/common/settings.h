@@ -798,6 +798,11 @@ struct Values {
     SwitchableSetting<float, true> vr_immersive_world_scale{100.0f, 10.0f, 400.0f,
                                                             "vr_immersive_world_scale"};
     SwitchableSetting<bool> vr_immersive_follow_screen{true, "vr_immersive_follow_screen"};
+    // AzaharFrame flash: Motion Clarity (per game and global, on by default): in the Full modes
+    // each top screen picture of a game at its full rate is shown on one display refresh only,
+    // with a black backing on the rest (frame_xr/motion_clarity.h). Read every frame. A new key:
+    // older builds ignore it.
+    SwitchableSetting<bool> vr_motion_clarity{true, "vr_motion_clarity"};
     SwitchableSetting<bool> vr_immersive_world_set{false, "vr_immersive_world_set"};
     SwitchableSetting<float> vr_immersive_eye_per_far{0.0f, "vr_immersive_eye_per_far"};
     // AzaharFrame: show only the top screen in VR (the bottom one comes back with the bumper

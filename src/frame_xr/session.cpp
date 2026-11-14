@@ -10,6 +10,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <utility> // AzaharFrame flash: std::exchange
 #include <fmt/format.h>
 
 #include "common/logging/log.h"
@@ -644,6 +645,7 @@ void Runtime::Release(VideoCore::XrScreen screen, bool gpu_finished) {
 
 void Runtime::WaitPresentSlot(uint64_t game_swaps) {
     pacing.WaitSlot(release_serial, game_swaps); // AzaharFrame pacing (this thread's serial)
+    release_picture = game_swaps + 1; // AzaharFrame flash: the picture the next release shows
 }
 
 void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& content) {
@@ -690,7 +692,8 @@ void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& co
     {
         std::scoped_lock lock{content_mutex};
         shown_content = content;
-        shown_pictures[shown_next] = {serial, content}; // AzaharFrame heldquad
+        // AzaharFrame heldquad; AzaharFrame flash: and which game picture it is
+        shown_pictures[shown_next] = {serial, content, std::exchange(release_picture, 0)};
         shown_next = (shown_next + 1) % shown_pictures.size();
     }
     if (!set_release) {
