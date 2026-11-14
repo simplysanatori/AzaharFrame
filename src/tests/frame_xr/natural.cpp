@@ -731,3 +731,142 @@ TEST_CASE("Natural: World Scale's migration survives old -> new -> old -> new", 
     CHECK_FALSE(WorldScaleToMigrate(true, false));
     CHECK_FALSE(WorldScaleToMigrate(true, true));
 }
+
+// AzaharFrame wsgrip: the grip's World Scale is exact (never a slider stop), its toast reads the
+// exact value in whole percent, and the speed is one ratio a second over the whole range.
+namespace {
+struct GripRun {
+    float value;
+    float t = 0.0f;
+    std::vector<std::string> toasts; // what the toast shows, one entry per change (gated)
+    std::vector<long> whole;         // every whole percent the value reached, frame by frame
+};
+
+// Mirrors Immersive::OnGameInput's World Scale path: the stick's ratio on the exact value.
+GripRun HoldGrip(float start, float stick_y, float hz, float seconds) {
+    FrameXr::Input::InputFrame f;
+    f.hand[0].active = f.hand[1].active = true;
+    f.hand[1].grip = 1.0f;
+    f.hand[1].stick = {0.0f, stick_y};
+    Adjuster adj;
+    Placement p;
+    GripRun run{start};
+    const float dt = 1.0f / hz;
+    adj.Update(f, FrameXr::Input::Posef{}, dt, true, p, nullptr); // the grab
+    long shown = -1;
+    WorldScaleToastGate gate;
+    for (int i = 0; i < static_cast<int>(seconds * hz); ++i) {
+        float ratio = 1.0f;
+        adj.Update(f, FrameXr::Input::Posef{}, dt, true, p, &ratio);
+        run.value = WorldScaleAfterGrip(run.value, ratio);
+        run.t += dt;
+        if (WorldScaleWhole(run.value) != shown) {
+            shown = WorldScaleWhole(run.value);
+            run.whole.push_back(shown);
+        }
+        // As OnGameInput: the toast at its rate, from the exact value.
+        if (gate.Due(WorldScaleWhole(run.value), static_cast<int64_t>(run.t * 1e9f))) {
+            run.toasts.push_back(WorldScaleToast(run.value));
+        }
+    }
+    // The release shows the final value if it is not on view.
+    if (gate.Due(WorldScaleWhole(run.value), static_cast<int64_t>(run.t * 1e9f), true)) {
+        run.toasts.push_back(WorldScaleToast(run.value));
+    }
+    return run;
+}
+} // namespace
+
+TEST_CASE("Natural: the World Scale grip keeps the exact value", "[frame_xr][natural][wsgrip]") {
+    // The text follows the exact value in whole percent, over the whole range.
+    for (int w = 10; w <= 400; ++w) {
+        CHECK(WorldScaleToast(static_cast<float>(w)) == "World Scale: " + std::to_string(w) + "%");
+    }
+    CHECK(WorldScaleToast(237.2f) == "World Scale: 237%");
+    CHECK(WorldScaleToast(237.6f) == "World Scale: 238%");
+    CHECK(WorldScaleToast(100.0f) == "World Scale: 100%");
+    // The value: only clamped, between the stops too.
+    CHECK(WorldScaleAfterGrip(237.0f, 1.0f) == 237.0f);
+    CHECK(WorldScaleAfterGrip(210.0f, 1.01f) == Approx(212.1f));
+    CHECK(WorldScaleAfterGrip(399.0f, 2.0f) == 400.0f);
+    CHECK(WorldScaleAfterGrip(11.0f, 0.1f) == 10.0f);
+    CHECK(WorldScaleAfterGrip(std::nanf(""), 1.0f) == 100.0f);
+
+    SECTION("up from 100 at a normal speed: every whole percent, then exactly where it stopped") {
+        // Half stick at 90 Hz: 0.55 e-folds a second, under 1 % a frame up to 160 %; 0.8 s reaches 155 %.
+        const GripRun run = HoldGrip(100.0f, 0.55f, 90.0f, 0.8f);
+        REQUIRE(run.whole.size() > 30);
+        for (std::size_t i = 1; i < run.whole.size(); ++i) {
+            CHECK(run.whole[i] == run.whole[i - 1] + 1);
+        }
+        CHECK(run.value == Approx(100.0f * std::exp(0.55f * run.t)).epsilon(1e-3));
+        CHECK(run.toasts.back() == WorldScaleToast(run.value));
+        // The toast changes at most 12.5 times a second (an upload each), and shows exact values.
+        CHECK(static_cast<float>(run.toasts.size()) <= 0.8f / 0.08f + 2.0f);
+        // Not a stop, as the slider would put it.
+        bool stop = false;
+        for (const float s : kWorldScaleStops) {
+            stop = stop || s == run.value;
+        }
+        CHECK_FALSE(stop);
+    }
+    SECTION("down from 100 to the floor: every whole percent") {
+        const GripRun run = HoldGrip(100.0f, -0.55f, 90.0f, 6.0f);
+        for (std::size_t i = 1; i < run.whole.size(); ++i) {
+            CHECK(run.whole[i] == run.whole[i - 1] - 1);
+        }
+        CHECK(run.value == 10.0f);
+        CHECK(run.toasts.back() == "World Scale: 10%");
+    }
+    SECTION("high values at 120 Hz: the toast changes at a set rate, not every frame") {
+        const GripRun run = HoldGrip(200.0f, 1.0f, 120.0f, 1.0f); // 200 -> 400 in ln 2 s
+        for (std::size_t i = 1; i < run.whole.size(); ++i) {
+            CHECK(run.whole[i] > run.whole[i - 1]);
+            CHECK(run.whole[i] - run.whole[i - 1] <= 5); // one frame's step, not a stop's 12 %
+        }
+        // Frame by frame the whole percent changes (120 texts a second without the gate).
+        CHECK(run.whole.size() > 80);
+        CHECK(run.toasts.size() <= 10);
+        CHECK(run.toasts.size() >= 7);
+        CHECK(run.toasts.back() == WorldScaleToast(run.value));
+        CHECK(run.value == 400.0f);
+    }
+    SECTION("the toast gate: a stopped value is shown, the release shows the last") {
+        WorldScaleToastGate gate;
+        CHECK(gate.Due(150, 0));                    // the first at once
+        CHECK_FALSE(gate.Due(151, 10'000'000));     // too soon
+        CHECK_FALSE(gate.Due(150, 100'000'000));    // the same percent
+        CHECK(gate.Due(151, 100'000'000));          // later, a changed value (stopped meanwhile)
+        CHECK_FALSE(gate.Due(152, 120'000'000));
+        CHECK(gate.Due(152, 120'000'000, true));    // the release
+        CHECK_FALSE(gate.Due(152, 400'000'000, true));
+    }
+    SECTION("an even speed: 10 -> 20 takes as long as 200 -> 400") {
+        const auto time_to = [](float from, float to) {
+            FrameXr::Input::InputFrame f;
+            f.hand[0].active = f.hand[1].active = true;
+            f.hand[1].grip = 1.0f;
+            f.hand[1].stick = {0.0f, 1.0f};
+            Adjuster adj;
+            Placement p;
+            adj.Update(f, FrameXr::Input::Posef{}, 1.0f / 90.0f, true, p, nullptr);
+            float v = from, t = 0.0f;
+            while (v < to && t < 60.0f) {
+                float ratio = 1.0f;
+                adj.Update(f, FrameXr::Input::Posef{}, 1.0f / 90.0f, true, p, &ratio);
+                v = WorldScaleAfterGrip(v, ratio);
+                t += 1.0f / 90.0f;
+            }
+            return t;
+        };
+        const float low = time_to(10.0f, 20.0f);
+        CHECK(low == Approx(std::log(2.0f) / kDistanceRate).margin(0.03));
+        CHECK(time_to(200.0f, 400.0f) == Approx(low).margin(0.03));
+        CHECK(time_to(50.0f, 100.0f) == Approx(low).margin(0.03));
+    }
+    SECTION("the same ratio at 30, 60 and 120 frames a second") {
+        const float a = HoldGrip(100.0f, 1.0f, 30.0f, 1.0f).value;
+        CHECK(HoldGrip(100.0f, 1.0f, 60.0f, 1.0f).value == Approx(a).epsilon(1e-3));
+        CHECK(HoldGrip(100.0f, 1.0f, 120.0f, 1.0f).value == Approx(a).epsilon(1e-3));
+    }
+}
