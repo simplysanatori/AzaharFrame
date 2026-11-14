@@ -781,7 +781,7 @@ std::string ExplainFor(Id id) {
     case Id::MotionControls:
         return "The controller or headset that acts as the 3DS gyroscope.";
     case Id::GyroAim: // AzaharFrame kiugyro
-        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, set to gyro in the game's controls. Direct Aim puts the reticle where you point. Hold the grip to pause.";
+        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Direct Aim puts the reticle where you point. Hold the grip to pause.";
     case Id::GyroSensitivity:
         return "Scales the gyroscope in every game.";
     case Id::TurnZone:

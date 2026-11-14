@@ -1870,10 +1870,6 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     const bool weapon_on = kiu && Settings::values.vr_light_gun_weapon.GetValue();
     bool weapon_shown = false;
     Kiu::SetWanted(weapon_on, kiu && recoil_on, kiu);
-    // AzaharFrame kiufix: the game's controls not on the mod's gyro: the controller cannot steer.
-    if (aim_scheme_hint.Update(in.time_ns, kiu, Kiu::ControlScheme())) {
-        ShowToastText(Input::kAimNeedsGyroToast, ToastTime::Long);
-    }
     if (weapon_on) {
         FrameWeapons::Request(); // made the first time they are wanted (once a boot)
         // AZAHARFRAME_KIU_WEAPON=<id> (live): that weapon, for tuning its class's fit.

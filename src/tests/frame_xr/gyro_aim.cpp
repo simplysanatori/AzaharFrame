@@ -267,12 +267,16 @@ struct Game {
     float x = 200.0f, y = 120.0f; ///< the reticle as moved
     float seen_x = 200.0f, seen_y = 120.0f;
     double turned_x = 0.0, turned_y = 0.0; ///< overshoot past the box, px
+    /// AzaharFrame kiufix2: the C-Stick's own move (px a second, the mod's drag), added to the
+    /// gyro's each game frame.
+    float stick_x = 0.0f;
     // internal
     ModRead hid;
     double next_hid = 0.0, next_frame = 0.0;
     struct Pending {
         double at;
         ModRead rate;
+        float stick_x = 0.0f;
     };
     std::vector<Pending> pending;
 
@@ -300,12 +304,13 @@ struct Game {
             }
             if (now_s >= next_frame) {
                 next_frame += frame_s;
-                pending.push_back({now_s + delay_s, hid});
+                pending.push_back({now_s + delay_s, hid, stick_x});
             }
             while (!pending.empty() && now_s >= pending.front().at) {
                 const ModRead rate = pending.front().rate;
+                const float stick = pending.front().stick_x;
                 pending.erase(pending.begin());
-                x += gain_x * rate.right * frame_s;
+                x += gain_x * rate.right * frame_s + stick * frame_s;
                 y += gain_y * rate.down * frame_s;
                 float x0 = 0, y0 = 0, x1 = w, y1 = h;
                 if (ground) {
@@ -342,14 +347,19 @@ struct Session {
     float zone = 0.1f;
     float speed = 1.0f;
     bool clutch = false;
+    /// AzaharFrame kiufix2: the right stick (after the mapper's dead zone); its x moves the
+    /// reticle at kStickPxS a second at full tilt, and pauses Direct Aim as kiu_probe does.
+    Vec2f c_stick{};
+    static constexpr float kStickPxS = 300.0f;
     std::vector<float> xs; ///< the reticle seen at each game frame
 
     void Run(double seconds) {
         const double until = now + seconds;
         double next_log = now;
+        game.stick_x = c_stick.x * kStickPxS;
         game.Run(now, until, [&](double t, const ReticleReading& r) {
             const auto out = loop.Update(static_cast<int64_t>(t * 1e9), r, target, zone, speed,
-                                         clutch);
+                                         clutch || CStickTakesAim(c_stick));
             return ModGyro(ModRateFor(out.right_dps), ModRateFor(out.down_dps));
         });
         (void)next_log;
@@ -607,6 +617,95 @@ TEST_CASE("FrameXr Light Gun: the grip holds the reticle, letting go converges w
     CHECK(over <= 3.0f);
 }
 
+// AzaharFrame kiufix2: "The C-Stick is still nice to use." With the game's controls on C-Stick
+// the mod moves the reticle with the stick and the gyro together; Direct Aim used to pull the
+// reticle back under the pointer every poll, undoing the stick's moves and fighting its turns.
+TEST_CASE("FrameXr Light Gun: the C-Stick wins while pushed", "[frame_xr][kiufix2]") {
+    CHECK_FALSE(CStickTakesAim({0.0f, 0.0f}));      // centred (inside the dead zone: 0)
+    CHECK_FALSE(CStickTakesAim({0.005f, -0.005f})); // float noise
+    CHECK(CStickTakesAim({0.05f, 0.0f}));           // just past the dead zone
+    CHECK(CStickTakesAim({0.0f, -1.0f}));
+    CHECK(CStickTakesAim({-0.6f, 0.6f}));
+}
+
+TEST_CASE("FrameXr Light Gun: the C-Stick steers, then Direct Aim eases back in",
+          "[frame_xr][kiufix2]") {
+    const float fps = GENERATE(30.0f, 60.0f);
+    INFO("fps " << fps);
+    Session s;
+    s.game.ground = false;
+    s.game.frame_s = 1.0f / fps;
+    s.game.delay_s = 0.5f / fps;
+    s.game.gain_x = s.game.gain_y = 6.0f;
+    float over = 0.0f;
+    REQUIRE(s.Step(0.3f, 0.5f, over, 4.0) > 0);
+    REQUIRE(s.Step(0.5f, 0.5f, over, 4.0) > 0);
+    const float gain = s.loop.gain_x();
+    const float x0 = s.game.seen_x;
+    // The stick half way right for half a second: the reticle goes where the stick takes it
+    // (0.5 x 300 px/s x 0.5 s = 75 px), the pointer still at the middle.
+    s.c_stick = {0.5f, 0.0f};
+    s.Run(0.5);
+    const float pushed = s.game.seen_x - x0;
+    INFO("moved by the stick " << pushed << " px");
+    CHECK(pushed > 60.0f);
+    CHECK(pushed < 85.0f);
+    // Let go: no snap. It eases back under the pointer: slowly at first, never past it, never
+    // back the other way, and there within a second.
+    s.c_stick = {};
+    const float from = s.game.seen_x;
+    float last = from, worst_step = 0.0f, went_away = 0.0f;
+    float at_100ms = from;
+    const int frames = static_cast<int>(fps);
+    for (int f = 0; f < frames; f++) {
+        s.Run(1.0 / fps);
+        worst_step = std::max(worst_step, last - s.game.seen_x);
+        went_away = std::max(went_away, s.game.seen_x - last);
+        last = s.game.seen_x;
+        if (f + 1 == static_cast<int>(0.1f * fps)) {
+            at_100ms = s.game.seen_x;
+        }
+    }
+    INFO("after 100 ms " << (from - at_100ms) << " of " << (from - x0) << " px, worst step "
+                         << worst_step << " px");
+    CHECK(from - at_100ms < 0.35f * (from - x0)); // eased: a third of the way at most
+    CHECK(worst_step < 0.25f * (from - x0));      // no frame jumps a quarter of the gap
+    // (The stick's last game frame may still land after it is let go: the game's latency.)
+    CHECK(went_away <= 0.5f * Session::kStickPxS / fps + 0.5f);
+    CHECK(s.game.seen_x == Approx(x0).margin(1.0f));
+    CHECK(s.game.seen_x >= x0 - 3.0f);
+    // What the stick moved was not taken for the gyro's: the learnt gain is as it was.
+    CHECK(s.loop.gain_x() == Approx(gain).epsilon(0.05));
+    CHECK_FALSE(s.loop.easing());
+}
+
+TEST_CASE("FrameXr Light Gun: the C-Stick's camera turn is not fought", "[frame_xr][kiufix2]") {
+    Session s;
+    s.game.ground = true;
+    s.zone = 0.1f;
+    float over = 0.0f;
+    REQUIRE(s.Step(0.45f, 0.5f, over, 4.0) > 0);
+    REQUIRE(s.Step(0.55f, 0.5f, over, 4.0) > 0);
+    const float gain = s.loop.gain_x();
+    // The stick full right for a second: the reticle runs to the box's edge and the rest of the
+    // stick's move turns the camera, as with Aiming off (300 px a second, less the way to the
+    // edge).
+    s.game.turned_x = 0.0;
+    s.c_stick = {1.0f, 0.0f};
+    s.Run(1.0);
+    const double edge = 0.65 * s.game.w - 0.55 * s.game.w;
+    INFO("turned " << s.game.turned_x << " px");
+    CHECK(s.game.turned_x == Approx(Session::kStickPxS * 1.0 - edge).margin(15.0));
+    CHECK(s.game.seen_x == Approx(0.65f * s.game.w).margin(1.0f));
+    // Let go: back under the pointer, eased, and no turn of Direct Aim's own on the way.
+    s.c_stick = {};
+    s.game.turned_x = 0.0;
+    s.Run(1.0);
+    CHECK(std::fabs(s.game.turned_x) < 1.0);
+    CHECK(s.game.seen_x == Approx(0.55f * s.game.w).margin(1.0f));
+    CHECK(s.loop.gain_x() == Approx(gain).epsilon(0.05));
+}
+
 TEST_CASE("FrameXr Light Gun: no reading, no rate", "[frame_xr][kiugyro]") {
     LightGunLoop loop;
     ReticleReading bad;
@@ -692,8 +791,8 @@ TEST_CASE("FrameXr Light Gun: the laser sight shows with Direct Aim on the top s
     }
 }
 
-// AzaharFrame kiufix: the owner's session: Direct Aim never read the reticle (the game's
-// controls were not on gyro) and Laser Sight, on, drew nothing at all.
+// AzaharFrame kiufix: the owner's session: Direct Aim had not read the reticle yet and Laser
+// Sight, on, drew nothing at all.
 TEST_CASE("FrameXr Light Gun: Laser Sight does not wait for the reticle's reading",
           "[frame_xr][kiufix]") {
     const LightGunTarget on{true, 0.5f, 0.5f};
@@ -702,20 +801,6 @@ TEST_CASE("FrameXr Light Gun: Laser Sight does not wait for the reticle's readin
         CHECK(b.laser);
         CHECK_FALSE(b.hide_top);
     }
-}
-
-TEST_CASE("FrameXr Aiming: the hint when the game's controls are not on gyro",
-          "[frame_xr][kiufix]") {
-    AimSchemeHint hint;
-    const int64_t s = 1'000'000'000;
-    CHECK_FALSE(hint.Update(0, true, -1)); // not read yet
-    CHECK(hint.Update(1 * s, true, 0));    // C-Stick: once
-    CHECK_FALSE(hint.Update(2 * s, true, 0));
-    CHECK_FALSE(hint.Update(3 * s, false, 0)); // Aiming off: nothing, and armed again
-    CHECK_FALSE(hint.Update(4 * s, true, 0));  // but not within the repeat time
-    CHECK_FALSE(hint.Update(5 * s, true, 1));  // gyro: nothing
-    CHECK(hint.Update(5 * s + AimSchemeHint::kRepeatNs, true, 3)); // Circle Pad, later: again
-    CHECK_FALSE(hint.Update(6 * s + AimSchemeHint::kRepeatNs, true, 3));
 }
 
 TEST_CASE("FrameXr Light Gun: the laser sight's art", "[frame_xr][kiugyro]") {

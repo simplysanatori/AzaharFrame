@@ -53,6 +53,7 @@ struct Probe {
     Input::LightGunLoop loop;
     std::string reason;
     int64_t last_stats_ns = 0;
+    bool stick_logged = false; // AzaharFrame kiufix2
 };
 
 Probe& TheProbe() {
@@ -132,17 +133,8 @@ bool ReadReticle(Probe& p, Input::ReticleReading& r, std::string& why) {
         v = memory.Read32(*process, a);
         return true;
     };
-    uint32_t options = 0, scheme_word = 0;
-    if (!read32(p.addr.options_ptr, options) || options == 0 ||
-        !read32(options + kOptionsScheme, scheme_word)) {
-        why = "the game's options are not readable";
-        return false;
-    }
-    if (SchemeOf(scheme_word) != kSchemeGyro) {
-        why = fmt::format("the game's controls are not set to gyro (scheme {})",
-                          SchemeOf(scheme_word));
-        return false;
-    }
+    // AzaharFrame kiufix2: any control scheme. The mod's gyro aims in the C-Stick scheme too
+    // (the owner's headset check of 2026-11-14), so the scheme is only logged (kiu_weapon.h).
     uint32_t object = 0;
     if (!read32(p.addr.state + kStateReticle, object) || object == 0) {
         why = "no reticle";
@@ -204,8 +196,15 @@ bool Override(Common::Vec3f& gyro) {
     Note(p, "locked");
     Core::System& system = Core::System::GetInstance();
     const int64_t now = EmulatedNs(system);
-    const Input::LightGunLoop::Out out = p.loop.Update(
-        now, reading, frame.target, frame.zone_fraction, frame.turn_speed, frame.clutch);
+    // AzaharFrame kiufix2: the C-Stick pushed pauses Direct Aim as its grip does.
+    if (frame.stick != p.stick_logged) {
+        p.stick_logged = frame.stick;
+        LOG_DEBUG(Frontend, "xr: Light Gun: {}",
+                  frame.stick ? "the C-Stick steers" : "the C-Stick let go, easing back in");
+    }
+    const Input::LightGunLoop::Out out =
+        p.loop.Update(now, reading, frame.target, frame.zone_fraction, frame.turn_speed,
+                      frame.clutch || frame.stick);
     Input::Vec3f g =
         Input::ModGyro(Input::ModRateFor(out.right_dps), Input::ModRateFor(out.down_dps));
     // The HID service multiplies the gyroscope by the last frame's time scale (to keep a real
@@ -228,10 +227,14 @@ bool Override(Common::Vec3f& gyro) {
         p.last_stats_ns = host_now;
         LOG_INFO(Frontend,
                  "xr: Light Gun: reticle {:.0f}, {:.0f} of {:.0f}x{:.0f} ({}), target {:.3f}, "
-                 "{:.3f}, gain {:.2f}, {:.2f} px/deg, game frame {:.1f} ms",
+                 "{:.3f}, gain {:.2f}, {:.2f} px/deg, game frame {:.1f} ms{}",
                  reading.x, reading.y, reading.w, reading.h, reading.ground ? "ground" : "air",
                  frame.target.u, frame.target.v, p.loop.gain_x(), p.loop.gain_y(),
-                 p.loop.frame_s() * 1000.0f);
+                 p.loop.frame_s() * 1000.0f,
+                 frame.stick       ? ", C-Stick steers"
+                 : frame.clutch    ? ", paused"
+                 : p.loop.easing() ? ", easing back in"
+                                   : "");
     }
     return true;
 }

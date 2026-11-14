@@ -121,7 +121,7 @@ void TabMenu::DrawAngelsAim(Kit& kit, const MenuModel& model, const MenuView& vi
         content += kBodyLine * static_cast<float>(p.size()) + 8.0f;
     }
     content += kButtonH + 24.0f + kDividerH;                    // Report, its line
-    content += kTitleH + kItemH + 24.0f;                        // Required, the mod, reminder
+    content += kTitleH + kItemH;                                // Required, the mod
     if (!rows.empty()) {
         content += OfferListHeight(kit, model.mods.mods, c, rows, opt);
     }
@@ -197,12 +197,9 @@ void TabMenu::DrawAngelsAim(Kit& kit, const MenuModel& model, const MenuView& vi
     }
     divider();
 
-    // ---- Required: the mod, the game's own controls, the catalog's rows ----
+    // ---- Required: the mod, the catalog's rows ----
     title(kAngelsAimRequired);
     status_item(kAngelsAimModName, m.mod_installed);
-    kit.TextSized(c.x0, y + 4.0f + kit.CapHeightSized(kSmall, false) * 0.5f, kSmall, false,
-                  Tok::kOnSurfaceVariant, kAngelsAimGyroReminder);
-    y += 24.0f;
     if (!rows.empty()) {
         opt.page_top = y;
         DrawOfferList(kit, model, view, area, c, shown, rows, opt);

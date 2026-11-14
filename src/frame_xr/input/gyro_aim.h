@@ -6,7 +6,9 @@
 // (v172; handoff/reports/37/kiugyro/design.md has the disassembly). Pure math, no OpenXR, Qt or
 // emulator calls, so it is unit tested.
 //
-// What the mod does with the 3DS gyroscope (its "gyro" control scheme only): once per game frame
+// What the mod does with the 3DS gyroscope (AzaharFrame kiufix2: in any of the game's control
+// schemes; design.md fact 1 read it as the mod's gyro scheme only, but the owner's headset check
+// of 2026-11-14 aimed with the game's controls on C-Stick): once per game frame
 // it reads the latest HID gyroscope entry, takes z as the reticle's horizontal rate and x as its
 // vertical rate (degrees per second), subtracts a 0.25 deg/s dead zone, clamps them to +-360 and
 // feeds them into the same synthetic touch drag as its C-Stick. Its signs are a real 3DS's
@@ -223,7 +225,7 @@ inline constexpr const char* kAimCalibrationRetryToast = "Calibrate Aim: Try Tha
 /// Light Gun's laser sight (the red beam and dot, vis/beam.h): Direct Aim (Light Gun) on, a game
 /// on view with the menu closed, and the ray on the top screen. AzaharFrame kiufix: no longer
 /// only while the reticle is read from the game (locked): Direct Aim that had fallen back to Gyro
-/// (the game's controls not on gyro, say) showed no beam at all, so Laser Sight looked broken.
+/// (no reticle read, say) showed no beam at all, so Laser Sight looked broken.
 constexpr bool LaserSight(GyroAimMode mode, bool in_game, const LightGunTarget& target) {
     return mode == GyroAimMode::LightGun && in_game && target.valid && target.u >= 0.0f &&
            target.u <= 1.0f && target.v >= 0.0f && target.v <= 1.0f;
@@ -251,26 +253,6 @@ constexpr AimBeam AimBeamFor(GyroAimMode mode, bool laser_setting, bool weapon_s
 constexpr bool RecoilActive(int aim_hand, bool recoil_setting) {
     return aim_hand >= 0 && recoil_setting;
 }
-
-/// AzaharFrame kiufix: Direct Aim and Gyro Aim steer the reticle through the mod's gyro, which
-/// the game reads only in the mod's gyro control scheme (kiu_scan.h kSchemeGyro). In any other
-/// the controller does nothing to the reticle, silently (the owner's session of 2026-11-14 was in
-/// the C-Stick scheme throughout). The toast says so: when Aiming is on and the game's scheme is
-/// read and is not the gyro one, again only after it was the gyro one or Aiming was off, and at
-/// most once every kRepeatNs.
-inline constexpr const char* kAimNeedsGyroToast = "Aiming: Set the Game's Controls to Gyro";
-class AimSchemeHint {
-public:
-    static constexpr int64_t kRepeatNs = 120'000'000'000;
-    /// Each frame: Aiming on (a controller aims) in the game, the scheme read (-1 not known).
-    /// Returns true when the toast is to show now.
-    bool Update(int64_t now_ns, bool aiming, int scheme);
-
-private:
-    bool armed_ = true;
-    bool shown_once_ = false;
-    int64_t shown_ns_ = 0;
-};
 
 /// How deep (0 to 1) the target is in the Turn Zone on each side: x negative left, positive
 /// right; y negative top, positive bottom. 1 at the screen's edge and beyond; 0 inside.
@@ -365,6 +347,19 @@ struct ReticleBox {
 };
 ReticleBox GroundBox(const ReticleReading& r);
 
+/// AzaharFrame kiufix2: the C-Stick wins over Direct Aim. The mod moves the reticle with the
+/// C-Stick and the gyro together (the game's controls on C-Stick, the owner's headset check of
+/// 2026-11-14), but Direct Aim sends, every poll, the rate that brings the reticle back under the
+/// pointer: a stick's move was undone within a few frames, and a stick pushing the cursor past
+/// the aim box (a camera turn) was pulled back against. So while the right stick (the C-Stick,
+/// AnalogControl::StickR, after the mapper's dead zone and the other gamepads) is pushed, Direct
+/// Aim pauses as for its grip, and when it is let go Direct Aim eases back in
+/// (LightGunLoop::kEaseInNs). Gyro Aim adds the hand's turn to the stick and needs no pause.
+inline constexpr float kCStickTakesAimMin = 0.01f; ///< past the mapper's dead zone (rescaled)
+constexpr bool CStickTakesAim(Vec2f c_stick) {
+    return c_stick.x * c_stick.x + c_stick.y * c_stick.y > kCStickTakesAimMin * kCStickTakesAimMin;
+}
+
 /// Light Gun's control loop (emulator thread, at each gyroscope poll): from the reticle's
 /// reading and the target, the gyro rate for the mod.
 ///
@@ -378,6 +373,10 @@ ReticleBox GroundBox(const ReticleReading& r);
 /// sensitivity and invert options and Azahar's slow-down stretch.
 /// On the ground the target is kept in the box; the Turn Zone adds a push past it (not counted in
 /// the prediction, as the box stops it), which the mod turns into a turn.
+/// Paused (`clutch`: its grip, Calibrate Aim, or the C-Stick pushed, CStickTakesAim) it sends
+/// nothing and learns nothing. AzaharFrame kiufix2: after a pause the reticle is no longer under
+/// the pointer, so the loop eases back in rather than snapping there: what it sends (the push
+/// too) is scaled from 0 to 1 over kEaseInNs (a smoothstep), learning only after that.
 class LightGunLoop {
 public:
     static constexpr float kLatencyFrames = 1.0f;
@@ -387,6 +386,8 @@ public:
     static constexpr float kMaxGain = 200.0f;
     /// Errors smaller than this (pixels) send nothing: no dither around the target.
     static constexpr float kHoldPx = 0.5f;
+    /// AzaharFrame kiufix2: the ease back in after a pause (emulated time).
+    static constexpr int64_t kEaseInNs = 300'000'000;
 
     struct Out {
         float right_dps = 0.0f; ///< for the mod (before ModRateFor)
@@ -406,6 +407,10 @@ public:
     }
     float frame_s() const {
         return frame_s_;
+    }
+    /// AzaharFrame kiufix2: easing back in after a pause (for the trace).
+    bool easing() const {
+        return easing_;
     }
 
 private:
@@ -447,6 +452,10 @@ private:
     int error_sign_[2]{};
     int flips_[2]{};
     int64_t flips_since_ns_[2]{};
+    // AzaharFrame kiufix2: the pause, and the ease back in after it.
+    bool paused_ = false;
+    bool easing_ = false;
+    int64_t resume_ns_ = 0;
 };
 
 } // namespace FrameXr::Input

@@ -72,6 +72,9 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
                 100.0f;
             lg.turn_speed = ClampTurnSpeed(Settings::values.vr_light_gun_turn_speed.GetValue());
             lg.clutch = gyro_aim->clutch;
+            // AzaharFrame kiufix2: the C-Stick (the right stick, past its dead zone, with the
+            // other gamepads') steers while it is pushed; Direct Aim pauses meanwhile.
+            lg.stick = CStickTakesAim(last_.controls.GetStick(AnalogControl::StickR));
             Kiu::Publish(lg);
             light_gun_on_ = true;
         } else if (light_gun_on_) {
