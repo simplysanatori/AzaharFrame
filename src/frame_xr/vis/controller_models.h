@@ -38,6 +38,7 @@
 #include "frame_xr/vis/model_file.h"
 #include "frame_xr/vis/model_plane.h"  // AzaharFrame ctrlfront
 #include "frame_xr/vis/muzzle_flash.h" // AzaharFrame kiuflash
+#include "frame_xr/vis/proj_screen_layer.h" // AzaharFrame projscreen
 #include "frame_xr/vis/weapon_fit.h"   // AzaharFrame kiuguns
 
 namespace FrameXr {
@@ -89,18 +90,37 @@ public:
     /// quads). Valid until the next Frame.
     const XrCompositionLayerBaseHeader* Layer() const;
     /// AzaharFrame ctrlfront: the image as two quads, the left eye's and the right eye's
-    /// (any choice but Off); false when there is none this frame.
+    /// (any choice but Off; never in screens mode); false when there is none this frame.
     bool EyeQuads(std::array<Quad, 2>& out) const;
+    /// AzaharFrame projscreen: AZAHARFRAME_XR_SCREENS_IN_PROJECTION (proj_screen.h). XR thread,
+    /// before Frame. On: the pass is made at the eye buffer's full size (times `scale`), Frame only
+    /// reads the hands and the next draw waits for FrameScreens; a change makes the pass again.
+    void SetScreensMode(bool on, float scale);
+    /// AzaharFrame projscreen: XR thread, after Frame and once the frame's screens are placed
+    /// (app.cpp, under the screens lock): draws the top screen and then the models (depth tested)
+    /// for this refresh's views and gives the layer, which shows the image released last at the
+    /// eyes it was drawn for. Null while screens mode is off or the pass is not ready.
+    ProjLayer FrameScreens(Runtime& rt, const ProjScreens& screens);
     /// XR thread, before the session ends: everything on the GPU (the files stay read).
     void DestroyXr();
 
 private:
     void Setup(Runtime& rt);
     void Record(const ViewPose& views, const std::array<Hand, 2>& hands,
-                const std::vector<Occluder>& occluders);
+                const std::vector<Occluder>& occluders, const ProjScreens* screens = nullptr);
     /// AzaharFrame ctrlfront: the pass's GPU time (timestamps), read once the image's fence has
     /// signalled; logged every kGpuLogSeconds while the models show.
     void NoteGpuTime(int64_t now_ns);
+    /// AzaharFrame ctrlfront, projscreen: the image goes out as the eye quads (the choice is not
+    /// Off and the pass is not in screens mode).
+    bool AsEyeQuads() const;
+    /// Releases the image in flight once its fence has signalled (no wait).
+    void TryRelease();
+    /// AzaharFrame projscreen
+    bool screens_mode = false;
+    float screens_scale = 1.0f;
+    ViewPose pending_views{};
+    std::array<Hand, 2> pending_hands{};
     /// AzaharFrame kiuguns: reads, uploads and swaps the weapon in hand (XR thread, no waits).
     void UpdateWeapon(int id);
     void UploadWeapon();

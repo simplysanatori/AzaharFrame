@@ -19,6 +19,7 @@
 #include "frame_xr/controls.h"
 #include "frame_xr/session.h"
 #include "frame_xr/xr_loader.h"
+#include "video_core/renderer_vulkan/vk_common.h" // projb: the queue idle before a swapchain goes
 
 namespace FrameXr {
 
@@ -444,6 +445,7 @@ void Runtime::DestroySession() {
     if (ui) {
         ui->DestroyXr();
     }
+    proj_screens_used = false; // projb: the pass is gone (DestroyXr waited for it)
     {
         // Waits for a renderer swapchain call in progress (an acquire waits 100 ms at most).
         std::unique_lock chains_lock{chains_mutex};
@@ -536,7 +538,20 @@ bool Runtime::EnsureSwapchain(VideoCore::XrScreen screen, uint32_t width, uint32
     // (order: screens_mutex, then the queue lock, as in EndFrame).
     if (chain.handle) {
         ReturnHeldImage(chain, queue_lock);
-        queue_lock.With([&] { return xr.xrDestroySwapchain(chain.handle); });
+        queue_lock.With([&] {
+            // projb: the projection pass draws a screen's image on the GPU after the screens
+            // lock is let go (vis/controller_models.cpp FrameScreens): done before it is freed.
+            if (proj_screens_used.load() && vulkan) {
+                try {
+                    const vk::Device device{vulkan->Device()};
+                    device.getQueue(vulkan->QueueFamily(), 0).waitIdle();
+                } catch (const std::exception& e) {
+                    LOG_ERROR(Frontend, "xr: waiting for the queue before a new swapchain: {}",
+                              e.what());
+                }
+            }
+            return xr.xrDestroySwapchain(chain.handle);
+        });
         chain = {};
     }
     XrSwapchainCreateInfo ci{XR_TYPE_SWAPCHAIN_CREATE_INFO};
@@ -636,6 +651,7 @@ void Runtime::Release(VideoCore::XrScreen screen, bool gpu_finished) {
     {
         std::scoped_lock lock{screens_mutex};
         chain.has_image = true;
+        chain.shown_index = chain.index; // AzaharFrame projscreen
     }
     stats.releases[i]++;
     if (!gpu_finished) {
@@ -675,10 +691,12 @@ void Runtime::ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& co
         if (set_release) {
             chain.has_image = true;
             chain.frame_serial = serial;
+            chain.shown_index = chain.index; // AzaharFrame projscreen
         } else {
             std::scoped_lock lock{screens_mutex};
             chain.has_image = true;
             chain.frame_serial = serial;
+            chain.shown_index = chain.index;
         }
         // A packed top screen counts for both eyes (the log line keeps its meaning).
         const bool both = packed_top && i == static_cast<std::size_t>(VideoCore::XrScreen::TopLeft);

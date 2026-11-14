@@ -135,7 +135,10 @@ TEST_CASE("Test switches: what applies live, the log and the toast", "[frame_xr]
     for (const char* live : {"AZAHARFRAME_IMMERSIVE_TAG_OFFSET", "AZAHARFRAME_IMMERSIVE_POSITION_SCALE",
                              "AZAHARFRAME_XR_SINGLE_FLASH", "AZAHARFRAME_IMMERSIVE_ANCHOR_DEPTH",
                              "AZAHARFRAME_IMMERSIVE_WORLD_TAG", "AZAHARFRAME_XR_REFRESH_RATE",
-                             "AZAHARFRAME_IMMERSIVE_HOLD", "AZAHARFRAME_XR_IMAGE_LAG"}) {
+                             "AZAHARFRAME_IMMERSIVE_HOLD", "AZAHARFRAME_XR_IMAGE_LAG",
+                             // AzaharFrame projscreen
+                             "AZAHARFRAME_XR_SCREENS_IN_PROJECTION", "AZAHARFRAME_XR_PROJ_SCALE",
+                             "AZAHARFRAME_XR_PROJ_MARKS"}) {
         CHECK(TS::ApplyFor(live) == TS::Apply::Live);
     }
     for (const char* restart : {"AZAHARFRAME_IMMERSIVE_DISTANCE", "AZAHARFRAME_IMMERSIVE_FOV",

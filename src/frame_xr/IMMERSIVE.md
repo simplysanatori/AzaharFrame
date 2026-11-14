@@ -748,6 +748,52 @@ Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' 
 swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together
 (`AZAHARFRAME_XR_SET_RELEASE`), so the two eyes never come from different game frames.
 
+### The top screen in the projection layer (AzaharFrame projscreen, a test switch)
+
+SteamVR 2.19.3 turns each quad layer into an overlay whose texture and transform it sets with
+separate calls, with no display time and no fence, and its compositor latches overlay textures on
+its own schedule (handoff report 55/flash/overlay-path.md). So a held picture's image and pose need
+not reach the display together: the likely cause of the doubling that no image lag setting fixes.
+`AZAHARFRAME_XR_SCREENS_IN_PROJECTION=1` (live, in the test-switch file) sends the top screen
+through the projection layer instead, the one submit that carries image and views together:
+
+- The controller models' pass (`vis/controller_models.cpp`) draws it each refresh on the XR thread
+  (`FrameScreens`, after the screens are placed, under the screens lock), as a textured quad or a
+  cylinder section at exactly the pose and size its quad would have had (`add_screen` in
+  `app.cpp`: per eye, HeldQuad's warp included; a VIEW-space quad through this frame's head), seen
+  through this refresh's located views. The picture is the swapchain image the renderer released
+  last (`ScreenChain::shown_index`), sampled in place (moved to SHADER_READ_ONLY for the pass and
+  back), filtered over each pixel's footprint (up to 4 x 4 taps: the swapchain has no mips).
+- The models are drawn after it with the depth test. "Controllers in Front of Screen" holds as on
+  the quad path (projb): when the choice takes the top screen's slot, a controller nearer than the
+  screen is in front of it (the immersive screen never hides them); else the screen is drawn at the
+  nearest depth and covers them wherever they are. The models' image is always this projection
+  layer in screens mode, never the eye quads (they would be overlays again), and no occluders are
+  drawn: the bottom screen, panels and menus are quads over the layer, so the controllers stay
+  behind those whatever the choice.
+- Motion Clarity is not in effect while the switch is on (projb), whatever its setting or
+  `AZAHARFRAME_XR_SINGLE_FLASH`: the flashing hid a held picture shown with another picture's
+  pose, which this path does not do, and a refresh the pass is late shows the image before again,
+  so a dark refresh would not stay one. No black backing is sent under a projected screen.
+- The pass is then made at the runtime's recommended eye size (`AZAHARFRAME_XR_PROJ_SCALE`, live,
+  0.5 to 2, default 1) with no MSAA (`AZAHARFRAME_XR_PROJ_MSAA=4` at start for 4x). Its image is
+  released a refresh later, once its fence has signalled, and the layer always shows the image
+  released last at the views it was drawn for (never an image with another refresh's pose).
+- The image lag does not apply: the anchor is the newest picture, the one drawn (no quad carries
+  the top screen, so `sent_serial` stays 0).
+- Until the layer has an image with the screen in it (the first refreshes, a pass made again after
+  a switch change) the top screen goes as quads. The bottom screen, the panels and the menus stay
+  quads. The log line `xr: projection screens: ...` says each second how many refreshes drew the
+  screen, how many showed the last image again (GPU busy) and the pass's GPU time.
+- A new top screen swapchain (Dynamic Resolution's step, a new size) has no picture for a few
+  refreshes: the layer keeps its last image with the screen meanwhile (up to
+  `kGapHoldRefreshes`, 12), at its own views, rather than show the room (projb). Before a screen
+  swapchain is destroyed, `EnsureSwapchain` lets the queue go idle once the pass has sampled a
+  screen this session, so a pass still on the GPU never reads freed images.
+- `AZAHARFRAME_XR_PROJ_MARKS=1` adds test marks (magenta dots at 15 picture points, the picture's
+  serial in each eye's corner) for the Frame mock's checks (xrmock `MOCK_XR_PROJ_SCAN`,
+  `hold.py --proj`, `proj_sharp.py`).
+
 ## The game's own 3D on the screen (AzaharFrame stereo)
 
 Mode 2 shows the game's own two eyes on one screen: the game shears each eye's projection by the

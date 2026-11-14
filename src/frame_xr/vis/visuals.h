@@ -37,6 +37,7 @@
 #include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
 #include "frame_xr/vis/beam.h"
 #include "frame_xr/vis/model_plane.h" // AzaharFrame ctrlfront
+#include "frame_xr/vis/proj_screen_layer.h" // AzaharFrame projscreen
 
 namespace FrameXr {
 class Runtime;
@@ -108,6 +109,11 @@ public:
     void SetOccluders(std::vector<Occluder>&& occluders);
     /// The runtime's limit of layers a frame (XrSystemGraphicsProperties::maxLayerCount).
     std::size_t MaxLayers() const;
+    /// AzaharFrame projscreen (proj_screen.h): before Frame, AZAHARFRAME_XR_SCREENS_IN_PROJECTION
+    /// and the eye buffer's scale; then, once the screens are placed, the layer with the top screen
+    /// drawn into it (ControllerModels::FrameScreens). XR thread.
+    void SetScreensInProjection(bool on, float scale);
+    ProjLayer ProjectionScreens(Runtime& rt, const ProjScreens& screens);
     /// AzaharFrame tabmenu: the stats as the stats panel would show them now (the in-game menu's
     /// Stats tab, as it opens: the last second the game ran). XR thread.
     std::vector<std::pair<std::string, std::string>> MenuStats();
