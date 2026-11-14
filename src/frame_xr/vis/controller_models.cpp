@@ -233,6 +233,29 @@ struct ControllerModels::Gpu {
     float drawn_plane = kModelPlaneDefault;
     float shown_plane = kModelPlaneDefault;
     std::size_t drawn_occluders = 0;
+    // AzaharFrame ctrlglitch: the eye quads' world-locked canvases (model_plane.h), the last few
+    // by number; the canvas the image in flight and the one released last were drawn for (0:
+    // drawn for the eyes' own views); the move between canvases; this refresh's step.
+    struct Canvas {
+        uint32_t id = 0;
+        std::array<EyePlane, 2> eye{};
+    };
+    std::array<Canvas, 4> canvases{};
+    uint32_t next_canvas = 1;
+    uint32_t drawn_canvas = 0;
+    uint32_t shown_canvas = 0;
+    CanvasHandover handover;
+    CanvasFrame step;
+    bool canvas_on = false; ///< this refresh's quads are on a canvas (AZAHARFRAME_XR_CANVAS)
+    uint32_t canvas_moves = 0, canvas_projection = 0; ///< for the log
+    const Canvas* FindCanvas(uint32_t id) const {
+        for (const Canvas& c : canvases) {
+            if (id != 0 && c.id == id) {
+                return &c;
+            }
+        }
+        return nullptr;
+    }
     // AzaharFrame ctrlfront: the pass's GPU time: two timestamps around it (null pool: the queue
     // has none), summed for the log.
     vk::QueryPool queries;
@@ -467,7 +490,10 @@ ControllerModels::~ControllerModels() {
 }
 
 const XrCompositionLayerBaseHeader* ControllerModels::Layer() const {
-    return layer_ready && !ModelsAsQuads(over_)
+    // AzaharFrame ctrlglitch: with the quads, too, while their canvas moves (model_plane.h).
+    const bool wanted =
+        !ModelsAsQuads(over_) || (gpu && gpu->canvas_on && gpu->step.projection);
+    return layer_ready && wanted
                ? reinterpret_cast<const XrCompositionLayerBaseHeader*>(&gpu->layer)
                : nullptr;
 }
@@ -479,6 +505,27 @@ bool ControllerModels::EyeQuads(std::array<Quad, 2>& out) const {
         return false;
     }
     const Gpu& g = *gpu;
+    // AzaharFrame ctrlglitch: the canvas's place in the room, which changes only through the
+    // handover (model_plane.h), shrunk to nothing in place while it is not shown.
+    if (g.canvas_on) {
+        const Gpu::Canvas* canvas = g.FindCanvas(g.step.canvas);
+        if (!canvas) {
+            return false;
+        }
+        for (std::size_t e = 0; e < 2; e++) {
+            const EyePlane& plane = canvas->eye[e];
+            const float k = g.step.quads_shown ? 1.0f : kCanvasShrink;
+            Quad& q = out[e];
+            q.swapchain = g.swapchain;
+            q.image_rect = {{static_cast<int32_t>(g.eye_w * e), 0},
+                            {static_cast<int32_t>(g.eye_w), static_cast<int32_t>(g.eye_h)}};
+            q.pose = ToXr(plane.pose);
+            q.size = {plane.width_m * k, plane.height_m * k};
+            q.eye = e == 0 ? XR_EYE_VISIBILITY_LEFT : XR_EYE_VISIBILITY_RIGHT;
+            q.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+        }
+        return true;
+    }
     for (int e = 0; e < 2; e++) {
         const XrFovf& fov = g.shown_views.fov[e];
         const EyePlane plane =
@@ -719,6 +766,7 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
             g.has_image = true;
             g.shown_views = g.drawn_views;
             g.shown_plane = g.drawn_plane; // AzaharFrame ctrlfront
+            g.shown_canvas = g.drawn_canvas; // AzaharFrame ctrlglitch
             g.shown_fresh = true;
         }
     }
@@ -742,11 +790,86 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
     }
     if (!any) {
         g.shown_fresh = false; // when they come back, a new image first
+        g.handover.Absent();   // AzaharFrame ctrlglitch: no quads go out
+        g.canvas_on = false;
         return;
+    }
+    // AzaharFrame ctrlglitch: the quads' canvas (model_plane.h): moved when it no longer serves
+    // the view, through the handover; then this refresh's step. AZAHARFRAME_XR_CANVAS=0 (live)
+    // puts the quads at each image's eye views again, as before, for an A/B.
+    const bool canvas_wanted =
+        ModelsAsQuads(choice) &&
+        Common::FrameTestSwitches::Value("AZAHARFRAME_XR_CANVAS").value_or("1") != "0";
+    const bool canvas_was_on = g.canvas_on;
+    g.canvas_on = canvas_wanted;
+    if (!g.canvas_on) {
+        // The quads at the eye views (the A/B) are on view elsewhere; Off has none.
+        ModelsAsQuads(choice) ? g.handover.Elsewhere() : g.handover.Absent();
+    } else {
+        // Back from the A/B: a new canvas, through the handover.
+        bool serves = g.handover.Canvas() != 0 && canvas_was_on;
+        const Gpu::Canvas* current = g.FindCanvas(g.handover.Canvas());
+        const std::array<ModelSphere, 2> spheres = Spheres(hands);
+        const std::size_t n = SphereCount(hands);
+        for (int e = 0; e < 2 && serves; e++) {
+            const XrFovf& fov = views.fov[e];
+            const Input::Posef eye = FromXr(views.eye[e]);
+            const auto models = ModelsViewBounds(eye, fov.angleLeft, fov.angleRight, fov.angleUp,
+                                                 fov.angleDown, spheres.data(), n, kNear);
+            serves = current && CanvasServes(current->eye[static_cast<std::size_t>(e)], eye,
+                                              fov.angleLeft, fov.angleRight, fov.angleUp,
+                                              fov.angleDown, models);
+        }
+        if (views.valid && (g.handover.Canvas() == 0 || (!serves && !g.handover.Busy()))) {
+            std::array<std::optional<Input::Vec3f>, 2> at{};
+            for (std::size_t h = 0; h < hands.size(); h++) {
+                if (hands[h].shown) {
+                    at[h] = hands[h].aim.position;
+                }
+            }
+            const float distance = ModelPlaneDistance(FromXr(views.head), at);
+            Gpu::Canvas& c = g.canvases[g.next_canvas % g.canvases.size()];
+            c.id = g.next_canvas++;
+            for (std::size_t e = 0; e < 2; e++) {
+                const XrFovf& fov = views.fov[e];
+                c.eye[e] = PlaceCanvas(FromXr(views.eye[e]), fov.angleLeft, fov.angleRight,
+                                       fov.angleUp, fov.angleDown, distance);
+            }
+            g.handover.Request(c.id);
+            g.canvas_moves++;
+        }
+        g.step = g.handover.Step(g.has_image && g.shown_fresh, g.shown_canvas);
+        if (g.step.projection) {
+            g.canvas_projection++;
+        }
+    }
+
+    // AzaharFrame ctrlglitch: the views the next image is drawn with: onto the quads' canvas,
+    // seen from where the eyes are now (CanvasView); the eyes' own views without one (Off). With
+    // a canvas the eye is not in front of, none is drawn (the canvas is about to move).
+    std::optional<ViewPose> draw_views;
+    uint32_t draw_canvas = 0;
+    if (!g.canvas_on) {
+        draw_views = views;
+    } else if (const Gpu::Canvas* c = g.FindCanvas(g.step.canvas); c && views.valid) {
+        std::array<std::optional<CanvasEye>, 2> ce{};
+        for (std::size_t e = 0; e < 2; e++) {
+            const XrVector3f& p = views.eye[e].position;
+            ce[e] = CanvasView(c->eye[e], {p.x, p.y, p.z});
+        }
+        if (ce[0] && ce[1]) {
+            draw_views = views;
+            for (std::size_t e = 0; e < 2; e++) {
+                draw_views->eye[e] = ToXr(ce[e]->pose);
+                draw_views->fov[e] = {ce[e]->angle_left, ce[e]->angle_right, ce[e]->angle_up,
+                                      ce[e]->angle_down};
+            }
+            draw_canvas = c->id;
+        }
     }
 
     // ---- Draw the next one ----
-    if (!g.in_flight && views.valid) {
+    if (!g.in_flight && views.valid && draw_views) {
         if (!g.acquired) {
             XrSwapchainImageAcquireInfo ai{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
             if (XR_SUCCEEDED(g.queue_lock->With(
@@ -771,14 +894,15 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
             }
             g.drawn_plane = ModelPlaneDistance(FromXr(views.head), at);
             g.drawn_occluders = occ.size();
-            Record(views, hands, occ);
+            g.drawn_canvas = draw_canvas; // AzaharFrame ctrlglitch
+            Record(*draw_views, hands, occ);
             const vk::SubmitInfo submit{.commandBufferCount = 1, .pCommandBuffers = &g.cmd};
             g.queue_lock->With([&] {
                 g.queue.submit(submit, g.fence);
                 return 0;
             });
             g.in_flight = true;
-            g.drawn_views = views;
+            g.drawn_views = *draw_views; // AzaharFrame ctrlglitch: the views it was drawn with
         }
     }
 
@@ -1571,6 +1695,27 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
     }
 }
 
+// AzaharFrame ctrlfront: each shown hand's model inside a sphere (LOCAL), the shown ones first.
+std::array<ModelSphere, 2> ControllerModels::Spheres(const std::array<Hand, 2>& hands) const {
+    const Files& f = *files;
+    std::array<ModelSphere, 2> spheres{};
+    std::size_t n = 0;
+    for (std::size_t h = 0; h < hands.size(); h++) {
+        const Hand& hand = hands[h];
+        if (hand.shown) {
+            spheres[n++] = hand.weapon >= 0
+                               ? ModelSphere{hand.aim.position, kWeaponSphere}
+                               : ModelSphere{Input::Transform(hand.aim, f.sphere[h].centre),
+                                             f.sphere[h].radius};
+        }
+    }
+    return spheres;
+}
+
+std::size_t ControllerModels::SphereCount(const std::array<Hand, 2>& hands) {
+    return static_cast<std::size_t>(hands[0].shown) + static_cast<std::size_t>(hands[1].shown);
+}
+
 void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& hands,
                               const std::vector<Occluder>& occluders) {
     Gpu& g = *gpu;
@@ -1615,21 +1760,11 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
         // Only where the models can be in this eye's image (model_plane.h ModelsViewBounds).
         std::optional<std::array<float, 4>> bounds;
         if (!occluders.empty()) {
-            std::array<ModelSphere, 2> spheres{};
-            std::size_t n = 0;
-            for (std::size_t h = 0; h < hands.size(); h++) {
-                const Hand& hand = hands[h];
-                if (hand.shown) {
-                    spheres[n++] =
-                        hand.weapon >= 0
-                            ? ModelSphere{hand.aim.position, kWeaponSphere}
-                            : ModelSphere{Input::Transform(hand.aim, f.sphere[h].centre),
-                                          f.sphere[h].radius};
-                }
-            }
+            const std::array<ModelSphere, 2> spheres = Spheres(hands);
             const XrFovf& fov = views.fov[e];
             bounds = ModelsViewBounds(FromXr(views.eye[e]), fov.angleLeft, fov.angleRight,
-                                      fov.angleUp, fov.angleDown, spheres.data(), n, kNear);
+                                      fov.angleUp, fov.angleDown, spheres.data(),
+                                      SphereCount(hands), kNear);
         }
         bool occluded = false;
         for (const Occluder& o : occluders) {
@@ -1750,14 +1885,22 @@ void ControllerModels::NoteGpuTime(int64_t now_ns) { // AzaharFrame ctrlfront
     if (now_ns - g.gpu_log_ns >= kGpuLogNs && g.gpu_images > 0) {
         LOG_INFO(Frontend,
                  "xr: controller models: GPU {:.3f} ms a picture on average, {:.3f} at most, {} "
-                 "pictures in {:.0f} s, {:.1f} occluders a picture, {}",
+                 "pictures in {:.0f} s, {:.1f} occluders a picture, {}{}",
                  g.gpu_sum_ms / g.gpu_images, g.gpu_max_ms, g.gpu_images,
                  static_cast<double>(now_ns - g.gpu_log_ns) / 1e9,
                  static_cast<double>(g.occluder_sum) / g.gpu_images,
                  over_ == ControllersInFront::Off            ? "Off (a projection layer)"
                  : over_ == ControllersInFront::Primary      ? "Primary (eye quads)"
                  : over_ == ControllersInFront::Secondary    ? "Secondary (eye quads)"
-                                                             : "Both (eye quads)");
+                                                             : "Both (eye quads)",
+                 // AzaharFrame ctrlglitch
+                 !ModelsAsQuads(over_) ? std::string{}
+                 : g.canvas_on
+                     ? fmt::format("; on a world-locked canvas, moved {} times, {} refreshes "
+                                   "also as the projection layer",
+                                   g.canvas_moves, g.canvas_projection)
+                     : std::string{"; at each image's eye views (AZAHARFRAME_XR_CANVAS=0)"});
+        g.canvas_moves = g.canvas_projection = 0;
         g.gpu_sum_ms = g.gpu_max_ms = 0.0;
         g.gpu_images = 0;
         g.occluder_sum = 0;

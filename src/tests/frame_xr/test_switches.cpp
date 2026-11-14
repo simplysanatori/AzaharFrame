@@ -247,5 +247,7 @@ TEST_CASE("Test switches: FLASH_BACKING is on unless 0, live", "[frame_xr][test_
     CHECK_FALSE(TS::BackingFrom(std::string{"0"}));
     CHECK(TS::ApplyFor("AZAHARFRAME_XR_FLASH_BACKING") == TS::Apply::Live);
     CHECK(TS::ApplyFor("AZAHARFRAME_XR_FLASH_SLOW") == TS::Apply::Live);
+    CHECK(TS::ApplyFor("AZAHARFRAME_XR_POSE_GUARD") == TS::Apply::Live); // ctrlglitch
+    CHECK(TS::ApplyFor("AZAHARFRAME_XR_CANVAS") == TS::Apply::Live);
     CHECK(TS::ApplyFor("AZAHARFRAME_XR_SINGLE_FLASH") == TS::Apply::Live);
 }

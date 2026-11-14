@@ -36,6 +36,7 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_XR_FLASH_BACKING", "AZAHARFRAME_XR_FLASH_SLOW", // AzaharFrame flash
         "AZAHARFRAME_IMMERSIVE_HOLD",           "AZAHARFRAME_XR_IMAGE_LAG",
         "AZAHARFRAME_CSTICK_EDGE", // AzaharFrame kiugyro
+        "AZAHARFRAME_XR_POSE_GUARD", "AZAHARFRAME_XR_CANVAS", // AzaharFrame ctrlglitch
     };
     // AzaharFrame imglag: replaced by AZAHARFRAME_XR_IMAGE_LAG.
     constexpr std::string_view kRetired[] = {"AZAHARFRAME_IMMERSIVE_ANCHOR_LAG"};
