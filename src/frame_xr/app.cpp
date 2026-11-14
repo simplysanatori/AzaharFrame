@@ -563,7 +563,7 @@ void Runtime::FrameLoop() {
                     Vis::ProjScaleFrom(Common::FrameTestSwitches::Value(Vis::kProjScaleSwitch));
                 LOG_INFO(Frontend, "xr: projection screens {} (scale {:.2f})",
                          test_proj ? "on" : "off", test_proj_scale);
-            } else if (c.name == Vis::kProjMarksSwitch) {
+            } else if (c.name == Vis::kProjMarksSwitch || c.name == Vis::kProjAlsoQuadsSwitch) {
                 // read by the pass every frame
             } else if (c.name == "AZAHARFRAME_XR_IMAGE_LAG") {
                 UpdateImageLag("test switch changed"); // AzaharFrame imglag
@@ -808,6 +808,8 @@ void Runtime::FrameLoop() {
         std::size_t proj_at = 0;
         bool proj_placed = false;
         const bool proj_mode = test_proj && ui && fs.shouldRender;
+        const bool proj_also_quads = // AzaharFrame projscreen: a mock check only
+            proj_mode && TestSwitches::OnFrom(Common::FrameTestSwitches::Value(Vis::kProjAlsoQuadsSwitch));
         if (fs.shouldRender && screens_live) {
             ScreenPlacement place;
             {
@@ -916,7 +918,9 @@ void Runtime::FrameLoop() {
                                                  : ScreenOrQuadLayer(MakeQuad(space, q)),
                                              s == VideoCore::XrScreen::TopLeft ? chain.frame_serial
                                                                                : 0});
-                    return;
+                    if (!proj_also_quads) {
+                        return;
+                    }
                 }
                 if (curve > 0.0f) {
                     quad_layers.push_back(MakeCylinder(space, q, curve)); // AzaharFrame curve
@@ -1064,7 +1068,7 @@ void Runtime::FrameLoop() {
         Vis::ProjLayer proj_layer;
         if (proj_mode) {
             proj_layer = ui->ProjectionScreens(*this, proj);
-            if (proj_placed && !(proj_layer.layer && proj_layer.has_screen)) {
+            if (proj_placed && !proj_also_quads && !(proj_layer.layer && proj_layer.has_screen)) {
                 std::vector<ScreenOrQuadLayer> fallback;
                 for (const TopFallback& f : proj_fallback) {
                     fallback.push_back(f.layer);

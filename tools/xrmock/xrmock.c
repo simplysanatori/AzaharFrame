@@ -1787,15 +1787,18 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
             }
             // The arc's width and height in metres, as a quad's size.
             const float w = c->radius * c->centralAngle, h = c->aspectRatio > 0.0f ? w / c->aspectRatio : 0.0f;
-            snprintf(t, sizeof(t), " cyl[sc%d:%dx%d eye=%d sp=%s r=%.2f angle=%.1f aspect=%.3f arc=%.2fx%.2f", chainId(c->subImage.swapchain),
+            snprintf(t, sizeof(t), " cyl[sc%d:%dx%d eye=%d sp=%s r=%.5f angle=%.4f aspect=%.5f arc=%.2fx%.2f", chainId(c->subImage.swapchain),
                      r->extent.width, r->extent.height, (int)c->eyeVisibility, kSpaceNames[sp->kind], c->radius, c->centralAngle * 57.2957795f,
                      c->aspectRatio, w, h);
             strcat(buf, t);
             static int poseTraceC = -1;
             if (poseTraceC < 0) poseTraceC = getenv("MOCK_XR_TRACE_POSE") != NULL;
             if (poseTraceC) {
-                snprintf(t, sizeof(t), " pos=%.2f,%.2f,%.2f q=%.2f,%.2f,%.2f,%.2f", c->pose.position.x, c->pose.position.y, c->pose.position.z,
-                         c->pose.orientation.x, c->pose.orientation.y, c->pose.orientation.z, c->pose.orientation.w);
+                // AzaharFrame projscreen: 5 decimals with MOCK_XR_TRACE_POSE=5, as quads.
+                const int dpc = getenv("MOCK_XR_TRACE_POSE")[0] == '5' ? 5 : 2;
+                snprintf(t, sizeof(t), " pos=%.*f,%.*f,%.*f q=%.*f,%.*f,%.*f,%.*f", dpc, c->pose.position.x, dpc, c->pose.position.y, dpc,
+                         c->pose.position.z, dpc, c->pose.orientation.x, dpc, c->pose.orientation.y, dpc, c->pose.orientation.z, dpc,
+                         c->pose.orientation.w);
                 strcat(buf, t);
             }
             strcat(buf, "]");

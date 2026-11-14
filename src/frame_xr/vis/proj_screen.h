@@ -38,6 +38,9 @@ inline constexpr const char* kProjScaleSwitch = "AZAHARFRAME_XR_PROJ_SCALE";
 /// on black discs at fixed points of the picture, and the picture's serial as a strip of cells in
 /// each eye's corner.
 inline constexpr const char* kProjMarksSwitch = "AZAHARFRAME_XR_PROJ_MARKS";
+/// Test only: the top screen's quads are sent as well (over the projection layer), so a mock trace
+/// has both for the same refresh (hold.py --proj-vs-quad).
+inline constexpr const char* kProjAlsoQuadsSwitch = "AZAHARFRAME_XR_PROJ_ALSO_QUADS";
 
 // ---- Pure helpers ----
 

@@ -636,6 +636,85 @@ def check_world(path, tol=0.05, out=print):
     return worst <= tol, worst, frames
 
 
+CYL = re.compile(
+    r"cyl\[sc(\d+):\d+x\d+ eye=(\d) sp=(\w+) r=([-\d.]+) angle=([-\d.]+) aspect=([-\d.]+) "
+    r"arc=[-\d.]+x[-\d.]+ pos=([-\d.]+),([-\d.]+),([-\d.]+) q=([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\]")
+FRAME = re.compile(r"^f(\d+) ")
+
+
+def check_vs_quad(path, tol=0.01, out=print):
+    """projscreen --proj-vs-quad (a trace made with AZAHARFRAME_XR_PROJ_ALSO_QUADS=1: the top screen
+    drawn into the projection layer and its quads sent as well): each dot's direction, measured in
+    the image from the view it was drawn for, against the direction of the same picture point on
+    the quad (or cylinder) that frame sent for that eye, from the same eye. The image is matched to
+    the frame it was drawn on by the view's yaw (the endFrame whose head yaw it is, a refresh or two
+    before the one that carried it). Any mode; LOCAL quads only. Returns (ok, worst, n)."""
+    frames = []  # (frame, head yaw, {eye: ("quad", pos, q, w, h) | ("cyl", pos, q, r, angle, aspect)})
+    scans = []
+    for line in open(path, errors="replace"):
+        m = PROJ.search(line)
+        if m:
+            scans.append(m)
+            continue
+        m = END.search(line)
+        fm = FRAME.match(line)
+        if not m or not fm:
+            continue
+        shapes = {}
+        for q in QUAD.finditer(m.group(3)):
+            if q.group(3).lower() == "local":
+                shapes[int(q.group(2))] = ("quad", tuple(float(q.group(i)) for i in (6, 7, 8)),
+                                           tuple(float(q.group(i)) for i in (9, 10, 11, 12)),
+                                           float(q.group(4)), float(q.group(5)))
+        for c in CYL.finditer(m.group(3)):
+            if c.group(3).lower() == "local":
+                shapes[int(c.group(2))] = ("cyl", tuple(float(c.group(i)) for i in (7, 8, 9)),
+                                           tuple(float(c.group(i)) for i in (10, 11, 12, 13)),
+                                           float(c.group(4)), math.radians(float(c.group(5))),
+                                           float(c.group(6)))
+        frames.append((int(fm.group(1)), float(m.group(2)), shapes))
+    worst, total, n, unmatched = 0.0, 0.0, 0, 0
+    for m in scans:
+        frame, eye = int(m.group(1)), int(m.group(4)) + 1
+        pos = tuple(float(m.group(i)) for i in (6, 7, 8))
+        vq = tuple(float(m.group(i)) for i in (9, 10, 11, 12))
+        fov = tuple(math.tan(float(m.group(i))) for i in (13, 14, 15, 16))
+        w_px, h_px = int(m.group(17)), int(m.group(18))
+        pts = match_marks([tuple(float(v) for v in p.split(",")) for p in m.group(20).split()])
+        if pts is None:
+            continue
+        drawn = math.degrees(2 * math.atan2(vq[1], vq[3]))
+        cands = [f for f in frames if frame - 4 <= f[0] < frame and eye in f[2]]
+        best = min(cands, key=lambda f: abs(wrap(f[1] - drawn)), default=None)
+        if best is None or abs(wrap(best[1] - drawn)) > 0.02:
+            unmatched += 1
+            continue
+        shape = best[2][eye]
+        for (u, v), (x, y) in zip(MARKS, pts):
+            tx = fov[0] + x / w_px * (fov[1] - fov[0])
+            ty = fov[2] - y / h_px * (fov[2] - fov[3])
+            got = qrot(vq, (tx, ty, -1.0))
+            if shape[0] == "quad":
+                _, qp, qq, qw, qh = shape
+                p = add(qp, qrot(qq, (u * qw / 2, v * qh / 2, 0.0)))
+            else:
+                _, cp, cq, r, ang, aspect = shape
+                phi = u * ang / 2
+                p = add(cp, qrot(cq, (r * math.sin(phi), v * r * ang / aspect / 2, -r * math.cos(phi))))
+            want = sub(p, pos)
+            ng = math.sqrt(sum(c * c for c in got))
+            nw = math.sqrt(sum(c * c for c in want))
+            cosang = max(-1.0, min(1.0, sum(a * b for a, b in zip(got, want)) / (ng * nw)))
+            d = math.degrees(math.acos(cosang))
+            worst = max(worst, d)
+            total += d
+            n += 1
+    out("projection image against the quads sent with it: %d dots on %d images (%d images not "
+        "matched to a frame), worst %.4f, mean %.4f degrees (limit %.3f)"
+        % (n, n // 15, unmatched, worst, total / max(n, 1), tol))
+    return n > 0 and worst <= tol, worst, n
+
+
 def proj_lines(lines, eye=1, ipd=0.064, w_px=1680, h_px=1760, fov=0.84, noise=0.005):
     """projscreen selftest: a quad trace as the projection layer would carry it: the marks
     projected for the eye at that refresh (the image drawn for it) into projscan lines, the
@@ -975,6 +1054,41 @@ def selftest():
               % (hold, g, ", cameras read" if camera else "", pairs, worst,
                  "PASS" if got else "FAIL", "PASS" if want else "FAIL"))
         ok &= got == want
+    # projscreen --proj-vs-quad: the projection drawn from the frame's own quad matches it; drawn
+    # from a quad turned 0.1 degrees it does not.
+    for turn, want in ((0.0, True), (0.1, False)):
+        base = synthetic("warp", 0.6, 0.6)
+        lines, k = [], 0
+        for l in base:
+            if l.startswith("endFrame"):
+                k += 1
+                lines.append("f%d %s" % (k, l))
+            else:
+                lines.append(l)
+        scan = []
+        for l in proj_lines(base):
+            if l.startswith("projscan"):
+                m = PROJ.search(l)
+                fr = int(m.group(1))
+                scan.append(l.replace("projscan frame=%d " % fr, "projscan frame=%d " % (fr + 1)))
+        if turn:
+            # the dots from a quad turned a little: rebuild from a turned trace
+            turned = [re.sub(r"q=([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)",
+                             lambda mm: "q=%.5f,%.5f,%.5f,%.5f" % qmul(tuple(float(x) for x in mm.groups()), yawq(turn)), l)
+                      for l in base]
+            scan = []
+            for l in proj_lines(turned):
+                if l.startswith("projscan"):
+                    fr = int(PROJ.search(l).group(1))
+                    scan.append(l.replace("projscan frame=%d " % fr, "projscan frame=%d " % (fr + 1)))
+        fd, path = tempfile.mkstemp(suffix=".trace", dir=os.path.dirname(os.path.abspath(__file__)))
+        with os.fdopen(fd, "w") as f:
+            f.write("\n".join(lines + scan) + "\n")
+        got = check_vs_quad(path, out=lambda s: None)
+        os.remove(path)
+        print("selftest proj vs quad, the quad turned %.1f degrees: worst %.4f degrees -> %s (want %s)"
+              % (turn, got[1], "PASS" if got[0] else "FAIL", "PASS" if want else "FAIL"))
+        ok &= got[0] == want
     # projscreen --proj-world: a screen fixed in the room, both eyes, a turn: still; one that
     # moves 0.2 degrees a refresh with the head: not.
     for drift, want in ((0.0, True), (0.2, False)):
@@ -1043,6 +1157,8 @@ def main():
                     help="the top screen from the projection layer's dots (projscreen)")
     ap.add_argument("--proj-world", action="store_true",
                     help="a screen fixed in the room, from both eyes' dots (projscreen)")
+    ap.add_argument("--proj-vs-quad", action="store_true",
+                    help="each dot against the quad sent with it (AZAHARFRAME_XR_PROJ_ALSO_QUADS=1)")
     ap.add_argument("--world-tol", type=float, default=0.05,
                     help="--proj-world: degrees a dot may move from its mean place")
     ap.add_argument("--shape-tol", type=float, default=0.0002,
@@ -1052,6 +1168,12 @@ def main():
     a = ap.parse_args()
     if a.selftest:
         return selftest()
+    if a.proj_vs_quad:
+        if not a.trace:
+            ap.error("a trace is needed")
+        ok = check_vs_quad(a.trace)[0]
+        print("RESULT: %s" % ("PASS" if ok else "FAIL"))
+        return 0 if ok else 1
     if a.proj_world:
         if not a.trace:
             ap.error("a trace is needed")
