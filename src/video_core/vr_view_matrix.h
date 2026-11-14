@@ -484,15 +484,39 @@ private:
 /// the same at any slider (the 0.01 of mode 3 too) and needs no settled slider. With the size of
 /// the picture on the screen it gives the leaning scale (frame_xr/immersive_layout.h
 /// NaturalLeaning). Also the median of the zero-parallax distance P00 x eye / far, for the log.
+///
+/// A frame whose two cameras do not carry its 3D is left out: some screens make their 3D by
+/// shearing each eye's projection with the cameras (all but) together (Ocarina of Time 3D's and
+/// Majora's Mask 3D's title: 0.0005 and under 0.0001 units apart, the far scenery 2 to 7 % of the
+/// width apart), which would read as a K thousands of times too small, and the leaning made from
+/// it would ease to nothing for many seconds. So the zero-parallax distance the eyes give
+/// (P00 x eye / far) must be at least kMinZeroParallax units ahead (the screen's plane on a
+/// camera's lens is no 3D at all; every game measured puts it 42 to 50 units ahead), and when
+/// the game's own near terms place that plane too (`zero_distance`, ZeroParallaxMeasure's
+/// frame value, below or at 0: not known), within a factor kZeroAgree of it: both measure the
+/// same plane, and they agree to the unit in gameplay.
 class EyePerFar {
 public:
     static constexpr int kSamples = 9;
     /// Far scenery this little apart (NDC) is too little to divide by.
     static constexpr float kMinFarNdc = 2e-4f;
+    static constexpr float kMinZeroParallax = 1.0f; ///< game units
+    static constexpr float kZeroAgree = 2.0f;
 
-    void Swap(int eyes, float far_ndc, float eye_apart, float p00) noexcept {
+    void Swap(int eyes, float far_ndc, float eye_apart, float p00,
+              float zero_distance = -1.0f) noexcept {
         if (eyes < 2 || !(far_ndc >= kMinFarNdc) || !(eye_apart > 0.0f)) {
             return;
+        }
+        if (p00 > 0.0f) {
+            const float z = p00 * eye_apart / far_ndc;
+            if (!(z >= kMinZeroParallax)) {
+                return;
+            }
+            if (zero_distance > 0.0f &&
+                !(z <= kZeroAgree * zero_distance && zero_distance <= kZeroAgree * z)) {
+                return;
+            }
         }
         const float v = eye_apart / (far_ndc / 2.0f);
         if (!std::isfinite(v)) {

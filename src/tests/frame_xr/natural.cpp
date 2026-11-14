@@ -187,6 +187,29 @@ TEST_CASE("Natural: eyes per far width, the same at any slider", "[frame_xr][nat
     CHECK(m.Count() == 4);
 }
 
+// Mock logs (lane natural2): Ocarina of Time 3D's title shears its eyes' projections with the
+// cameras 0.0005 units apart (far scenery 7 % of the width apart, P00 1.9), Majora's Mask 3D's
+// with them under 0.0001 apart; the game's own near terms put the screen's plane 35 units ahead
+// on the first. Gameplay agrees to the unit (Ocarina of Time 3D 49.6, Mario Kart 7 45.0).
+TEST_CASE("Natural: a screen whose cameras do not carry its 3D is not read", "[frame_xr][natural]") {
+    VI::EyePerFar m;
+    m.Swap(2, 0.1409f, 0.0005f, 1.903f, 35.0f);  // the title: 0.007 units, its near terms 35
+    m.Swap(2, 0.1409f, 0.0005f, 1.903f);         // the same without near terms
+    m.Swap(2, 0.02262f, 0.00004f, 1.648f, 0.0f); // Majora's Mask 3D's title
+    CHECK(m.Count() == 0);
+    CHECK(m.Value() < 0.0f);
+    // Gameplay: read, with or without the near terms' plane.
+    m.Swap(2, 0.01367f, 0.5787f, 1.170f, 49.5f);
+    m.Swap(2, 0.01367f, 0.5787f, 1.170f);
+    CHECK(m.Count() == 2);
+    CHECK(m.Value() == Approx(0.5787f / (0.01367f / 2.0f)).epsilon(1e-4)); // 84.7 a width
+    CHECK(m.ZeroParallax() == Approx(1.170f * 0.5787f / 0.01367f).epsilon(1e-4));
+    // Two measures of the plane that disagree by more than twice: not read.
+    m.Swap(2, 0.01367f, 0.5787f, 1.170f, 20.0f);
+    m.Swap(2, 0.01367f, 0.5787f, 1.170f, 120.0f);
+    CHECK(m.Count() == 2);
+}
+
 TEST_CASE("Natural: 3D Depth percent and its default", "[frame_xr][natural]") {
     // The new setting's own value or default.
     CHECK(NaturalDepthPercent(false, 100, false, 90) == 100);

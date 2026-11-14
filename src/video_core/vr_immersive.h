@@ -583,7 +583,7 @@ public:
             g_stereo_near_per_unit.store(zero_.PerUnit(), std::memory_order_relaxed);
             g_stereo_zero_distance.store(zero_.Distance(), std::memory_order_relaxed);
             // AzaharFrame natural: the game's eyes apart, per its far width.
-            eye_per_far_.Swap(st.eyes, st.far_ndc, st.eye_apart, st.p00);
+            eye_per_far_.Swap(st.eyes, st.far_ndc, st.eye_apart, st.p00, st.zero_distance);
             g_stereo_eye_per_far.store(eye_per_far_.Value(), std::memory_order_relaxed);
             g_stereo_eye_samples.store(eye_per_far_.Count(), std::memory_order_relaxed);
             if (st.have_m) {
