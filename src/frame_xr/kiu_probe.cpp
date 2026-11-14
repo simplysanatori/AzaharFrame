@@ -245,7 +245,8 @@ void AimPoll(int64_t ticks) {
     const int64_t now = static_cast<int64_t>(static_cast<double>(ticks) * 1'000'000'000.0 /
                                              static_cast<double>(BASE_CLOCK_RATE_ARM11));
     const Input::DirectAim::Out out =
-        p.aim.Update(now, reading, target, frame.zone_fraction, frame.turn_speed,
+        p.aim.Update(now, reading, target,
+                     Input::DirectAim::Turn{frame.zone_fraction, frame.zone_from, frame.turn_speed},
                      frame.clutch || frame.stick);
     if (out.write && (out.x != reading.x || out.y != reading.y)) {
         // Only these two floats of the object the guards just checked; the game reads them at
@@ -277,9 +278,14 @@ void AimPoll(int64_t ticks) {
         const Input::ReticleBox box = Input::ReachableBox(reading);
         LOG_INFO(Frontend,
                  "xr: Light Gun: reticle {:.1f}, {:.1f} of {:.0f}x{:.0f} ({}, box {:.1f} to "
-                 "{:.1f}, {:.1f} to {:.1f}), ray {:.1f}, {:.1f}{}{}",
+                 "{:.1f}, {:.1f} to {:.1f}), ray {:.1f}, {:.1f}{}{}{}",
                  reading.x, reading.y, reading.w, reading.h, reading.ground ? "ground" : "air",
                  box.x0, box.x1, box.y0, box.y1, want.x, want.y,
+                 // AzaharFrame kiuaim3: Keep Reticle on Screen's edge point, and how far past
+                 target.edge ? fmt::format(", edge {:+d} {:+d} past {:.0f} deg{}", target.past_u,
+                                           target.past_v, target.past_deg,
+                                           target.resting ? " resting" : "")
+                             : std::string{},
                  !target.valid ? ", off the top screen"
                  : out.write   ? fmt::format(", written {:.1f}, {:.1f}", out.x, out.y)
                                : std::string{},

@@ -975,6 +975,16 @@ struct Values {
     SwitchableSetting<u32, true> vr_light_gun_weapon_size{0, 0, 1, "vr_light_gun_weapon_size"};
     SwitchableSetting<u32, true> vr_light_gun_weapon_scale{100, 50, 150,
                                                            "vr_light_gun_weapon_scale"};
+    // AzaharFrame kiuaim3: Direct Aim (frame_xr/input/gyro_aim.h). Turn Zone From: 0 Screen Edge
+    // (the outer Turn Zone % of the top screen, as before), 1 Aim Box (from the game's aim box
+    // outward). Keep Reticle on Screen: a ray off the top screen keeps the reticle at its edge
+    // (turning past the aim box) while the aim is locked. Grip Frees Aim: 0 Hold (free while
+    // held), 1 Toggle (a press frees, the next locks). Per game too. New keys: older builds
+    // ignore them.
+    SwitchableSetting<u32, true> vr_light_gun_turn_zone_from{1, 0, 1,
+                                                             "vr_light_gun_turn_zone_from"};
+    SwitchableSetting<bool> vr_light_gun_lock{true, "vr_light_gun_lock"};
+    SwitchableSetting<u32, true> vr_light_gun_grip{0, 0, 1, "vr_light_gun_grip"};
     // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
     // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
     // already had, is never given again, so a later choice (Use Global Value too) stays.

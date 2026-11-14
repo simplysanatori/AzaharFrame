@@ -186,6 +186,54 @@ LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top) {
     return LightGunTargetFor(RayFromPose(hand.aim), top);
 }
 
+LightGunTarget LockedTargetFor(const Ray& ray, const PanelQuad& top) {
+    LightGunTarget t;
+    if (!top.visible || !(top.width_m > 0.0f) || !(top.height_m > 0.0f)) {
+        return t;
+    }
+    const QuadHit hit = IntersectQuad(ray, top);
+    const bool finite = std::isfinite(hit.u) && std::isfinite(hit.v);
+    t.valid = true;
+    if (hit.in_bounds && finite) {
+        t.u = hit.u;
+        t.v = hit.v;
+        t.point = hit.point_world;
+        return t;
+    }
+    float u = 0.5f, v = 1.0f;
+    if (hit.on_plane && finite) {
+        u = hit.u;
+        v = hit.v;
+    } else {
+        // Pointing away from the screen's plane (or along it): the edge in the ray's direction,
+        // seen in the screen's own axes (x right, y up), from its centre.
+        const Vec3f d = Rotate(Conjugate(Normalized(top.pose.orientation)), ray.direction);
+        const float x = d.x / top.width_m, y = -d.y / top.height_m;
+        const float m = std::max(std::fabs(x), std::fabs(y));
+        if (m > 1e-6f) {
+            u = 0.5f + 0.5f * x / m;
+            v = 0.5f + 0.5f * y / m;
+        }
+        // On the edge it is past (exactly 0 or 1 there): nudged past for past_u, past_v.
+        u = u <= 0.0f ? -1.0f : (u >= 1.0f ? 2.0f : u);
+        v = v <= 0.0f ? -1.0f : (v >= 1.0f ? 2.0f : v);
+    }
+    t.edge = true;
+    t.past_u = u < 0.0f ? -1 : (u > 1.0f ? 1 : 0);
+    t.past_v = v < 0.0f ? -1 : (v > 1.0f ? 1 : 0);
+    t.u = std::clamp(u, 0.0f, 1.0f);
+    t.v = std::clamp(v, 0.0f, 1.0f);
+    t.point = PointOnQuad(top, t.u, t.v);
+    const Vec3f to_edge = t.point - ray.origin;
+    const float len = Length(to_edge), dlen = Length(ray.direction);
+    if (len > 1e-6f && dlen > 1e-6f) {
+        const float c = std::clamp(Dot(to_edge, ray.direction) / (len * dlen), -1.0f, 1.0f);
+        t.past_deg = std::acos(c) * 57.29578f;
+    }
+    t.resting = t.past_deg > kRestingPastDeg;
+    return t;
+}
+
 Vec3f PointOnQuad(const PanelQuad& quad, float u, float v) {
     Vec3f local{(u - 0.5f) * quad.width_m, (0.5f - v) * quad.height_m, 0.0f};
     if (quad.curve_radius > 0.0f) {
@@ -528,6 +576,35 @@ Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction) {
     return {depth(target.u), depth(target.v)};
 }
 
+AimGrip::Out AimGrip::Update(float grip, bool other_grip, AimGripMode mode, bool suspend) {
+    Out out;
+    const bool held = clutch_.Update(grip);
+    const bool was_free = mode_ == AimGripMode::Toggle && toggled_free_;
+    if (mode != mode_) {
+        mode_ = mode;
+        toggled_free_ = false;
+    }
+    if (held && !was_held_) {
+        joined_ = other_grip;
+    } else if (held) {
+        joined_ = joined_ || other_grip;
+    }
+    const bool released = was_held_ && !held;
+    was_held_ = held;
+    if (suspend) {
+        toggled_free_ = false;
+    } else if (mode == AimGripMode::Toggle && released && !joined_) {
+        toggled_free_ = !toggled_free_;
+    }
+    if (mode == AimGripMode::Toggle) {
+        out.free = toggled_free_;
+        out.toggled = toggled_free_ != was_free;
+    } else {
+        out.free = held;
+    }
+    return out;
+}
+
 // ---- AzaharFrame kiuaim2: Direct Aim --------------------------------------------------------
 
 ReticleBox GroundBox(const ReticleReading& r) {
@@ -563,9 +640,46 @@ AimRegion ReachableRegion(const ReticleReading& r) {
     return {a.x, a.y, c.x, c.y};
 }
 
+Vec2f AimBoxTurnDepth(const ReticleReading& r, Vec2f px, float zone_fraction) {
+    if (!(zone_fraction > 0.0f) || !(r.w > 0.0f) || !(r.h > 0.0f)) {
+        return {};
+    }
+    const ReticleBox b = GroundBox(r);
+    const auto depth = [](float p, float lo, float hi, float z) {
+        if (p < lo) {
+            return -std::clamp((lo - p) / z, 0.0f, 1.0f);
+        }
+        if (p > hi) {
+            return std::clamp((p - hi) / z, 0.0f, 1.0f);
+        }
+        return 0.0f;
+    };
+    const float z = std::min(zone_fraction, 0.5f);
+    return {depth(px.x, b.x0, b.x1, z * r.w), depth(px.y, b.y0, b.y1, z * r.h)};
+}
+
+Vec2f TurnDepthFor(const ReticleReading& r, const LightGunTarget& target, float zone_fraction,
+                   TurnZoneFrom from) {
+    if (!r.ground || !target.valid || target.resting || !(zone_fraction > 0.0f)) {
+        return {};
+    }
+    Vec2f d = from == TurnZoneFrom::ScreenEdge
+                  ? TurnZoneDepth(target, zone_fraction)
+                  : AimBoxTurnDepth(r, ReticlePixel(r, target.u, target.v), zone_fraction);
+    if (target.edge) {
+        // Past the screen's edge: all the way, as the C-Stick held to its rim.
+        if (target.past_u != 0) {
+            d.x = static_cast<float>(target.past_u);
+        }
+        if (target.past_v != 0) {
+            d.y = static_cast<float>(target.past_v);
+        }
+    }
+    return d;
+}
+
 DirectAim::Out DirectAim::Update(int64_t time_ns, const ReticleReading& r,
-                                 const LightGunTarget& target, float zone_fraction,
-                                 float turn_speed, bool pause) {
+                                 const LightGunTarget& target, const Turn& turn, bool pause) {
     Out out;
     if (!r.valid || !(r.w > 1.0f) || !(r.h > 1.0f)) {
         Reset();
@@ -604,10 +718,11 @@ DirectAim::Out DirectAim::Update(int64_t time_ns, const ReticleReading& r,
     out.easing = easing_;
     out.x = easing_ ? from_x_ + (tx - from_x_) * ease : tx;
     out.y = easing_ ? from_y_ + (ty - from_y_) * ease : ty;
+    out.resting = target.resting;
     if (r.ground) {
-        const Vec2f depth = TurnZoneDepth(target, zone_fraction);
+        const Vec2f depth = TurnDepthFor(r, target, turn.zone_fraction, turn.from);
         if (depth.x != 0.0f || depth.y != 0.0f) {
-            const float s = ClampTurnSpeed(turn_speed) * kTurnPushDps * ease;
+            const float s = ClampTurnSpeed(turn.speed) * kTurnPushDps * ease;
             out.right_dps = std::clamp(depth.x * s, -kModMaxDps, kModMaxDps);
             out.down_dps = std::clamp(depth.y * s, -kModMaxDps, kModMaxDps);
             out.turning = true;
@@ -635,8 +750,9 @@ LightGunTarget AimSampler::At(int64_t host_ns) const {
     }
     LightGunTarget t = last_;
     const int64_t gap = last_ns_ - before_ns_;
-    if (!t.valid || !have_before_ || !before_.valid || gap <= 0 || gap > kMaxGapNs ||
-        host_ns <= last_ns_) {
+    // AzaharFrame kiuaim3: an edge point (Keep Reticle on Screen) is not carried along.
+    if (!t.valid || !have_before_ || !before_.valid || t.edge || before_.edge || gap <= 0 ||
+        gap > kMaxGapNs || host_ns <= last_ns_) {
         return t;
     }
     const float lead = static_cast<float>(std::min<int64_t>(host_ns - last_ns_, kMaxLeadNs)) /

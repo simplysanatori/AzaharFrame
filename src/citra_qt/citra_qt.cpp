@@ -520,6 +520,9 @@ struct FrameKeepControls {
           recoil_rapid{Settings::values.vr_light_gun_recoil_rapid},
           weapon_size{Settings::values.vr_light_gun_weapon_size},
           weapon_scale{Settings::values.vr_light_gun_weapon_scale},
+          turn_zone_from{Settings::values.vr_light_gun_turn_zone_from}, // AzaharFrame kiuaim3
+          lock{Settings::values.vr_light_gun_lock},
+          grip{Settings::values.vr_light_gun_grip},
           preset_done{Settings::values.vr_controls_preset_done} {}
     void Restore() {
         touchpad.Restore();
@@ -542,6 +545,9 @@ struct FrameKeepControls {
         recoil_rapid.Restore();
         weapon_size.Restore();
         weapon_scale.Restore();
+        turn_zone_from.Restore(); // AzaharFrame kiuaim3
+        lock.Restore();
+        grip.Restore();
         preset_done.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
@@ -564,6 +570,9 @@ struct FrameKeepControls {
     FrameKeepSetting<u32, true> recoil_rapid;
     FrameKeepSetting<u32, true> weapon_size;
     FrameKeepSetting<u32, true> weapon_scale;
+    FrameKeepSetting<u32, true> turn_zone_from; // AzaharFrame kiuaim3
+    FrameKeepSetting<bool, false> lock;
+    FrameKeepSetting<u32, true> grip;
     FrameKeepSetting<u32, false> preset_done;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
@@ -5563,6 +5572,15 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::WeaponScale:
         set(v.vr_light_gun_weapon_scale, std::clamp<u32>(u, 50, 150));
+        break;
+    case S::TurnZoneFrom: // AzaharFrame kiuaim3: 0 Screen Edge, 1 Aim Box
+        set(v.vr_light_gun_turn_zone_from, std::min<u32>(u, 1));
+        break;
+    case S::KeepOnScreen:
+        set(v.vr_light_gun_lock, r.value != 0);
+        break;
+    case S::GripFreesAim: // 0 Hold, 1 Toggle
+        set(v.vr_light_gun_grip, std::min<u32>(u, 1));
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);

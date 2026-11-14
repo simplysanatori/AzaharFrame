@@ -464,7 +464,9 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
         if (pressed && !was_pressed) {
             // The hand that pulled last is the pointing hand.
             preferred_hand_ = hand;
-            const PanelHit target = input.active ? NearestInBounds(ray, panels) : PanelHit{};
+            // AzaharFrame kiuaim3: a controller whose aim Direct Aim holds touches nothing.
+            const PanelHit target =
+                input.active && !input.aim_locked ? NearestInBounds(ray, panels) : PanelHit{};
             if (target.panel == Panel::Bottom && !touch_active_) {
                 state.gesture = Gesture::Touch;
                 touch_active_ = true;
@@ -635,7 +637,7 @@ MapperOutput Mapper::Update(const InputFrame& frame, const PanelGeometry& panels
             for (const Hand& hand : order) {
                 const HandInput& input = frame.hand[static_cast<std::size_t>(HandIndex(hand))];
                 // AzaharFrame polish: the Bottom Screen Reticle's controller points at nothing.
-                if (!input.active || input.reticle) {
+                if (!input.active || input.reticle || input.aim_locked) { // AzaharFrame kiuaim3
                     continue;
                 }
                 const PanelHit target = NearestInBounds(RayFromPose(input.aim), panels);

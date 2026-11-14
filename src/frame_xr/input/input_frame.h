@@ -31,6 +31,11 @@ struct HandInput {
     /// (ReticleDrivingHand, reticle.h): no beam, no pointer dot and no stats grab of its own.
     /// Only in a game with the menu closed; everywhere else it is a normal pointer.
     bool reticle = false;
+    /// AzaharFrame kiuaim3: Direct Aim keeps this controller's reticle on the top screen (Keep
+    /// Reticle on Screen, the aim locked: gyro_aim.h LockedTargetFor): its beam touches nothing
+    /// and points at nothing on the bottom screen (its trigger is ZL/ZR, which fires). Its grip
+    /// frees the aim (Grip Frees Aim), and then it points and touches as usual.
+    bool aim_locked = false;
 };
 
 /// Everything the controllers report in one display frame. A and B and X and Y and Menu are on the

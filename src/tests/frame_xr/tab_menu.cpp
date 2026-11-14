@@ -2940,7 +2940,8 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
                           Id::ReticleAtEdge, Id::ReticleCenter, Id::ReticleStick, Id::GyroAim,
                           Id::GyroSensitivity, Id::Recoil, Id::RecoilCharged, Id::RecoilRapid,
                           Id::WeaponInHand, Id::WeaponSize, Id::WeaponScale, Id::MuzzleFlash,
-                          Id::LaserSight, Id::TurnZone, Id::TurnSpeed});
+                          Id::LaserSight, Id::TurnZone, Id::TurnSpeed, Id::KeepOnScreen,
+                          Id::GripFreesAim, Id::TurnZoneFrom});
     MenuModel m = Sample();
     m.scope = 1;
     for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {
@@ -3114,7 +3115,7 @@ TEST_CASE("Tab menu: Aiming's names and order", "[frame_xr][tabmenu][kiugyro]") 
     CHECK(OptionsFor(Id::GyroAim) == std::vector<std::string>{"Off", "Direct Aim", "Gyro Aim"});
     CHECK(ExplainFor(Id::GyroAim) ==
           "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Direct Aim puts the "
-          "reticle where you point. Hold the grip to pause.");
+          "reticle where you point. The grip pauses it.");
     CHECK(AimingIndexOf(0) == 0);
     CHECK(AimingIndexOf(2) == 1); // Direct Aim is stored Light Gun
     CHECK(AimingIndexOf(1) == 2); // Gyro Aim is stored Gyro
@@ -3149,6 +3150,66 @@ TEST_CASE("Tab menu: Aiming's names and order", "[frame_xr][tabmenu][kiugyro]") 
         REQUIRE(sens != nullptr);
         CHECK(sens->r.y0 >= aim->r.y1 - 0.01f);
         CHECK(sens->r.y0 - aim->r.y1 < 24.0f);
+    }
+}
+
+// AzaharFrame kiuaim3: Keep Reticle on Screen, Grip Frees Aim and Turn Zone From, per game, with
+// Direct Aim only, between Laser Sight and Turn Zone.
+TEST_CASE("Tab menu: Direct Aim's lock, grip and Turn Zone basis", "[frame_xr][tabmenu][kiuaim3]") {
+    CHECK(LabelFor(Id::KeepOnScreen) == "Keep Reticle on Screen");
+    CHECK(LabelFor(Id::GripFreesAim) == "Grip Frees Aim");
+    CHECK(LabelFor(Id::TurnZoneFrom) == "Turn Zone From");
+    CHECK(OptionsFor(Id::GripFreesAim) == std::vector<std::string>{"Hold", "Toggle"});
+    CHECK(OptionsFor(Id::TurnZoneFrom) == std::vector<std::string>{"Screen Edge", "Aim Box"});
+    for (const Id id : {Id::KeepOnScreen, Id::GripFreesAim, Id::TurnZoneFrom, Id::TurnZone,
+                        Id::CalibrateAim}) {
+        INFO(LabelFor(id));
+        CHECK(PerGameSetting(id) == (id != Id::CalibrateAim));
+        const std::string tip = ExplainFor(id);
+        CHECK(!tip.empty());
+        // The owner's screen names: never top or bottom in what the player reads.
+        CHECK(tip.find("top screen") == std::string::npos);
+        CHECK(tip.find("bottom screen") == std::string::npos);
+    }
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Controls;
+    const auto shown = [&d](Id id) {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id) {
+                return true;
+            }
+        }
+        return false;
+    };
+    for (const int aiming : {0, 1, 2}) {
+        INFO("aiming " << aiming);
+        m.gyro_aim = aiming;
+        bool rows = false;
+        for (float scroll = 0.0f; scroll <= 3000.0f && !rows; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Controls)] = scroll;
+            d.Draw(m, v);
+            rows = shown(Id::KeepOnScreen) && shown(Id::GripFreesAim) && shown(Id::TurnZoneFrom) &&
+                   shown(Id::TurnZone);
+            if (scroll >= d.menu.MaxScroll()) {
+                break;
+            }
+        }
+        CHECK(rows == (aiming == 2));
+        if (rows) {
+            const MenuLayout::Hit* laser = FindHit(d, Id::LaserSight, -1);
+            const MenuLayout::Hit* keep = FindHit(d, Id::KeepOnScreen, -1);
+            REQUIRE(laser != nullptr);
+            REQUIRE(keep != nullptr);
+            CHECK(keep->r.y0 >= laser->r.y1 - 0.01f); // under Laser Sight
+            Audit a;
+            a.Draw(m, v);
+            a.Check("Controls, Direct Aim's lock and grip");
+            CHECK(a.Drew("Keep Reticle on Screen"));
+            CHECK(a.Drew("Grip Frees Aim"));
+            CHECK(a.Drew("Turn Zone From"));
+        }
     }
 }
 

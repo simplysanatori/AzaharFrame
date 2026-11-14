@@ -248,6 +248,10 @@ enum class Id : int {
     AngelsAimSettings, ///< Aiming Settings: the Controls tab at Aiming
     AngelsAimReport,   ///< Report an Issue ("Open GitHub?" first)
     AngelsAimSend,     ///< AzaharFrame kiumenus: Send Report (Azahar's window, its own dialog)
+    // AzaharFrame kiuaim3: Direct Aim's rows (the Controls tab, with Direct Aim)
+    KeepOnScreen, ///< Keep Reticle on Screen: a switch (vr_light_gun_lock)
+    GripFreesAim, ///< index: 0 Hold, 1 Toggle (vr_light_gun_grip)
+    TurnZoneFrom, ///< index: 0 Screen Edge, 1 Aim Box (vr_light_gun_turn_zone_from)
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -359,6 +363,9 @@ struct MenuModel {
     int recoil_rapid = 50;      ///< percent (0 to 100)
     int weapon_size = 0;        ///< 0 Game Size, 1 Hand Size
     int weapon_scale = 100;     ///< percent (50 to 150)
+    bool keep_on_screen = true; ///< AzaharFrame kiuaim3: vr_light_gun_lock
+    int grip_frees_aim = 0;     ///< 0 Hold, 1 Toggle
+    int turn_zone_from = 1;     ///< 0 Screen Edge, 1 Aim Box
     bool aim_calibrated = false; ///< the running game has a Check Aim map of its own
     bool aim_calibration_ok = false; ///< Check Aim can start (Direct Aim, the reticle read)
     bool show_controllers = true;

@@ -94,7 +94,10 @@ game too; stored as before: 0 Off, 1 Gyro Aim, 2 Direct Aim, so older builds rea
 value; the code calls Direct Aim "Light Gun" and Gyro Aim "Gyro"; `Menu::AimingIndexOf`),
 **Recoil**, **Gyro Sensitivity**, and with Direct Aim **Turn Zone** (`vr_light_gun_turn_zone`, 0
 to 30 % of the screen, default 10 %) and **Turn Speed** (`vr_light_gun_turn_speed`, 0.2x to
-4.0x, default 1.0x). Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod (v172), in
+4.0x, default 1.0x), and (AzaharFrame kiuaim3) **Keep Reticle on Screen** (`vr_light_gun_lock`, on
+by default), **Grip Frees Aim** (`vr_light_gun_grip`: 0 Hold, the default, 1 Toggle) and **Turn
+Zone From** (`vr_light_gun_turn_zone_from`: 0 Screen Edge, 1 Aim Box, the default), all per game
+too; new keys, which older builds ignore. Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod (v172), in
 any of the game's own control schemes (AzaharFrame kiufix2); its Controls preset starts
 Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_mod`). `gyro_aim.h`,
 `kiu_scan.h`, `kiu_probe.h`; the disassembly is in handoff/reports/37/kiugyro/design.md.
@@ -162,6 +165,47 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   and what was written. Before kiuaim2 Light Gun fed the mod a gyro rate towards the hit with a
   learnt gain (a Smith predictor; relative): the gain was a guess that could drift, which is what
   the owner felt as losing the calibration.
+- **The aim box** (AzaharFrame kiuaim3: where the C-Stick turns the camera). Each game frame
+  the game asks 0x6D163C for the ground box: x 0.7 to 1.3 of the centre's x (fixed), y from
+  (1 + [+0xF4]) to (1 + [+0xF0]) of the centre's y (-0.6, and 0.25 to 0.8 as the game writes them
+  for its state; the bottom is stretched to the reticle while the game lowers it, 0x6D17D8 to
+  0x6D18A4). The box goes to 0x6D2C08 (through the mod's 0xF40000), which clamps the reticle to it
+  and turns the camera by what it clamps off (x 2.7, the mod's 0xF54000), and to the reticle's own
+  move and clamp (0x6D296C). So the +0xF0/+0xF4 box and `GroundBox` are one box, and it is where
+  the C-Stick starts turning: in the owner's 571 and 573 logs the ground reticle, C-Stick steering
+  included, stays within x 140 to 260 and y 48 to 150 (cx 200, cy 120), the box's edges, and
+  stops at x 259 to 260, the right edge, while the C-Stick steers. Direct Aim keeps the reticle 0.5 px inside it
+  (`ReachableBox`); Turn Zone From's **Aim Box** is this box. The reticle's reach differs from it
+  only in the mod's own states, which Direct Aim does not use: with the mod's flag 4
+  (0xF35D74 & 4, set while a byte of the player's state, +0x27C, is non-zero; not identified,
+  likely the touch screen's aim) the box is the whole screen (0xF5A4C8: the stylus reaches every
+  pixel and nothing turns before the screen's edge); while its own C-Stick or gyro drag runs, the
+  box is stretched to take in where the reticle already is (0xF5B038) or, with a counter of its
+  stick (0xF35D88, from 0xF55678), the whole screen (0xF45450, 0xF5B118); and in the game's
+  control schemes 1 and 2 with a camera flag (+0x31A) it shrinks to the centre (0xF40000). The
+  Frame mock's C-Stick run reads where the turn starts (+0x84 bit 8, set by 0x6D2C08 when it
+  clamps).
+- **Turn Zone From** (AzaharFrame kiuaim3, ground only; the air has no zone): **Screen Edge** is
+  the outer Turn Zone % of the top screen (as before): between the aim box and that band the
+  reticle waits at the box's edge and nothing turns. **Aim Box** measures from the aim box's edge
+  outward (`AimBoxTurnDepth`): depth 0 at the edge, 1 at the edge plus Turn Zone % of the
+  screen's width (sides) or height (top and bottom), so pointing just past the box already turns,
+  a little, and there is no dead band. Either way the push is depth x Turn Speed x 33.3 deg/s
+  outward and the reticle is written at the box's edge (`TurnDepthFor`, `DirectAim::Turn`).
+- **Keep Reticle on Screen** (AzaharFrame kiuaim3, the aiming controller, not Headset): while the
+  aim is locked (not freed by the grip), a ray that misses the top screen puts the reticle at the
+  nearest point of the screen's edge to where it meets the screen's plane (`LockedTargetFor`); a
+  ray that does not reach the plane from the front (pointing away, or along it) gets the edge
+  point in its direction from the screen's centre. The bottom screen is no exception: the reticle
+  waits at the top screen's bottom edge, and that controller's beam touches nothing there and
+  shows no pointer (`HandInput::aim_locked`; its trigger is ZL/ZR and fires). On the ground the
+  edge point is past the aim box, so the Turn Zone turns at full depth on the sides the ray is
+  past, as the C-Stick held to its rim does. **Resting guard:** a ray more than 25 degrees past
+  the edge (`kRestingPastDeg`: the angle between the ray and the edge point, from the ray's start;
+  the arm lowered to rest, say) keeps the reticle at the edge and turns nothing; the log says
+  `xr: Direct Aim: resting at the edge (N deg past ...)` and `aiming again`. The laser is not drawn
+  to an edge point. Off: as before (no target off the top screen's surroundings or on the bottom
+  screen, which that controller touches).
 - **Laser sight** (with Laser Sight on; AzaharFrame kiuguns): with Direct Aim, while its ray is on
   the top screen, the beam is red, runs along Direct Aim's ray (from the muzzle when the weapon is
   drawn) and ends in a small red dot (`LaserDotSize`: half the pointer dot's) where it meets the
@@ -193,7 +237,16 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   zero rate; Light Gun: the reticle stays) and grabs nothing; letting go does not jump (Gyro
   starts again from the hand's new place; Light Gun eases back to the pointer over 300 ms). The other
   controller's grip still grabs, moves and sizes the screens (World Scale, grip + stick).
-  Not with Headset (no grip).
+  Not with Headset (no grip). AzaharFrame kiuaim3, **Grip Frees Aim** (Direct Aim): **Hold** is
+  the above; **Toggle** frees the aim at one press and locks it at the next (`AimGrip`, on the
+  release; toasts "Aim Unlocked", "Aim Locked"). Free, the reticle stays where it was, nothing is
+  written, the laser gives way to the usual beam and the controller points and touches anywhere
+  (the bottom screen, the menus); locked, Keep Reticle on Screen holds it. What else the aiming
+  grip does in Kid Icarus: Uprising: nothing in the game (it reaches neither the mapper nor the
+  game), no grab; Check Aim confirms with the trigger, and a check keeps the aim locked (Toggle's
+  presses wait). Both grips together (with the other hand holding the immersive screen: the
+  D-pad shapes it) keep that meaning: in Toggle a press while the other grip is down, or joined by
+  it, toggles nothing; in Hold the aim is paused meanwhile, as before.
 - **Fire:** while Gyro Aim is on, a trigger that is ZL/ZR (not touching the bottom screen) also
   presses the Left Bumper's control (L in the default profile): the game fires with L, so the
   aiming controller's trigger fires, and the left trigger too. The mod also writes ir:rst's

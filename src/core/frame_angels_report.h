@@ -38,6 +38,9 @@ struct Info {
     int weapon_size = 0;                      ///< 0 Game Size, 1 Hand Size
     int weapon_scale = 100;                   ///< percent
     int gyro_sensitivity = 0, turn_zone = 0, turn_speed = 0;
+    int turn_zone_from = 1;      ///< AzaharFrame kiuaim3: 0 Screen Edge, 1 Aim Box
+    bool keep_on_screen = true;  ///< Keep Reticle on Screen
+    bool grip_toggle = false;    ///< Grip Frees Aim: Toggle (else Hold)
     bool immersive = false;
 };
 

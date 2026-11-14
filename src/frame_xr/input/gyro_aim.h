@@ -61,11 +61,31 @@ inline constexpr float kGyroSensitivityMax = 4.0f;
 inline constexpr float kGyroSensitivityDefault = 1.0f;
 float ClampGyroSensitivity(float value);
 
-/// Turn Zone (Settings::values.vr_light_gun_turn_zone): the outer share of the top screen, on
-/// each side, where Light Gun turns the camera; percent of the width (sides) and of the height
-/// (top and bottom). 0 turns it off.
+/// Turn Zone (Settings::values.vr_light_gun_turn_zone): the band, on each side, where Light Gun
+/// turns the camera on the ground; percent of the top screen's width (sides) and of its height
+/// (top and bottom). 0 turns it off. AzaharFrame kiuaim3: where it is measured from is Turn Zone
+/// From's.
 inline constexpr uint32_t kTurnZoneMaxPercent = 30;
 inline constexpr uint32_t kTurnZoneDefaultPercent = 10;
+/// AzaharFrame kiuaim3: Turn Zone From (Settings::values.vr_light_gun_turn_zone_from, per game):
+///   Screen Edge: the outer Turn Zone % of the top screen (kiugyro to kiuaim2). Between the
+///     game's aim box and that band the reticle waits at the box's edge and nothing turns.
+///   Aim Box (the default): from the edge of the game's aim box outward (AimBoxTurnDepth): 0 at
+///     the box's edge, full at the edge plus Turn Zone % of the screen's width (or height), so
+///     there is no dead band between the box and the zone. The aim box is the one the C-Stick
+///     turns at (GroundBox; MAPPING.md, Turn Zone).
+enum class TurnZoneFrom : uint32_t { ScreenEdge = 0, AimBox = 1 };
+constexpr TurnZoneFrom TurnZoneFromValue(uint32_t value) {
+    return value == 0 ? TurnZoneFrom::ScreenEdge : TurnZoneFrom::AimBox;
+}
+inline constexpr uint32_t kTurnZoneFromDefault = 1;
+/// AzaharFrame kiuaim3: Grip Frees Aim (Settings::values.vr_light_gun_grip, per game): Hold (the
+/// default; the aim is free while the aiming controller's grip is held) or Toggle (a press frees
+/// it, the next locks it again; AimGrip).
+enum class AimGripMode : uint32_t { Hold = 0, Toggle = 1 };
+constexpr AimGripMode AimGripModeFrom(uint32_t value) {
+    return value == 1 ? AimGripMode::Toggle : AimGripMode::Hold;
+}
 /// Turn Speed (Settings::values.vr_light_gun_turn_speed): at 1.0x, pointing at the screen's very
 /// edge pushes the reticle past the game's aim box by one screen width a second.
 inline constexpr float kTurnSpeedMin = 0.2f;
@@ -165,11 +185,32 @@ struct LightGunTarget {
     float u = 0.5f;
     float v = 0.5f;
     Vec3f point{};
+    /// AzaharFrame kiuaim3: Keep Reticle on Screen (LockedTargetFor): the ray misses the top
+    /// screen and (u, v) is the nearest point of its edge (`point` there too). `past_u`, `past_v`:
+    /// the sides it is past (-1 left or top, +1 right or bottom, 0 not past); `past_deg`: the
+    /// angle between the ray and that edge point; `resting`: past kRestingPastDeg (no turn).
+    bool edge = false;
+    int past_u = 0;
+    int past_v = 0;
+    float past_deg = 0.0f;
+    bool resting = false;
 };
 LightGunTarget LightGunTargetFor(const Ray& ray, const PanelQuad& top,
                                  const PanelQuad* other = nullptr);
 /// The aim pose's own ray (no weapon); nothing for a hand that is not tracked.
 LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top);
+
+/// AzaharFrame kiuaim3: Keep Reticle on Screen (Settings::values.vr_light_gun_lock, per game, on
+/// by default): while the aiming controller's aim is locked (not freed by its grip), a ray that
+/// misses the top screen keeps the reticle on it: the nearest point of the screen's edge to where
+/// the ray meets the screen's plane (the bottom screen too: it is not touched then); a ray that
+/// does not reach the plane from the front (pointing away, or along it) gets the edge point in
+/// its direction from the screen's centre. On the ground that point is past the aim box, so the
+/// Turn Zone turns at full depth (DirectAim), as the C-Stick held all the way does. Resting
+/// guard: a ray more than kRestingPastDeg past the edge (the arm lowered to rest, say) keeps the
+/// reticle at the edge and turns nothing. Not valid only when the screen is not shown.
+inline constexpr float kRestingPastDeg = 25.0f;
+LightGunTarget LockedTargetFor(const Ray& ray, const PanelQuad& top);
 
 /// AzaharFrame kiufix: the world point at (u, v) of a screen as drawn (flat or curved, as
 /// IntersectQuad reads them back). AzaharFrame kiuaim2: where Check Aim's targets are drawn.
@@ -282,8 +323,10 @@ std::string AimCheckedToast(float error_px); ///< "Aim Checked · Within 1 px"
 /// on view with the menu closed, and the ray on the top screen. AzaharFrame kiufix: no longer
 /// only while the reticle is read from the game (locked): Direct Aim that had fallen back to Gyro
 /// (no reticle read, say) showed no beam at all, so Laser Sight looked broken.
+/// AzaharFrame kiuaim3: not for Keep Reticle on Screen's edge point (the ray is off the screen).
 constexpr bool LaserSight(GyroAimMode mode, bool in_game, const LightGunTarget& target) {
-    return mode == GyroAimMode::LightGun && in_game && target.valid && target.u >= 0.0f &&
+    return mode == GyroAimMode::LightGun && in_game && target.valid && !target.edge &&
+           target.u >= 0.0f &&
            target.u <= 1.0f && target.v >= 0.0f && target.v <= 1.0f;
 }
 
@@ -312,7 +355,34 @@ constexpr bool RecoilActive(int aim_hand, bool recoil_setting) {
 
 /// How deep (0 to 1) the target is in the Turn Zone on each side: x negative left, positive
 /// right; y negative top, positive bottom. 1 at the screen's edge and beyond; 0 inside.
+/// (Turn Zone From: Screen Edge.)
 Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction);
+
+/// AzaharFrame kiuaim3: a grip that frees Direct Aim (Grip Frees Aim). Hold: free while it is held
+/// (GripClutch's hysteresis). Toggle: each press frees or locks, on its release, unless the other
+/// controller's grip was down at some point of it (both grips keep their own meaning: the
+/// immersive screen's shape); `suspend` (Check Aim running) locks and ignores presses. Changing
+/// the mode locks.
+class AimGrip {
+public:
+    struct Out {
+        bool free = false;
+        bool toggled = false; ///< Toggle: the state changed this frame (a toast)
+    };
+    Out Update(float grip, bool other_grip, AimGripMode mode, bool suspend);
+    void Reset() {
+        *this = {};
+    }
+
+private:
+    GripClutch clutch_;
+    AimGripMode mode_ = AimGripMode::Hold;
+    bool toggled_free_ = false;
+    bool was_held_ = false;
+    bool joined_ = false;
+};
+inline constexpr const char* kAimUnlockedToast = "Aim Unlocked";
+inline constexpr const char* kAimLockedToast = "Aim Locked";
 
 /// Recoil (Settings::values.vr_light_gun_recoil, per game too, on by default): a short strong
 /// buzz in the aiming controller on each shot while Gyro Aim steers the reticle in a game
@@ -425,6 +495,15 @@ ReticleBox ReachableBox(const ReticleReading& r);
 Vec2f ReticlePixel(const ReticleReading& r, float u, float v);
 Vec2f ReticleUv(const ReticleReading& r, float x, float y);
 AimRegion ReachableRegion(const ReticleReading& r);
+/// AzaharFrame kiuaim3: Turn Zone From: Aim Box: how deep (0 to 1) the pixel `px` is in the Turn
+/// Zone past the ground box (GroundBox, not inset): 0 at the box's edge and inside, 1 at the edge
+/// plus `zone_fraction` of the screen's width (x) or height (y) and beyond; x negative left, y
+/// negative up.
+Vec2f AimBoxTurnDepth(const ReticleReading& r, Vec2f px, float zone_fraction);
+/// The Turn Zone's depth for a target on the ground, from either basis; past the screen's edge
+/// (Keep Reticle on Screen) full on the sides it is past, nothing while resting or in the air.
+Vec2f TurnDepthFor(const ReticleReading& r, const LightGunTarget& target, float zone_fraction,
+                   TurnZoneFrom from);
 
 /// AzaharFrame kiufix2: the C-Stick wins over Direct Aim. While the right stick (the C-Stick,
 /// AnalogControl::StickR, after the mapper's dead zone and the other gamepads) is pushed, Direct
@@ -452,7 +531,9 @@ constexpr bool CStickTakesAim(Vec2f c_stick) {
 /// reticle itself, it writes nothing and sends nothing: the reticle stays (or the stick moves it).
 /// After a pause it eases back in: from where the reticle is to the ray's point, a smoothstep
 /// over kEaseInNs. A ray off the top screen's surroundings (no target: the bottom screen, or past
-/// half a screen out) writes nothing either.
+/// half a screen out) writes nothing either. AzaharFrame kiuaim3: with Keep Reticle on Screen
+/// there is always a target (LockedTargetFor): the edge point, the Turn Zone at full depth past
+/// it, and no turn while resting. The Turn Zone is measured from Turn Zone From's basis.
 class DirectAim {
 public:
     static constexpr int64_t kEaseInNs = 300'000'000;
@@ -469,9 +550,22 @@ public:
         float down_dps = 0.0f;
         bool turning = false;
         bool easing = false;
+        bool resting = false; ///< AzaharFrame kiuaim3: at the edge, the ray resting (no turn)
+    };
+    /// AzaharFrame kiuaim3: the Turn Zone's settings.
+    struct Turn {
+        float zone_fraction = 0.0f;
+        TurnZoneFrom from = TurnZoneFrom::AimBox;
+        float speed = 1.0f;
     };
     Out Update(int64_t time_ns, const ReticleReading& reading, const LightGunTarget& target,
-               float zone_fraction, float turn_speed, bool pause);
+               const Turn& turn, bool pause);
+    /// Turn Zone From: Screen Edge (kiuaim2's).
+    Out Update(int64_t time_ns, const ReticleReading& reading, const LightGunTarget& target,
+               float zone_fraction, float turn_speed, bool pause) {
+        return Update(time_ns, reading, target,
+                      Turn{zone_fraction, TurnZoneFrom::ScreenEdge, turn_speed}, pause);
+    }
     void Reset() {
         *this = {};
     }

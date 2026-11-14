@@ -1689,13 +1689,34 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                      on ? ", " : "", on ? kSources[aim_source & 3u] : "");
         }
         if (on && aim_source != 3) {
-            Input::HandInput& hand = game_in.hand[static_cast<std::size_t>(
-                Input::HandIndex(aim_source == 2 ? Input::Hand::Left : Input::Hand::Right))];
-            gyro_aim_frame.clutch = gyro_clutch.Update(hand.grip);
-            hand.grip = 0.0f;
             gyro_aim_hand = Input::HandIndex(aim_source == 2 ? Input::Hand::Left : Input::Hand::Right);
+            Input::HandInput& hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
+            if (gyro_aim_frame.mode == Input::GyroAimMode::LightGun) {
+                // AzaharFrame kiuaim3: Grip Frees Aim: Hold (free while held, as the pause was)
+                // or Toggle (a press frees, the next locks; a short toast each time). A press
+                // with the other controller's grip down keeps both grips' own meaning (the
+                // immersive screen's shape): it toggles nothing. Check Aim keeps the aim locked.
+                const float other =
+                    in.hand[static_cast<std::size_t>(1 - gyro_aim_hand)].grip;
+                const Input::AimGrip::Out g = aim_grip.Update(
+                    hand.grip, other > Immersive::Layout::kGripPress,
+                    Input::AimGripModeFrom(Settings::values.vr_light_gun_grip.GetValue()),
+                    check_flow.active());
+                gyro_aim_frame.clutch = g.free;
+                if (g.toggled) {
+                    ShowToastText(g.free ? Input::kAimUnlockedToast : Input::kAimLockedToast);
+                    LOG_INFO(Frontend, "xr: Direct Aim: {} (Grip Frees Aim: Toggle)",
+                             g.free ? "unlocked" : "locked");
+                }
+                gyro_clutch.Reset();
+            } else {
+                gyro_aim_frame.clutch = gyro_clutch.Update(hand.grip);
+                aim_grip.Reset();
+            }
+            hand.grip = 0.0f;
         } else {
             gyro_clutch.Reset();
+            aim_grip.Reset();
         }
         if (gyro_aim_frame.clutch != gyro_clutch_logged) {
             gyro_clutch_logged = gyro_aim_frame.clutch;
@@ -1708,10 +1729,27 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (gyro_aim_frame.mode == Input::GyroAimMode::LightGun) {
             if (gyro_aim_hand >= 0) {
                 const Input::HandInput& hand = in.hand[static_cast<std::size_t>(gyro_aim_hand)];
+                // AzaharFrame kiuaim3: Keep Reticle on Screen while the aim is locked (not freed
+                // by the grip): off the top screen, its nearest edge (input/gyro_aim.h
+                // LockedTargetFor); the bottom screen is not touched by this controller then.
+                const bool lock =
+                    Settings::values.vr_light_gun_lock.GetValue() && !gyro_aim_frame.clutch;
                 if (hand.active) {
-                    aim_hit = Input::LightGunTargetFor(
-                        Input::AimRay(hand.aim, visuals.WeaponMuzzle(gyro_aim_hand)), panels.top,
-                        &panels.bottom);
+                    const Input::Ray ray =
+                        Input::AimRay(hand.aim, visuals.WeaponMuzzle(gyro_aim_hand));
+                    aim_hit = lock ? Input::LockedTargetFor(ray, panels.top)
+                                   : Input::LightGunTargetFor(ray, panels.top, &panels.bottom);
+                }
+                game_in.hand[static_cast<std::size_t>(gyro_aim_hand)].aim_locked =
+                    lock && panels.top.visible;
+                const bool resting = aim_hit.valid && aim_hit.resting;
+                if (resting != aim_rest_logged) {
+                    aim_rest_logged = resting;
+                    LOG_INFO(Frontend,
+                             "xr: Direct Aim: {} ({:.0f} deg past the top screen's edge; no turn "
+                             "past {:.0f} deg)",
+                             resting ? "resting at the edge" : "aiming again", aim_hit.past_deg,
+                             Input::kRestingPastDeg);
                 }
             } else if (aim_source == 3) {
                 const ViewPose head_view = LatestViewPose();
@@ -2031,6 +2069,9 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                               weapon_shown, aim_hit);
         if (gyro_aim_frame.checking) {
             beam = {false, true};
+        } else if (gyro_aim_frame.clutch &&
+                   gyro_aim_frame.mode == Input::GyroAimMode::LightGun) {
+            beam = {}; // AzaharFrame kiuaim3: aim freed: the usual beam, to point anywhere
         }
         const bool laser_now = Settings::values.vr_light_gun_laser.GetValue() &&
                                gyro_aim_frame.mode == Input::GyroAimMode::LightGun;
