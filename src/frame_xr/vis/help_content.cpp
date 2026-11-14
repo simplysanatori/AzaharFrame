@@ -353,8 +353,9 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
            Line("Hold Click (1 s)", "Reset Screens and View")});
     Label(g, kBoth, {CtrlPart::Grip},
           {Title("Grip on a Screen", With("Move Screens", Grips(b))), SubHeading("Hold Grip +"),
-           // AzaharFrame natural: in the Full modes, World Scale
-           Sub("Stick Up or Down", std::string("Distance / ") + ImNames::kWorldScale),
+           // AzaharFrame natural: in the Full modes, World Scale. "Distance / World Scale" is a
+           // pixel too wide beside the right stick's label (vis test "the diagram's labels fit").
+           Sub("Stick Up or Down", std::string("Nearer / ") + ImNames::kWorldScale),
            Sub("Stick Sideways", "Screen Size"),
            Sub("D-Pad Left or Right", "Nudge"), // AzaharFrame vrsize
            // AzaharFrame kiu: "/", as wide as fits between the stick labels
