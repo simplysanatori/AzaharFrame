@@ -420,11 +420,13 @@ int main(int argc, char** argv) {
         ok &= toast_shot("homebrew-no-updates-toast.png", {"No Updates Available"});
         ok &= toast_shot("homebrew-update-available-toast.png", {"Update Available"});
         ok &= toast_shot("homebrew-check-failed-toast.png", {"Couldn't Check for Updates"});
-        // AzaharFrame integ8: 3D Depth changed in mode 2 while the stereo cap limits it
-        ok &= toast_shot("depth-limited-toast.png",
-                         {Immersive::Names::DepthLimitedToast(30, 0.0766f),
-                          Immersive::Names::DepthLimitedToast(100, 0.074f),
-                          Immersive::Names::DepthLimitedToast(55, 0.123f)});
+        // AzaharFrame natural: the grip's World Scale, a resize with Follow Screen Size on, the
+        // 3D Factor shortcuts in the Full modes (the stereo cap's "Limited to" toast is gone)
+        ok &= toast_shot("natural-toasts.png",
+                         {Immersive::Names::WorldScaleToast(45.0f),
+                          Immersive::Names::WorldScaleToast(100.0f),
+                          Immersive::Names::kWorldScaleFollowsToast,
+                          Immersive::Names::DepthToast(45)});
     }
     MenuView v;
     v.tab = Tab::Main;

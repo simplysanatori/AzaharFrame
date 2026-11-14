@@ -821,10 +821,6 @@ bool AnchorPose(XrTime display, XrPosef& head, const Layout::HeldPose** held) {
     return true;
 }
 
-// AzaharFrame integ8: the cap's limit in slider units for DepthChangeToast (any thread); below 0
-// while no cap applies (another mode, 3D Depth 0, no game, not yet measured).
-std::atomic<float> g_depth_cap_limit{-1.0f};
-
 // AzaharFrame stereo: no cap (another mode, 3D Depth 0, no game): the game sees the user's
 // slider again.
 void StopStereoCap() {
@@ -835,7 +831,6 @@ void StopStereoCap() {
     g.stereo_cap.Reset();
     g.stereo_cap_logged = -1.0f;
     Settings::frame_vr_stereo_cap.store(-1.0f, std::memory_order_relaxed);
-    g_depth_cap_limit.store(-1.0f, std::memory_order_relaxed);
 }
 
 // AzaharFrame natural: 3D Depth in the Full modes, percent of the natural 3D.
@@ -1018,7 +1013,6 @@ void UpdateNatural(u32 mode) {
         if (Settings::frame_vr_natural_slider.load(std::memory_order_relaxed) >= 0.0f) {
             Settings::frame_vr_natural_slider.store(-1.0f, std::memory_order_relaxed);
         }
-        g_depth_cap_limit.store(-1.0f, std::memory_order_relaxed);
         g.natural.Reset();
         g.quad_half = L::kQuadsOnEyes;
         g.natural_logged_limit = -1.0f;
@@ -1647,12 +1641,6 @@ float DistanceTo(const XrPosef& pose) {
 }
 
 } // namespace
-
-std::string DepthChangeToast(unsigned depth) {
-    return Names::DepthLimitedToast(
-        depth, g_depth_cap_limit.load(std::memory_order_relaxed),
-        Settings::frame_vr_depth_scale.load(std::memory_order_relaxed));
-}
 
 // AzaharFrame integ9: AZAHARFRAME_IMMERSIVE_POSITION_SCALE and what it gives now. AzaharFrame
 // natural: the game camera's head position scale is the leaning scale (UpdateNatural), not known

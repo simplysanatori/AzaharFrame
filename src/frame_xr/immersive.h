@@ -143,11 +143,6 @@ void OnRecentred(XrTime change_time);
 /// saved). XR thread.
 bool OnResetPanels(bool stick_hold);
 
-/// AzaharFrame integ8: the toast for 3D Depth just set to `depth` (the VR menu's slider, a
-/// shortcut): "3D Depth: 30% (Limited to 8%)" while mode 2's stereo cap limits it below that
-/// (Names::DepthLimitedToast); empty otherwise, so nothing new shows. Any thread.
-std::string DepthChangeToast(unsigned depth);
-
 /// AzaharFrame fovonce: Match Game Camera's Set Once was chosen (again): the game on view
 /// measures its camera anew (the caller clears vr_immersive_fov_measured). Any thread.
 void MeasureCameraAgain();

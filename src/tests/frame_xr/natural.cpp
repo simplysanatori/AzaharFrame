@@ -312,15 +312,14 @@ TEST_CASE("Natural: World Scale's stops and names", "[frame_xr][natural]") {
     }
     CHECK(WorldScaleStop(1000.0f) == static_cast<int>(kWorldScaleStops.size()) - 1);
     CHECK(WorldScaleStop(1.0f) == 0);
-    CHECK(WorldScaleText(100.0f) == "Automatic");
-    CHECK(WorldScaleText(100.4f) == "Automatic");
+    CHECK(WorldScaleText(100.0f) == "100%");
+    CHECK(WorldScaleText(100.4f) == "100%");
     CHECK(WorldScaleText(12.0f) == "12%");
     CHECK(WorldScaleText(5.0f) == "10%");
-    CHECK(WorldScaleText(std::nanf("")) == "Automatic");
-    CHECK(FrameXr::Immersive::Names::WorldScaleShortText(100.0f) == "Auto");
-    CHECK(FrameXr::Immersive::Names::WorldScaleShortText(400.0f) == "400%");
+    CHECK(WorldScaleText(400.0f) == "400%");
+    CHECK(WorldScaleText(std::nanf("")) == "100%");
     CHECK(WorldScaleToast(45.0f) == "World Scale: 45%");
-    CHECK(WorldScaleToast(100.0f) == "World Scale: Automatic");
+    CHECK(WorldScaleToast(100.0f) == "World Scale: 100%");
     // The distance: 100 % is the default 3 m; Follow off divides by the screen's size.
     CHECK(FullDistance(100.0f, 1.7f, true) == Approx(kWorldRefDistance));
     CHECK(FullDistance(10.0f, 1.0f, true) == Approx(0.3f));
@@ -357,7 +356,7 @@ TEST_CASE("Natural: World Scale, any settings", "[frame_xr][natural]") {
         // Matched: one IPD of head = the game's eyes at its natural slider on this screen.
         const float natural = StereoSliderLimit(s, h, g.FarPerSlider(), kNaturalMarginDeg);
         CHECK(leaning * 2.0f * h == Approx(g.e_full * natural).epsilon(1e-3));
-        // The world's size (metres a unit = 1 / leaning) is World Scale x Automatic's, times
+        // The world's size (metres a unit = 1 / leaning) is World Scale x 100%'s, times
         // the size with Follow on and whatever the size with it off.
         const HeadLocked automatic =
             Screen(factor, tan1 * (follow ? size : 1.0f), aspect, kWorldRefDistance);

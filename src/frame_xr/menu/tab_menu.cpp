@@ -79,11 +79,10 @@ std::string SliderText(Id id, float value) {
     if (id == Id::ScaleX || id == Id::ScaleY) { // AzaharFrame kiu: "+10%", "0%", "-10%"
         return Format(value > 0.5f ? "+%.0f%%" : "%.0f%%", value);
     }
-    if (id == Id::WorldScale) { // AzaharFrame natural: the stop's percent, "Auto" at 100 (as
-        // Internal Resolution's; the value column has no room for "Automatic")
+    if (id == Id::WorldScale) { // AzaharFrame natural: the stop's percent, "100%" too
         const int i = std::clamp(static_cast<int>(std::lround(value)), 0,
                                  static_cast<int>(Immersive::Layout::kWorldScaleStops.size()) - 1);
-        return Immersive::Names::WorldScaleShortText(
+        return Immersive::Names::WorldScaleText(
             Immersive::Layout::kWorldScaleStops[static_cast<std::size_t>(i)]);
     }
     if (id == Id::ReticleSpeed) { // AzaharFrame reticle: tenths of 1x, "2.0x"
@@ -210,8 +209,8 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         };
         scale(Id::ScaleX, m.scale_x);
         scale(Id::ScaleY, m.scale_y);
-        // AzaharFrame natural: World Scale, a slider over its stops (10 % to 400 %, Automatic
-        // at 100 %), and Follow Screen Size.
+        // AzaharFrame natural: World Scale, a slider over its stops (10% to 400%, the default
+        // 100%), and Follow Screen Size.
         Row world = full(row(Id::WorldScale, RowKind::Slider));
         const SliderRange wr = SliderFor(Id::WorldScale);
         world.t = (static_cast<float>(m.world_scale_stop) - wr.min) / (wr.max - wr.min);

@@ -217,8 +217,7 @@ TEST_CASE("Tab menu: sliders map the beam to their range", "[frame_xr][tabmenu]"
 TEST_CASE("Tab menu: 3D Depth is a 0 to 100 % slider on the Settings tab", "[frame_xr][tabmenu]") {
     CHECK(LabelFor(Id::Depth3d) == "3D Depth");
     CHECK(ExplainFor(Id::Depth3d) == // AzaharFrame natural: both meanings
-          "How deep the 3D looks. In the Full modes, 100% makes faraway scenery look truly far "
-          "away.");
+          "How deep the 3D looks. In the Full modes, 100% puts the farthest scenery at infinity.");
     const SliderRange r = SliderFor(Id::Depth3d);
     CHECK(r.min == 0.0f);
     CHECK(r.max == 100.0f);

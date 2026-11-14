@@ -316,8 +316,8 @@ In immersive mode the grips move the immersive screen instead of the normal scre
 | Control | What it does |
 |---|---|
 | Grip, then move the hand up or down | Moves the screen up or down. Squeeze anywhere; the beam does not have to be on the screen |
-| Stick of that hand, up or down | Moves the screen farther or nearer. It keeps its size in your view. In the Full modes this is **World Scale**: farther makes the world bigger, nearer makes it a small diorama, and moving your head stays matched to the 3D. A label shows the value, for example **World Scale: 45%** (**World Scale: Automatic** at 100%). Kept for this game |
-| Stick of that hand, right or left | Makes the screen bigger or smaller. In the Full modes with **Follow Screen Size** on (the default), the world grows or shrinks with it; a label says **World Scale Follows Screen Size** |
+| Stick of that hand, up or down | Moves the screen farther or nearer. It keeps its size in your view. In the Full modes this is **World Scale**: farther makes the world bigger, nearer smaller. A label shows the value, for example **World Scale: 45%**. Kept for this game |
+| Stick of that hand, right or left | Makes the screen bigger or smaller. In the Full modes with **Follow Screen Size** on (the default), the world grows or shrinks with it, and a label shows **Follow Screen Size: On** |
 | D-pad left or right, while holding the screen | Nudges the screen 0.5 degrees per press, to fit your lenses. Hold it to keep going. A label shows the offset, for example **Offset Right 1.5°** |
 | D-pad up or down, while holding the screen | Render Margin, Full modes: shows more or less of the game around the edges, Off to 1.4x, and the screen grows or shrinks with it. A label shows the value, for example **Render Margin: 1.2x**. Kept for this game |
 | Both grips, then D-pad right or left | Full modes: makes the screen wider or narrower, 5% per press, -30% to +30% (**Horizontal Scale**). A label shows the value, for example **Horizontal Scale: -10%**. Kept for this game, at once |

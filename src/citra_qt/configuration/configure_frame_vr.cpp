@@ -296,7 +296,7 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     layout->addWidget(scale_y_row);
 
     // AzaharFrame natural: World Scale (Settings::values.vr_immersive_world_scale, percent): a
-    // slider over Names::kWorldScaleStops with its value beside it ("Automatic" at 100 %); a
+    // slider over Names::kWorldScaleStops with its value beside it ("100%" at 100); a
     // value between stops (the grips set any) stays as it is unless the slider is moved. Follow
     // Screen Size; the Full modes' 3D Depth (vr_immersive_depth). Names: frame_xr/immersive_names.h.
     world_scope = MakeScopeCombo(this);
@@ -312,14 +312,14 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
         world_label->setText(QString::fromStdString(Names::WorldScaleText(world_value)));
     });
     depth_row = MakeRow(this, QStringLiteral("frame_vr_depth_row"),
-                        QString::fromUtf8(Names::kWorldScale),
-                        QString::fromUtf8(Names::kWorldScaleWindowTip),
+                        tr(Names::kWorldScale),
+                        tr(Names::kWorldScaleWindowTip),
                         {world_scope, world_slider, world_label});
     layout->addWidget(depth_row);
 
-    follow_check = new QCheckBox(QString::fromUtf8(Names::kFollowScreen), this);
+    follow_check = new QCheckBox(tr(Names::kFollowScreen), this);
     follow_check->setObjectName(QStringLiteral("frame_vr_follow_screen_check"));
-    follow_check->setToolTip(QString::fromUtf8(Names::kFollowScreenWindowTip));
+    follow_check->setToolTip(tr(Names::kFollowScreenWindowTip));
     layout->addWidget(follow_check);
 
     immersive_depth_scope = MakeScopeCombo(this);
@@ -327,8 +327,8 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     immersive_depth_spin->setRange(0, 100);
     immersive_depth_spin->setSuffix(QStringLiteral("%"));
     immersive_depth_row = MakeRow(this, QStringLiteral("frame_vr_immersive_depth_row"),
-                                  QString::fromUtf8(Names::kImmersiveDepth),
-                                  QString::fromUtf8(Names::kImmersiveDepthTip),
+                                  tr(Names::kImmersiveDepth),
+                                  tr(Names::kImmersiveDepthTip),
                                   {immersive_depth_scope, immersive_depth_spin});
     layout->addWidget(immersive_depth_row);
 

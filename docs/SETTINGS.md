@@ -51,7 +51,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Render Margin](#render-margin) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
 | [Horizontal Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
 | [Vertical Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
-| [World Scale](#world-scale) | 10% to 400%, **Automatic** at 100% | Automatic | global and per game | eased in |
+| [World Scale](#world-scale) | 10% to 400%, 100% by default | 100% | global and per game | eased in |
 | [Follow Screen Size](#follow-screen-size) | on or off | on | global and per game | eased in |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
@@ -169,9 +169,9 @@ Match the shape the game or mod draws, or the picture stretches. A change shows 
 
 How deep the 3D looks in a game. 0% is flat. It is on the in-game menu's **Settings** tab, as a slider: **Global** for every game, **Per-Game** for this game only. The global value is also Azahar's own **Depth** under **Stereoscopy** on the **Enhancements** tab of **Emulation > Configure**. A game's **Properties** show its value greyed out; change it in the in-game menu.
 
-A screen you make bigger than its start size gets less depth on top of this.
+Outside the Full modes, a screen you make bigger than its start size gets less depth.
 
-In the Full modes, 3D Depth is a setting of its own (**Immersive 3D Depth** in Azahar's window; the same slider in the in-game menu while a Full mode is on). It is how much relief you see, from 0% (flat) to 100%, where the farthest scenery looks truly far away. It never goes past that, so faraway scenery never doubles, whatever the screen's size or distance. In **Full (6DoF): Ocarina of Time, Majora's Mask** lower values bring the faraway scenery nearer; in **Full (6DoF): Other Games** it stays far away and everything gets flatter. A game you had set to 0% stays at 0%; every other value starts at 100%.
+The Full modes have their own 3D Depth: **Immersive 3D Depth** in Azahar's window, and the same slider in the in-game menu while a Full mode is on. At 100%, the default, the farthest scenery is at infinity and never past it, so it never doubles, whatever the screen's size or distance. Below 100%, **Full (6DoF): Ocarina of Time, Majora's Mask** brings faraway scenery nearer, and **Full (6DoF): Other Games** keeps it far and flattens everything. A game whose 3D Depth was 0% starts at 0%.
 
 ## Immersive Mode
 
@@ -208,9 +208,9 @@ Make the immersive screen wider or narrower (**Horizontal Scale**) and taller or
 
 ## World Scale
 
-Full modes only. How big the game world feels: below 100% a small world in front of you, like a diorama, above it a giant world where you feel small. **Automatic** (100%) matches the game's own 3D with the screen at its usual distance. In VR, hold the immersive screen with a grip and push the stick forward or back: the screen moves farther or nearer, keeping its size in your view, and the world grows or shrinks with it. A message shows the new value. It is kept for the game.
+Full modes only. How big the game world feels: below 100% the world is smaller, like a diorama, and above it larger. 100% is the default. In VR, hold the immersive screen with a grip and push the stick up or down: the screen moves farther or nearer, keeping its size in your view, and the world grows or shrinks with it. A label shows the value, for example **World Scale: 45%**. It is kept for the game.
 
-At every value, moving your head moves the game camera by exactly as much as the 3D shows, so the world stays solid when you lean. Each game keeps the look and head movement it had before 1.2.1. Earlier versions called this setting **Depth Factor Multiplier**.
+At every value, your head moves the game camera as far as the 3D shows. A game set up in an earlier version keeps its look; in **Full (6DoF): Ocarina of Time, Majora's Mask** its head movement now matches the 3D. It replaces **Depth Factor Multiplier**.
 
 ## Follow Screen Size
 

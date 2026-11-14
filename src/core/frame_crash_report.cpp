@@ -1105,26 +1105,26 @@ std::string SettingsSummary() {
     s += fmt::format("Disk Shader Cache: {}\n", on(v.use_disk_shader_cache.GetValue()));
     s += fmt::format("Custom Textures: {}\n", on(v.custom_textures.GetValue()));
     s += fmt::format("Preload Textures: {}\n", on(v.preload_textures.GetValue()));
-    s += fmt::format("CPU Clock: {} %\n", v.cpu_clock_percentage.GetValue());
+    s += fmt::format("CPU Clock: {}%\n", v.cpu_clock_percentage.GetValue());
     s += fmt::format("New 3DS: {}\n", on(v.is_new_3ds.GetValue()));
     s += fmt::format("Immersive Mode: {}\n", v.vr_immersive_mode.GetValue());
     namespace Names = FrameXr::Immersive::Names; // AzaharFrame kiu
     s += fmt::format("{}: {}\n", Names::kRenderMargin, v.vr_immersive_wider_view_level.GetValue());
-    s += fmt::format("{}: {} %\n", Names::kHorizontalScale, v.vr_immersive_scale_x.GetValue());
-    s += fmt::format("{}: {} %\n", Names::kVerticalScale, v.vr_immersive_scale_y.GetValue());
+    s += fmt::format("{}: {}%\n", Names::kHorizontalScale, v.vr_immersive_scale_x.GetValue());
+    s += fmt::format("{}: {}%\n", Names::kVerticalScale, v.vr_immersive_scale_y.GetValue());
     s += fmt::format("Screen Layout: {}\n", v.vr_screen_layout.GetValue());
     s += fmt::format("Screen Curve: {}\n", v.vr_screen_curve.GetValue());
     // AzaharFrame natural: World Scale, Follow Screen Size and the Full modes' 3D Depth.
-    s += fmt::format("{}: {:.0f} %\n", FrameXr::Immersive::Names::kWorldScale,
+    s += fmt::format("{}: {:.0f}%\n", FrameXr::Immersive::Names::kWorldScale,
                      v.vr_immersive_world_scale.GetValue());
     s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kFollowScreen,
                      on(v.vr_immersive_follow_screen.GetValue()));
-    s += fmt::format("{}: {} %\n", FrameXr::Immersive::Names::kImmersiveDepth,
+    s += fmt::format("{}: {}%\n", FrameXr::Immersive::Names::kImmersiveDepth,
                      v.vr_immersive_depth.GetValue());
-    s += fmt::format("Window Scale: {} %\n", v.vr_window_scale.GetValue());
+    s += fmt::format("Window Scale: {}%\n", v.vr_window_scale.GetValue());
     s += fmt::format("Background: {}\n",
                      v.vr_background.GetValue() == 1 ? "Passthrough" : "Black");
-    s += fmt::format("Fast Forward Speed: {} %\n", static_cast<int>(v.turbo_limit.GetValue()));
+    s += fmt::format("Fast Forward Speed: {}%\n", static_cast<int>(v.turbo_limit.GetValue()));
     return s;
 }
 
