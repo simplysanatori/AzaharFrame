@@ -941,15 +941,30 @@ void MigrateWorldScale(u32 mode) {
         return;
     }
     const float old = OldLeaning();
-    const float p = L::MigrateWorldScaleMode3(g.solved, k, old, size, follow);
-    // At once, both: the leaning and our eyes stay exactly as they were.
-    g.full_distance.Set(L::FullDistance(p, size, follow));
-    g.eye_k.Set(k);
-    LOG_INFO(Frontend,
-             "xr: World Scale migrated for mode 3: {:.1f} % (the screen from {:.2f} to {:.2f} m) "
-             "keeps 1.2.0's {:.1f} game units per metre (game K {:.1f}){}",
-             p, L::Clamped(g.head_place).distance, L::FullDistance(p, size, follow), old, k,
-             old > 0.0f ? "" : "; 1.2.0 did not move the camera, so Automatic");
+    bool exact = false;
+    const float p = L::MigrateWorldScaleMode3(g.solved, k, old, size, follow, &exact);
+    if (exact) {
+        // At once, both: the leaning and our eyes stay exactly as they were (the screen moves on
+        // the eyes, so the picture does not).
+        g.full_distance.Set(L::FullDistance(p, size, follow));
+        g.eye_k.Set(k);
+        LOG_INFO(Frontend,
+                 "xr: World Scale migrated for mode 3: {:.1f} % (the screen from {:.2f} to {:.2f} "
+                 "m) keeps 1.2.0's {:.1f} game units per metre (game K {:.1f})",
+                 p, L::Clamped(g.head_place).distance, L::FullDistance(p, size, follow), old, k);
+    } else {
+        // Clamped to World Scale's range, or Automatic (1.2.0 did not move the camera): the
+        // leaning and our eyes change, so the distance and K ease there (their ramps).
+        LOG_INFO(Frontend,
+                 "xr: World Scale migrated for mode 3: {:.1f} % (the screen from {:.2f} to {:.2f} "
+                 "m, eased); {} (game K {:.1f})",
+                 p, L::Clamped(g.head_place).distance, L::FullDistance(p, size, follow),
+                 old > 0.0f ? fmt::format("1.2.0's {:.1f} game units per metre is out of World "
+                                          "Scale's range, so the nearest end",
+                                          old)
+                            : std::string("1.2.0 did not move the camera, so Automatic"),
+                 k);
+    }
     SetWorldScale(p, true);
     g.world_migration = 1;
 }

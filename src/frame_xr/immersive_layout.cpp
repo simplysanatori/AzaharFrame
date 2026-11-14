@@ -631,7 +631,10 @@ float WorldScaleForDistance(float distance, float size, bool follow) {
 }
 
 float MigrateWorldScaleMode3(const HeadLocked& solved, float eye_per_far, float leaning,
-                             float size, bool follow) {
+                             float size, bool follow, bool* exact) {
+    if (exact) {
+        *exact = false;
+    }
     if (!(leaning > 0.0f) || !std::isfinite(leaning) || !(eye_per_far > 0.0f) ||
         !std::isfinite(eye_per_far) || !(solved.distance > 0.0f)) {
         return kWorldScaleAuto;
@@ -642,7 +645,15 @@ float MigrateWorldScaleMode3(const HeadLocked& solved, float eye_per_far, float 
     if (!(per_m > 0.0f) || !std::isfinite(per_m)) {
         return kWorldScaleAuto;
     }
-    return ClampWorldScale(WorldScaleForDistance(eye_per_far / (leaning * per_m), size, follow));
+    const float raw = WorldScaleForDistance(eye_per_far / (leaning * per_m), size, follow);
+    const float out = ClampWorldScale(raw);
+    if (exact) {
+        // Within the range and at a distance FullDistance keeps (its own limits).
+        *exact = std::isfinite(raw) && out == raw &&
+                 std::abs(FullDistance(out, size, follow) / (eye_per_far / (leaning * per_m)) -
+                          1.0f) < 1e-4f;
+    }
+    return out;
 }
 
 float MigrateWorldScaleMode2(float distance, float size, bool follow) {

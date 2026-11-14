@@ -790,8 +790,10 @@ float WorldScaleForDistance(float distance, float size, bool follow);
 /// GamePositionScale) on this screen (`solved`, its angular size; its distance does not matter),
 /// with the game's K: its eye offset and leaning stay exactly as they were. Automatic when
 /// `leaning` is not above 0 (1.2.0 did not move the camera) or K is not known. Clamped.
+/// `exact` (when given): true when the value keeps that leaning exactly (neither clamped nor
+/// Automatic for want of it), so the switch can be made at once; else it is eased.
 float MigrateWorldScaleMode3(const HeadLocked& solved, float eye_per_far, float leaning,
-                             float size, bool follow);
+                             float size, bool follow, bool* exact = nullptr);
 /// Migration, mode 2: the World Scale that keeps the screen at its saved `distance`. Clamped.
 float MigrateWorldScaleMode2(float distance, float size, bool follow);
 /// Whether a game's World Scale is still to be made from 1.2.0's settings: it has no World Scale

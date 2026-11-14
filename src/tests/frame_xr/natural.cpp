@@ -397,7 +397,8 @@ TEST_CASE("Natural: the migration keeps 1.2.0's look and leaning", "[frame_xr][n
         INFO("run " << run << " size " << size << " follow " << follow << " K " << k
                     << " old " << old << " d " << old_distance);
         // Mode 3: today's leaning and eye offset, exactly, wherever the screen ends up.
-        const float p3 = MigrateWorldScaleMode3(saved, k, old, size, follow);
+        bool exact = false;
+        const float p3 = MigrateWorldScaleMode3(saved, k, old, size, follow, &exact);
         CHECK(p3 >= kWorldScaleMin);
         CHECK(p3 <= kWorldScaleMax);
         HeadLocked moved = saved;
@@ -411,6 +412,10 @@ TEST_CASE("Natural: the migration keeps 1.2.0's look and leaning", "[frame_xr][n
             CHECK(leaning == Approx(old).epsilon(1e-4));
             CHECK(Mode3Natural(1.0f, leaning, 0.032f, 0.0f).eye_scaler ==
                   Approx(old).epsilon(1e-4)); // 1.2.0: scaler x half the IPD
+            CHECK(exact); // so it is made at once
+        } else if (!(raw >= kWorldScaleMin && raw <= kWorldScaleMax) ||
+                   !(moved.distance >= kFullMinDistance && moved.distance <= kFullMaxDistance)) {
+            CHECK_FALSE(exact); // clamped: the leaning changes, so it is eased (the ramps)
         }
         // Mode 2: today's screen, exactly.
         const float p2 = MigrateWorldScaleMode2(old_distance, size, follow);
@@ -423,8 +428,10 @@ TEST_CASE("Natural: the migration keeps 1.2.0's look and leaning", "[frame_xr][n
     }
     CHECK(in_range > 1000);
     // 1.2.0 did not move the camera (3D Depth under 10 %): Automatic.
-    CHECK(MigrateWorldScaleMode3(Screen(1.3f, 0.45f, 1.67f, 0.371f), 73.0f, 0.0f, 1.0f, true) ==
-          kWorldScaleAuto);
+    bool exact = true;
+    CHECK(MigrateWorldScaleMode3(Screen(1.3f, 0.45f, 1.67f, 0.371f), 73.0f, 0.0f, 1.0f, true,
+                                 &exact) == kWorldScaleAuto);
+    CHECK_FALSE(exact); // the leaning changes from none: eased
     CHECK(MigrateWorldScaleMode3(Screen(1.3f, 0.45f, 1.67f, 0.371f), -1.0f, 50.0f, 1.0f, true) ==
           kWorldScaleAuto);
     // Mario Kart 7 (K 73 measured) on a screen like the owner's at 0.371 m, 1.2.0's 50 units per
