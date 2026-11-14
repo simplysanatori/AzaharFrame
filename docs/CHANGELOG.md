@@ -146,6 +146,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Bug fixes
 
+- Fixed custom textures showing black or as garbage when a **Texture Filter** is on (Bicubic and the others), seen with Pit's Burning Palm in Kid Icarus: Uprising. A replaced texture is shown as the pack made it, with no filter on top. A pack that keeps its mipmaps but has no files for them no longer shows garbage at a distance.
 - Fixed a crash right after loading some save states, seen in Kid Icarus: Uprising.
 - Fixed memory growing with every save state until the game was closed. On the Frame, a few Quick Saves in a row could pause the game with **Azahar Is Almost Out of Memory**, and each save froze the game longer than the last.
 - **Azahar Is Almost Out of Memory** no longer opens for a save state's own memory, and offers **Turn Off Custom Textures** only when they hold a good share of the memory.
