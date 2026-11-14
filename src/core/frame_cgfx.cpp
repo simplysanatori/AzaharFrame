@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstring>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include "common/lz11.h"
 #include "common/string_util.h"
@@ -614,9 +615,61 @@ struct Cgfx {
         return m;
     }
 
+    /// AzaharFrame kiuflash: the combiner constants, the blend and the combiner stages (the
+    /// stage commands found in the material's fragment command list, as the effects study read
+    /// them). Missing or odd data: left at the defaults (no stages, no blend).
+    void ReadEffectState(std::size_t mo, Material& mat) const {
+        if (mo + 0x290 > r.Size()) {
+            return;
+        }
+        for (std::size_t i = 0; i < 6; i++) { // colours 5 to 10: the constants
+            for (std::size_t k = 0; k < 4; k++) {
+                const u32 bits = r.U32(mo + 0x24 + (5 + i) * 16 + k * 4);
+                float f;
+                std::memcpy(&f, &bits, 4);
+                mat.constants[i][k] = std::isfinite(f) ? std::clamp(f, 0.0f, 1.0f) : 0.0f;
+            }
+        }
+        const u32 colour_op = r.U32(mo + 0x140);
+        const u32 blend_function = r.U32(mo + 0x148);
+        mat.blend = ((colour_op >> 8) & 3) == 1;
+        mat.blend_src = (blend_function >> 16) & 0xF;
+        mat.blend_dst = (blend_function >> 20) & 0xF;
+        const std::size_t fs = r.Rel(mo + 0x288);
+        if (fs == 0) {
+            return;
+        }
+        constexpr u32 kStageRegs[6] = {0xC0, 0xC8, 0xD0, 0xD8, 0xF0, 0xF8};
+        std::array<std::optional<Material::Stage>, 6> found{};
+        for (std::size_t k = fs + 8; k + 20 <= std::min(r.Size(), fs + 0x700); k += 4) {
+            const u32 h = r.U32(k);
+            const u32 reg = h & 0xFFFF;
+            if (((h >> 20) & 0xFF) != 4) {
+                continue;
+            }
+            for (std::size_t i = 0; i < 6; i++) {
+                if (reg == kStageRegs[i] && !found[i]) {
+                    found[i] = Material::Stage{r.U32(k - 4), r.U32(k + 4), r.U32(k + 8),
+                                               r.U32(k - 8), r.U32(k + 16)};
+                }
+            }
+        }
+        for (const auto& st : found) {
+            if (st) {
+                mat.stages.push_back(*st);
+            }
+        }
+    }
+
     Material ReadMaterial(const std::string& name, std::size_t mo) const {
         Material mat;
         mat.name = name;
+        try { // AzaharFrame kiuflash: never in the way of a weapon's own material
+            ReadEffectState(mo, mat);
+        } catch (const Bad&) {
+            mat.blend = false;
+            mat.stages.clear();
+        }
         // The rasterization's face culling command (GfxRasterization: value, then the header
         // of register 0x40, one word).
         if (r.U32(mo + 0x114) == 0x00010040u) {
@@ -1065,6 +1118,37 @@ void ReadParticleSize(const Reader& r, std::size_t so, std::size_t end, Particle
 }
 
 } // namespace
+
+bool ReadCgfxModels(std::span<const u8> data, const std::vector<std::string>& names, File& out,
+                    std::string& error) {
+    try {
+        const Reader r(data);
+        const Cgfx c{r};
+        File f;
+        for (const auto& [name, mo] : c.Dict(Section(r, 0))) {
+            if (std::find(names.begin(), names.end(), name) == names.end() ||
+                (r.U32(mo) & 0x100u)) {
+                continue;
+            }
+            try {
+                f.models.push_back(c.ReadModel(mo));
+            } catch (const Bad&) {
+                // this one is left out
+            }
+        }
+        for (const auto& [name, to] : c.Dict(Section(r, 1))) {
+            try {
+                f.textures.push_back(c.ReadTexture(name, to));
+            } catch (const Bad&) {
+            }
+        }
+        out = std::move(f);
+        return true;
+    } catch (const Bad& e) {
+        error = e.what();
+        return false;
+    }
+}
 
 bool ReadParticleModels(std::span<const u8> data, std::vector<ParticleModel>& out,
                         std::string& error) {

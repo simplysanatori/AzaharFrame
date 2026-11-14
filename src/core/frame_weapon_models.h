@@ -140,6 +140,51 @@ struct FlashInfo {
     std::vector<FlashPart> parts;
 };
 
+// ---- AzaharFrame kiuflash: the projectiles ----
+//
+// Each weapon's effect file also holds its shots' bullets: mesh models ("Eff<Class><NN>Bullet1",
+// the charged shot's "...Bullet3"), most of them added light with combiner-coloured textures.
+// Each is made into files that join the weapon's own (w<id>-b<n>.model, one per bullet material:
+// its meshes in the bind pose, centred, scaled so the largest side is 1, the head to +z (its
+// trail reaches farther along z from its mass); components "rapid" and "charged" for the kinds it is), the material's look fitted
+// to its texture (BulletValue: a colour mode and a colour, so a texture pack's PNG can stand in).
+// A kind with no mesh bullet (or one over kBulletTrianglesMax) uses its bullet sprites instead
+// ("Ptc<Class><NN>Bullet1"/"Bullet3": face cards as the flashes'). Bullet animations are not
+// read: the projectile turns about the way it flies (frame_xr/vis/projectile.h).
+
+constexpr u32 kBulletTrianglesMax = 600;
+
+/// The bullet models (mesh) a weapon's shots are, by name only: rapid fire's "Bullet1",
+/// "Bullet01" or "BulletA01", the charged shot's "Bullet3" or "Bullet03" (the other kind's when
+/// missing; "" for none).
+FlashModels PickBulletModels(int id, const std::vector<std::string>& names);
+/// The bullet sprites (particle models) the same way: "Ptc<Class><NN>Bullet1"/"Bullet01",
+/// "Bullet3"/"Bullet03".
+FlashModels PickBulletSprites(int id, const std::vector<std::string>& names);
+
+/// A bullet part's values in its components' motion floats (a mesh bullet's; a sprite one's are
+/// FlashValue, its file flagged a flash).
+enum BulletValue : int {
+    kBulletMode,  ///< FlashMode
+    kBulletRed,   ///< the colour fitted to the material's look, 0 to 1 (as the game's: not linear)
+    kBulletGreen,
+    kBulletBlue,
+    kBulletAdded, ///< 1: added light (the glow pipeline); 0: drawn lit and solid
+    /// 1: its look is times the vertex colour (the combiner's first stage multiplies by it, as
+    /// most bullets'); 0: the vertex colour is in the look already (its mean, run through the
+    /// combiner as the game does)
+    kBulletVertexColour,
+    kBulletValues,
+};
+
+struct BulletInfo {
+    bool known = false; ///< made by a build with the projectiles (else made again when asked for)
+    std::string rapid, charged; ///< the models used ("" for none)
+    bool rapid_cards = false, charged_cards = false; ///< sprites, not a mesh
+    u64 pack_key = 0;
+    std::vector<FlashPart> parts; ///< file, texture, hash, components, pack PNG (as the flashes')
+};
+
 struct Weapon {
     int id = -1;
     int cls = -1;
@@ -157,6 +202,7 @@ struct Weapon {
     u64 pack_key = 0;
     std::vector<Part> parts;
     FlashInfo flash; ///< AzaharFrame kiuflash
+    BulletInfo bullets; ///< AzaharFrame kiuflash
 };
 
 struct Manifest {
@@ -197,6 +243,11 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
 /// when that file has no flash (out unchanged but for flash.known).
 bool ConvertFlash(int id, std::span<const u8> source_zrc, int source, bool neutral,
                   Converted& out, const TexturePack* pack = nullptr);
+
+/// AzaharFrame kiuflash: weapon `id`'s bullets from its effect file into `out` (out.info.bullets
+/// and its files). ConvertWeapon calls it. False when the file has none.
+bool ConvertBullets(int id, std::span<const u8> zrc, Converted& out,
+                    const TexturePack* pack = nullptr);
 
 /// A texture pack's PNG (Part::replaced) for a model's colour image: RGBA8, rows in the game's
 /// memory order, alpha 255 (AzaharFrame kiuflash: or the PNG's own, `keep_alpha`, for a flash

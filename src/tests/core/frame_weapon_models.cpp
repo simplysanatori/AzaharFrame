@@ -275,10 +275,18 @@ struct MeshSpec {
 
 /// One skeletal model: bones (name, parent, translation), materials (name, texture), meshes;
 /// one 8x8 RGBA8 texture "Tex" of one colour.
+/// AzaharFrame kiuflash: an effect material's state: added light (source alpha, one) with one
+/// combiner stage, the texture times the constant colour 0.
+struct AddedLight {
+    bool on = false;
+    std::array<float, 4> constant{1, 1, 1, 1};
+};
+
 Bytes Cgfx(const std::vector<std::tuple<std::string, s32, std::array<float, 3>>>& bones,
            const std::vector<std::pair<std::string, std::string>>& materials,
            const std::vector<MeshSpec>& meshes,
-           const std::vector<std::pair<std::string, bool>>& nodes = {}) {
+           const std::vector<std::pair<std::string, bool>>& nodes = {},
+           const std::string& model_name = "WpnTest", const AddedLight& added = {}) {
     Buf f;
     f.Alloc(0x14 + 8 + 16 * 8);
     f.Magic(0, "CGFX");
@@ -306,7 +314,24 @@ Bytes Cgfx(const std::vector<std::tuple<std::string, s32, std::array<float, 3>>>
     // Materials: one UV coordinate set, mapper 0 the texture, wrap mirrored across, clamp down.
     std::vector<std::pair<std::string, std::size_t>> mat_entries;
     for (const auto& [name, tex] : materials) {
-        const std::size_t mo = f.Alloc(0x280);
+        const std::size_t mo = f.Alloc(0x300);
+        if (added.on) {
+            // The constant 0 (colour 5), the blend (source alpha, one) and one stage: texture 0
+            // times the constant, the texture's alpha.
+            for (std::size_t k = 0; k < 4; k++) {
+                f.F(mo + 0x24 + 5 * 16 + 4 * k, added.constant[k]);
+            }
+            f.W32(mo + 0x140, 1u << 8);
+            f.W32(mo + 0x148, (6u << 16) | (1u << 20));
+            const std::size_t fs = f.Alloc(0x40);
+            f.W32(fs + 0x10, 0);                       // the constant: 0
+            f.W32(fs + 0x14, 0x3u | (0xEu << 4) | (0x3u << 16)); // sources: tex0, const; tex0
+            f.W32(fs + 0x18, (4u << 20) | 0xC0u);      // stage 0's command, four more words
+            f.W32(fs + 0x1C, 0);                       // operands
+            f.W32(fs + 0x20, 1u);                      // combine: modulate colour, replace alpha
+            f.W32(fs + 0x28, 0);                       // scale 1
+            f.Rel(mo + 0x288, fs);
+        }
         f.W32(mo + 0x110, 2);           // cull one side
         f.W32(mo + 0x114, 0x00010040u); // register 0x40
         f.W32(mo + 0x168, 1);
@@ -401,7 +426,7 @@ Bytes Cgfx(const std::vector<std::tuple<std::string, s32, std::array<float, 3>>>
     // The model.
     const std::size_t model = f.Alloc(0x100);
     f.W32(model, 0x40000092u);
-    f.Rel(model + 0xC, f.Str("WpnTest"));
+    f.Rel(model + 0xC, f.Str(model_name));
     f.PtrList(model + 0xB4, mesh_objs);
     f.W32(model + 0xBC, static_cast<u32>(materials.size()));
     f.Rel(model + 0xC0, f.Dict(mat_entries));
@@ -438,7 +463,7 @@ Bytes Cgfx(const std::vector<std::tuple<std::string, s32, std::array<float, 3>>>
     f.Rel(image + 0xC, pixels);
     f.Rel(tex + 0x38, image);
     // The sections: models, textures.
-    const std::size_t models = f.Dict({{"WpnTest", model}});
+    const std::size_t models = f.Dict({{model_name, model}});
     const std::size_t textures = f.Dict({{"Tex", tex}});
     f.W32(0x1C, 1);
     f.Rel(0x20, models);
@@ -662,6 +687,8 @@ Bytes ClawEffects() {
           {"Nail00ShotFlash_c", "ptc_burst", 0x00102030u, 6, 0xFF000401u, 5, 5, false},
           {"Nail00ShotFlash_d", "ptc_burst", 0x00102030u, 6, 0xFF000401u, 5, 5, false}}},
         {"PtcNail00ShotSub", {{"Nail00ShotSub", "ptc_unused", 0x00FFFFFFu, 6, 0xFF000401u, 1, 1, false}}},
+        // AzaharFrame kiuflash: the bullet's sprites (no mesh bullet in this file).
+        {"PtcNail00Bullet1", {{"Nail00Bullet1", "ptc_burst", 0x0080FF00u, 6, 0xFF000402u, 3, 3, true}}},
     };
     return EffectCgfx(particles, textures);
 }
@@ -1102,7 +1129,7 @@ TEST_CASE("Muzzle Flash: particle models read from an effect file", "[kiuflash]"
     std::vector<FrameCgfx::ParticleModel> models;
     std::string error;
     REQUIRE(FrameCgfx::ReadParticleModels(effects, models, error));
-    REQUIRE(models.size() == 3); // the mesh model skipped
+    REQUIRE(models.size() == 4); // the mesh model skipped (the bullet sprites' model last)
     CHECK(models[0].name == "PtcNail00RapidShot");
     REQUIRE(models[0].sets.size() == 4);
     const auto& s = models[0].sets[2];
@@ -1145,7 +1172,8 @@ TEST_CASE("Muzzle Flash: a weapon's flash cards and their files", "[kiuflash]") 
     // One file per texture: burst, fan, glow, sheet (smoke left out).
     REQUIRE(f.parts.size() == 4);
     CHECK(f.parts[0].file == "w024-f0.model");
-    CHECK(c.files.size() == 1 + 4); // the claws' model and the flash files
+    // The claws' model, the flash files, the bullet sprites' file (one texture, both kinds).
+    CHECK(c.files.size() == 1 + 4 + 1);
     const std::string dir = TestDir("frame_weapon_flash_test");
     std::map<std::string, FrameXr::Vis::ModelFile> files;
     for (const auto& [name, bytes] : c.files) {
@@ -1489,4 +1517,209 @@ TEST_CASE("Muzzle Flash: every weapon of a game's files", "[.kiuflash_real]") {
     if (load) {
         FileUtil::UpdateUserPath(FileUtil::UserPath::LoadDir, before);
     }
+}
+
+// ---- AzaharFrame kiuflash: the projectiles' bullets ----
+
+namespace {
+
+/// Weapon 24's file with a mesh bullet "EffNail00Bullet1" as its effect file: one triangle 2 x 1 x
+/// 4 units, its head (2 across) at z 0 and its trail's point at z 4, an added-light material whose
+/// texture (0x10, 0x20, 0x30) is coloured by the constant (1, 0.5, 0.25).
+Bytes ClawWithMeshBullet() {
+    const Tri bullet{{{{-1, 0, 0}, {1, 0, 0}, {0, 1, 4}}}, {0, 1, 0}};
+    AddedLight added;
+    added.on = true;
+    added.constant = {1.0f, 0.5f, 0.25f, 1.0f};
+    const Bytes effect = Cgfx({{"TopN", -1, {0, 0, 0}}}, {{"BulletMat", "Tex"}},
+                              {{"BulletMat", {0}, 1, bullet, -1}}, {}, "EffNail00Bullet1", added);
+    return ClawZrc(effect);
+}
+
+} // namespace
+
+TEST_CASE("Projectiles: each class's bullets by name", "[kiuflash]") {
+    using FrameWeapons::PickBulletModels;
+    using FrameWeapons::PickBulletSprites;
+    // A blade: Bullet1 and Bullet3; the slashes (Bullet02, BulletA02) are no shots.
+    auto b = PickBulletModels(1, {"EffRifle01Bullet02", "EffRifle01Bullet1", "EffRifle01Bullet3",
+                                  "EffRifle01BulletA02"});
+    CHECK(b.rapid == "EffRifle01Bullet1");
+    CHECK(b.charged == "EffRifle01Bullet3");
+    // Claws and orbitars: Bullet01 and Bullet03.
+    b = PickBulletModels(24, {"EffNail00Blow", "EffNail00Bullet01", "EffNail00Bullet02",
+                              "EffNail00Bullet03"});
+    CHECK(b.rapid == "EffNail00Bullet01");
+    CHECK(b.charged == "EffNail00Bullet03");
+    b = PickBulletModels(85, {"EffBit01Bullet01", "EffBit01Bullet03"});
+    CHECK(b.rapid == "EffBit01Bullet01");
+    CHECK(b.charged == "EffBit01Bullet03");
+    // A palm: one bullet for both.
+    b = PickBulletModels(49, {"EffPalm01Bullet1"});
+    CHECK(b.rapid == "EffPalm01Bullet1");
+    CHECK(b.charged == "EffPalm01Bullet1");
+    // None by these names (an arm with Bullet2 and Bullet5 only); another weapon's names.
+    CHECK(PickBulletModels(105, {"EffArm09Bullet2", "EffArm09Bullet5"}).rapid.empty());
+    CHECK(PickBulletModels(2, {"EffRifle01Bullet1"}).rapid.empty());
+    // Sprites the same way.
+    b = PickBulletSprites(1, {"PtcRifle01Bullet1", "PtcRifle01Bullet3", "PtcRifle01RapidFlashA"});
+    CHECK(b.rapid == "PtcRifle01Bullet1");
+    CHECK(b.charged == "PtcRifle01Bullet3");
+}
+
+TEST_CASE("Projectiles: a mesh bullet, centred, its look fitted to its material", "[kiuflash]") {
+    FrameWeapons::Converted c;
+    std::string error;
+    {
+        // The effect file read as the converter reads it: the bullet model, its texture.
+        Bytes effects;
+        REQUIRE(FrameCgfx::DarcMember(ClawWithMeshBullet(), "character/effect.bcres", effects,
+                                      error));
+        FrameCgfx::File f;
+        REQUIRE(FrameCgfx::ReadCgfxModels(effects, {"EffNail00Bullet1"}, f, error));
+        INFO(error);
+        REQUIRE(f.models.size() == 1);
+        REQUIRE(f.models[0].materials.size() == 1);
+        const auto& mat = f.models[0].materials[0];
+        CHECK(mat.blend);
+        CHECK(mat.blend_src == 6);
+        CHECK(mat.blend_dst == 1);
+        REQUIRE(mat.stages.size() == 1);
+        CHECK(mat.constants[0][1] == Approx(0.5f));
+        CHECK(f.FindTexture("Tex"));
+    }
+    REQUIRE(FrameWeapons::ConvertWeapon(24, ClawWithMeshBullet(), c, error));
+    const FrameWeapons::BulletInfo& b = c.info.bullets;
+    CHECK(b.known);
+    CHECK(b.rapid == "EffNail00Bullet1");
+    CHECK(b.charged == "EffNail00Bullet1"); // no Bullet3: the same for both
+    CHECK_FALSE(b.rapid_cards);
+    REQUIRE(b.parts.size() == 1);
+    CHECK(b.parts[0].file == "w024-b0.model");
+    CHECK(b.parts[0].texture == "Tex");
+    CHECK(b.parts[0].hash != 0);
+    const std::string dir = TestDir("frame_weapon_bullet_test");
+    Bytes bytes;
+    for (const auto& [name, data] : c.files) {
+        if (name == b.parts[0].file) {
+            bytes = data;
+        }
+    }
+    REQUIRE(!bytes.empty());
+    const FrameXr::Vis::ModelFile mf = LoadFlashFile(dir, b.parts[0].file, bytes);
+    CHECK((mf.flags & FrameXr::Vis::kModelFlagBullet) != 0);
+    REQUIRE(mf.components.size() == 2);
+    CHECK(mf.components[0].name == "rapid");
+    CHECK(mf.components[1].name == "charged");
+    CHECK(mf.components[0].path == "BulletMat");
+    for (const auto& comp : mf.components) {
+        CHECK(comp.first_index == 0);
+        CHECK(comp.index_count == 3);
+        const float* v = comp.motion.data();
+        CHECK(v[FrameWeapons::kBulletAdded] == 1.0f);
+        CHECK(v[FrameWeapons::kBulletMode] == FrameWeapons::kFlashTexture);
+        CHECK(v[FrameWeapons::kBulletRed] == Approx(1.0f).margin(0.01));
+        CHECK(v[FrameWeapons::kBulletGreen] == Approx(0.5f).margin(0.01));
+        CHECK(v[FrameWeapons::kBulletBlue] == Approx(0.25f).margin(0.01));
+    }
+    // Centred, its largest side (z, 4 units) 1, its wide end (z 0 in the file) to +z.
+    float lo[3] = {9, 9, 9}, hi[3] = {-9, -9, -9};
+    float wide_z = 0.0f;
+    for (std::size_t i = 0; i < mf.vertices.size(); i += 12) {
+        for (int k = 0; k < 3; k++) {
+            lo[k] = std::min(lo[k], mf.vertices[i + k]);
+            hi[k] = std::max(hi[k], mf.vertices[i + k]);
+        }
+        if (std::abs(mf.vertices[i]) > 0.1f) {
+            wide_z = mf.vertices[i + 2]; // the two corners 2 apart across
+        }
+        CHECK(mf.vertices[i + 6] == 1.0f); // the vertex colour (white) in the tangent's place
+        CHECK(mf.vertices[i + 9] == 1.0f);
+    }
+    CHECK(hi[2] - lo[2] == Approx(1.0f));
+    CHECK(hi[0] - lo[0] == Approx(0.5f));
+    CHECK(hi[2] + lo[2] == Approx(0.0f).margin(1e-5));
+    CHECK(wide_z == Approx(0.5f)); // the head ahead, the trail behind
+    CHECK(mf.colour[3] == 0xFF);
+    // The manifest keeps it all.
+    FrameWeapons::Manifest m;
+    m.version = FrameWeapons::kConverterVersion;
+    m.weapons.push_back(c.info);
+    REQUIRE(FrameWeapons::WriteManifest(dir + "weapons.txt", m, error));
+    FrameWeapons::Manifest back;
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", back, error));
+    const auto& bb = back.Find(24)->bullets;
+    CHECK(bb.known);
+    CHECK(bb.rapid == b.rapid);
+    CHECK(bb.charged == b.charged);
+    CHECK_FALSE(bb.charged_cards);
+    REQUIRE(bb.parts.size() == 1);
+    CHECK(bb.parts[0].file == b.parts[0].file);
+    CHECK(bb.parts[0].hash == b.parts[0].hash);
+    CHECK(bb.parts[0].cards == 2);
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("Projectiles: sprites when there is no mesh bullet, and the cache", "[kiuflash]") {
+    FrameWeapons::Converted c;
+    std::string error;
+    REQUIRE(FrameWeapons::ConvertWeapon(24, ClawZrc(ClawEffects()), c, error));
+    const FrameWeapons::BulletInfo& b = c.info.bullets;
+    CHECK(b.rapid == "PtcNail00Bullet1");
+    CHECK(b.charged == "PtcNail00Bullet1");
+    CHECK(b.rapid_cards);
+    CHECK(b.charged_cards);
+    REQUIRE(!b.parts.empty());
+    const std::string dir = TestDir("frame_weapon_bullet_cards");
+    int rapid = 0, charged = 0;
+    for (const auto& [name, data] : c.files) {
+        if (name.find("-b") == std::string::npos) {
+            continue;
+        }
+        const FrameXr::Vis::ModelFile mf = LoadFlashFile(dir, name, data);
+        CHECK((mf.flags & FrameXr::Vis::kModelFlagFlash) != 0); // cards, as the flashes'
+        for (const auto& comp : mf.components) {
+            CHECK(comp.path == "face");
+            (comp.name == "rapid" ? rapid : charged)++;
+        }
+    }
+    CHECK(rapid == 1);
+    CHECK(charged == 1);
+    CHECK(b.parts.size() == 1); // both kinds' cards in one file
+    // With no effect file: known, nothing.
+    FrameWeapons::Converted none;
+    REQUIRE(FrameWeapons::ConvertWeapon(24, ClawZrc(), none, error));
+    CHECK(none.info.bullets.known);
+    CHECK(none.info.bullets.parts.empty());
+    // A game's run: made, kept, made again once for a manifest from before the projectiles (no
+    // bullets lines), made again when a bullet file is gone.
+    constexpr u64 kTitle = 0x0004000000030200ull;
+    auto rom = std::make_shared<MemoryRomFS>(RomFS("eu", {{"m200.zrc", ClawWithMeshBullet()}}));
+    auto r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.made == 1);
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.kept == 1);
+    {
+        std::ifstream in(dir + "weapons.txt");
+        std::string text, line;
+        while (std::getline(in, line)) {
+            if (line.rfind("bullet", 0) != 0) {
+                text += line + "\n";
+            }
+        }
+        in.close();
+        std::ofstream(dir + "weapons.txt") << text;
+    }
+    FrameWeapons::Manifest m;
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    CHECK_FALSE(m.Find(24)->bullets.known);
+    CHECK(m.Find(24)->flash.known); // the flashes stay as they were
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.made == 1);
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    REQUIRE(!m.Find(24)->bullets.parts.empty());
+    std::filesystem::remove(dir + m.Find(24)->bullets.parts[0].file);
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.made == 1);
+    std::filesystem::remove_all(dir);
 }

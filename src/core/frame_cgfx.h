@@ -130,6 +130,17 @@ struct Material {
     /// The face culling the game draws it with (PICA's GPUREG_FACECULLING_CONFIG: 0 both sides,
     /// 1 or 2 one side only).
     u32 cull = 0;
+    // AzaharFrame kiuflash: what an effect material (a bullet's) is drawn with, as far as the
+    // bullets need: its six combiner constants (RGBA 0 to 1), its blend (enabled; the source and
+    // destination colour factors, PICA's: 0 zero, 1 one, 6 source alpha, 7 one minus it, ...) and
+    // its combiner stages (PICA's TEV: sources, operands, combine, constant, scale).
+    std::array<std::array<float, 4>, 6> constants{};
+    bool blend = false;
+    u32 blend_src = 1, blend_dst = 0;
+    struct Stage {
+        u32 source = 0, operand = 0, combine = 0, constant = 0, scale = 0;
+    };
+    std::vector<Stage> stages;
 };
 
 struct Vertex {
@@ -194,6 +205,12 @@ bool ReadCgfx(std::span<const u8> data, File& out, std::string& error);
 /// vertices are in their bone's space, smooth ones in model space already).
 std::array<float, 3> BindPosition(const Model& model, const SubMesh& sub, const Vertex& v,
                                   std::array<float, 3>* normal = nullptr);
+
+/// AzaharFrame kiuflash: the named models of a CGFX file that may hold others it cannot read
+/// (an effect file: particle models, bullets) and all its textures: each model read on its own
+/// (one that fails is left out). False only when the file itself cannot be read.
+bool ReadCgfxModels(std::span<const u8> data, const std::vector<std::string>& names, File& out,
+                    std::string& error);
 
 // ---- Particle models (AzaharFrame kiuflash) ----
 //
