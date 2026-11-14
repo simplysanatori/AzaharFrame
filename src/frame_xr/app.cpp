@@ -861,6 +861,18 @@ void Runtime::FrameLoop() {
                     tq.curve_radius = curve;
                     toast_screens.push_back(tq);
                 }
+                // AzaharFrame ctrlfront: the screen hides the controllers behind it whether or
+                // not its layer is left out this refresh (SINGLE_FLASH), as the toast's input: the
+                // next picture of the controllers is drawn against it, and one drawn without it
+                // showed through the screen every other picture. By depth when the choice
+                // includes this screen's slot (Primary: the top screen, or the bottom one swapped
+                // in), else in front of the controllers wherever they are.
+                if (use.toast_input) {
+                    const bool by_depth = Vis::InFrontOfScreen(in_front, top != screens_swapped);
+                    if (!by_depth || !top || !top_immersive) {
+                        add_occluder(space, pose, size, curve, eye, !by_depth);
+                    }
+                }
                 if (!use.layer) {
                     return; // no picture, or (AzaharFrame dbl) shown once already
                 }
@@ -889,13 +901,6 @@ void Runtime::FrameLoop() {
                     quad_layers.push_back(MakeCylinder(space, q, curve)); // AzaharFrame curve
                 } else {
                     quad_layers.push_back(MakeQuad(space, q));
-                }
-                // AzaharFrame ctrlfront: by depth when the choice includes this screen's slot
-                // (Primary: the top screen, or the bottom one swapped in), else in front of the
-                // controllers wherever they are.
-                const bool by_depth = Vis::InFrontOfScreen(in_front, top != screens_swapped);
-                if (!by_depth || !top || !top_immersive) {
-                    add_occluder(space, pose, size, curve, eye, !by_depth);
                 }
             };
             // AzaharFrame screenswap: with the bottom screen in focus the screens trade places
