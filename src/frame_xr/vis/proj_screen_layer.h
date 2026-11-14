@@ -10,27 +10,10 @@
 #include <array>
 #include <cstdint>
 
+#include "frame_xr/vis/proj_screen.h" // projb: ProjDepth
 #include "frame_xr/xr_includes.h"
 
 namespace FrameXr::Vis {
-
-/// projb: how the screen's depth meets the controllers' ("Controllers in Front of Screen", as
-/// ctrlfront's occluders do it on the quad path).
-enum class ProjDepth : uint8_t {
-    Real,  ///< its own depth: a controller nearer than the screen is in front of it
-    Front, ///< the nearest depth: it covers the controllers wherever they are (the choice is Off)
-    Back,  ///< the farthest depth: the controllers always in front (the immersive screen)
-};
-
-/// The shader's value for it (proj_screen.h kScreenVert, extra.x).
-constexpr float ProjDepthCode(ProjDepth d) {
-    return d == ProjDepth::Front ? 1.0f : d == ProjDepth::Back ? 2.0f : 0.0f;
-}
-
-/// projb: how many refreshes the layer keeps its last image with the screen while the top screen's
-/// swapchain has just been made again and has no picture yet (Dynamic Resolution's steps: 3 to 5
-/// refreshes on the Frame), instead of a layer without the screen (the room showing through).
-inline constexpr uint32_t kGapHoldRefreshes = 12;
 
 /// One eye's top screen for this refresh, as its quad would have been sent.
 struct ProjScreenEye {

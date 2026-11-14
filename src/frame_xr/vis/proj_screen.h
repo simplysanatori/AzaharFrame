@@ -42,6 +42,24 @@ inline constexpr const char* kProjMarksSwitch = "AZAHARFRAME_XR_PROJ_MARKS";
 /// has both for the same refresh (hold.py --proj-vs-quad).
 inline constexpr const char* kProjAlsoQuadsSwitch = "AZAHARFRAME_XR_PROJ_ALSO_QUADS";
 
+/// projb: how the screen's depth meets the controllers' ("Controllers in Front of Screen", as
+/// ctrlfront's occluders do it on the quad path).
+enum class ProjDepth : uint8_t {
+    Real,  ///< its own depth: a controller nearer than the screen is in front of it
+    Front, ///< the nearest depth: it covers the controllers wherever they are (the choice is Off)
+    Back,  ///< the farthest depth: the controllers always in front (the immersive screen)
+};
+
+/// The shader's value for it (kScreenVert below, extra.x).
+constexpr float ProjDepthCode(ProjDepth d) {
+    return d == ProjDepth::Front ? 1.0f : d == ProjDepth::Back ? 2.0f : 0.0f;
+}
+
+/// projb: how many refreshes the layer keeps its last image with the screen while the top screen's
+/// swapchain has just been made again and has no picture yet (Dynamic Resolution's steps: 3 to 5
+/// refreshes on the Frame), instead of a layer without the screen (the room showing through).
+inline constexpr uint32_t kGapHoldRefreshes = 12;
+
 // ---- Pure helpers ----
 
 // Templates over any quaternion (x, y, z, w) and vector (x, y, z) types with those members, so
@@ -153,7 +171,7 @@ void main() {
     v_screen = vec2(u, v);
     vec4 c = pc.mvp * vec4(p, 1.0);
     gl_Position = vec4(c.x, -c.y, 0.5 * (c.z + c.w), c.w);
-    // projb: extra.x (proj_screen_layer.h ProjDepthCode): 1 at the nearest depth (it covers the
+    // projb: extra.x (ProjDepthCode above): 1 at the nearest depth (it covers the
     // controllers), 2 at the farthest (they are always in front); kept a fraction of w, so the
     // near and far planes still clip it where they did.
     if (pc.extra.x > 1.5) {

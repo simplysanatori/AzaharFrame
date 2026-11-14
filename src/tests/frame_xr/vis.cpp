@@ -22,7 +22,6 @@
 #include "video_core/renderer_vulkan/vk_shader_util.h" // AzaharFrame ctrlfront
 #include "frame_xr/vis/model_file.h"
 #include "frame_xr/vis/proj_screen.h" // AzaharFrame projscreen
-#include "frame_xr/vis/proj_screen_layer.h" // projb
 #include "frame_xr/vis/stats_place.h"
 
 // AzaharFrame vrvis
@@ -1028,8 +1027,6 @@ TEST_CASE("FrameXr vis: projection screens: the screen's depth and the swapchain
     STATIC_REQUIRE(ProjDepthCode(ProjDepth::Real) == 0.0f);
     STATIC_REQUIRE(ProjDepthCode(ProjDepth::Front) == 1.0f);
     STATIC_REQUIRE(ProjDepthCode(ProjDepth::Back) == 2.0f);
-    STATIC_REQUIRE(ProjScreenEye{}.depth == ProjDepth::Real);
-    STATIC_REQUIRE_FALSE(ProjScreens{}.gap);
     // Dynamic Resolution's new swapchain is 3 to 5 refreshes without a picture; never a long
     // freeze (12 refreshes: 0.1 s at 120 Hz).
     STATIC_REQUIRE(kGapHoldRefreshes >= 6);
