@@ -46,7 +46,7 @@ constexpr int kClasses = 9;
 constexpr int kPerClass = 12;
 constexpr int kWeapons = kClasses * kPerClass; // ids 0..107 (the game's WPNID order)
 /// The manifest's and files' version: a change makes every weapon again.
-constexpr int kConverterVersion = 1;
+constexpr int kConverterVersion = 2;
 
 enum Class : int { kBlade, kStaff, kClaws, kBow, kPalm, kClub, kCannon, kOrbitars, kArm };
 

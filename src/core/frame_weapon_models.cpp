@@ -149,28 +149,83 @@ bool IsGlow(const std::string& material) {
     return material.find("Efe") != std::string::npos || material.rfind("WpnE", 0) == 0;
 }
 
-/// The material's base colour mapper: the first that samples a texture of this file with plain
-/// UVs (mapper 0 is usually a sphere environment map, often Pit's shared Pit_Ref), else the
-/// first with a texture of this file.
+/// A texture name that reads as a weapon's base colour: "Rifle00", "WpnSnipe00", "snipe07",
+/// "Bow02b", "Nail01_2" (optional "Wpn", letters, two digits, a letter, "_" and a digit).
+bool NamesBaseColour(const std::string& n) {
+    std::size_t i = n.rfind("Wpn", 0) == 0 ? 3 : 0;
+    const std::size_t letters = i;
+    while (i < n.size() && std::isalpha(static_cast<unsigned char>(n[i]))) {
+        i++;
+    }
+    if (i == letters || i + 2 > n.size() || !std::isdigit(static_cast<unsigned char>(n[i])) ||
+        !std::isdigit(static_cast<unsigned char>(n[i + 1]))) {
+        return false;
+    }
+    i += 2;
+    if (i < n.size() && std::islower(static_cast<unsigned char>(n[i]))) {
+        i++;
+    }
+    if (i + 1 < n.size() && n[i] == '_' && std::isdigit(static_cast<unsigned char>(n[i + 1]))) {
+        i += 2;
+    }
+    return i == n.size();
+}
+
+/// A texture name that reads as a mask, an environment or an effect map ("Rifle00_Mask",
+/// "Pit_Ref", "Nail04_Env", "Palm00_ef", "Rifle02M", "Snipe04R", ...).
+bool NamesOtherMap(const std::string& name) {
+    std::string n;
+    for (const char ch : name) {
+        n += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    for (const char* part : {"mask", "ref", "env", "_ef", "efe", "spe", "noise", "msk"}) {
+        if (n.find(part) != std::string::npos) {
+            return true;
+        }
+    }
+    const std::size_t len = n.size();
+    return (len >= 3 && n.compare(len - 3, 3, "mas") == 0) ||
+           (len >= 2 && std::isdigit(static_cast<unsigned char>(n[len - 2])) &&
+            (n[len - 1] == 'm' || n[len - 1] == 'r'));
+}
+
+/// The material's base colour mapper, among those with a texture of this file that are not
+/// environment mapped (mapper 0 is often a sphere map, often Pit's shared Pit_Ref): the one whose
+/// name reads as a base colour, else one not named as a mask, environment or effect map, else
+/// the first. The study's prototype rule, checked against the game's look for all 108.
 int DiffuseMapper(const FrameCgfx::Material& mat, const FrameCgfx::File& file) {
-    int any = -1;
-    for (int i = 0; i < 3; i++) {
-        const auto& mp = mat.mappers[static_cast<std::size_t>(i)];
-        if (mp.texture.empty() || !file.FindTexture(mp.texture)) {
-            continue;
-        }
-        if (any < 0) {
-            any = i;
-        }
-        if (!mat.coords.empty()) {
-            const auto& c = mat.coords[std::min<std::size_t>(static_cast<std::size_t>(i),
-                                                             mat.coords.size() - 1)];
-            if (c.mapping == 0) {
-                return i;
+    std::vector<int> candidates;
+    for (int pass = 0; pass < 2 && candidates.empty(); pass++) {
+        for (int i = 0; i < 3; i++) {
+            const auto& mp = mat.mappers[static_cast<std::size_t>(i)];
+            if (mp.texture.empty() || !file.FindTexture(mp.texture)) {
+                continue;
+            }
+            bool uv = true;
+            if (!mat.coords.empty()) {
+                uv = mat.coords[std::min<std::size_t>(static_cast<std::size_t>(i),
+                                                      mat.coords.size() - 1)]
+                         .mapping == 0;
+            }
+            if (uv || pass == 1) {
+                candidates.push_back(i);
             }
         }
     }
-    return any;
+    if (candidates.empty()) {
+        return -1;
+    }
+    for (const int i : candidates) {
+        if (NamesBaseColour(mat.mappers[static_cast<std::size_t>(i)].texture)) {
+            return i;
+        }
+    }
+    for (const int i : candidates) {
+        if (!NamesOtherMap(mat.mappers[static_cast<std::size_t>(i)].texture)) {
+            return i;
+        }
+    }
+    return candidates.front();
 }
 
 struct PartBuilder {
