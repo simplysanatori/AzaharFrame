@@ -64,7 +64,7 @@ A = select, B = previous page) are not game input and do not swap.
 
 ## Motion (gyroscope and accelerometer)
 
-`motion.h`. The controller chosen by `vr_motion_controls` (0 off, 1 right, 2 left, 3 headset; default right; AzaharFrame kiu: per game too, Kid Icarus: Uprising's Controls preset starts it Off; the headset uses the located view-space head pose, `InputFrame::head`, through `HeadAsMotionSource`)
+`motion.h`. The controller chosen by `vr_motion_controls` (0 off, 1 right, 2 left, 3 headset; default right; AzaharFrame kiu: per game too, Kid Icarus: Uprising's Controls preset starts it Off, AzaharFrame kiugyro: Right Controller when the C-Stick & Gyro mod is installed; the headset uses the located view-space head pose, `InputFrame::head`, through `HeadAsMotionSource`)
 drives the 3DS's sensors through the `frame_xr` motion device (`engine:frame_xr`, shared state in
 `input_common/frame_xr.h`), written once per display frame by the `InputBridge` and read by the HID
 service. VR start-up replaces the profile's default motion device (`motion_emu`, the mouse) with
@@ -83,7 +83,75 @@ controller's own axes, divided by the time between their display times, then con
 way. Rates under 1.5 deg/s read as zero, they are capped at 2000 deg/s, and a gap of more than
 100 ms between two frames restarts the tracking. The base space is assumed to be gravity aligned
 (+Y up), as OpenXR's LOCAL space is. Hand movement through the room is not sent (no linear
-acceleration).
+acceleration). AzaharFrame kiugyro: **Gyro Sensitivity** (`vr_gyro_sensitivity`, per game too,
+0.2x to 4.0x, default 1.0x) multiplies the gyroscope in every game; the accelerometer is not
+scaled.
+
+## Aiming (Gyro Aim in the code; AzaharFrame kiugyro)
+
+Settings, General, under Motion Controls: **Aiming** Off, Direct Aim, Gyro Aim (`vr_gyro_aim`, per
+game too; stored as before: 0 Off, 1 Gyro Aim, 2 Direct Aim, so older builds read the same
+value; the code calls Direct Aim "Light Gun" and Gyro Aim "Gyro"; `Menu::AimingIndexOf`),
+**Recoil**, **Gyro Sensitivity**, and with Direct Aim **Turn Zone** (`vr_light_gun_turn_zone`, 0
+to 30 % of the screen, default 10 %) and **Turn Speed** (`vr_light_gun_turn_speed`, 0.2x to
+4.0x, default 1.0x). Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod (v172),
+whose gyro control scheme has to be chosen in the game's own controls; its Controls preset starts
+Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_mod`). `gyro_aim.h`,
+`kiu_scan.h`, `kiu_probe.h`; the disassembly is in handoff/reports/37/kiugyro/design.md.
+
+- **What the mod reads:** once per game frame, the latest HID gyroscope entry: z as the
+  reticle's horizontal rate, x as its vertical rate (deg/s), less a 0.25 deg/s dead zone, at
+  most 360; into the same synthetic touch drag as its C-Stick, so on the ground the game's aim
+  box turns the camera when the drag runs past it. A held touch stops it.
+- **The controller:** Motion Controls' own, or the right controller when that is Off.
+- **Gyro:** the ray's yaw rate (about the room's vertical) goes to 3DS z, right positive, and its
+  pitch rate to 3DS x, down positive, times Gyro Sensitivity, replacing Motion Controls' gyroscope
+  meanwhile. Rolling the controller sends nothing.
+- **Light Gun:** where the ray hits the top screen (`LightGunTargetFor`, the screen as drawn,
+  `PanelGeometry::top`; a screen that cannot be pointed at, such as the immersive one, gives no
+  target) is where the reticle goes. On the emulation thread, at each HID gyroscope poll
+  (~101 Hz; `InputCommon::FrameXr::MotionState::SetGyroOverride`), the probe reads the reticle
+  from the game, read only (the mod's state block + 0x20 -> the reticle object: +0xA4/+0xA8 the
+  reticle, +0xE0/+0xE8 the screen's size, +0xE4/+0xEC its centre, +0x81 the ground box), and
+  `LightGunLoop` sends the rate that brings it under the pointer: a Smith predictor (one game
+  frame of latency) and a proportional term (two game frames), in emulated time, with the gain
+  (pixels per degree, sign included) learnt from rest-to-rest moves and flipped when the reticle
+  runs the other way; the HID service's slow-down stretch is divided out. On the ground the target
+  is kept in the game's box (x 0.7 to 1.3 of the centre, y 0.4 to 1.25); the **Turn Zone** at the
+  screen's sides (and top and bottom) adds a push past the box, depth 0 to 1 across the zone, one
+  screen width (height) a second at the edge times Turn Speed, which the mod turns into a camera
+  turn. In the air (no box) nothing is pushed. When the reticle cannot be read (not Kid Icarus,
+  the mod's code patterns not found, the game's controls not on gyro, no reticle, a value out of
+  range) Light Gun uses Gyro instead and says why once in the log (`xr: Light Gun: Gyro instead:
+  ...`); `xr: Light Gun: reticle found` when it reads it again, and every 5 s the reading, the
+  target, the gain and the game frame.
+- **Laser sight:** while Light Gun has the reticle (read from the game, not fallen back to
+  Gyro) and its ray is on the top screen, the controller's beam is red and ends in a small red
+  dot (`LaserDotSize`: half the pointer dot's) where the ray meets the screen, which is where the
+  loop steers the reticle (on the ground, pointing past the box, the two part: the reticle waits
+  at the box). The beam stays at full strength while the hand is still. A red copy of the beam
+  art and the dot are in the vis atlas (`kLaserBeamRect`, `kLaserDotRect`), drawn once: no GPU
+  work in a game. Otherwise the usual white beam (`Input::LaserSight`, `Vis::Visuals::SetLaser`).
+- **Grip:** the Gyro Aim controller's grip held (above 0.60, let go below 0.40) pauses it (Gyro:
+  zero rate; Light Gun: the reticle stays) and grabs nothing; letting go does not jump (Gyro
+  starts again from the hand's new place; Light Gun goes back to the pointer). The other
+  controller's grip still grabs, moves and sizes the screens (World Scale, grip + stick).
+  Not with Headset (no grip).
+- **Fire:** while Gyro Aim is on, a trigger that is ZL/ZR (not touching the bottom screen) also
+  presses the Left Bumper's control (L in the default profile): the game fires with L, so the
+  aiming controller's trigger fires, and the left trigger too. The mod also writes ir:rst's
+  ZL/ZR into the game's held buttons (its poll at 0xD33C7C), so ZL/ZR reach the game as well.
+- **Recoil** (`vr_light_gun_recoil`, per game too, on by default; shown under Gyro Aim while it
+  is not Off): a pulse on the aiming controller's haptics for each shot (full amplitude, 40 ms,
+  the runtime's frequency, as Moonlight XR's light gun). The game's own shots are not read: a
+  shot is the fire press, then one every 125 ms while fire is held (`Recoil::kRecoilPaceNs`, one
+  constant for a weapon's rate later), and a press after 1.5 s without firing gets a 90 ms pulse
+  (a heuristic for the charged shot). Never in menus or with Gyro Aim off. The haptic output is
+  suggested with the bindings, and without it if the runtime refuses it (`Actions::Pulse`).
+- **Trigger:** while Gyro Aim is on, the Bottom Screen Reticle steps aside (its setting is kept;
+  the shelved C-Stick at Edge with it), so the trigger is ZL/ZR, which the mod fires with, and never a touch,
+  which would stop the mod's aim. The controller keeps its beam; pointed at the bottom screen its
+  trigger touches there as usual.
 
 ## Pointing at the screens
 
@@ -416,7 +484,7 @@ Controls tab, under Touchpad Touch: Off, Left Controller, Right Controller, Head
 - **Its grip re-zeroes** (the middle where it points now) and grabs nothing while the reticle is on; the other controller still grabs. Recentre (SteamVR's, or the right stick click held 1 s) re-zeroes too. Its other buttons keep their mapping.
 - **No beam** (AzaharFrame polish): while it drives the reticle the controller draws no beam, puts no pointer dot on the screens and grabs no stats panel (`HandInput::reticle`, set by `ReticleDrivingHand`): it is not a pointer then. Only in a game with the menu closed and the controller tracked; in the in-game menu, Azahar's window (with or without a game) and the keyboard it is a normal pointer with its beam, and its trigger clicks.
 - **Headset:** the head's direction aims; the trigger of either controller touches (either held is a touch; both triggers are then neither ZL/ZR nor beam touches); the grips keep their jobs, and only Recentre re-zeroes.
-- **C-Stick at Edge** (`vr_reticle_edge_cstick`, AzaharFrame kiu, per game too; Kid Icarus: Uprising's Controls preset turns it on only when the C-Stick mod is installed for the game: catalogue ids `kiu-cstick-*` in `kCStickModIds`, or by hand a `code.bin` or a name with cstick in it; `CStickModInstalled`): while the trigger touches and the reticle's point is within an edge band, the touch is handed to the C-Stick (AzaharFrame kiu2, `ReticleEdgeHandoff` in `TouchpadTouch`): Touch, Lead (the C-Stick pushed, the touch still down, 50 ms: a tap at the edge still lands), Stick (the touch lifted), Return (out of the band by a quarter of its width more: the touch back where the point is, the C-Stick still pushed for 50 ms), Touch. The push goes on the right stick's analog (`AnalogControl::StickR`, the C-Stick in the default profile), added after the mapper's dead zone and the other gamepads and capped at full tilt: per axis toward that edge, 0.15 where the band starts (past the mod's dead zone) to 1 at the edge. The band is 3 degrees of aim in the reticle's cone (`ReticleEdgeBandFor`: from the source and Reticle Speed), as a fraction of the width and of the height, clamped to 5 to 25 %. Nothing is lifted or pushed when the trigger is let go, during a grip's grab, while another source holds the touch, or with the switch off. While it is on the reticle follows the edges (Follow) whatever At Edge says, so Snap to Middle never takes the point out of the band; the stored setting stays. Why (a Kid Icarus: Uprising ground battle with the C-Stick & Gyro mod, reports/30/kiu2 and reports/30/kiuadv/plan.md): the mod turns the camera when its C-Stick cursor runs past the game's reticle box (yaw, and pitch up to a limit) and reads no C-Stick in a frame with a touch held; a touch held still at the edge turns nothing. The game's touch aim is relative, so the touch coming back carries on from where the C-Stick left the cursor. The stick and the touch overlap at each change, so the game never sees a frame with neither.
+- **C-Stick at Edge** (shelved, AzaharFrame kiugyro: no row in the menu, Gyro Aim replaces it; the key `vr_reticle_edge_cstick` keeps its meaning for older builds, and this build acts on it only with the test switch `AZAHARFRAME_CSTICK_EDGE=1`, live, `TestSwitches::CStickEdgeOn`. What follows is what it does then.) (`vr_reticle_edge_cstick`, AzaharFrame kiu, per game too; earlier builds' Kid Icarus: Uprising Controls preset turned it on when the C-Stick mod was installed; AzaharFrame kiugyro: it starts Gyro Aim instead (catalogue ids `kiu-cstick-*` in `kCStickModIds`, or by hand a `code.bin` or a name with cstick in it; `CStickModInstalled`), and C-Stick at Edge steps aside while Gyro Aim is on): while the trigger touches and the reticle's point is within an edge band, the touch is handed to the C-Stick (AzaharFrame kiu2, `ReticleEdgeHandoff` in `TouchpadTouch`): Touch, Lead (the C-Stick pushed, the touch still down, 50 ms: a tap at the edge still lands), Stick (the touch lifted), Return (out of the band by a quarter of its width more: the touch back where the point is, the C-Stick still pushed for 50 ms), Touch. The push goes on the right stick's analog (`AnalogControl::StickR`, the C-Stick in the default profile), added after the mapper's dead zone and the other gamepads and capped at full tilt: per axis toward that edge, 0.15 where the band starts (past the mod's dead zone) to 1 at the edge. The band is 3 degrees of aim in the reticle's cone (`ReticleEdgeBandFor`: from the source and Reticle Speed), as a fraction of the width and of the height, clamped to 5 to 25 %. Nothing is lifted or pushed when the trigger is let go, during a grip's grab, while another source holds the touch, or with the switch off. While it is on the reticle follows the edges (Follow) whatever At Edge says, so Snap to Middle never takes the point out of the band; the stored setting stays. Why (a Kid Icarus: Uprising ground battle with the C-Stick & Gyro mod, reports/30/kiu2 and reports/30/kiuadv/plan.md): the mod turns the camera when its C-Stick cursor runs past the game's reticle box (yaw, and pitch up to a limit) and reads no C-Stick in a frame with a touch held; a touch held still at the edge turns nothing. The game's touch aim is relative, so the touch coming back carries on from where the C-Stick left the cursor. The stick and the touch overlap at each change, so the game never sees a frame with neither.
 - **Aim Only While Pressed** (`vr_reticle_center_until_pressed`) and **Right Stick Moves Touch** (`vr_reticle_stick_moves`, AzaharFrame fixes7; the latter was Stick Moves Reticle): the point stays in the middle until the trigger touches; the right stick moves the touch point too and is not the C-Stick while the reticle is live (`SplitReticleStick`; off, the C-Stick is untouched).
 - **Tremor:** a One Euro filter on the yaw and pitch (1.5 Hz at rest, faster as the hand moves: 0.25 Hz more per degree a second, the speed itself filtered at 2 Hz), then a 0.08 degree dead zone that drags the point (it follows once the aim leaves it, without steps). At 20 degrees a second the point trails by about 0.3 degrees (0.6 before input2), and a flick settles in about 17 ms. Tremor at an edge moves the reference at most by its own size (tested).
 - **Why not a gyro mouse** (rotation as relative deltas, a grip to lift it): a stylus is absolute and so is the reticle that follows it; absolute aim gives the same point for the same direction every time and never drifts, and a relative mouse needs a dead zone against tremor that also swallows slow, fine corrections.

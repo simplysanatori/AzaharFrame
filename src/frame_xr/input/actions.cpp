@@ -25,6 +25,9 @@ struct Actions::Impl {
     XrAction stick = XR_NULL_HANDLE;
     XrAction stick_click = XR_NULL_HANDLE;
     XrAction aim_pose = XR_NULL_HANDLE;
+    XrAction haptic = XR_NULL_HANDLE; ///< AzaharFrame kiugyro: Light Gun's recoil (output)
+    bool haptic_bound = false;
+    int pulses = 0;
     // Right controller
     XrAction a = XR_NULL_HANDLE;
     XrAction b = XR_NULL_HANDLE;
@@ -178,6 +181,16 @@ bool Actions::Create(XrInstance instance, bool has_frame_controller) {
     }
 
     const auto path = [&](const char* text) { return ToPath(instance, text); };
+    // AzaharFrame kiugyro: the controllers' haptics (Light Gun's recoil). Every profile has the
+    // output; a runtime that refused it gets the bindings again without it, as Moonlight XR does.
+    s.haptic = MakeAction(action_set_, "haptic", "Recoil", XR_ACTION_TYPE_VIBRATION_OUTPUT, hands, 2);
+    const auto with_haptic = [&](Bindings b) {
+        if (s.haptic != XR_NULL_HANDLE) {
+            b.push_back({s.haptic, path("/user/hand/left/output/haptic")});
+            b.push_back({s.haptic, path("/user/hand/right/output/haptic")});
+        }
+        return b;
+    };
 
     if (has_frame_controller) {
         // Paths as SteamVR names them for the Steam Frame controllers (the same ones KartFrame's
@@ -216,16 +229,19 @@ bool Actions::Create(XrInstance instance, bool has_frame_controller) {
             };
         };
         // SteamVR has taken the grip as squeeze/value and as grip/value.
-        if (!Suggest(instance, "/interaction_profiles/valve/frame_controller",
-                     frame_bindings("squeeze/value"))) {
-            Suggest(instance, "/interaction_profiles/valve/frame_controller",
-                    frame_bindings("grip/value"));
+        constexpr const char* kFrame = "/interaction_profiles/valve/frame_controller";
+        s.haptic_bound = true;
+        if (!Suggest(instance, kFrame, with_haptic(frame_bindings("squeeze/value"))) &&
+            !Suggest(instance, kFrame, with_haptic(frame_bindings("grip/value")))) {
+            s.haptic_bound = false;
+            if (!Suggest(instance, kFrame, frame_bindings("squeeze/value"))) {
+                Suggest(instance, kFrame, frame_bindings("grip/value"));
+            }
         }
     }
 
     // Fallback for development with another runtime or controller (no D-pad, View or bumpers).
-    Suggest(instance, "/interaction_profiles/oculus/touch_controller",
-            Bindings{
+    const Bindings touch_bindings{
                 {s.stick, path("/user/hand/left/input/thumbstick")},
                 {s.stick, path("/user/hand/right/input/thumbstick")},
                 {s.stick_click, path("/user/hand/left/input/thumbstick/click")},
@@ -241,8 +257,35 @@ bool Actions::Create(XrInstance instance, bool has_frame_controller) {
                 {s.menu, path("/user/hand/left/input/menu/click")},
                 {s.aim_pose, path("/user/hand/left/input/aim/pose")},
                 {s.aim_pose, path("/user/hand/right/input/aim/pose")},
-            });
+            };
+    constexpr const char* kTouch = "/interaction_profiles/oculus/touch_controller";
+    if (Suggest(instance, kTouch, with_haptic(touch_bindings))) {
+        s.haptic_bound = s.haptic_bound || !has_frame_controller;
+    } else {
+        Suggest(instance, kTouch, touch_bindings);
+    }
     return true;
+}
+
+bool Actions::Pulse(XrSession session, int hand, int64_t duration_ns, float amplitude) {
+    if (impl_ == nullptr || impl_->haptic == XR_NULL_HANDLE || !impl_->haptic_bound ||
+        session == XR_NULL_HANDLE || hand < 0 || hand >= kNumHands) {
+        return false;
+    }
+    XrHapticActionInfo info{XR_TYPE_HAPTIC_ACTION_INFO};
+    info.action = impl_->haptic;
+    info.subactionPath = impl_->hand_path[static_cast<std::size_t>(hand)];
+    XrHapticVibration vibration{XR_TYPE_HAPTIC_VIBRATION};
+    vibration.duration = duration_ns;
+    vibration.frequency = XR_FREQUENCY_UNSPECIFIED; // the runtime's own
+    vibration.amplitude = amplitude;
+    const XrResult result = xrApplyHapticFeedback(
+        session, &info, reinterpret_cast<const XrHapticBaseHeader*>(&vibration));
+    if (impl_->pulses++ == 0 || XR_FAILED(result)) {
+        LOG_INFO(Input, "recoil on the {} controller: {}", hand == 0 ? "left" : "right",
+                 static_cast<int>(result));
+    }
+    return XR_SUCCEEDED(result);
 }
 
 bool Actions::CreateSpaces(XrSession session) {

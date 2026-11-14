@@ -22,6 +22,7 @@
 #include "network/network.h"
 #include "citra_qt/configuration/frame_per_game_ini.h" // AzaharFrame useglobal
 #ifdef ENABLE_FRAME_XR
+#include "frame_xr/controls_presets.h" // AzaharFrame kiugyro: the Gyro Aim mirror
 #include "frame_xr/immersive.h"         // AzaharFrame widerview: SavedHeadSize
 #include "frame_xr/immersive_layout.h" // LevelForOldWiderView
 #endif
@@ -625,9 +626,18 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_reticle_stick_moves);
     ReadGlobalSetting(Settings::values.vr_reticle_edge_cstick); // AzaharFrame kiu
     ReadGlobalSetting(Settings::values.vr_motion_controls);     // AzaharFrame kiu: per game too
+    ReadGlobalSetting(Settings::values.vr_gyro_aim);             // AzaharFrame kiugyro
+    ReadGlobalSetting(Settings::values.vr_gyro_sensitivity);
+    ReadGlobalSetting(Settings::values.vr_light_gun_turn_zone);
+    ReadGlobalSetting(Settings::values.vr_light_gun_turn_speed);
+    ReadGlobalSetting(Settings::values.vr_light_gun_recoil);
     if (!global) {
         // AzaharFrame kiu: what the Controls preset already decided (a game's file only).
         ReadGlobalSetting(Settings::values.vr_controls_preset_done);
+#ifdef ENABLE_FRAME_XR
+        // AzaharFrame kiugyro: a Gyro Aim an older build dropped comes back from its mirror.
+        FrameXr::RestoreGyroAim();
+#endif
     }
     // AzaharFrame: global only, so a per-application file never carries or overrides them.
     if (global) {
@@ -1322,7 +1332,15 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_reticle_stick_moves);
     WriteGlobalSetting(Settings::values.vr_reticle_edge_cstick); // AzaharFrame kiu
     WriteGlobalSetting(Settings::values.vr_motion_controls);     // AzaharFrame kiu: per game too
+    WriteGlobalSetting(Settings::values.vr_gyro_aim);            // AzaharFrame kiugyro
+    WriteGlobalSetting(Settings::values.vr_gyro_sensitivity);
+    WriteGlobalSetting(Settings::values.vr_light_gun_turn_zone);
+    WriteGlobalSetting(Settings::values.vr_light_gun_turn_speed);
+    WriteGlobalSetting(Settings::values.vr_light_gun_recoil);
     if (!global) {
+#ifdef ENABLE_FRAME_XR
+        FrameXr::MirrorGyroAim(); // AzaharFrame kiugyro: kept by builds that drop vr_gyro_aim
+#endif
         WriteGlobalSetting(Settings::values.vr_controls_preset_done); // AzaharFrame kiu
     }
     // AzaharFrame: global only (see ReadVrValues).

@@ -2,9 +2,11 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include "common/settings.h"
 #include "frame_xr/input/devices.h" // AzaharFrame pads
 #include "frame_xr/input/input_bridge.h"
+#include "frame_xr/kiu_probe.h" // AzaharFrame kiugyro
 #include "input_common/frame_xr.h"
 #include "input_common/main.h"
 
@@ -15,7 +17,8 @@ InputBridge::InputBridge(const MapperConfig& config) : mapper_(config) {}
 
 const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeometry& panels,
                                          const InputFrame* gamepads, const MouseFrame* mouse,
-                                         const ReticleSample* reticle) {
+                                         const ReticleSample* reticle,
+                                         const GyroAimFrame* gyro_aim) {
     const bool by_position = Settings::values.vr_face_buttons.GetValue() == 0;
     mapper_.SetFaceButtonsByPosition(by_position);
     last_ = mapper_.Update(frame, panels);
@@ -31,16 +34,49 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
                          last_.controls, gamepads != nullptr);
     }
     {
-        // 0 = off, 1 = right controller, 2 = left controller, 3 = headset
-        const u32 choice = Settings::values.vr_motion_controls.GetValue();
+        // 0 = off, 1 = right controller, 2 = left controller, 3 = headset. AzaharFrame
+        // kiugyro: Gyro Aim uses the right controller when Motion Controls is Off.
+        const GyroAimMode aim = gyro_aim ? gyro_aim->mode : GyroAimMode::Off;
+        const u32 setting = Settings::values.vr_motion_controls.GetValue();
+        const u32 choice = aim != GyroAimMode::Off ? GyroAimSource(setting) : setting;
         const Hand hand = choice == 2 ? Hand::Left : Hand::Right;
         const HandInput source = choice == 3
                                      ? HeadAsMotionSource(frame)
                                      : frame.hand[static_cast<std::size_t>(HandIndex(hand))];
         const MotionSample motion = motion_.Update(source, frame.time_ns, choice != 0);
+        // AzaharFrame kiugyro: Gyro Sensitivity, every game.
+        const float sensitivity =
+            ClampGyroSensitivity(Settings::values.vr_gyro_sensitivity.GetValue());
+        Vec3f gyro = motion.gyro * sensitivity;
+        if (aim != GyroAimMode::Off) {
+            // The mod's axes (z right, x down) from the ray's yaw and pitch; zero while the grip
+            // is held. Light Gun replaces it on the emulation thread while it reads the reticle;
+            // this is its fallback.
+            const GyroAimTracker::Out g =
+                gyro_aim_.Update(source, frame.time_ns, sensitivity, gyro_aim->clutch);
+            gyro = ModGyro(g.right_dps, g.down_dps);
+        } else {
+            gyro_aim_.Reset();
+        }
         InputCommon::FrameXr::GetMotion().Set(
             Common::Vec3f{motion.accel.x, motion.accel.y, motion.accel.z},
-            Common::Vec3f{motion.gyro.x, motion.gyro.y, motion.gyro.z});
+            Common::Vec3f{gyro.x, gyro.y, gyro.z});
+        if (aim == GyroAimMode::LightGun) {
+            Kiu::LightGunFrame lg;
+            lg.enabled = true;
+            lg.target = LightGunTargetFor(source, panels.top);
+            lg.zone_fraction =
+                static_cast<float>(std::min<u32>(Settings::values.vr_light_gun_turn_zone.GetValue(),
+                                                 kTurnZoneMaxPercent)) /
+                100.0f;
+            lg.turn_speed = ClampTurnSpeed(Settings::values.vr_light_gun_turn_speed.GetValue());
+            lg.clutch = gyro_aim->clutch;
+            Kiu::Publish(lg);
+            light_gun_on_ = true;
+        } else if (light_gun_on_) {
+            Kiu::Stop();
+            light_gun_on_ = false;
+        }
     }
     // AzaharFrame touchpad: the beam's touch and the touchpad's (or the mouse's) share the sink;
     // the last one to touch wins (touchpad_touch.h). With Touchpad Touch off the beam's events
@@ -81,6 +117,16 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
         last_.controls.SetStick(AnalogControl::StickR,
                                 AddStick(last_.controls.GetStick(AnalogControl::StickR), edge_stick_));
     }
+    // AzaharFrame kiugyro: while Gyro Aim is on, a trigger that is ZL/ZR (not a touch) also
+    // presses the Left Bumper's control, L in the default profile: Kid Icarus: Uprising fires
+    // with L, so point and pull fires with either hand. The mod passes ZL/ZR on as well (it
+    // writes ir:rst's ZL/ZR into the game's held buttons).
+    gyro_fire_ = false;
+    if (gyro_aim && gyro_aim->mode != GyroAimMode::Off &&
+        (last_.controls.Get(Control::TriggerL) || last_.controls.Get(Control::TriggerR))) {
+        last_.controls.Set(Control::BumperL, true);
+        gyro_fire_ = true;
+    }
     InputCommon::FrameXr::GetPad().SetControls(last_.controls);
     for (int i = 0; i < result.event_count; ++i) {
         const TouchEvent& event = result.events[static_cast<std::size_t>(i)];
@@ -106,9 +152,15 @@ void InputBridge::Release() {
     }
     touchpad_cursor_ = {};
     edge_stick_ = {}; // AzaharFrame kiu
+    gyro_fire_ = false; // AzaharFrame kiugyro
     InputCommon::FrameXr::GetPad().ReleaseAll();
     Devices::Hub().Release(); // AzaharFrame pads: what is held stays away until let go
     motion_.Reset();
+    gyro_aim_.Reset(); // AzaharFrame kiugyro
+    if (light_gun_on_) {
+        Kiu::Stop();
+        light_gun_on_ = false;
+    }
     InputCommon::FrameXr::GetMotion().Reset();
     last_ = MapperOutput{};
 }

@@ -32,6 +32,12 @@ struct ControlsPreset {
     /// AzaharFrame kiuedge: edge_cstick is given only when a C-Stick mod for the game is installed
     /// (ApplyControlsPreset's `cstick_mod_installed`); without one the setting is left alone.
     bool edge_cstick_needs_mod = false;
+    /// AzaharFrame kiugyro: with a C-Stick mod installed, Motion Controls starts at this instead
+    /// of `motion_controls` (-1: the same).
+    int motion_controls_with_mod = -1;
+    /// AzaharFrame kiugyro: with a C-Stick mod installed, Settings::values.vr_gyro_aim (0: keep
+    /// the setting).
+    uint32_t gyro_aim_with_mod = 0;
 };
 
 /// AzaharFrame kiu: the bits of vr_controls_preset_done: a preset value already decided for the
@@ -40,22 +46,38 @@ enum ControlsPresetField : uint32_t {
     kPresetReticle = 1u << 0,
     kPresetMotionControls = 1u << 1,
     kPresetEdgeCStick = 1u << 2,
+    kPresetGyroAim = 1u << 3, ///< AzaharFrame kiugyro
 };
+
+/// AzaharFrame kiugyro: bits 8 and 9 of vr_controls_preset_done mirror the game's own Gyro Aim
+/// (its value + 1; 0: the game uses the global value). Builds before Gyro Aim keep that key but
+/// drop vr_gyro_aim when they save the game's file, so going back to an older build and forward
+/// again would lose the choice (and the preset, already marked, would not give it again); the
+/// mirror brings it back. Old builds never read these bits.
+inline constexpr uint32_t kGyroAimMirrorShift = 8;
+inline constexpr uint32_t kGyroAimMirrorMask = 3u << kGyroAimMirrorShift;
+/// Before a game's file is written: the mirror from the game's Gyro Aim (Settings::values).
+void MirrorGyroAim();
+/// After a game's file is read: a Gyro Aim the file lost (it has no vr_gyro_aim but the mirror
+/// has a value) is given back as the game's own. Returns whether it was.
+bool RestoreGyroAim();
 
 /// Kid Icarus: Uprising aims with the stylus on the bottom screen while the left hand moves
 /// and fires: the head aims the reticle (Headset) and either trigger touches.
-/// AzaharFrame kiu: for the C-Stick & Gyro mod, the way people play it: its C-Stick aim turns the
-/// camera at the screen's edge, so a touch held at the edge pushes the C-Stick there (C-Stick
-/// at Edge on). Right Stick Moves Touch stays off (the global default): with the mod the right
-/// stick aims as the C-Stick already, and the mod gives the touch priority over it ("Touchscreen
-/// input retains priority", its INSTALLATION.md). Motion Controls Off: with them on, the mod's
-/// gyro aim moved the reticle while the head or the controller moved. The player can turn any of
-/// them on or off, for this game or everywhere.
+/// AzaharFrame kiugyro: with Darkshade's C-Stick & Gyro mod installed, the reticle on the top
+/// screen goes where the right controller points (Gyro Aim: Light Gun, through the mod's own
+/// gyro; Motion Controls Right Controller), and the trigger fires. C-Stick at Edge (AzaharFrame
+/// kiu) is no longer turned on: the headset check of 2026-11-14 found its turn poor; it stays a
+/// switch of its own. Without the mod: Motion Controls Off, as before (with them on, the game's
+/// reticle moved with the head or the controller). Right Stick Moves Touch stays off. The player
+/// can change any of them, for this game or everywhere.
 inline constexpr ControlsPreset kKidIcarusUprisingControls{.name = "Kid Icarus: Uprising",
                                                            .bottom_screen_reticle = 3,
                                                            .motion_controls = 0,
-                                                           .edge_cstick = true,
-                                                           .edge_cstick_needs_mod = true};
+                                                           .edge_cstick = false,
+                                                           .edge_cstick_needs_mod = true,
+                                                           .motion_controls_with_mod = 1,
+                                                           .gyro_aim_with_mod = 2};
 
 struct ControlsPresetTitle {
     uint64_t title_id;
@@ -107,6 +129,8 @@ bool CStickModInstalled(uint64_t title_id);
 /// AzaharFrame kiuedge: a value with `edge_cstick_needs_mod` is given only when
 /// `cstick_mod_installed`; without one it is left alone and not marked, so installing the mod
 /// later lets the preset give it then (still only where the player has no value of their own).
+/// AzaharFrame kiugyro: the same for Gyro Aim; Motion Controls takes `motion_controls_with_mod`
+/// when the mod is installed at the time it is given.
 uint32_t ApplyControlsPreset(const ControlsPreset& preset, bool cstick_mod_installed);
 
 } // namespace FrameXr

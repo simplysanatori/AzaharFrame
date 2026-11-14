@@ -927,6 +927,19 @@ struct Values {
     // ReticleEdgeStick), so a game that turns its camera when the C-Stick aim reaches the edge
     // (Kid Icarus: Uprising with the C-Stick & Gyro mod) turns. Per game too.
     SwitchableSetting<bool> vr_reticle_edge_cstick{false, "vr_reticle_edge_cstick"};
+    // AzaharFrame kiugyro: Gyro Aim, per game too: 0 Off, 1 Gyro (the controller's yaw and pitch
+    // rates for the C-Stick & Gyro mod of Kid Icarus: Uprising, its grip pauses them), 2 Light
+    // Gun (the reticle goes where the controller points on the top screen); frame_xr/input/
+    // gyro_aim.h. Gyro Sensitivity scales the gyroscope of Motion Controls in every game. Turn
+    // Zone (percent of the screen at each side) and Turn Speed are Light Gun's. New keys only.
+    SwitchableSetting<u32, true> vr_gyro_aim{0, 0, 2, "vr_gyro_aim"};
+    SwitchableSetting<float, true> vr_gyro_sensitivity{1.0f, 0.2f, 4.0f, "vr_gyro_sensitivity"};
+    SwitchableSetting<u32, true> vr_light_gun_turn_zone{10, 0, 30, "vr_light_gun_turn_zone"};
+    SwitchableSetting<float, true> vr_light_gun_turn_speed{1.0f, 0.2f, 4.0f,
+                                                           "vr_light_gun_turn_speed"};
+    // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
+    // steers (frame_xr/input/gyro_aim.h Recoil). Per game too. A new key: older builds ignore it.
+    SwitchableSetting<bool> vr_light_gun_recoil{true, "vr_light_gun_recoil"};
     // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
     // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
     // already had, is never given again, so a later choice (Use Global Value too) stays.

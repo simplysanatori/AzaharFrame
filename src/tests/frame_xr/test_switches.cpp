@@ -115,6 +115,14 @@ TEST_CASE("Test switches: the values of the A/B switches", "[frame_xr][test_swit
     CHECK_FALSE(TS::OnFrom(std::string("")));
     CHECK_FALSE(TS::OnFrom(std::nullopt));
 
+    // AzaharFrame kiugyro: C-Stick at Edge is shelved: its stored value (an older build's, or the
+    // earlier Kid Icarus preset's) acts only with the switch, which never turns it on alone.
+    CHECK_FALSE(TS::CStickEdgeOn(std::nullopt, true));
+    CHECK_FALSE(TS::CStickEdgeOn(std::string("0"), true));
+    CHECK(TS::CStickEdgeOn(std::string("1"), true));
+    CHECK_FALSE(TS::CStickEdgeOn(std::string("1"), false));
+    CHECK(TS::ApplyFor(TS::kCStickEdgeSwitch) == TS::Apply::Live);
+
     // AzaharFrame heldquad: HOLD is warp unless it says rigid.
     CHECK(TS::HoldWarpFrom(std::nullopt));
     CHECK(TS::HoldWarpFrom(std::string("warp")));

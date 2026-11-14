@@ -21,6 +21,7 @@
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/devices.h" // AzaharFrame pads
 #include "frame_xr/input/geometry.h"
+#include "frame_xr/input/gyro_aim.h" // AzaharFrame kiugyro
 #include "frame_xr/input/reticle.h" // AzaharFrame reticle: Reticle Speed
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu_panel.h"
@@ -288,6 +289,16 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::ReticleEdgeCStick;
     case Id::MotionControls:
         return MenuSetting::MotionControls;
+    case Id::GyroAim: // AzaharFrame kiugyro
+        return MenuSetting::GyroAim;
+    case Id::GyroSensitivity:
+        return MenuSetting::GyroSensitivity;
+    case Id::TurnZone:
+        return MenuSetting::TurnZone;
+    case Id::TurnSpeed:
+        return MenuSetting::TurnSpeed;
+    case Id::Recoil:
+        return MenuSetting::Recoil;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -958,6 +969,14 @@ void MenuPanel::BuildModel(const Host& host) {
     m.background = static_cast<int>(std::min<u32>(v.vr_background.GetValue(), 1));
     m.face_buttons = static_cast<int>(std::min<u32>(v.vr_face_buttons.GetValue(), 1));
     m.motion_controls = static_cast<int>(std::min<u32>(v.vr_motion_controls.GetValue(), 3));
+    m.gyro_aim = static_cast<int>(std::min<u32>(v.vr_gyro_aim.GetValue(), 2)); // AzaharFrame kiugyro
+    m.gyro_sensitivity = static_cast<int>(
+        std::lround(Input::ClampGyroSensitivity(v.vr_gyro_sensitivity.GetValue()) * 10.0f));
+    m.turn_zone = static_cast<int>(
+        std::min<u32>(v.vr_light_gun_turn_zone.GetValue(), Input::kTurnZoneMaxPercent));
+    m.turn_speed = static_cast<int>(
+        std::lround(Input::ClampTurnSpeed(v.vr_light_gun_turn_speed.GetValue()) * 10.0f));
+    m.recoil = v.vr_light_gun_recoil.GetValue();
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.window_scale = NearestStep(kScaleSteps, v.vr_window_scale.GetValue());
     // AzaharFrame depth3d; natural: in the Full modes the Full modes' own 3D Depth.
@@ -1286,6 +1305,33 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::MotionControls: // AzaharFrame kiu: per game in Per-Game
         Apply(v.vr_motion_controls, std::min<u32>(u, 3), per_game);
         r.setting = MenuSetting::MotionControls;
+        break;
+    case Id::GyroAim: // AzaharFrame kiugyro: Aiming; per game in Per-Game
+        // The shown index to the stored value (Direct Aim 2, Gyro Aim 1).
+        r.value = Menu::AimingValueAt(static_cast<int>(std::min<u32>(u, 2)));
+        Apply(v.vr_gyro_aim, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::GyroAim;
+        LOG_INFO(Frontend, "xr: in-game menu: Aiming = {}",
+                 Menu::OptionsFor(id)[std::min<u32>(u, 2)]);
+        break;
+    case Id::GyroSensitivity: // tenths of 1x from the slider
+        r.value = std::clamp(value, 2, 40);
+        Apply(v.vr_gyro_sensitivity, static_cast<float>(r.value) / 10.0f, per_game);
+        r.setting = MenuSetting::GyroSensitivity;
+        break;
+    case Id::TurnZone: // percent
+        r.value = std::clamp(value, 0, static_cast<int>(Input::kTurnZoneMaxPercent));
+        Apply(v.vr_light_gun_turn_zone, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::TurnZone;
+        break;
+    case Id::TurnSpeed: // tenths of 1x
+        r.value = std::clamp(value, 2, 40);
+        Apply(v.vr_light_gun_turn_speed, static_cast<float>(r.value) / 10.0f, per_game);
+        r.setting = MenuSetting::TurnSpeed;
+        break;
+    case Id::Recoil: // per game in Per-Game
+        Apply(v.vr_light_gun_recoil, value != 0, per_game);
+        r.setting = MenuSetting::Recoil;
         break;
     case Id::ShowControllers:
         Apply(v.vr_show_controllers, value != 0, false);
@@ -2027,6 +2073,9 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::ReticleEdgeCStick: // AzaharFrame kiu
         SetSetting(t.id, model.reticle_edge_cstick ? 0 : 1, host);
         break;
+    case Id::Recoil: // AzaharFrame kiugyro
+        SetSetting(t.id, model.recoil ? 0 : 1, host);
+        break;
     case Id::ShowControllers:
         SetSetting(t.id, model.show_controllers ? 0 : 1, host);
         break;
@@ -2077,6 +2126,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::Background:
     case Id::FaceButtons:
     case Id::MotionControls:
+    case Id::GyroAim: // AzaharFrame kiugyro
     case Id::WindowScale:
     case Id::WiderView:
     case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always

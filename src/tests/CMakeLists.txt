@@ -28,6 +28,9 @@ add_executable(tests
     frame_xr/phys_keyboard.cpp # AzaharFrame input2
     ../frame_xr/keyboard/layout.cpp # AzaharFrame
     ../frame_xr/input/motion.cpp # AzaharFrame
+    ../frame_xr/input/gyro_aim.cpp # AzaharFrame kiugyro
+    ../frame_xr/kiu_scan.cpp # AzaharFrame kiugyro
+    frame_xr/gyro_aim.cpp # AzaharFrame kiugyro
     ../frame_xr/immersive_layout.cpp # AzaharFrame
     frame_xr/immersive_layout.cpp # AzaharFrame
     frame_xr/immersive_scale.cpp # AzaharFrame kiu

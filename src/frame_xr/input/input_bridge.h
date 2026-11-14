@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "frame_xr/input/gyro_aim.h" // AzaharFrame kiugyro
 #include "frame_xr/input/mapper.h"
 #include "frame_xr/input/motion.h"
 #include "frame_xr/input/mouse.h"
@@ -14,6 +15,13 @@
 // pad that the "frame_xr" input engine reads, and sends touches to the touch sink. The panel
 // commands and the cursor are returned for the frame loop to apply. XR thread only.
 namespace FrameXr::Input {
+
+/// AzaharFrame kiugyro: Gyro Aim this frame (controls.cpp): the mode (Settings::values.vr_gyro_aim,
+/// Off outside a game or with the menu open) and whether the grip of its controller is held.
+struct GyroAimFrame {
+    GyroAimMode mode = GyroAimMode::Off;
+    bool clutch = false;
+};
 
 class InputBridge {
 public:
@@ -29,7 +37,8 @@ public:
     const MapperOutput& Process(const InputFrame& frame, const PanelGeometry& panels,
                                 const InputFrame* gamepads = nullptr,
                                 const MouseFrame* mouse = nullptr,
-                                const ReticleSample* reticle = nullptr);
+                                const ReticleSample* reticle = nullptr,
+                                const GyroAimFrame* gyro_aim = nullptr);
 
     /// Releases every button, centres the sticks and lifts a touch in progress. Call when the
     /// game ends, the session loses focus, or the picker takes over.
@@ -50,6 +59,11 @@ public:
     Vec2f edge_stick() const {
         return edge_stick_;
     }
+    /// AzaharFrame kiugyro: fire (a trigger as ZL/ZR, pressing L too) while Gyro Aim was on, in
+    /// the last Process: Recoil's shot.
+    bool gyro_fire() const {
+        return gyro_fire_;
+    }
     /// AzaharFrame kiu2: C-Stick at Edge's hand-over state after the last Process.
     ReticleEdgeHandoff::State edge_state() const {
         return touchpad_.edge_state();
@@ -58,6 +72,9 @@ public:
 private:
     Mapper mapper_;
     MotionTracker motion_;
+    GyroAimTracker gyro_aim_; ///< AzaharFrame kiugyro
+    bool light_gun_on_ = false;
+    bool gyro_fire_ = false;
     TouchpadTouch touchpad_;
     TouchpadCursor touchpad_cursor_;
     Vec2f edge_stick_; ///< AzaharFrame kiu

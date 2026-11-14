@@ -705,7 +705,7 @@ int main(int argc, char** argv) {
         v.tooltip = Id::ReticleSpeed;
         ok &= shot("4e-controls-reticle-speed-tooltip", mr, v);
         // AzaharFrame fixes7: Aim Only While Pressed on, Right Stick Moves Touch off; each
-        // tooltip. AzaharFrame kiu: C-Stick at Edge off here, its tooltip too.
+        // tooltip. (AzaharFrame kiugyro: C-Stick at Edge has no row now.)
         mr.reticle_center = true;
         v = {};
         v.tab = Tab::Controls;
@@ -716,9 +716,6 @@ int main(int argc, char** argv) {
         v.hover = {Id::ReticleStick, -1};
         v.tooltip = Id::ReticleStick;
         ok &= shot("4h-controls-right-stick-moves-touch-tooltip", mr, v);
-        v.hover = {Id::ReticleEdgeCStick, -1};
-        v.tooltip = Id::ReticleEdgeCStick;
-        ok &= shot("4j-controls-cstick-at-edge-tooltip", mr, v);
         MenuModel mk = mr; // the Right Controller, as the owner plays Kid Icarus: Uprising
         mk.bottom_screen_reticle = 2;
         mk.reticle_center = false;
@@ -726,11 +723,6 @@ int main(int argc, char** argv) {
         v = {};
         v.tab = Tab::Controls;
         ok &= shot("4i-controls-reticle-right-stick-on", mk, v);
-        // AzaharFrame kiu: Kid Icarus: Uprising's starting values with the owner's Right
-        // Controller: C-Stick at Edge on, Right Stick Moves Touch off.
-        mk.reticle_stick = false;
-        mk.reticle_edge_cstick = true;
-        ok &= shot("4k-controls-kiu-cstick-at-edge-on", mk, v);
     }
 
     // AzaharFrame padsui: Edit Controls with sample devices: the Frame controllers, a
@@ -918,6 +910,27 @@ int main(int argc, char** argv) {
         mv.hover = {Id::MotionControls, kLabelIndex};
         mv.tooltip = Id::MotionControls;
         ok &= shot("5n-settings-motion-controls-global-locked", mo, mv);
+    }
+    {
+        // AzaharFrame kiugyro: Aiming: Direct Aim (stored 2; Kid Icarus: Uprising's preset with
+        // the C-Stick & Gyro mod) shows Turn Zone and Turn Speed under Gyro Sensitivity; then
+        // Gyro Aim (stored 1), with Aiming's tooltip.
+        MenuModel go = pg;
+        go.motion_controls = 1;
+        go.gyro_aim = 2;
+        go.gyro_sensitivity = 10;
+        go.turn_zone = 10;
+        go.turn_speed = 10;
+        go.game_value[static_cast<std::size_t>(Id::GyroAim)] = true;
+        go.game_value[static_cast<std::size_t>(Id::MotionControls)] = true;
+        MenuView gv = settings(SettingsSection::General);
+        gv.hover = {Id::TurnZone};
+        ok &= shot("5g-settings-aiming-direct-aim", go, gv);
+        go.gyro_aim = 1;
+        go.gyro_sensitivity = 15;
+        gv.hover = {Id::GyroAim, kLabelIndex};
+        gv.tooltip = Id::GyroAim;
+        ok &= shot("5h-settings-aiming-gyro-aim-tooltip", go, gv);
     }
     {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip

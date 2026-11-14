@@ -36,7 +36,10 @@ float Step(float value, float target, float dt) {
 
 } // namespace
 
-std::vector<uint8_t> BeamArt() {
+std::vector<uint8_t> BeamArt(uint32_t rgb) {
+    const float r = static_cast<float>((rgb >> 16) & 0xFF) / 255.0f;
+    const float g = static_cast<float>((rgb >> 8) & 0xFF) / 255.0f;
+    const float b = static_cast<float>(rgb & 0xFF) / 255.0f;
     const int w = kBeamLevels * kBeamTexWidth;
     std::vector<uint8_t> px(static_cast<std::size_t>(w) * kBeamTexHeight * 4, 0);
     const float mid = kBeamTexWidth * 0.5f;
@@ -51,8 +54,34 @@ std::vector<uint8_t> BeamArt() {
                 const float a = std::exp(-t * t) * ends * strength;
                 const auto v = static_cast<uint8_t>(a * 255.0f + 0.5f);
                 uint8_t* p = &px[(static_cast<std::size_t>(y) * w + level * kBeamTexWidth + x) * 4];
-                p[0] = p[1] = p[2] = p[3] = v; // white, premultiplied
+                // premultiplied
+                p[0] = static_cast<uint8_t>(a * r * 255.0f + 0.5f);
+                p[1] = static_cast<uint8_t>(a * g * 255.0f + 0.5f);
+                p[2] = static_cast<uint8_t>(a * b * 255.0f + 0.5f);
+                p[3] = v;
             }
+        }
+    }
+    return px;
+}
+
+std::vector<uint8_t> LaserDotArt() {
+    constexpr int n = kLaserDotPixels;
+    std::vector<uint8_t> px(static_cast<std::size_t>(n) * n * 4, 0);
+    const float r0 = static_cast<float>((kLaserRgb >> 16) & 0xFF) / 255.0f;
+    const float g0 = static_cast<float>((kLaserRgb >> 8) & 0xFF) / 255.0f;
+    const float b0 = static_cast<float>(kLaserRgb & 0xFF) / 255.0f;
+    const float c = n * 0.5f;
+    for (int y = 0; y < n; y++) {
+        for (int x = 0; x < n; x++) {
+            const float d = std::hypot(x + 0.5f - c, y + 0.5f - c) / c; // 0 middle, 1 rim
+            const float a = std::clamp((1.0f - d) / 0.25f, 0.0f, 1.0f);  // soft last quarter
+            const float core = std::clamp((0.45f - d) / 0.2f, 0.0f, 1.0f) * 0.55f;
+            uint8_t* p = &px[(static_cast<std::size_t>(y) * n + x) * 4];
+            p[0] = static_cast<uint8_t>(a * (r0 + (1.0f - r0) * core) * 255.0f + 0.5f);
+            p[1] = static_cast<uint8_t>(a * (g0 + (1.0f - g0) * core) * 255.0f + 0.5f);
+            p[2] = static_cast<uint8_t>(a * (b0 + (1.0f - b0) * core) * 255.0f + 0.5f);
+            p[3] = static_cast<uint8_t>(a * 255.0f + 0.5f);
         }
     }
     return px;

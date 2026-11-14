@@ -115,6 +115,10 @@ public:
     };
     /// The mouse ray's dot as last drawn (for the mode-switch ring).
     Mark MouseDot() const;
+    /// AzaharFrame kiugyro: Light Gun's laser sight this frame (Input::LaserSight): `hand`'s beam
+    /// is drawn red to `point` (LOCAL, on the top screen) with a small red dot there, at full
+    /// strength however still the hand is. Cleared by TakeInput; GameFrame sets it.
+    void SetLaser(int hand, const Input::Vec3f& point);
 
 private:
     struct Impl;

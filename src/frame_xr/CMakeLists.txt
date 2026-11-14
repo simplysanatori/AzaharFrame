@@ -74,6 +74,12 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     input/mapper.h
     input/motion.cpp
     input/motion.h
+    input/gyro_aim.cpp # AzaharFrame kiugyro
+    input/gyro_aim.h
+    kiu_probe.cpp # AzaharFrame kiugyro
+    kiu_probe.h
+    kiu_scan.cpp
+    kiu_scan.h
     input/screen_rig.cpp
     input/screen_rig.h
     input/screen_view.cpp

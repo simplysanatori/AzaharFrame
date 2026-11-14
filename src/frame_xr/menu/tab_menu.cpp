@@ -85,8 +85,12 @@ std::string SliderText(Id id, float value) {
         return Immersive::Names::WorldScaleText(
             Immersive::Layout::kWorldScaleStops[static_cast<std::size_t>(i)]);
     }
-    if (id == Id::ReticleSpeed) { // AzaharFrame reticle: tenths of 1x, "2.0x"
+    if (id == Id::ReticleSpeed || id == Id::GyroSensitivity || id == Id::TurnSpeed) {
+        // AzaharFrame reticle: tenths of 1x, "2.0x" (AzaharFrame kiugyro: the gyro's too)
         return Format("%.1fx", value / 10.0f);
+    }
+    if (id == Id::TurnZone) { // AzaharFrame kiugyro: "10%"
+        return Format("%.0f%%", value);
     }
     if (id == Id::AutosaveEvery) { // AzaharFrame autosave: the stop's minutes
         const int i = std::clamp(static_cast<int>(std::lround(value)), 0,
@@ -131,6 +135,25 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(row(Id::WindowScale, RowKind::Segmented, m.window_scale));
             rows.push_back(row(Id::FaceButtons, RowKind::Segmented, m.face_buttons));
             rows.push_back(row(Id::MotionControls, RowKind::Segmented, m.motion_controls));
+            // AzaharFrame kiugyro: Aiming, Recoil, Gyro Sensitivity; Turn Zone and Turn Speed
+            // only with Direct Aim (stored 2, Light Gun).
+            rows.push_back(row(Id::GyroAim, RowKind::Segmented, AimingIndexOf(m.gyro_aim)));
+            if (m.gyro_aim != 0) {
+                rows.push_back(row(Id::Recoil, RowKind::Switch, 0, m.recoil));
+            }
+            const auto gyro_slider = [&](Id id, int value) {
+                Row r = row(id, RowKind::Slider);
+                const SliderRange sr = SliderFor(id);
+                const float v = std::clamp(static_cast<float>(value), sr.min, sr.max);
+                r.t = (v - sr.min) / (sr.max - sr.min);
+                r.value = SliderText(id, v);
+                rows.push_back(r);
+            };
+            gyro_slider(Id::GyroSensitivity, m.gyro_sensitivity);
+            if (m.gyro_aim == 2) {
+                gyro_slider(Id::TurnZone, m.turn_zone);
+                gyro_slider(Id::TurnSpeed, m.turn_speed);
+            }
             rows.push_back(row(Id::ShowControllers, RowKind::Switch, 0, m.show_controllers));
             rows.push_back(row(Id::FastForwardSpeed, RowKind::Segmented, m.fast_forward_speed));
             // AzaharFrame kiu2: a menu button, as Normal Speed (Experimental) does not fit a
@@ -281,6 +304,11 @@ bool PerGameSetting(Id id) {
     case Id::ReticleStick:
     case Id::ReticleEdgeCStick: // AzaharFrame kiu
     case Id::MotionControls:    // AzaharFrame kiu: per game too (a Controls preset gives it)
+    case Id::GyroAim:           // AzaharFrame kiugyro
+    case Id::GyroSensitivity:
+    case Id::TurnZone:
+    case Id::TurnSpeed:
+    case Id::Recoil:
         return true;
     default:
         return false;
@@ -291,7 +319,6 @@ bool PerGameSetting(Id id) {
 const std::vector<Id>& ControlsScopeRows() {
     static const std::vector<Id> kRows{Id::TouchpadTouch,     Id::BottomScreenReticle,
                                        Id::ReticleSpeed,      Id::ReticleAtEdge,
-                                       Id::ReticleEdgeCStick, // AzaharFrame kiu
                                        Id::ReticleCenter,     Id::ReticleStick}; // fixes7
     return kRows;
 }
@@ -346,6 +373,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kBackground{"Black", "Passthrough"};
     static const std::vector<std::string> kFace{"By Position (Nintendo)", "By Label (Xbox)"};
     static const std::vector<std::string> kMotion{"Off", "Right Controller", "Left Controller", "Headset"};
+    // AzaharFrame kiugyro: Aiming, in the shown order (AimingValueAt gives the stored value)
+    static const std::vector<std::string> kGyroAim{"Off", "Direct Aim", "Gyro Aim"};
     static const std::vector<std::string> kScale{"100%", "150%", "200%"};
     static const std::vector<std::string> kMode{"Off", "Wide (3DoF)",
                                                 "Full (6DoF): Ocarina of Time, Majora's Mask",
@@ -413,6 +442,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kFace;
     case Id::MotionControls:
         return kMotion;
+    case Id::GyroAim: // AzaharFrame kiugyro
+        return kGyroAim;
     case Id::WindowScale:
         return kScale;
     case Id::ImmersiveMode:
@@ -472,8 +503,6 @@ std::string LabelFor(Id id) {
         return "Aim Only While Pressed";
     case Id::ReticleStick: // AzaharFrame kiu: was Stick Moves Reticle
         return "Right Stick Moves Touch";
-    case Id::ReticleEdgeCStick: // AzaharFrame kiu
-        return "C-Stick at Edge";
     case Id::ScopeMore:
         return "Use Global Values for All";
     case Id::MouseMode: // AzaharFrame padsui
@@ -506,6 +535,16 @@ std::string LabelFor(Id id) {
         return "Face Buttons";
     case Id::MotionControls:
         return "Motion Controls";
+    case Id::GyroAim: // AzaharFrame kiugyro
+        return "Aiming";
+    case Id::GyroSensitivity:
+        return "Gyro Sensitivity";
+    case Id::TurnZone:
+        return "Turn Zone";
+    case Id::TurnSpeed:
+        return "Turn Speed";
+    case Id::Recoil:
+        return "Recoil";
     case Id::ShowControllers:
         return "Show Controllers";
     case Id::WindowScale:
@@ -704,8 +743,6 @@ std::string ExplainFor(Id id) {
         return "Keeps the reticle centred on the bottom screen. It moves only while you hold the trigger or click, and returns to the centre when you let go.";
     case Id::ReticleStick: // AzaharFrame kiu
         return "The right stick moves the bottom screen's touch point, instead of the C-Stick.";
-    case Id::ReticleEdgeCStick:
-        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Hold the reticle at an edge of the bottom screen to push the C-Stick that way.";
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:
@@ -726,6 +763,16 @@ std::string ExplainFor(Id id) {
         return "How A, B, X and Y map to the 3DS.";
     case Id::MotionControls:
         return "The controller or headset that acts as the 3DS gyroscope.";
+    case Id::GyroAim: // AzaharFrame kiugyro
+        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, set to gyro in the game's controls. Direct Aim puts the reticle where you point. Hold the grip to pause.";
+    case Id::GyroSensitivity:
+        return "Scales the gyroscope in every game.";
+    case Id::TurnZone:
+        return "Point this close to an edge of the top screen to turn the camera.";
+    case Id::TurnSpeed:
+        return "How fast the camera turns in the Turn Zone.";
+    case Id::Recoil:
+        return "A short buzz in the aiming controller on each shot.";
     case Id::ShowControllers:
         return "Shows the controllers in VR.";
     case Id::WindowScale:
@@ -842,6 +889,12 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::ReticleSpeed) { // AzaharFrame reticle: 0.5x to 4.0x in tenths
         return {5.0f, 40.0f, 1.0f};
+    }
+    if (id == Id::GyroSensitivity || id == Id::TurnSpeed) { // AzaharFrame kiugyro: 0.2x to 4.0x
+        return {2.0f, 40.0f, 1.0f};
+    }
+    if (id == Id::TurnZone) { // AzaharFrame kiugyro: 0 to 30 %
+        return {0.0f, 30.0f, 1.0f};
     }
     return {};
 }
@@ -1801,9 +1854,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     };
     // AzaharFrame fixes7: Aim Only While Pressed and Right Stick Moves Touch, two switches side
     // by side in one row (each half toggles its own), so the controller picture keeps its room.
-    // AzaharFrame kiu: C-Stick at Edge the same way, in the right half of At Edge's row (At Edge
-    // in the left half), so the picture keeps its room; its switch lines up with Right Stick
-    // Moves Touch's under it.
+    // AzaharFrame kiugyro: C-Stick at Edge (AzaharFrame kiu) is shelved: no row (Gyro Aim
+    // replaces it; AZAHARFRAME_CSTICK_EDGE=1 brings back its behaviour, not its row).
     const auto switch_half = [&](Id id, const Rect& half, bool on) {
         const Lock lock = model.locked[static_cast<std::size_t>(id)];
         const bool enabled = lock == Lock::None;
@@ -1820,8 +1872,8 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     };
     constexpr float kChoiceH = kControlH + 8.0f;
     constexpr float kSupportH = 16.0f; ///< the Touchpad's supporting line and its gaps
-    // At Edge, Reticle Speed, C-Stick at Edge, Aim Only While Pressed and Right Stick Moves
-    // Touch only while the reticle is on.
+    // At Edge, Reticle Speed, Aim Only While Pressed and Right Stick Moves Touch only while the
+    // reticle is on.
     const bool reticle_on = model.bottom_screen_reticle != 0;
     const float rows_h = kChoiceH + kSupportH + kChoiceH + (reticle_on ? 3.0f * kChoiceH : 0.0f);
     const float rows_y0 = c.y1 - rows_h;
@@ -1840,10 +1892,7 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     if (reticle_on) {
         const Rect speed_row = slider_row(Id::ReticleSpeed, reticle_row.y1, model.reticle_speed);
         const float mid = (c.x0 + c.x1) * 0.5f;
-        const Rect edge_row =
-            choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge, mid - 12.0f);
-        switch_half(Id::ReticleEdgeCStick, {mid + 12.0f, edge_row.y0, c.x1 + 12.0f, edge_row.y1},
-                    model.reticle_edge_cstick); // AzaharFrame kiu
+        const Rect edge_row = choice_row(Id::ReticleAtEdge, speed_row.y1, model.reticle_at_edge);
         const Rect pair{c.x0 - 12.0f, edge_row.y1, c.x1 + 12.0f, edge_row.y1 + kChoiceH};
         switch_half(Id::ReticleCenter, {pair.x0, pair.y0, mid - 12.0f, pair.y1},
                     model.reticle_center);

@@ -8,6 +8,7 @@
 #include <catch2/generators/catch_generators.hpp>
 #include "common/settings.h"
 #include "frame_xr/controls_presets.h" // AzaharFrame kiu
+#include "frame_xr/input/gyro_aim.h"   // AzaharFrame kiugyro
 #include "frame_xr/presets.h"
 
 // AzaharFrame
@@ -262,6 +263,8 @@ TEST_CASE("FrameXr presets: Kid Icarus: Uprising (Japan, 30000) gives starting v
 // AzaharFrame kiu: the Controls preset gives starting values only: never over the game's own
 // value or a global value the player chose, and once per game (vr_controls_preset_done), so what
 // the player chooses afterwards stays, Use Global Value too.
+// AzaharFrame kiugyro: with the C-Stick & Gyro mod, Kid Icarus: Uprising starts with Gyro Aim
+// Light Gun and Motion Controls Right Controller; C-Stick at Edge is no longer given.
 namespace {
 void ResetControlsSettings() {
     auto& v = Settings::values;
@@ -273,12 +276,16 @@ void ResetControlsSettings() {
     v.vr_reticle_edge_cstick.SetValue(false);
     v.vr_reticle_stick_moves.SetGlobal(true);
     v.vr_reticle_stick_moves.SetValue(false);
+    v.vr_gyro_aim.SetGlobal(true);
+    v.vr_gyro_aim.SetValue(0);
+    v.vr_gyro_sensitivity.SetGlobal(true);
+    v.vr_gyro_sensitivity.SetValue(1.0f);
     v.vr_controls_preset_done.SetGlobal(true);
     v.vr_controls_preset_done.SetValue(0);
 }
 } // namespace
 
-TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
+TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu][kiugyro]") {
     auto& v = Settings::values;
     // Every region, Japan's 0004000000030000 too: the same starting-values path.
     const uint64_t id = GENERATE(0x0004000000030000ull, 0x0004000000030100ull,
@@ -286,105 +293,255 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
     INFO("title " << std::hex << id);
     REQUIRE(FindControlsPreset(id) != nullptr);
     const ControlsPreset& kiu = *FindControlsPreset(id);
-    SECTION("a fresh game gets them, Right Stick Moves Touch stays off") {
+    SECTION("a fresh game with the mod: Light Gun from the right controller") {
         ResetControlsSettings();
         CHECK(ApplyControlsPreset(kiu, true) ==
-              (kPresetReticle | kPresetMotionControls | kPresetEdgeCStick));
+              (kPresetReticle | kPresetMotionControls | kPresetGyroAim));
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 3);
-        CHECK(v.vr_motion_controls.GetValue() == 0);
-        CHECK(v.vr_reticle_edge_cstick.GetValue());
-        CHECK(!v.vr_reticle_stick_moves.GetValue());
-        CHECK(v.vr_reticle_stick_moves.UsingGlobal());
-        // The game's values, not the global ones.
+        CHECK(v.vr_motion_controls.GetValue() == 1);
         CHECK(!v.vr_motion_controls.UsingGlobal());
-        CHECK(v.vr_motion_controls.GetValue(true) == 1);
-        CHECK(v.vr_reticle_edge_cstick.GetValue(true) == false);
-        CHECK(v.vr_controls_preset_done.GetValue() == 7u);
+        CHECK(v.vr_gyro_aim.GetValue() == 2);
+        CHECK(!v.vr_gyro_aim.UsingGlobal());
+        CHECK(v.vr_gyro_aim.GetValue(true) == 0); // the global value stays Off
+        // C-Stick at Edge is not given (the feature stays), nor Right Stick Moves Touch.
+        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+        CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
+        CHECK(!v.vr_reticle_stick_moves.GetValue());
+        CHECK(v.vr_controls_preset_done.GetValue() ==
+              (kPresetReticle | kPresetMotionControls | kPresetGyroAim));
         // Booting again changes nothing.
         CHECK(ApplyControlsPreset(kiu, true) == 0u);
     }
+    SECTION("a fresh game without the mod: as before (Motion Controls Off, no Gyro Aim)") {
+        ResetControlsSettings();
+        CHECK(ApplyControlsPreset(kiu, false) == (kPresetReticle | kPresetMotionControls));
+        CHECK(v.vr_motion_controls.GetValue() == 0);
+        CHECK(v.vr_gyro_aim.UsingGlobal());
+        CHECK(v.vr_gyro_aim.GetValue() == 0);
+        CHECK(v.vr_controls_preset_done.GetValue() == 3u);
+        // The mod installed later: Gyro Aim given then; Motion Controls, decided, stays Off,
+        // and Gyro Aim takes the right controller (GyroAimSource).
+        CHECK(ApplyControlsPreset(kiu, true) == kPresetGyroAim);
+        CHECK(v.vr_gyro_aim.GetValue() == 2);
+        CHECK(v.vr_motion_controls.GetValue() == 0);
+        CHECK(Input::GyroAimSource(v.vr_motion_controls.GetValue()) == 1u);
+    }
+    SECTION("a game that had the earlier preset (Motion Controls Off, C-Stick at Edge on)") {
+        ResetControlsSettings();
+        v.vr_motion_controls.SetGlobal(false);
+        v.vr_motion_controls.SetValue(0);
+        v.vr_reticle_edge_cstick.SetGlobal(false);
+        v.vr_reticle_edge_cstick.SetValue(true);
+        v.vr_bottom_screen_reticle.SetGlobal(false);
+        v.vr_bottom_screen_reticle.SetValue(2); // the owner's Right Controller
+        v.vr_controls_preset_done.SetGlobal(false);
+        v.vr_controls_preset_done.SetValue(kPresetReticle | kPresetMotionControls |
+                                           kPresetEdgeCStick);
+        // Only the new value: none of the game's values is overwritten.
+        CHECK(ApplyControlsPreset(kiu, true) == kPresetGyroAim);
+        CHECK(v.vr_gyro_aim.GetValue() == 2);
+        CHECK(v.vr_motion_controls.GetValue() == 0);
+        CHECK(v.vr_reticle_edge_cstick.GetValue());
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
+    }
     SECTION("a value the player saved for the game is never overwritten") {
         ResetControlsSettings();
-        // The owner's file: Right Controller, Motion Controls Right Controller, C-Stick at Edge
-        // off, all saved for this game before the preset had them.
         v.vr_bottom_screen_reticle.SetGlobal(false);
         v.vr_bottom_screen_reticle.SetValue(2);
         v.vr_motion_controls.SetGlobal(false);
-        v.vr_motion_controls.SetValue(1);
-        v.vr_reticle_edge_cstick.SetGlobal(false);
-        v.vr_reticle_edge_cstick.SetValue(false);
+        v.vr_motion_controls.SetValue(3);
+        v.vr_gyro_aim.SetGlobal(false);
+        v.vr_gyro_aim.SetValue(0); // Gyro Aim Off for this game
         CHECK(ApplyControlsPreset(kiu, true) == 0u);
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
-        CHECK(v.vr_motion_controls.GetValue() == 1);
-        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+        CHECK(v.vr_motion_controls.GetValue() == 3);
+        CHECK(v.vr_gyro_aim.GetValue() == 0);
         // Marked: a later Use Global Value for them stays too.
-        CHECK(v.vr_controls_preset_done.GetValue() == 7u);
+        CHECK(v.vr_controls_preset_done.GetValue() ==
+              (kPresetReticle | kPresetMotionControls | kPresetGyroAim));
     }
     SECTION("a global value the player chose is left alone, and not marked") {
         ResetControlsSettings();
-        v.vr_motion_controls.SetValue(3); // global Headset
-        v.vr_reticle_edge_cstick.SetValue(true); // global on (the preset's own value)
+        v.vr_motion_controls.SetValue(3);     // global Headset
         v.vr_bottom_screen_reticle.SetValue(1); // global Left Controller
+        v.vr_gyro_aim.SetValue(1);            // global Gyro
         CHECK(ApplyControlsPreset(kiu, true) == 0u);
         CHECK(v.vr_motion_controls.UsingGlobal());
         CHECK(v.vr_motion_controls.GetValue() == 3);
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 1);
+        CHECK(v.vr_gyro_aim.UsingGlobal());
+        CHECK(v.vr_gyro_aim.GetValue() == 1);
         CHECK(v.vr_controls_preset_done.GetValue() == 0u);
     }
     SECTION("after the preset, the player's choice stays: a new value, or Use Global Value") {
         ResetControlsSettings();
         ApplyControlsPreset(kiu, true);
-        // Use Global Value for Motion Controls and C-Stick at Edge, a new value for the reticle
-        // (what the game's file keeps, with the marker).
         v.vr_motion_controls.SetGlobal(true);
-        v.vr_reticle_edge_cstick.SetGlobal(true);
+        v.vr_gyro_aim.SetGlobal(true);
         v.vr_bottom_screen_reticle.SetValue(2);
-        // The next start reads the same file back: nothing is given again.
         CHECK(ApplyControlsPreset(kiu, true) == 0u);
         CHECK(v.vr_motion_controls.UsingGlobal());
-        CHECK(v.vr_motion_controls.GetValue() == 1);
-        CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
-        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+        CHECK(v.vr_gyro_aim.UsingGlobal());
+        CHECK(v.vr_gyro_aim.GetValue() == 0);
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
     }
     SECTION("a value added to the preset later is given once, the old ones stay decided") {
         ResetControlsSettings();
         v.vr_controls_preset_done.SetGlobal(false);
         v.vr_controls_preset_done.SetValue(kPresetReticle); // an earlier build gave the reticle
-        CHECK(ApplyControlsPreset(kiu, true) == (kPresetMotionControls | kPresetEdgeCStick));
+        CHECK(ApplyControlsPreset(kiu, true) == (kPresetMotionControls | kPresetGyroAim));
         CHECK(v.vr_bottom_screen_reticle.UsingGlobal()); // Use Global Value chosen back then
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 0);
-        CHECK(v.vr_reticle_edge_cstick.GetValue());
+        CHECK(v.vr_gyro_aim.GetValue() == 2);
     }
     ResetControlsSettings();
 }
 
-TEST_CASE("FrameXr Controls preset: C-Stick at Edge needs the C-Stick mod", "[frame_xr][kiu][kiuedge]") {
+TEST_CASE("FrameXr Controls preset: C-Stick at Edge still needs the C-Stick mod",
+          "[frame_xr][kiu][kiuedge]") {
+    // AzaharFrame kiugyro: no preset gives it now; the gating stays for one that does.
     auto& v = Settings::values;
-    const ControlsPreset& kiu = *FindControlsPreset(0x0004000000030200ull);
+    constexpr ControlsPreset edge{.name = "test",
+                                  .bottom_screen_reticle = 3,
+                                  .motion_controls = 0,
+                                  .edge_cstick = true,
+                                  .edge_cstick_needs_mod = true};
     SECTION("no mod: the setting is left alone and not marked, the rest is given") {
         ResetControlsSettings();
-        CHECK(ApplyControlsPreset(kiu, false) == (kPresetReticle | kPresetMotionControls));
+        CHECK(ApplyControlsPreset(edge, false) == (kPresetReticle | kPresetMotionControls));
         CHECK(!v.vr_reticle_edge_cstick.GetValue());
         CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
         CHECK(v.vr_controls_preset_done.GetValue() == 3u);
         // The mod installed later: given then.
-        CHECK(ApplyControlsPreset(kiu, true) == kPresetEdgeCStick);
+        CHECK(ApplyControlsPreset(edge, true) == kPresetEdgeCStick);
         CHECK(v.vr_reticle_edge_cstick.GetValue());
     }
     SECTION("the player's own choice is never overwritten, mod or not") {
         ResetControlsSettings();
         v.vr_reticle_edge_cstick.SetGlobal(false);
         v.vr_reticle_edge_cstick.SetValue(false); // turned off for this game
-        CHECK(ApplyControlsPreset(kiu, true) == (kPresetReticle | kPresetMotionControls));
+        CHECK(ApplyControlsPreset(edge, true) == (kPresetReticle | kPresetMotionControls));
         CHECK(!v.vr_reticle_edge_cstick.GetValue());
         ResetControlsSettings();
         v.vr_reticle_edge_cstick.SetValue(true); // global on
-        CHECK(ApplyControlsPreset(kiu, false) == (kPresetReticle | kPresetMotionControls));
+        CHECK(ApplyControlsPreset(edge, false) == (kPresetReticle | kPresetMotionControls));
         CHECK(v.vr_reticle_edge_cstick.GetValue());
         CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
     }
     ResetControlsSettings();
+}
+
+// AzaharFrame kiugyro: rollback. Builds before Gyro Aim keep vr_controls_preset_done (all its
+// bits) but drop vr_gyro_aim when they write the game's file; the mirror in bits 8 and 9 brings
+// the game's choice back. Old build = the key dropped, every other value kept.
+namespace {
+/// What a game's file holds across builds (the keys either build writes).
+struct GameFile {
+    bool has_gyro_aim = false;
+    uint32_t gyro_aim = 0;
+    bool has_done = false;
+    uint32_t done = 0;
+};
+GameFile WriteNew() { // QtConfig::WriteVrValues for a game, this build
+    auto& v = Settings::values;
+    MirrorGyroAim();
+    GameFile f;
+    f.has_gyro_aim = !v.vr_gyro_aim.UsingGlobal();
+    f.gyro_aim = v.vr_gyro_aim.GetValue();
+    f.has_done = !v.vr_controls_preset_done.UsingGlobal();
+    f.done = v.vr_controls_preset_done.GetValue();
+    return f;
+}
+void ReadNew(const GameFile& f) { // QtConfig::ReadVrValues for a game, this build
+    auto& v = Settings::values;
+    v.vr_gyro_aim.SetGlobal(!f.has_gyro_aim);
+    if (f.has_gyro_aim) {
+        v.vr_gyro_aim.SetValue(f.gyro_aim);
+    }
+    v.vr_controls_preset_done.SetGlobal(!f.has_done);
+    if (f.has_done) {
+        v.vr_controls_preset_done.SetValue(f.done);
+    }
+    RestoreGyroAim();
+}
+GameFile OldBuildRoundTrip(GameFile f) { // an older build reads and writes the file
+    f.has_gyro_aim = false;
+    return f;
+}
+} // namespace
+
+TEST_CASE("FrameXr Gyro Aim: rollback-safe across older builds", "[frame_xr][kiugyro]") {
+    auto& v = Settings::values;
+    const ControlsPreset& kiu = *FindControlsPreset(0x0004000000030200ull);
+    const auto boot_new = [&](const GameFile& f) {
+        ReadNew(f);
+        ApplyControlsPreset(kiu, true);
+    };
+    SECTION("the preset's Light Gun survives new -> old -> new -> old -> new") {
+        ResetControlsSettings();
+        boot_new({});
+        REQUIRE(v.vr_gyro_aim.GetValue() == 2);
+        GameFile f = WriteNew();
+        for (int i = 0; i < 2; i++) {
+            f = OldBuildRoundTrip(f);
+            ResetControlsSettings();
+            boot_new(f);
+            CHECK(!v.vr_gyro_aim.UsingGlobal());
+            CHECK(v.vr_gyro_aim.GetValue() == 2);
+            f = WriteNew();
+        }
+    }
+    SECTION("the player's Off, and Gyro, survive too") {
+        for (uint32_t choice : {0u, 1u}) {
+            ResetControlsSettings();
+            boot_new({});
+            v.vr_gyro_aim.SetValue(choice); // the game's own value
+            GameFile f = OldBuildRoundTrip(WriteNew());
+            ResetControlsSettings();
+            boot_new(f);
+            CHECK(!v.vr_gyro_aim.UsingGlobal());
+            CHECK(v.vr_gyro_aim.GetValue() == choice);
+        }
+    }
+    SECTION("Use Global Value stays global after an older build") {
+        ResetControlsSettings();
+        boot_new({});
+        v.vr_gyro_aim.SetGlobal(true);
+        GameFile f = OldBuildRoundTrip(WriteNew());
+        CHECK((f.done & kGyroAimMirrorMask) == 0u);
+        ResetControlsSettings();
+        boot_new(f);
+        CHECK(v.vr_gyro_aim.UsingGlobal());
+        CHECK(v.vr_gyro_aim.GetValue() == 0);
+    }
+    SECTION("the bits an older build knows keep their meaning") {
+        ResetControlsSettings();
+        boot_new({});
+        const GameFile f = WriteNew();
+        CHECK((f.done & 7u) == (kPresetReticle | kPresetMotionControls));
+        CHECK((f.done & kPresetGyroAim) != 0u);
+        CHECK((f.done & kGyroAimMirrorMask) == (3u << kGyroAimMirrorShift));
+    }
+    SECTION("a file from before Gyro Aim: nothing to restore, the preset gives it once") {
+        ResetControlsSettings();
+        GameFile old;
+        old.has_done = true;
+        old.done = kPresetReticle | kPresetMotionControls | kPresetEdgeCStick;
+        boot_new(old);
+        CHECK(v.vr_gyro_aim.GetValue() == 2);
+    }
+    ResetControlsSettings();
+}
+
+TEST_CASE("FrameXr Gyro Sensitivity: a new key with its default", "[frame_xr][kiugyro]") {
+    // Missing from a file (an older build's, or never set): the default 1.0x, global or game.
+    Settings::values.vr_gyro_sensitivity.SetGlobal(true);
+    Settings::values.vr_gyro_sensitivity.SetValue(Settings::values.vr_gyro_sensitivity.GetDefault());
+    CHECK(Settings::values.vr_gyro_sensitivity.GetValue() == 1.0f);
+    CHECK(Settings::values.vr_light_gun_turn_zone.GetDefault() == 10u);
+    CHECK(Settings::values.vr_light_gun_turn_speed.GetDefault() == 1.0f);
+    CHECK(Settings::values.vr_gyro_aim.GetDefault() == 0u);
+    CHECK(Settings::values.vr_light_gun_recoil.GetDefault()); // Recoil on
 }
 
 namespace {

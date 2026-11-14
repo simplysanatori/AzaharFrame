@@ -106,6 +106,21 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::MotionControls: // AzaharFrame kiu: per game too
         f(v.vr_motion_controls);
         return true;
+    case Id::GyroAim: // AzaharFrame kiugyro
+        f(v.vr_gyro_aim);
+        return true;
+    case Id::GyroSensitivity:
+        f(v.vr_gyro_sensitivity);
+        return true;
+    case Id::TurnZone:
+        f(v.vr_light_gun_turn_zone);
+        return true;
+    case Id::TurnSpeed:
+        f(v.vr_light_gun_turn_speed);
+        return true;
+    case Id::Recoil:
+        f(v.vr_light_gun_recoil);
+        return true;
     default:
         return false;
     }

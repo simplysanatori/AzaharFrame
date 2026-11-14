@@ -15,6 +15,8 @@
 #include "common/logging/log.h"
 #include "common/settings.h" // AzaharFrame curve
 #include "frame_xr/controls.h"
+#include "frame_xr/kiu_probe.h"     // AzaharFrame kiugyro: Light Gun
+#include "frame_xr/test_switches.h" // AzaharFrame kiugyro: AZAHARFRAME_CSTICK_EDGE
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h" // AzaharFrame immersive2: kGripPress
 #include "frame_xr/input/devices.h"    // AzaharFrame padsui
@@ -1396,8 +1398,12 @@ void VrUi::Frame(Runtime& rt, const FrameInfo& info, std::vector<Quad>& layers) 
     Input::InputFrame window_in = in;
     // AzaharFrame polish: the Bottom Screen Reticle's controller, while it aims the bottom screen
     // in a game: no beam, no pointer, no stats grab. Anywhere else a normal pointer.
+    // AzaharFrame kiugyro: not while Gyro Aim is on (the reticle steps aside; Light Gun's beam
+    // shows where it points).
     const int reticle_hand = Input::ReticleDrivingHand(
-        Input::ReticleHandFrom(Settings::values.vr_bottom_screen_reticle.GetValue()),
+        Settings::values.vr_gyro_aim.GetValue() != 0
+            ? Input::ReticleHand::Off
+            : Input::ReticleHandFrom(Settings::values.vr_bottom_screen_reticle.GetValue()),
         where == Vis::Where::Game && have_input && info.screens_live, in);
     if (reticle_hand >= 0) {
         window_in.hand[static_cast<std::size_t>(reticle_hand)].reticle = true;
@@ -1519,6 +1525,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         }
         nudger.Reset(); // AzaharFrame vrsize
         was_holding = false;
+        recoil.Reset(); // AzaharFrame kiugyro
         return;
     }
     ScreenPlacement place = GetScreenPlacement();
@@ -1566,9 +1573,49 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // AzaharFrame input2: Headset: the head aims, either trigger touches (both triggers are the
     // reticle's then), the grips keep their jobs; Recentre re-zeroes.
     Input::ReticleSample reticle_sample;
+    // AzaharFrame kiugyro: Gyro Aim (input/gyro_aim.h). Its controller's grip pauses it and
+    // grabs nothing (as the reticle's grip; the other controller still grabs, moves and sizes
+    // the screens); the Bottom Screen Reticle steps aside meanwhile (its setting is kept), so the
+    // trigger is ZL/ZR (the mod fires with them) and never a touch, which would stop the mod's
+    // aim.
+    Input::GyroAimFrame gyro_aim_frame;
+    int gyro_aim_hand = -1; // its controller (not the headset), while on
     {
-        const Input::ReticleHand source =
+        gyro_aim_frame.mode = Input::GyroAimModeFrom(Settings::values.vr_gyro_aim.GetValue());
+        const uint32_t aim_source =
+            Input::GyroAimSource(Settings::values.vr_motion_controls.GetValue());
+        const bool on = gyro_aim_frame.mode != Input::GyroAimMode::Off;
+        const int logged = on ? static_cast<int>(gyro_aim_frame.mode) * 4 +
+                                    static_cast<int>(aim_source)
+                              : 0;
+        if (logged != gyro_aim_logged) {
+            gyro_aim_logged = logged;
+            static constexpr const char* kModes[] = {"off", "Gyro", "Light Gun"};
+            static constexpr const char* kSources[] = {"", "right controller", "left controller",
+                                                       "headset"};
+            LOG_INFO(Frontend, "xr: Gyro Aim: {}{}{}", kModes[static_cast<int>(gyro_aim_frame.mode)],
+                     on ? ", " : "", on ? kSources[aim_source & 3u] : "");
+        }
+        if (on && aim_source != 3) {
+            Input::HandInput& hand = game_in.hand[static_cast<std::size_t>(
+                Input::HandIndex(aim_source == 2 ? Input::Hand::Left : Input::Hand::Right))];
+            gyro_aim_frame.clutch = gyro_clutch.Update(hand.grip);
+            hand.grip = 0.0f;
+            gyro_aim_hand = Input::HandIndex(aim_source == 2 ? Input::Hand::Left : Input::Hand::Right);
+        } else {
+            gyro_clutch.Reset();
+        }
+        if (gyro_aim_frame.clutch != gyro_clutch_logged) {
+            gyro_clutch_logged = gyro_aim_frame.clutch;
+            LOG_DEBUG(Frontend, "xr: Gyro Aim: {}", gyro_clutch_logged ? "paused" : "resumed");
+        }
+    }
+    {
+        Input::ReticleHand source =
             Input::ReticleHandFrom(Settings::values.vr_bottom_screen_reticle.GetValue());
+        if (gyro_aim_frame.mode != Input::GyroAimMode::Off) {
+            source = Input::ReticleHand::Off; // AzaharFrame kiugyro: steps aside, setting kept
+        }
         const int rs = static_cast<int>(source);
         if (rs != reticle_hand_logged) {
             reticle_hand_logged = rs;
@@ -1607,7 +1654,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             // AzaharFrame kiu: C-Stick at Edge (reticle.h); not while a grip holds a screen.
             // AzaharFrame kiu2: while it is on the point follows the edges (Follow) whatever At
             // Edge says, so Snap to Middle never pulls it out of the band; the setting is kept.
-            const bool edge_on = Settings::values.vr_reticle_edge_cstick.GetValue();
+            // AzaharFrame kiugyro: shelved: only with AZAHARFRAME_CSTICK_EDGE=1 (test_switches.h).
+            const bool edge_on = TestSwitches::CStickEdgeOn(
+                Common::FrameTestSwitches::Value(TestSwitches::kCStickEdgeSwitch),
+                Settings::values.vr_reticle_edge_cstick.GetValue());
             const Input::ReticleEdge at_edge =
                 edge_on ? Input::ReticleEdge::Follow
                         : Input::ReticleEdgeFrom(Settings::values.vr_reticle_at_edge.GetValue());
@@ -1710,8 +1760,27 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     }
     // AzaharFrame pads: the other gamepads play too (the raw `in` tells Steam's echo of the Frame).
     const Input::MapperOutput& out =
-        bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample);
+        bridge.Process(game_in, panels, &in, &mouse_frame, &reticle_sample, &gyro_aim_frame);
     bridge_live = true;
+    // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
+    // steers (input/gyro_aim.h Recoil; the shot is the fire press, then a pace while held).
+    {
+        const bool recoil_on = gyro_aim_hand >= 0 && Settings::values.vr_light_gun_recoil.GetValue();
+        const Input::RecoilPulse pulse = recoil.Update(in.time_ns, bridge.gyro_fire(), recoil_on);
+        if (pulse.fire) {
+            actions.Pulse(info.session, gyro_aim_hand, pulse.duration_ns, Input::Recoil::kAmplitude);
+        }
+    }
+    // AzaharFrame kiugyro: Light Gun's laser sight (red beam and dot) while it has the reticle.
+    if (gyro_aim_hand >= 0) {
+        const Input::HandInput& aim_hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
+        const Input::LightGunTarget target = Input::LightGunTargetFor(aim_hand, panels.top);
+        if (Input::LaserSight(gyro_aim_frame.mode, true, Kiu::Locked(), target)) {
+            visuals.SetLaser(gyro_aim_hand,
+                             Input::IntersectQuad(Input::RayFromPose(aim_hand.aim), panels.top)
+                                 .point_world);
+        }
+    }
     {
         // AzaharFrame kiu: C-Stick at Edge starts and stops (one line each). AzaharFrame kiu2:
         // the touch is handed to the C-Stick and back.

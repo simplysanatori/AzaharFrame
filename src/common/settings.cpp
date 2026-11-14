@@ -328,6 +328,11 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_reticle_stick_moves.SetGlobal(true);
     values.vr_reticle_edge_cstick.SetGlobal(true); // AzaharFrame kiu
     values.vr_controls_preset_done.SetGlobal(true);
+    values.vr_gyro_aim.SetGlobal(true); // AzaharFrame kiugyro
+    values.vr_gyro_sensitivity.SetGlobal(true);
+    values.vr_light_gun_turn_zone.SetGlobal(true);
+    values.vr_light_gun_turn_speed.SetGlobal(true);
+    values.vr_light_gun_recoil.SetGlobal(true);
     values.vr_dynamic_resolution.SetGlobal(true); // AzaharFrame menuux
     values.autosave_enabled.SetGlobal(true);      // AzaharFrame autosave
     values.autosave_every.SetGlobal(true);

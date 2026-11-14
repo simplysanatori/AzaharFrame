@@ -28,6 +28,9 @@ struct AtlasRect {
 // help panel.
 constexpr AtlasRect kHelpRect{0, 0, 1240, 900};
 constexpr AtlasRect kBeamRect{1240, 0, 128, 256}; // kBeamLevels x kBeamTexWidth, kBeamTexHeight
+// AzaharFrame kiugyro: Light Gun's laser sight under it: the red beam, then the red dot.
+constexpr AtlasRect kLaserBeamRect{1240, 256, 128, 256};
+constexpr AtlasRect kLaserDotRect{1240, 512, 32, 32}; // kLaserDotPixels
 constexpr AtlasRect kStripRect{0, 900, 512, 80};
 constexpr int kAtlasWidth = 1368;
 constexpr int kAtlasHeight = 980;
