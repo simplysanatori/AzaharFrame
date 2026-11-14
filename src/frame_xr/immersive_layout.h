@@ -774,6 +774,8 @@ using Names::ClampWorldScale;
 using Names::WorldScaleStop;
 using Names::WorldScaleAfterGrip;
 using Names::WorldScaleWhole;
+using Names::WorldScaleToastGate;
+using Names::kWorldToastIntervalNs;
 using Names::WorldScaleText;
 using Names::WorldScaleToast;
 inline constexpr float kWorldRefDistance = 3.0f;

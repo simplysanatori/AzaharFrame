@@ -738,8 +738,8 @@ namespace {
 struct GripRun {
     float value;
     float t = 0.0f;
-    std::vector<std::string> toasts; // what the toast shows, one entry per change
-    std::vector<long> whole;
+    std::vector<std::string> toasts; // what the toast shows, one entry per change (gated)
+    std::vector<long> whole;         // every whole percent the value reached, frame by frame
 };
 
 // Mirrors Immersive::OnGameInput's World Scale path: the stick's ratio on the exact value.
@@ -754,6 +754,7 @@ GripRun HoldGrip(float start, float stick_y, float hz, float seconds) {
     const float dt = 1.0f / hz;
     adj.Update(f, FrameXr::Input::Posef{}, dt, true, p, nullptr); // the grab
     long shown = -1;
+    WorldScaleToastGate gate;
     for (int i = 0; i < static_cast<int>(seconds * hz); ++i) {
         float ratio = 1.0f;
         adj.Update(f, FrameXr::Input::Posef{}, dt, true, p, &ratio);
@@ -761,9 +762,16 @@ GripRun HoldGrip(float start, float stick_y, float hz, float seconds) {
         run.t += dt;
         if (WorldScaleWhole(run.value) != shown) {
             shown = WorldScaleWhole(run.value);
-            run.toasts.push_back(WorldScaleToast(run.value));
             run.whole.push_back(shown);
         }
+        // As OnGameInput: the toast at its rate, from the exact value.
+        if (gate.Due(WorldScaleWhole(run.value), static_cast<int64_t>(run.t * 1e9f))) {
+            run.toasts.push_back(WorldScaleToast(run.value));
+        }
+    }
+    // The release shows the final value if it is not on view.
+    if (gate.Due(WorldScaleWhole(run.value), static_cast<int64_t>(run.t * 1e9f), true)) {
+        run.toasts.push_back(WorldScaleToast(run.value));
     }
     return run;
 }
@@ -793,6 +801,8 @@ TEST_CASE("Natural: the World Scale grip keeps the exact value", "[frame_xr][nat
         }
         CHECK(run.value == Approx(100.0f * std::exp(0.55f * run.t)).epsilon(1e-3));
         CHECK(run.toasts.back() == WorldScaleToast(run.value));
+        // The toast changes at most 12.5 times a second (an upload each), and shows exact values.
+        CHECK(static_cast<float>(run.toasts.size()) <= 0.8f / 0.08f + 2.0f);
         // Not a stop, as the slider would put it.
         bool stop = false;
         for (const float s : kWorldScaleStops) {
@@ -808,14 +818,28 @@ TEST_CASE("Natural: the World Scale grip keeps the exact value", "[frame_xr][nat
         CHECK(run.value == 10.0f);
         CHECK(run.toasts.back() == "World Scale: 10%");
     }
-    SECTION("high values: the toast is the exact value rounded, never a stop") {
-        const GripRun run = HoldGrip(200.0f, 1.0f, 90.0f, 1.0f); // 200 -> ~ 400 in ln 2 s
+    SECTION("high values at 120 Hz: the toast changes at a set rate, not every frame") {
+        const GripRun run = HoldGrip(200.0f, 1.0f, 120.0f, 1.0f); // 200 -> 400 in ln 2 s
         for (std::size_t i = 1; i < run.whole.size(); ++i) {
             CHECK(run.whole[i] > run.whole[i - 1]);
             CHECK(run.whole[i] - run.whole[i - 1] <= 5); // one frame's step, not a stop's 12 %
         }
+        // Frame by frame the whole percent changes (120 texts a second without the gate).
+        CHECK(run.whole.size() > 80);
+        CHECK(run.toasts.size() <= 10);
+        CHECK(run.toasts.size() >= 7);
         CHECK(run.toasts.back() == WorldScaleToast(run.value));
         CHECK(run.value == 400.0f);
+    }
+    SECTION("the toast gate: a stopped value is shown, the release shows the last") {
+        WorldScaleToastGate gate;
+        CHECK(gate.Due(150, 0));                    // the first at once
+        CHECK_FALSE(gate.Due(151, 10'000'000));     // too soon
+        CHECK_FALSE(gate.Due(150, 100'000'000));    // the same percent
+        CHECK(gate.Due(151, 100'000'000));          // later, a changed value (stopped meanwhile)
+        CHECK_FALSE(gate.Due(152, 120'000'000));
+        CHECK(gate.Due(152, 120'000'000, true));    // the release
+        CHECK_FALSE(gate.Due(152, 400'000'000, true));
     }
     SECTION("an even speed: 10 -> 20 takes as long as 200 -> 400") {
         const auto time_to = [](float from, float to) {

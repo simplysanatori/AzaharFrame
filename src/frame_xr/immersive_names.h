@@ -11,6 +11,7 @@
 #include <algorithm> // AzaharFrame natural: World Scale's text
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <string>
 
 namespace FrameXr::Immersive::Names {
@@ -82,6 +83,30 @@ inline float WorldScaleAfterGrip(float before, float ratio) {
 inline long WorldScaleWhole(float percent) {
     return std::lround(ClampWorldScale(percent));
 }
+/// How often the grip's toast may change (nanoseconds). Every change of text redraws the toast row
+/// and uploads the whole toast atlas through a blocking copy on the frame thread (which shares the
+/// GPU queue with the game): above about 100 % the whole percent changes every frame, 120 uploads a
+/// second, which stalls the frames and the game while the grip is held. The value itself is
+/// computed every frame; the toast shows it at this rate.
+inline constexpr int64_t kWorldToastIntervalNs = 80'000'000;
+/// When the grip's toast changes: at most every kWorldToastIntervalNs, and only to another whole
+/// percent. A value that changed and then stopped is shown by the next call after the interval.
+struct WorldScaleToastGate {
+    long shown = -1;
+    int64_t last_ns = 0;
+    bool Due(long whole, int64_t now_ns, bool force = false) {
+        if (whole == shown || (!force && shown >= 0 && now_ns - last_ns < kWorldToastIntervalNs)) {
+            return false;
+        }
+        shown = whole;
+        last_ns = now_ns;
+        return true;
+    }
+    void Reset() {
+        shown = -1;
+        last_ns = 0;
+    }
+};
 /// "45%", "100%" (as rounded).
 inline std::string WorldScaleText(float percent) {
     return std::to_string(WorldScaleWhole(percent)) + "%";

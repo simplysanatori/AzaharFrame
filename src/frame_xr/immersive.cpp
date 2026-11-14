@@ -429,7 +429,8 @@ struct State {
     bool k_saved = false;        ///< the game's K went to its file this run
     bool grab_active = false;    ///< the grips hold the immersive screen
     float grab_size = -1.0f;     ///< the screen's size when they took it
-    long world_toasted = -1;     ///< the World Scale the grip's toast shows (rounded)
+    long world_toasted = -1;     ///< the grip changed World Scale (the whole percent it reached)
+    L::WorldScaleToastGate world_toast; ///< what the grip's toast shows, and when
     L::Mode3Stereo mode3;
     float quad_half = L::kQuadsOnEyes; ///< mode 3's eye quads from the middle (NaN: on the eyes)
     float natural_logged_limit = -1.0f;
@@ -2218,20 +2219,28 @@ void OnGameInput(Input::InputFrame& in) {
             ws.SetValue(after);
             g.world_migration = 1; // the player's own value from now on
         }
-        const long shown = L::WorldScaleWhole(after);
-        if (shown != g.world_toasted) {
-            g.world_toasted = shown;
-            ShowToastText(L::WorldScaleToast(after));
+        g.world_toasted = L::WorldScaleWhole(after);
+    }
+    // The toast follows the exact value at a readable rate (kWorldToastIntervalNs): a new text
+    // each frame is an atlas upload each frame, which stalled the frames and the game.
+    if (!wide && r.active && g.world_toasted >= 0) {
+        const float now_value = WorldScaleSetting();
+        if (g.world_toast.Due(L::WorldScaleWhole(now_value), in.time_ns)) {
+            ShowToastText(L::WorldScaleToast(now_value));
         }
     }
     if (!wide && r.active && !g.grab_active) {
         g.grab_size = place.size;
         g.world_toasted = -1;
+        g.world_toast.Reset();
     }
     const bool grabbed = g.grab_active;
     g.grab_active = r.active;
     if (!wide && r.released && grabbed) {
         if (g.world_toasted >= 0) {
+            if (g.world_toast.Due(L::WorldScaleWhole(WorldScaleSetting()), in.time_ns, true)) {
+                ShowToastText(L::WorldScaleToast(WorldScaleSetting())); // the final value
+            }
             SetWorldScale(WorldScaleSetting(), false); // to the game's file
             LOG_INFO(Frontend, "xr: World Scale {:.1f} % by the grip (screen at {:.2f} m)",
                      WorldScaleSetting(), g.solved.distance);
