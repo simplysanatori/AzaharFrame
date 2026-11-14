@@ -390,17 +390,18 @@ TEST_CASE("Dynamic Resolution: it climbs back where the GPU allows, without boun
     }
 }
 
-// AzaharFrame flash3: the floor. 1x by default (as 1.1.1: under the setting in the immersive
-// modes, which add two steps); with kFloorAtSetting, the Internal Resolution setting itself.
+// AzaharFrame flash3: the floor. The Internal Resolution setting itself (kFloorAtSetting, the
+// owner's choice): only the immersive modes' two extra steps come off. 1.1.1's rule (false) went
+// down to 1x, under the setting in the immersive modes.
 TEST_CASE("Dynamic Resolution: the floor", "[frame_xr]") {
-    // Today's rule (the default).
+    // 1.1.1's rule.
     CHECK(MaxDrop(6, 4, false) == 5); // immersive over a 4x setting: down to 1x
     CHECK(MaxDrop(4, 4, false) == 3);
     CHECK(MaxDrop(6, 0, false) == 5); // Auto
     CHECK(MaxDrop(3, 1, false) == 0); // the setting at 1x: nothing to do (the row is locked)
     CHECK(MaxDrop(1, 0, false) == 0);
     CHECK(MaxDrop(0, 4, false) == 0); // the renderer's factor not known yet
-    // The alternative: never under the setting; only the immersive modes' steps come off.
+    // The rule now: never under the setting; only the immersive modes' steps come off.
     CHECK(MaxDrop(6, 4, true) == 2);
     CHECK(MaxDrop(4, 4, true) == 0); // outside immersive it has nothing to do
     CHECK(MaxDrop(6, 0, true) == 5); // Auto: no setting to stop at
@@ -408,7 +409,39 @@ TEST_CASE("Dynamic Resolution: the floor", "[frame_xr]") {
     CHECK(MaxDrop(8, 7, true) == 1); // immersive capped at 8x
     CHECK(FloorFactor(6, 4, true) == 4);
     CHECK(FloorFactor(6, 4, false) == 1);
-    // The one-line switch keeps today's rule.
-    CHECK(MaxDrop(6, 4) == MaxDrop(6, 4, kFloorAtSetting));
-    CHECK_FALSE(kFloorAtSetting);
+    // The default is the setting.
+    CHECK(kFloorAtSetting);
+    CHECK(MaxDrop(6, 4) == 2);
+    CHECK(FloorFactor(6, 4) == 4);
+}
+
+// AzaharFrame flash3: session 573's case through the frame loop's side: Internal Resolution 4x,
+// immersive (the renderer draws 6x), the GPU far behind: 6x, 5x, 4x and no further.
+TEST_CASE("Dynamic Resolution: never under the Internal Resolution setting", "[frame_xr]") {
+    namespace V = VideoCore::DynamicResolution;
+    auto& setting = Settings::values.vr_dynamic_resolution;
+    auto& factor = Settings::values.resolution_factor;
+    const bool was = setting.GetValue();
+    const auto was_factor = factor.GetValue();
+    setting.SetValue(true);
+    factor.SetValue(4);
+    V::Apply(6);
+    Install();
+    for (int i = 0; i < 200; i++) {
+        NoteSecond(GpuBehind());
+    }
+    CHECK(Drop() == 2);
+    CHECK(V::Apply(6) == 4);
+    // Outside immersive the renderer's factor is the setting: nothing to take off.
+    Reset();
+    V::Apply(4);
+    for (int i = 0; i < 200; i++) {
+        NoteSecond(GpuBehind());
+    }
+    CHECK(Drop() == 0);
+    CHECK(V::Apply(4) == 4);
+    Uninstall();
+    setting.SetValue(was);
+    factor.SetValue(was_factor);
+    V::g_base = 0;
 }
