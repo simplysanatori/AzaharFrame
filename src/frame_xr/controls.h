@@ -119,6 +119,18 @@ public:
     bool PlayOnView() const {
         return game_running && !menu_open && !menu_shown && !swkbd_shown;
     }
+    /// AzaharFrame flash, XR thread after Frame: what the panels are now (the VR menu or the
+    /// game's keyboard, the game, home with Azahar's window, home with the picker), for the fixed
+    /// layer positions (layer_slots.h): a new one starts a new list.
+    uint32_t LayerContext() const {
+        if (menu_shown || swkbd_shown) {
+            return menu_window ? 2 : 1;
+        }
+        if (game_running) {
+            return 3;
+        }
+        return mirror.Enabled() ? 4 : 5;
+    }
     /// AzaharFrame curve: the Screen Curve (degrees) for the screens as `shown`: 0 unless they
     /// are the normal screens (not the immersive ones) and the runtime takes cylinder layers.
     uint32_t CurveFor(const Immersive::ScreenLayers& shown) const;
