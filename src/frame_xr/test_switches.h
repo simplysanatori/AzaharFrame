@@ -20,7 +20,8 @@
 
 namespace FrameXr::TestSwitches {
 
-enum class Apply : uint8_t { Live, Restart };
+/// AzaharFrame imglag: Retired, a switch no longer read (its line is ignored).
+enum class Apply : uint8_t { Live, Restart, Retired };
 
 /// The switches applied as they change; every other one is read only at the start (it sizes or
 /// makes something once: the session, the screen's place, a thread, a trace) and needs a restart.
@@ -34,6 +35,11 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_XR_SINGLE_FLASH",          "AZAHARFRAME_XR_REFRESH_RATE",
         "AZAHARFRAME_IMMERSIVE_HOLD",           "AZAHARFRAME_XR_IMAGE_LAG",
     };
+    // AzaharFrame imglag: replaced by AZAHARFRAME_XR_IMAGE_LAG.
+    constexpr std::string_view kRetired[] = {"AZAHARFRAME_IMMERSIVE_ANCHOR_LAG"};
+    if (std::find(std::begin(kRetired), std::end(kRetired), name) != std::end(kRetired)) {
+        return Apply::Retired;
+    }
     return std::find(std::begin(kLive), std::end(kLive), name) != std::end(kLive) ? Apply::Live
                                                                                   : Apply::Restart;
 }
@@ -44,8 +50,11 @@ inline std::string LogLine(const Common::FrameTestSwitches::Change& c) {
         return "test switch " + c.name + " changed in the file, ignored: set in the environment";
     }
     const std::string what = c.removed ? c.name + " removed (its default)" : c.name + "=" + c.value;
+    const Apply a = ApplyFor(c.name);
     return "test switch " + what +
-           (ApplyFor(c.name) == Apply::Live ? " (live)" : " (restart needed)");
+           (a == Apply::Live      ? " (live)"
+            : a == Apply::Retired ? " (no longer read)"
+                                  : " (restart needed)");
 }
 
 /// One toast for the changes of one read ("" when none shows): "Test Switch: NAME=value", two
@@ -53,8 +62,8 @@ inline std::string LogLine(const Common::FrameTestSwitches::Change& c) {
 inline std::string ToastText(const std::vector<Common::FrameTestSwitches::Change>& changes) {
     std::vector<std::string> parts;
     for (const auto& c : changes) {
-        if (c.env_wins) {
-            continue;
+        if (c.env_wins || ApplyFor(c.name) == Apply::Retired) {
+            continue; // AzaharFrame imglag: a retired switch shows no toast
         }
         std::string p = c.removed ? c.name + " Cleared" : c.name + "=" + c.value;
         if (ApplyFor(c.name) == Apply::Restart) {
