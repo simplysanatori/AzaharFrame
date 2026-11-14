@@ -201,6 +201,29 @@ struct File {
 /// Reads the models and decodes the textures. False with the reason.
 bool ReadCgfx(std::span<const u8> data, File& out, std::string& error);
 
+/// AzaharFrame kiumodels: one texture coordinator's animation in a material animation (CANM,
+/// the DATA section's 11th dictionary), by the path it targets:
+/// `Materials["<material>"].TextureCoordinators[<coord>].Translate` or `.Rotate`. Kept as what
+/// changes over one loop (the last key's value minus the first's, per component; a constant or
+/// absent component changes by 0): the game's weapon animations are linear loops (two keys,
+/// start to end). `linear` is false when a curve has more keys or is not linear (the change is
+/// then an approximation).
+struct UvAnim {
+    std::string animation; ///< the CANM's name ("WpnPalmUV")
+    std::string material;
+    s32 coord = 0;
+    float frames = 0.0f;              ///< the loop's length (the CANM's frame count)
+    bool loops = false;               ///< loop mode 1
+    float translate_u = 0.0f, translate_v = 0.0f; ///< the change of Translate over the loop
+    float rotate = 0.0f;              ///< the change of Rotate (radians)
+    bool linear = true;
+};
+
+/// The material animations' texture coordinator tracks of a CGFX file (no models or textures
+/// are read: cheap for a big file). Elements that target anything else are skipped. False with
+/// the reason for a bad file.
+bool ReadUvAnims(std::span<const u8> data, std::vector<UvAnim>& out, std::string& error);
+
 /// A model space position of one vertex of a submesh (the bind pose: rigid and unskinned
 /// vertices are in their bone's space, smooth ones in model space already).
 std::array<float, 3> BindPosition(const Model& model, const SubMesh& sub, const Vertex& v,

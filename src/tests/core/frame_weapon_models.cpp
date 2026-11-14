@@ -6,8 +6,10 @@
 // converter on small inputs built here byte by byte (no game data), and the MXFM reader's
 // weapon space.
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -263,6 +265,8 @@ Bytes WeaponJson(const std::string& wpnid, const std::string& node, std::array<f
 struct Tri {
     std::array<std::array<float, 3>, 3> pos;
     std::array<float, 3> normal;
+    /// AzaharFrame kiumodels: the corners' UVs (as the game's file has them).
+    std::array<std::array<float, 2>, 3> uv{{{0.0f, 0.25f}, {0.5f, 0.25f}, {1.0f, 0.25f}}};
 };
 
 struct MeshSpec {
@@ -362,8 +366,8 @@ Bytes Cgfx(const std::vector<std::tuple<std::string, s32, std::array<float, 3>>>
                 f.F(at + 4 * static_cast<std::size_t>(k), ms.tri.pos[static_cast<std::size_t>(v)][static_cast<std::size_t>(k)]);
                 f.F(at + 12 + 4 * static_cast<std::size_t>(k), ms.tri.normal[static_cast<std::size_t>(k)]);
             }
-            f.F(at + 24, static_cast<float>(v) * 0.5f);
-            f.F(at + 28, 0.25f);
+            f.F(at + 24, ms.tri.uv[static_cast<std::size_t>(v)][0]);
+            f.F(at + 28, ms.tri.uv[static_cast<std::size_t>(v)][1]);
         }
         std::vector<std::size_t> attrs;
         const u32 spec[3][4] = {{0, 3, 0}, {1, 3, 12}, {4, 2, 24}};
@@ -705,6 +709,124 @@ FrameXr::Vis::ModelFile LoadFlashFile(const std::string& dir, const std::string&
     INFO(name);
     REQUIRE(FrameXr::Vis::LoadModelFile(dir + name, mf, error, FrameXr::Vis::kModelFlagWeaponSpace));
     return mf;
+}
+
+/// AzaharFrame kiumodels: a CGFX file holding only material animations (as the class Pit files'
+/// "Wpn...UV"): per animation its name, frame count and elements. An element: its target path,
+/// primitive type (0 Float, 3 Vector2D, 6 RGBA), flags (per axis: bit a constant, bit axes + a
+/// absent), per axis a constant or the keys (frame, value) of a curve of quantization `quant`
+/// (0 Hermite128, 6 StepLinear64 linear, 7 StepLinear32 with a value scale and offset).
+struct AnimElem {
+    std::string path;
+    u32 type = 3;
+    u32 flags = 0;
+    std::vector<float> constants;
+    std::vector<std::vector<std::pair<float, float>>> keys;
+    u32 quant = 6;
+};
+struct AnimSpec {
+    std::string name;
+    float frames;
+    std::vector<AnimElem> elements;
+};
+
+Bytes AnimCgfx(const std::vector<AnimSpec>& anims, u32 revision = 0x07000000u) {
+    Buf f;
+    f.Alloc(0x14 + 8 + 16 * 8);
+    f.Magic(0, "CGFX");
+    f.W16(4, 0xFEFF);
+    f.W16(6, 0x14);
+    f.Magic(0x14, "DATA");
+    std::vector<std::pair<std::string, std::size_t>> entries;
+    for (const AnimSpec& a : anims) {
+        const std::size_t ao = f.Alloc(0x28);
+        f.Magic(ao, "CANM");
+        f.W32(ao + 4, revision);
+        f.Rel(ao + 8, f.Str(a.name));
+        f.Rel(ao + 0xC, f.Str("MaterialAnimation"));
+        f.W32(ao + 0x10, 1);
+        f.F(ao + 0x14, a.frames);
+        std::vector<std::pair<std::string, std::size_t>> elems;
+        for (const AnimElem& e : a.elements) {
+            const std::size_t axes = e.type == 3 ? 2 : e.type == 0 ? 1 : 4;
+            const std::size_t type_at = revision <= 0x05000000u ? 0x10 : 8;
+            const std::size_t eo = f.Alloc(type_at + 4 + 4 * axes);
+            f.W32(eo, e.flags);
+            f.Rel(eo + 4, f.Str(e.path));
+            f.W32(eo + type_at, e.type);
+            for (std::size_t ax = 0; ax < axes; ax++) {
+                const std::size_t word = eo + type_at + 4 + 4 * ax;
+                if (e.flags & (1u << (axes + ax))) {
+                    continue;
+                }
+                if (e.flags & (1u << ax)) {
+                    f.F(word, e.constants[ax]);
+                    continue;
+                }
+                const auto& keys = e.keys[ax];
+                const std::size_t key_size = e.quant == 0 ? 16 : e.quant == 6 ? 8 : 4;
+                const std::size_t scaled = e.quant == 7 ? 12 : 0;
+                const std::size_t c = f.Alloc(20 + scaled + key_size * keys.size());
+                f.F(c, keys.front().first);
+                f.F(c + 4, keys.back().first);
+                f.W32(c + 8, e.quant << 5 | (e.quant >= 6 ? 4u : 8u));
+                f.W32(c + 12, static_cast<u32>(keys.size()));
+                f.F(c + 16, 1.0f / keys.back().first);
+                std::size_t k = c + 20;
+                if (e.quant == 7) { // values as hundredths from -1
+                    f.F(k, 0.01f);
+                    f.F(k + 4, -1.0f);
+                    f.F(k + 8, 1.0f);
+                    k += 12;
+                }
+                for (const auto& [frame, value] : keys) {
+                    if (e.quant == 7) {
+                        const u32 raw = static_cast<u32>(std::lround((value + 1.0f) * 100.0f));
+                        f.W32(k, static_cast<u32>(frame) | raw << 12);
+                    } else {
+                        f.F(k, frame);
+                        f.F(k + 4, value);
+                    }
+                    k += key_size;
+                }
+                const std::size_t g = f.Alloc(24);
+                f.F(g + 4, keys.back().first);
+                f.W32(g + 12, 4); // a quantized curve
+                f.W32(g + 16, 1);
+                f.Rel(g + 20, c);
+                f.Rel(word, g);
+            }
+            elems.emplace_back(e.path, eo);
+        }
+        if (!elems.empty()) {
+            f.W32(ao + 0x18, static_cast<u32>(elems.size()));
+            f.Rel(ao + 0x1C, f.Dict(elems));
+        }
+        entries.emplace_back(a.name, ao);
+    }
+    f.W32(0x1C + 80, static_cast<u32>(entries.size())); // the 11th dictionary
+    f.Rel(0x1C + 84, f.Dict(entries));
+    return f.b;
+}
+
+/// A class Pit file (player/a<class>.zrc) around an animation file.
+Bytes ClassZrc(const Bytes& bcres) {
+    return Lz11Store(Darc({{"character/mdl.arc", Lz11Store(Darc({{"mdl/00.bcres", bcres}}))}}));
+}
+
+/// A palm (weapon 49's class) with a glow card ("WpnEfe") 4 units long across x, its UVs' u
+/// along it (mirrored in the builder's sampler) or, `along_v`, its v (clamped).
+Bytes PalmZrc(bool along_v, float side = 1.0f) {
+    const Tri wpn{{{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}}, {0, 0, 1}};
+    Tri card{{{{side, 0, 0}, {5 * side, 0, 0}, {side, 1, 0}}}, {0, 0, 1}};
+    card.uv = along_v ? std::array<std::array<float, 2>, 3>{{{0.1f, 0.0f}, {0.1f, 1.0f}, {0.6f, 0.0f}}}
+                      : std::array<std::array<float, 2>, 3>{{{0.0f, 0.25f}, {1.0f, 0.25f}, {0.0f, 0.75f}}};
+    const Bytes bcres = Cgfx({{"TopN", -1, {0, 0, 0}}, {"RHandN", 0, {-5, 12, 0}}},
+                             {{"Wpn", "Tex"}, {"WpnEfe", "Tex"}},
+                             {{"Wpn", {1}, 1, wpn, -1}, {"WpnEfe", {1}, 1, card, -1}});
+    const Bytes fmdl = Darc({{"fmdl/00.bcres", bcres}});
+    const Bytes js = Darc({{"json/00.json", WeaponJson("WPNID_WPN_PALM_01", "RHandN", {-2.9f, 0, 0})}});
+    return Lz11Store(Darc({{"character/fmdl.arc", Lz11Store(fmdl)}, {"character/json.arc", js}}));
 }
 
 /// A RomFS level 3 image: root / <region> / player / the files.
@@ -1722,4 +1844,230 @@ TEST_CASE("Projectiles: sprites when there is no mesh bullet, and the cache", "[
     r = FrameWeapons::ConvertGame(rom, kTitle, dir);
     CHECK(r.made == 1);
     std::filesystem::remove_all(dir);
+}
+
+// ---- AzaharFrame kiumodels: the texture's motion ----
+
+TEST_CASE("CGFX: the material animations' texture coordinator tracks", "[kiumodels]") {
+    const std::string efe0 = "Materials[\"WpnEfe\"].TextureCoordinators[0].Translate";
+    AnimElem slide{efe0, 3, 0x4, {}, {{}, {{0.0f, 0.0f}, {160.0f, -2.0f}}}};      // u absent
+    AnimElem turn{"Materials[\"WpnR90\"].TextureCoordinators[1].Rotate", 0, 0, {},
+                  {{{0.0f, 0.0f}, {40.0f, 3.0f}, {90.0f, 6.2831855f}}}, 0};        // Hermite, 3 keys
+    AnimElem held{"Materials[\"Wpn\"].TextureCoordinators[2].Translate", 3, 0x3, {0.5f, 0.25f}};
+    AnimElem packed{"Materials[\"WpnT\"].TextureCoordinators[0].Translate", 3, 0x8,
+                    {}, {{{0.0f, 0.0f}, {30.0f, 1.0f}}, {}}, 7};                    // v absent
+    AnimElem colour{"Materials[\"WpnEfe\"].MaterialColor.Emission", 6, 0xF0, {}, {}};
+    AnimElem other{"Materials[\"WpnEfe\"].TextureCoordinators[0].Scale", 3, 0x3, {1.0f, 2.0f}};
+    const Bytes bcres = AnimCgfx({{"WpnPalmUV", 160.0f, {slide, turn, held, colour, other}},
+                                  {"WpnLaunchUV", 30.0f, {packed}}});
+    std::vector<FrameCgfx::UvAnim> anims;
+    std::string error;
+    const bool read = FrameCgfx::ReadUvAnims(bcres, anims, error);
+    INFO(error);
+    REQUIRE(read);
+    REQUIRE(anims.size() == 4); // the colour and the scale left out
+    const auto find = [&](const std::string& material) -> const FrameCgfx::UvAnim& {
+        for (const auto& a : anims) {
+            if (a.material == material) {
+                return a;
+            }
+        }
+        FAIL("no " << material);
+        return anims[0];
+    };
+    const auto& efe = find("WpnEfe");
+    CHECK(efe.animation == "WpnPalmUV");
+    CHECK(efe.coord == 0);
+    CHECK(efe.frames == 160.0f);
+    CHECK(efe.loops);
+    CHECK(efe.translate_u == 0.0f);
+    CHECK(efe.translate_v == Approx(-2.0f));
+    CHECK(efe.linear);
+    const auto& r90 = find("WpnR90");
+    CHECK(r90.coord == 1);
+    CHECK(r90.rotate == Approx(6.2831855f));
+    CHECK_FALSE(r90.linear); // three Hermite keys: the change is all that is kept
+    const auto& wpn = find("Wpn");
+    CHECK(wpn.coord == 2);
+    CHECK(wpn.translate_u == 0.0f);
+    CHECK(wpn.translate_v == 0.0f);
+    const auto& t = find("WpnT");
+    CHECK(t.animation == "WpnLaunchUV");
+    CHECK(t.frames == 30.0f);
+    CHECK(t.translate_u == Approx(1.0f).margin(1e-4)); // hundredths from -1: 0 to 1
+    CHECK(t.translate_v == 0.0f);
+    // An older file (a second name and a word before each element's type).
+    const Bytes old = AnimCgfx({{"WpnPalmUV", 160.0f, {slide}}}, 0x05000000u);
+    REQUIRE(FrameCgfx::ReadUvAnims(old, anims, error));
+    REQUIRE(anims.size() == 1);
+    CHECK(anims[0].translate_v == Approx(-2.0f));
+    // None at all: an empty list. Every cut of the file: an error, never a crash.
+    REQUIRE(FrameCgfx::ReadUvAnims(AnimCgfx({}), anims, error));
+    CHECK(anims.empty());
+    for (std::size_t n = 0; n + 4 < bcres.size(); n += 5) {
+        Bytes cut(bcres.begin(), bcres.begin() + static_cast<std::ptrdiff_t>(n));
+        FrameCgfx::ReadUvAnims(cut, anims, error);
+    }
+    CHECK_FALSE(FrameCgfx::ReadUvAnims(Bytes(8, 0), anims, error));
+}
+
+TEST_CASE("Weapon models: a glow's texture moves as the game's, or flows along it", "[kiumodels]") {
+    // The game's: the class file's animation of the part's material and coordinator; the game
+    // samples at scale * (uv - translate), the files' v is 1 - v.
+    std::vector<FrameCgfx::UvAnim> anims(3);
+    anims[0].animation = "WpnPalmUV";
+    anims[0].material = "WpnEfe";
+    anims[0].frames = 160.0f;
+    anims[0].translate_v = -2.0f;
+    anims[1] = anims[0];
+    anims[1].coord = 1; // another coordinator: not this part's
+    anims[1].translate_u = 2.0f;
+    anims[2] = anims[0];
+    anims[2].material = "Wpn";
+    anims[2].translate_v = 0.0f;
+    anims[2].translate_u = 0.5f;
+    FrameWeapons::UvMotion m = FrameWeapons::GameUvMotion(anims, "WpnEfe", 0, 1.0f, 2.0f);
+    CHECK(m.source == FrameWeapons::UvSource::Game);
+    CHECK(m.frames == 160.0f);
+    CHECK(m.du == 0.0f);
+    CHECK(m.dv == Approx(-4.0f));
+    m = FrameWeapons::GameUvMotion(anims, "Wpn", 0, 1.0f, 1.0f);
+    CHECK(m.du == Approx(-0.5f));
+    CHECK(FrameWeapons::GameUvMotion(anims, "WpnT", 0, 1.0f, 1.0f).source ==
+          FrameWeapons::UvSource::None);
+
+    FrameWeapons::Converted c;
+    std::string error;
+    REQUIRE(FrameWeapons::ConvertWeapon(49, PalmZrc(false), c, error, nullptr, &anims));
+    REQUIRE(c.info.parts.size() == 2);
+    CHECK_FALSE(c.info.parts[0].glow);
+    CHECK(c.info.parts[0].uv.source == FrameWeapons::UvSource::Game); // Wpn's, kept (not drawn)
+    const FrameWeapons::Part& efe = c.info.parts[1];
+    REQUIRE(efe.glow);
+    CHECK(efe.material == "WpnEfe");
+    CHECK(efe.uv.source == FrameWeapons::UvSource::Game);
+    CHECK(efe.uv.dv == Approx(-2.0f));
+
+    // No game animation: the card flows along its length (x), on u (mirrored: two units a
+    // loop), away from the hand: its picture moves toward +x, so u's offset falls.
+    REQUIRE(FrameWeapons::ConvertWeapon(49, PalmZrc(false), c, error));
+    CHECK(c.info.parts[0].uv.source == FrameWeapons::UvSource::None); // not a glow: still
+    CHECK(c.info.parts[1].uv.source == FrameWeapons::UvSource::Flow);
+    CHECK(c.info.parts[1].uv.frames == FrameWeapons::kFlowFrames);
+    CHECK(c.info.parts[1].uv.du == -2.0f);
+    CHECK(c.info.parts[1].uv.dv == 0.0f);
+    // The card on the other side of the hand (-x), its u growing outward: still outward.
+    REQUIRE(FrameWeapons::ConvertWeapon(49, PalmZrc(false, -1.0f), c, error));
+    CHECK(c.info.parts[1].uv.du == -2.0f);
+    // Its length along v, which is clamped: no flow (it would smear the edge).
+    REQUIRE(FrameWeapons::ConvertWeapon(49, PalmZrc(true), c, error));
+    CHECK(c.info.parts[1].uv.source == FrameWeapons::UvSource::None);
+}
+
+TEST_CASE("Weapon models: the class file's animations in a game's run, the manifest's lines",
+          "[kiumodels]") {
+    const std::string dir = TestDir("frame_weapon_uv_test");
+    // The claws' class file: the weapon's "Wpn" slides (v, 1 a loop of 30 frames); Pit's own
+    // animation of the same material is not the weapon's.
+    AnimElem wpn{"Materials[\"Wpn\"].TextureCoordinators[0].Translate", 3, 0x4, {},
+                 {{}, {{0.0f, 0.0f}, {30.0f, 1.0f}}}};
+    AnimElem talk{"Materials[\"Wpn\"].TextureCoordinators[0].Translate", 3, 0x8, {},
+                  {{{0.0f, 0.0f}, {10.0f, 5.0f}}, {}}};
+    const Bytes a2 = ClassZrc(AnimCgfx({{"WpnNailUV", 30.0f, {wpn}}, {"ChrPit00TalkUV00", 10.0f, {talk}}}));
+    std::vector<FrameCgfx::UvAnim> anims;
+    std::string error;
+    REQUIRE(FrameWeapons::ReadClassUvAnims(a2, anims, error));
+    REQUIRE(anims.size() == 1);
+    CHECK(FrameWeapons::ClassZrcName(2) == "a2.zrc");
+    auto rom = std::make_shared<MemoryRomFS>(
+        RomFS("eu", {{"m200.zrc", ClawZrc()}, {"a2.zrc", a2}, {"m401.zrc", PalmZrc(false)}}));
+    FrameWeapons::RunResult r = FrameWeapons::ConvertGame(rom, 0x0004000000030200ull, dir);
+    CHECK(r.made == 2);
+    FrameWeapons::Manifest m;
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    CHECK(m.version == 4);
+    REQUIRE(m.Find(24));
+    const FrameWeapons::UvMotion& claw = m.Find(24)->parts[0].uv;
+    CHECK(claw.source == FrameWeapons::UvSource::Game);
+    CHECK(claw.frames == 30.0f);
+    CHECK(claw.du == 0.0f);
+    CHECK(claw.dv == Approx(1.0f));
+    // The palm's class file is missing: its glow card flows.
+    REQUIRE(m.Find(49));
+    CHECK(m.Find(49)->parts[1].uv.source == FrameWeapons::UvSource::Flow);
+    CHECK(m.Find(49)->parts[1].uv.du == -2.0f);
+    {
+        std::ifstream in(dir + "weapons.txt");
+        const std::string text{std::istreambuf_iterator<char>(in), {}};
+        CHECK(text.find("\nuvanim w024.model 1 30 0 1 0\n") != std::string::npos);
+        CHECK(text.find("\nuvanim w049-1.model 2 75 -2 0 0\n") != std::string::npos);
+    }
+    // A bad uvanim line is dropped (the part stays still); an unknown file's is ignored.
+    {
+        std::ifstream in(dir + "weapons.txt");
+        std::string text{std::istreambuf_iterator<char>(in), {}};
+        const auto at = text.find("uvanim w024.model 1 30 0 1 0");
+        text.replace(at, std::strlen("uvanim w024.model 1 30 0 1 0"), "uvanim w024.model 1 30 nan 1 0");
+        text += "uvanim w999.model 1 30 0 1 0\n";
+        std::ofstream(dir + "bad.txt") << text;
+    }
+    REQUIRE(FrameWeapons::ReadManifest(dir + "bad.txt", m, error));
+    CHECK(m.Find(24)->parts[0].uv.source == FrameWeapons::UvSource::None);
+    CHECK(m.Find(49)->parts[1].uv.source == FrameWeapons::UvSource::Flow);
+    // A version 3 folder (before the motion): every weapon made again, once.
+    {
+        std::ifstream in(dir + "weapons.txt");
+        std::string text{std::istreambuf_iterator<char>(in), {}};
+        text.replace(text.find("kiu-weapons 4"), 13, "kiu-weapons 3");
+        std::ofstream(dir + "weapons.txt") << text;
+    }
+    r = FrameWeapons::ConvertGame(rom, 0x0004000000030200ull, dir);
+    CHECK(r.made == 2);
+    r = FrameWeapons::ConvertGame(rom, 0x0004000000030200ull, dir);
+    CHECK(r.made == 0);
+    CHECK(r.kept == 2);
+    std::filesystem::remove_all(dir);
+}
+
+// The game's own files (the study's copy: AZAHARFRAME_TEST_KIU_ZRC, a folder of player/*.zrc)
+// made into AZAHARFRAME_TEST_KIU_OUT, every weapon, and each glow part's motion printed.
+TEST_CASE("Weapon models: every weapon of a game's files, the glows' motion", "[.kiumodels_real]") {
+    const char* zrc = std::getenv("AZAHARFRAME_TEST_KIU_ZRC");
+    const char* out = std::getenv("AZAHARFRAME_TEST_KIU_OUT");
+    if (!zrc || !out) {
+        SKIP("AZAHARFRAME_TEST_KIU_ZRC and AZAHARFRAME_TEST_KIU_OUT");
+    }
+    std::vector<std::pair<std::string, Bytes>> files;
+    for (const auto& e : std::filesystem::directory_iterator(zrc)) {
+        const std::string name = e.path().filename().string();
+        // The weapons' m<class><index>.zrc and the classes' Pit files a<class>.zrc.
+        if ((name.size() == 8 && name[0] == 'm') || (name.size() == 6 && name[0] == 'a')) {
+            std::ifstream in(e.path(), std::ios::binary);
+            files.emplace_back(name, Bytes{std::istreambuf_iterator<char>(in), {}});
+        }
+    }
+    std::sort(files.begin(), files.end());
+    auto rom = std::make_shared<MemoryRomFS>(RomFS("eu", files));
+    std::string dir = out;
+    if (dir.back() != '/') {
+        dir += '/';
+    }
+    const auto r = FrameWeapons::ConvertGame(rom, 0x0004000000030200ull, dir);
+    CHECK(r.made + r.kept == FrameWeapons::kWeapons);
+    FrameWeapons::Manifest m;
+    std::string error;
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    for (const auto& w : m.weapons) {
+        for (const auto& p : w.parts) {
+            if (p.uv.source != FrameWeapons::UvSource::None) {
+                std::printf("weapon %d %s %s glow %d: %s, %g frames, du %g dv %g turns %g\n", w.id,
+                            p.file.c_str(), p.material.c_str(), p.glow ? 1 : 0,
+                            p.uv.source == FrameWeapons::UvSource::Game ? "game" : "flow",
+                            p.uv.frames, p.uv.du, p.uv.dv, p.uv.turns);
+            } else if (p.glow) {
+                std::printf("weapon %d %s %s glow 1: still (wrap %u %u)\n", w.id, p.file.c_str(),
+                            p.material.c_str(), p.wrap_u, p.wrap_v);
+            }
+        }
+    }
 }

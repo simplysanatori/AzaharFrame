@@ -371,6 +371,7 @@ struct ControllerModels::Gpu {
         /// AzaharFrame kiuflash: a projectile's bullet (a mesh, BulletValue; or, with `flash`
         /// too, its sprite cards).
         bool bullet = false;
+        FrameWeapons::UvMotion uv; ///< AzaharFrame kiumodels: how its texture moves
     };
     struct Weapon {
         int id = -1;
@@ -1190,12 +1191,15 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
     const Mat aim_m = FromPose(aim.orientation, aim.position);
     // The glow and effect parts (WpnEfe ...) are cards the game blends and animates; drawn plain
     // they float about, so only with AZAHARFRAME_KIU_WEAPON_GLOW=1 (live).
-    // A palm's flames are its look: kept (still: FitMotion).
+    // A palm's flames are its look: kept (in place: FitMotion; moving: AnimateGlow).
     const bool glow =
         w.info.cls == FrameWeapons::kPalm ||
         Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_WEAPON_GLOW").value_or("0") == "1";
     const double now_s =
         std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    // AzaharFrame kiumodels: AZAHARFRAME_KIU_GLOW_MOTION=0 (live): the glows still (as before).
+    const bool glow_motion =
+        Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_GLOW_MOTION").value_or("1") != "0";
     for (const FitPart& fit : fits) {
       for (const bool glow_pass : {false, true}) {
         if (glow_pass && !glow) {
@@ -1245,6 +1249,16 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
         for (const auto& part : w.parts) {
             if (part.glow != glow_pass || part.flash || part.bullet) {
                 continue;
+            }
+            // AzaharFrame kiumodels: a glow moves (its texture slides, it flickers, a palm's
+            // flames sway): its motion in key and up, which a glow's light does not use.
+            if (glow_pass && glow_motion) {
+                const GlowMotion m = AnimateGlow(w.info.cls, static_cast<int>(part.uv.source),
+                                                 part.uv.frames, part.uv.du, part.uv.dv,
+                                                 std::fmod(now_s, 3600.0), FrameWeapons::kGameFps);
+                pc.key = {m.u, m.v, m.gain, m.sway};
+                pc.up = {m.phase_a, m.phase_b, m.wave, 0.0f};
+                pc.params[3] = w_flags + 8.0f;
             }
             bool bound = false;
             for (const ModelComponent& comp : part.components) {
@@ -1943,6 +1957,9 @@ void ControllerModels::UploadWeapon() {
         g.device.updateDescriptorSets(writes, {});
         part.components = m.components;
         part.glow = i < l.part_files && i < l.info.parts.size() && l.info.parts[i].glow;
+        if (i < l.part_files && i < l.info.parts.size()) {
+            part.uv = l.info.parts[i].uv; // AzaharFrame kiumodels
+        }
         const uint64_t bytes = m.vertices.size() * 4 + m.indices.size() * 4 +
                                (m.colour.size() + m.surface.size()) * 4 / 3; // with the mips
         if (i >= l.part_files) { // AzaharFrame kiuflash: a flash's cards, or a bullet
