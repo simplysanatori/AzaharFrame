@@ -1117,9 +1117,9 @@ static int gDumpCount = 0;
 static double gShownTimes[MAXDUMPS];
 static int gShownCount = 0, gShownNext = 0;
 
-// AzaharFrame projscreen: MOCK_XR_PROJ_SCAN=<t0>,<t1>[,<frames>[,<crop>[,<eyes>]]]: from t0 to t1
-// seconds after the session began (at most <frames> endFrames, default 48), the middle <crop> x
-// <crop> pixels (default 1152) of each eye of the first projection layer (<eyes>: 1 left, 2 right,
+// AzaharFrame projscreen: MOCK_XR_PROJ_SCAN=<t0>,<t1>[,<frames>[,<crop>[,<eyes>[,<crop height>]]]]:
+// from t0 to t1 seconds after the session began (at most <frames> endFrames, default 48), the
+// middle <crop> x <crop height> pixels (default 1152, the height the width) of each eye of the first projection layer (<eyes>: 1 left, 2 right,
 // 3 both, the default) and the top left strip are copied on the app's queue without a wait. After
 // the window a thread of the mock reads them: the picture's serial from the strip and the centres
 // of the magenta dots (AZAHARFRAME_XR_PROJ_MARKS=1), weighted, in the eye's pixels; one line each:
@@ -1138,7 +1138,7 @@ typedef struct {
     void* copy;
 } ScanRec;
 static double gScanT0 = -1.0, gScanT1 = -1.0;
-static int gScanMaxFrames = 48, gScanCrop = 1152, gScanEyes = 3;
+static int gScanMaxFrames = 48, gScanCrop = 1152, gScanCropH = 1152, gScanEyes = 3;
 static ScanRec gScans[2 * SCAN_MAX];
 static int gScanCount = 0, gScanFrames = 0, gScanState = 0;  // 0 waiting, 1 copying, 2 reading, 3 done
 static pthread_t gScanThread;
@@ -1283,7 +1283,7 @@ static void scanFrame(const XrFrameEndInfo* ei) {
             s->rw = r->extent.width;
             s->rh = r->extent.height;
             s->cw = gScanCrop < s->rw ? gScanCrop : s->rw;
-            s->ch = gScanCrop < s->rh ? gScanCrop : s->rh;
+            s->ch = gScanCropH < s->rh ? gScanCropH : s->rh;
             s->cx = (s->rw - s->cw) / 2;
             s->cy = (s->rh - s->ch) / 2;
             const int rects[8] = {r->offset.x, r->offset.y, (SCAN_CODE_BITS + 2) * SCAN_CODE_CELL, SCAN_CODE_CELL,
@@ -2060,15 +2060,16 @@ static void init(void) {
     const char* scan = getenv("MOCK_XR_PROJ_SCAN");  // AzaharFrame projscreen
     if (scan) {
         double t0 = -1, t1 = -1;
-        int frames = 48, crop = 1152, eyes = 3;
-        if (sscanf(scan, "%lf,%lf,%d,%d,%d", &t0, &t1, &frames, &crop, &eyes) >= 2 && t1 > t0) {
+        int frames = 48, crop = 1152, eyes = 3, cropH = -1;
+        if (sscanf(scan, "%lf,%lf,%d,%d,%d,%d", &t0, &t1, &frames, &crop, &eyes, &cropH) >= 2 && t1 > t0) {
             gScanT0 = t0;
             gScanT1 = t1;
             gScanMaxFrames = frames < 1 ? 1 : frames > SCAN_MAX ? SCAN_MAX : frames;
             gScanCrop = crop < 64 ? 64 : crop;
+            gScanCropH = cropH < 0 ? gScanCrop : cropH < 64 ? 64 : cropH;
             gScanEyes = eyes & 3 ? eyes & 3 : 3;
-            trace("config proj scan %.2f to %.2f s, at most %d frames, crop %d, eyes %d", gScanT0, gScanT1, gScanMaxFrames, gScanCrop,
-                  gScanEyes);
+            trace("config proj scan %.2f to %.2f s, at most %d frames, crop %dx%d, eyes %d", gScanT0, gScanT1, gScanMaxFrames, gScanCrop,
+                  gScanCropH, gScanEyes);
         }
     }
     gFocusOnce = getenv("MOCK_XR_FOCUS_ONCE") && getenv("MOCK_XR_FOCUS_ONCE")[0] == '1';
