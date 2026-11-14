@@ -22,6 +22,8 @@ namespace {
 
 std::atomic<bool> g_want_weapon{false};
 std::atomic<bool> g_want_shots{false};
+std::atomic<bool> g_want_scheme{false}; // AzaharFrame kiufix
+std::atomic<int> g_scheme{-1};
 std::atomic<bool> g_installed{false};
 std::atomic<int> g_weapon{-1};
 std::atomic<bool> g_shots_ok{false};
@@ -41,6 +43,8 @@ struct Probe {
     ShotCounter counter;
     int64_t next_weapon_ns = 0;
     int64_t next_shots_ns = 0;
+    int64_t next_scheme_ns = 0; // AzaharFrame kiufix
+    int logged_scheme = -2;
     std::string weapon_reason, shots_reason;
     int logged_weapon = -3;
 };
@@ -89,8 +93,12 @@ void Scan(Probe& p, Kernel::Process& process, Memory::MemorySystem& memory) {
 void Poll(int64_t ticks) {
     const bool want_weapon = g_want_weapon.load(std::memory_order_relaxed);
     const bool want_shots = g_want_shots.load(std::memory_order_relaxed);
+    const bool want_scheme = g_want_scheme.load(std::memory_order_relaxed);
     Probe& p = TheProbe();
-    if (!want_weapon && !want_shots) {
+    if (!want_scheme) {
+        g_scheme = -1;
+    }
+    if (!want_weapon && !want_shots && !want_scheme) {
         if (g_weapon.load() != -1 || g_shots_ok.load()) {
             g_weapon = -1;
             g_shots_ok = false;
@@ -109,10 +117,17 @@ void Poll(int64_t ticks) {
     if (p.next_shots_ns - now > 4 * kShotsEveryNs) {
         p.next_shots_ns = now;
     }
+    if (p.next_scheme_ns - now > 4 * kWeaponEveryNs) {
+        p.next_scheme_ns = now;
+    }
     const bool weapon_due = want_weapon && now >= p.next_weapon_ns;
     const bool shots_due = want_shots && now >= p.next_shots_ns;
-    if (!weapon_due && !shots_due) {
+    const bool scheme_due = want_scheme && now >= p.next_scheme_ns;
+    if (!weapon_due && !shots_due && !scheme_due) {
         return;
+    }
+    if (scheme_due) {
+        p.next_scheme_ns = now + kWeaponEveryNs;
     }
     if (weapon_due) {
         p.next_weapon_ns = now + kWeaponEveryNs;
@@ -131,6 +146,7 @@ void Poll(int64_t ticks) {
     if (!process) {
         g_weapon = -1;
         g_shots_ok = false;
+        g_scheme = -1;
         return;
     }
     Memory::MemorySystem& memory = system.Memory();
@@ -143,6 +159,8 @@ void Poll(int64_t ticks) {
         p.settle.Reset();
         p.counter.Reset();
         p.logged_weapon = -3;
+        p.logged_scheme = -2;
+        g_scheme = -1;
     }
     if (!p.scanned) {
         Scan(p, *process, memory);
@@ -201,6 +219,27 @@ void Poll(int64_t ticks) {
         }
     }
 
+    if (scheme_due) {
+        // AzaharFrame kiufix: the options object is the one the shots record is in ([cache]).
+        int scheme = -1;
+        uint32_t object = 0, word = 0;
+        if (p.shots.found && read32(p.shots.cache, object) && object != 0 &&
+            read32(object + kOptionsScheme, word)) {
+            scheme = static_cast<int>(SchemeOf(word));
+        }
+        g_scheme = scheme;
+        if (scheme != p.logged_scheme) {
+            p.logged_scheme = scheme;
+            LOG_INFO(Frontend, "xr: Kid Icarus: the game's controls: {}",
+                     scheme < 0 ? std::string{"not readable"}
+                                : fmt::format("scheme {}{}", scheme,
+                                              scheme == static_cast<int>(kSchemeGyro)
+                                                  ? " (the mod's gyro)"
+                                                  : " (not the mod's gyro: Direct Aim and "
+                                                    "Gyro Aim cannot steer)"));
+        }
+    }
+
     if (shots_due) {
         std::string why;
         uint32_t object = 0, value = 0;
@@ -224,10 +263,11 @@ void Poll(int64_t ticks) {
 
 } // namespace
 
-void SetWanted(bool weapon, bool shots) {
+void SetWanted(bool weapon, bool shots, bool scheme) {
     g_want_weapon.store(weapon, std::memory_order_relaxed);
     g_want_shots.store(shots, std::memory_order_relaxed);
-    if ((weapon || shots) && !g_installed.exchange(true)) {
+    g_want_scheme.store(scheme, std::memory_order_relaxed);
+    if ((weapon || shots || scheme) && !g_installed.exchange(true)) {
         Common::FrameEmuPoll::Set(Poll);
     }
 }
@@ -242,6 +282,10 @@ bool ShotsReadable() {
 
 uint64_t ShotTotal() {
     return g_shot_total.load(std::memory_order_relaxed);
+}
+
+int ControlScheme() {
+    return g_want_scheme.load(std::memory_order_relaxed) ? g_scheme.load() : -1;
 }
 
 } // namespace FrameXr::Kiu

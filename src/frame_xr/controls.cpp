@@ -1775,7 +1775,11 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         Input::RecoilActive(gyro_aim_hand, Settings::values.vr_light_gun_recoil.GetValue());
     const bool weapon_on = kiu && Settings::values.vr_light_gun_weapon.GetValue();
     bool weapon_shown = false;
-    Kiu::SetWanted(weapon_on, kiu && recoil_on);
+    Kiu::SetWanted(weapon_on, kiu && recoil_on, kiu);
+    // AzaharFrame kiufix: the game's controls not on the mod's gyro: the controller cannot steer.
+    if (aim_scheme_hint.Update(in.time_ns, kiu, Kiu::ControlScheme())) {
+        ShowToastText(Input::kAimNeedsGyroToast, ToastTime::Long);
+    }
     if (weapon_on) {
         FrameWeapons::Request(); // made the first time they are wanted (once a boot)
         // AZAHARFRAME_KIU_WEAPON=<id> (live): that weapon, for tuning its class's fit.
@@ -1814,15 +1818,24 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             actions.Pulse(info.session, gyro_aim_hand, pulse.duration_ns, Input::Recoil::kAmplitude);
         }
     }
-    // AzaharFrame kiugyro: Light Gun's laser sight (red beam and dot) while it has the reticle.
+    // AzaharFrame kiugyro: Light Gun's laser sight (red beam and dot).
     // AzaharFrame kiuguns: only with Laser Sight on (from the weapon's muzzle when it is shown);
     // off, no beam over the top screen with Direct Aim or the weapon in hand.
+    // AzaharFrame kiufix: whether or not the reticle is read from the game (it never was in the
+    // owner's session: the laser never showed).
     if (gyro_aim_hand >= 0) {
         const Input::HandInput& aim_hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
         const Input::LightGunTarget target = Input::LightGunTargetFor(aim_hand, panels.top);
         const Input::AimBeam beam =
             Input::AimBeamFor(gyro_aim_frame.mode, Settings::values.vr_light_gun_laser.GetValue(),
-                              weapon_shown, Kiu::Locked(), target);
+                              weapon_shown, target);
+        const bool laser_now = Settings::values.vr_light_gun_laser.GetValue() &&
+                               gyro_aim_frame.mode == Input::GyroAimMode::LightGun;
+        if (laser_now != laser_logged) {
+            laser_logged = laser_now;
+            LOG_INFO(Frontend, "xr: Laser Sight: {}{}", laser_now ? "on" : "off",
+                     laser_now ? " (shown while the ray is on the top screen)" : "");
+        }
         if (beam.laser) {
             visuals.SetLaser(gyro_aim_hand,
                              Input::IntersectQuad(Input::RayFromPose(aim_hand.aim), panels.top)

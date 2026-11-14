@@ -138,7 +138,8 @@ bool ReadReticle(Probe& p, Input::ReticleReading& r, std::string& why) {
         return false;
     }
     if (SchemeOf(scheme_word) != kSchemeGyro) {
-        why = "the game's controls are not set to gyro";
+        why = fmt::format("the game's controls are not set to gyro (scheme {})",
+                          SchemeOf(scheme_word));
         return false;
     }
     uint32_t object = 0;

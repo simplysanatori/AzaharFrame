@@ -104,9 +104,18 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   most 360; into the same synthetic touch drag as its C-Stick, so on the ground the game's aim
   box turns the camera when the drag runs past it. A held touch stops it.
 - **The controller:** Motion Controls' own, or the right controller when that is Off.
-- **Gyro:** the ray's yaw rate (about the room's vertical) goes to 3DS z, right positive, and its
-  pitch rate to 3DS x, down positive, times Gyro Sensitivity, replacing Motion Controls' gyroscope
-  meanwhile. Rolling the controller sends nothing.
+- **Gyro:** the ray's yaw rate (about the room's vertical) goes to 3DS z, left positive (a turn to
+  the right is negative z, as Motion Controls and a real 3DS read it), and its pitch rate to 3DS
+  x, down positive, times Gyro Sensitivity, replacing Motion Controls' gyroscope meanwhile.
+  Rolling the controller sends nothing. AzaharFrame kiufix: the first build sent right as
+  positive z, so the reticle went left when the hand went right (the owner's headset check,
+  2026-11-14); a unit test now holds Gyro Aim to Motion Controls' axes.
+- **The game's controls** (AzaharFrame kiufix): the mod reads the gyroscope only in its gyro
+  control scheme. The game's scheme is read with the weapon (`Kiu::ControlScheme`, the options
+  object of the shots record, +0x163E8 bits 21 to 23) and logged (`xr: Kid Icarus: the game's
+  controls: scheme N`); while Aiming is on and it is not the gyro one, a toast says "Aiming: Set
+  the Game's Controls to Gyro" (`AimSchemeHint`). In another scheme the gyroscope is not even
+  polled, so Light Gun's own probe never runs and could not say so.
 - **Light Gun:** where the ray hits the top screen (`LightGunTargetFor`, the screen as drawn,
   `PanelGeometry::top`; a screen that cannot be pointed at, such as the immersive one, gives no
   target) is where the reticle goes. On the emulation thread, at each HID gyroscope poll
@@ -125,8 +134,10 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   range) Light Gun uses Gyro instead and says why once in the log (`xr: Light Gun: Gyro instead:
   ...`); `xr: Light Gun: reticle found` when it reads it again, and every 5 s the reading, the
   target, the gain and the game frame.
-- **Laser sight** (with Laser Sight on; AzaharFrame kiuguns): while Light Gun has the reticle (read from the game, not fallen back to
-  Gyro) and its ray is on the top screen, the controller's beam is red and ends in a small red
+- **Laser sight** (with Laser Sight on; AzaharFrame kiuguns): with Direct Aim, while its ray is on
+  the top screen (AzaharFrame kiufix: whether or not the reticle is read from the game; it waited
+  for that before, and showed nothing at all when Direct Aim had fallen back), the controller's
+  beam is red and ends in a small red
   dot (`LaserDotSize`: half the pointer dot's) where the ray meets the screen, which is where the
   loop steers the reticle (on the ground, pointing past the box, the two part: the reticle waits
   at the box). The beam stays at full strength while the hand is still. A red copy of the beam

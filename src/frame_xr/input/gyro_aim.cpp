@@ -158,6 +158,23 @@ LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top) {
     return t;
 }
 
+bool AimSchemeHint::Update(int64_t now_ns, bool aiming, int scheme) {
+    if (!aiming || scheme == 1) {
+        armed_ = true; // off, or the gyro scheme: the next wrong scheme is news
+        return false;
+    }
+    if (scheme < 0 || !armed_) {
+        return false;
+    }
+    if (shown_once_ && now_ns - shown_ns_ < kRepeatNs) {
+        return false;
+    }
+    armed_ = false;
+    shown_once_ = true;
+    shown_ns_ = now_ns;
+    return true;
+}
+
 Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction) {
     if (!target.valid || !(zone_fraction > 0.0f)) {
         return {};

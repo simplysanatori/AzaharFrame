@@ -458,23 +458,22 @@ TEST_CASE("Laser Sight and Recoil: each switch turns its feature off", "[kiuguns
     on_screen.valid = true;
     on_screen.u = 0.5f;
     on_screen.v = 0.5f;
-    // Direct Aim, the reticle read: Laser Sight on draws the red laser, off hides the beam over
-    // the top screen; with or without the weapon.
+    // Direct Aim: Laser Sight on draws the red laser (kiufix: read reticle or not), off hides the
+    // beam over the top screen; with or without the weapon.
     for (const bool weapon : {false, true}) {
-        auto b = AimBeamFor(GyroAimMode::LightGun, true, weapon, true, on_screen);
+        auto b = AimBeamFor(GyroAimMode::LightGun, true, weapon, on_screen);
         CHECK(b.laser);
         CHECK_FALSE(b.hide_top);
-        b = AimBeamFor(GyroAimMode::LightGun, false, weapon, true, on_screen);
+        b = AimBeamFor(GyroAimMode::LightGun, false, weapon, on_screen);
         CHECK_FALSE(b.laser);
         CHECK(b.hide_top);
     }
-    // Not locked or off the screen: no laser, whatever the switch.
-    CHECK_FALSE(AimBeamFor(GyroAimMode::LightGun, true, true, false, on_screen).laser);
-    CHECK_FALSE(AimBeamFor(GyroAimMode::LightGun, true, true, true, LightGunTarget{}).laser);
+    // Off the screen: no laser, whatever the switch.
+    CHECK_FALSE(AimBeamFor(GyroAimMode::LightGun, true, true, LightGunTarget{}).laser);
     // Gyro Aim: no laser; the beam over the top screen hidden only with the weapon in hand.
-    CHECK_FALSE(AimBeamFor(GyroAimMode::Gyro, true, true, true, on_screen).laser);
-    CHECK_FALSE(AimBeamFor(GyroAimMode::Gyro, false, false, true, on_screen).hide_top);
-    CHECK(AimBeamFor(GyroAimMode::Gyro, false, true, true, on_screen).hide_top);
+    CHECK_FALSE(AimBeamFor(GyroAimMode::Gyro, true, true, on_screen).laser);
+    CHECK_FALSE(AimBeamFor(GyroAimMode::Gyro, false, false, on_screen).hide_top);
+    CHECK(AimBeamFor(GyroAimMode::Gyro, false, true, on_screen).hide_top);
     // Recoil off: no pulse at all, on the game's shots or timed.
     CHECK(RecoilActive(1, true));
     CHECK_FALSE(RecoilActive(1, false));

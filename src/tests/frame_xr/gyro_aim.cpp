@@ -12,6 +12,7 @@
 #include <catch2/generators/catch_generators.hpp>
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/gyro_aim.h"
+#include "frame_xr/input/motion.h"
 #include "frame_xr/kiu_scan.h"
 #include "frame_xr/vis/beam.h"
 
@@ -43,7 +44,10 @@ HandInput Aimed(float right, float up, float roll = 0.0f) {
 
 /// What the C-Stick & Gyro mod (v172) does with one HID gyroscope entry: z is the horizontal
 /// rate and x the vertical one, each after Azahar's s16 truncation, the 0.25 deg/s dead zone and
-/// the +-360 clamp (design.md facts 2 to 4). Positive moves the reticle right / down.
+/// the +-360 clamp (design.md facts 2 to 4). AzaharFrame kiufix: with a real 3DS's signs (made
+/// for the console): a turn to the right reads negative z and moves the reticle right; aiming
+/// down reads positive x and moves it down. (The first model had z the other way, the same
+/// mistake as the code, so the tests could not see it.)
 struct ModRead {
     float right = 0.0f;
     float down = 0.0f;
@@ -61,7 +65,7 @@ float ModAxis(float dps) {
     return std::clamp(v, -360.0f, 360.0f);
 }
 ModRead ModReads(const Vec3f& gyro) {
-    return {ModAxis(gyro.z), ModAxis(gyro.x)};
+    return {ModAxis(-gyro.z), ModAxis(gyro.x)};
 }
 
 } // namespace
@@ -91,6 +95,38 @@ TEST_CASE("FrameXr Gyro Aim: the mod's axes follow the hand", "[frame_xr][kiugyr
         const auto out = tracker.Update(Aimed(-0.5f, -0.5f, roll), kStepNs, 1.0f, false);
         REQUIRE(out.right_dps < -40.0f);
         REQUIRE(out.down_dps > 40.0f);
+    }
+}
+
+// AzaharFrame kiufix: the test that would have caught the swapped left and right. Gyro Aim's 3DS
+// gyroscope must be what Motion Controls sends for the same hand move (motion.h: a 3DS held like
+// the controller), the axes every other gyro game reads; only roll is left out.
+TEST_CASE("FrameXr Gyro Aim: the same axes and signs as Motion Controls", "[frame_xr][kiufix]") {
+    const float yaw0 = GENERATE(0.0f, 30.0f, -50.0f);
+    const float pitch0 = GENERATE(0.0f, 20.0f, -25.0f);
+    INFO("from " << yaw0 << " right, " << pitch0 << " up");
+    const float dt = static_cast<float>(kStepNs) * 1e-9f;
+    const auto both = [&](float right, float up) {
+        GyroAimTracker tracker;
+        tracker.Update(Aimed(yaw0, pitch0), 0, 1.0f, false);
+        const auto out = tracker.Update(Aimed(yaw0 + right, pitch0 + up), kStepNs, 1.0f, false);
+        const Vec3f aim = ModGyro(out.right_dps, out.down_dps);
+        const Vec3f motion = GyroFromOrientations(Aimed(yaw0, pitch0).aim.orientation,
+                                                  Aimed(yaw0 + right, pitch0 + up).aim.orientation,
+                                                  dt);
+        return std::pair{aim, motion};
+    };
+    SECTION("a turn to the right: negative 3DS z, as Motion Controls") {
+        const auto [aim, motion] = both(1.0f, 0.0f);
+        CHECK(aim.z < -50.0f);
+        CHECK(motion.z < -50.0f);
+        CHECK(aim.z == Approx(motion.z).epsilon(0.1));
+    }
+    SECTION("aiming up: negative 3DS x, as Motion Controls") {
+        const auto [aim, motion] = both(0.0f, 1.0f);
+        CHECK(aim.x < -50.0f);
+        CHECK(motion.x < -50.0f);
+        CHECK(aim.x == Approx(motion.x).epsilon(0.1));
     }
 }
 
@@ -470,6 +506,39 @@ TEST_CASE("FrameXr Light Gun: an inverted axis is learnt, not fought", "[frame_x
     CHECK(over <= 3.0f);
 }
 
+// AzaharFrame kiufix: a pointer swept left to right takes the reticle left to right from the
+// first frame (the sign is right to begin with, nothing to unlearn), in the air and on the ground.
+TEST_CASE("FrameXr Light Gun: a sweep to the right moves the reticle right from the start",
+          "[frame_xr][kiufix]") {
+    const bool ground = GENERATE(false, true);
+    const float fps = GENERATE(30.0f, 60.0f);
+    INFO("ground " << ground << " fps " << fps);
+    Session s;
+    s.game.ground = ground;
+    s.game.frame_s = 1.0f / fps;
+    s.game.delay_s = 0.5f / fps;
+    s.game.gain_x = 6.0f;
+    s.game.gain_y = 6.0f;
+    s.zone = 0.0f;
+    const float u0 = ground ? 0.36f : 0.15f, u1 = ground ? 0.64f : 0.85f;
+    float over = 0.0f;
+    REQUIRE(s.Step(u0, 0.5f, over, 4.0) > 0); // the pointer starts at the left
+    float last = s.game.seen_x;
+    float went_left = 0.0f;
+    for (int f = 0; f <= 60; f++) {
+        s.target = {true, u0 + (u1 - u0) * static_cast<float>(f) / 60.0f, 0.5f};
+        s.Run(1.0 / 60.0);
+        if (f > 0) {
+            went_left = std::max(went_left, last - s.game.seen_x);
+        }
+        last = s.game.seen_x;
+    }
+    s.Run(0.5);
+    CHECK(went_left <= 1.0f);
+    CHECK(s.game.seen_x == Approx(u1 * s.game.w).margin(2.0f));
+    CHECK(s.loop.gain_x() > 0.0f); // no sign learnt the other way
+}
+
 TEST_CASE("FrameXr Light Gun: the ground box and the Turn Zone", "[frame_xr][kiugyro]") {
     Session s;
     s.game.ground = true;
@@ -604,26 +673,49 @@ TEST_CASE("FrameXr Light Gun: the mod's addresses are found by their code", "[fr
 
 // ---- Light Gun's laser sight (vis/beam.h) --------------------------------------------------
 
-TEST_CASE("FrameXr Light Gun: the laser sight shows only while Light Gun has the reticle",
+TEST_CASE("FrameXr Light Gun: the laser sight shows with Direct Aim on the top screen",
           "[frame_xr][kiugyro]") {
     const LightGunTarget on{true, 0.4f, 0.6f};
-    SECTION("locked, on the top screen, in a game: red") {
-        CHECK(LaserSight(GyroAimMode::LightGun, true, true, on));
-        CHECK(LaserSight(GyroAimMode::LightGun, true, true, {true, 0.0f, 1.0f})); // its edge
-    }
-    SECTION("fallen back to Gyro (no reading): the usual beam") {
-        CHECK(!LaserSight(GyroAimMode::LightGun, true, false, on));
+    SECTION("on the top screen, in a game: red") {
+        CHECK(LaserSight(GyroAimMode::LightGun, true, on));
+        CHECK(LaserSight(GyroAimMode::LightGun, true, {true, 0.0f, 1.0f})); // its edge
     }
     SECTION("off the top screen, or pointing away: the usual beam") {
-        CHECK(!LaserSight(GyroAimMode::LightGun, true, true, {true, 1.05f, 0.5f}));
-        CHECK(!LaserSight(GyroAimMode::LightGun, true, true, {true, 0.5f, -0.1f}));
-        CHECK(!LaserSight(GyroAimMode::LightGun, true, true, {false, 0.5f, 0.5f}));
+        CHECK(!LaserSight(GyroAimMode::LightGun, true, {true, 1.05f, 0.5f}));
+        CHECK(!LaserSight(GyroAimMode::LightGun, true, {true, 0.5f, -0.1f}));
+        CHECK(!LaserSight(GyroAimMode::LightGun, true, {false, 0.5f, 0.5f}));
     }
     SECTION("menus, Gyro, Off: the usual beam") {
-        CHECK(!LaserSight(GyroAimMode::LightGun, false, true, on));
-        CHECK(!LaserSight(GyroAimMode::Gyro, true, true, on));
-        CHECK(!LaserSight(GyroAimMode::Off, true, true, on));
+        CHECK(!LaserSight(GyroAimMode::LightGun, false, on));
+        CHECK(!LaserSight(GyroAimMode::Gyro, true, on));
+        CHECK(!LaserSight(GyroAimMode::Off, true, on));
     }
+}
+
+// AzaharFrame kiufix: the owner's session: Direct Aim never read the reticle (the game's
+// controls were not on gyro) and Laser Sight, on, drew nothing at all.
+TEST_CASE("FrameXr Light Gun: Laser Sight does not wait for the reticle's reading",
+          "[frame_xr][kiufix]") {
+    const LightGunTarget on{true, 0.5f, 0.5f};
+    for (const bool weapon : {false, true}) {
+        const AimBeam b = AimBeamFor(GyroAimMode::LightGun, true, weapon, on);
+        CHECK(b.laser);
+        CHECK_FALSE(b.hide_top);
+    }
+}
+
+TEST_CASE("FrameXr Aiming: the hint when the game's controls are not on gyro",
+          "[frame_xr][kiufix]") {
+    AimSchemeHint hint;
+    const int64_t s = 1'000'000'000;
+    CHECK_FALSE(hint.Update(0, true, -1)); // not read yet
+    CHECK(hint.Update(1 * s, true, 0));    // C-Stick: once
+    CHECK_FALSE(hint.Update(2 * s, true, 0));
+    CHECK_FALSE(hint.Update(3 * s, false, 0)); // Aiming off: nothing, and armed again
+    CHECK_FALSE(hint.Update(4 * s, true, 0));  // but not within the repeat time
+    CHECK_FALSE(hint.Update(5 * s, true, 1));  // gyro: nothing
+    CHECK(hint.Update(5 * s + AimSchemeHint::kRepeatNs, true, 3)); // Circle Pad, later: again
+    CHECK_FALSE(hint.Update(6 * s + AimSchemeHint::kRepeatNs, true, 3));
 }
 
 TEST_CASE("FrameXr Light Gun: the laser sight's art", "[frame_xr][kiugyro]") {
