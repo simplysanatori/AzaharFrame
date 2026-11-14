@@ -241,8 +241,8 @@ enum class Id : int {
     RecoilRapid,       ///< a slider, 0 to 100 (percent), while Recoil is on
     WeaponSize,        ///< index: 0 Game Size, 1 Hand Size, while Weapon in Hand is on
     WeaponScale,       ///< a slider, 50 to 150 (percent), while Weapon in Hand is on
-    CalibrateAim,      ///< Direct Aim's Calibrate Aim: closes the menu and starts it
-    CalibrateAimReset, ///< its Reset (the game's calibration goes)
+    CalibrateAim,      ///< Direct Aim's Check Aim (kiuaim2; was Calibrate Aim): closes the menu, starts it
+    CalibrateAimReset, ///< its Reset (the game's Check Aim map goes)
     AimingDivider,     ///< the Controls tab's divider above Aiming (no action)
     // AzaharFrame kiufix: the Mods tab's Angel's Aim segment (angels_aim_tab.h)
     AngelsAimSettings, ///< Aiming Settings: the Controls tab at Aiming
@@ -359,8 +359,8 @@ struct MenuModel {
     int recoil_rapid = 50;      ///< percent (0 to 100)
     int weapon_size = 0;        ///< 0 Game Size, 1 Hand Size
     int weapon_scale = 100;     ///< percent (50 to 150)
-    bool aim_calibrated = false; ///< the running game has a Calibrate Aim of its own
-    bool aim_calibration_ok = false; ///< Calibrate Aim can start (Direct Aim in a game)
+    bool aim_calibrated = false; ///< the running game has a Check Aim map of its own
+    bool aim_calibration_ok = false; ///< Check Aim can start (Direct Aim, the reticle read)
     bool show_controllers = true;
     int controllers_in_front = 3; ///< AzaharFrame ctrlfront: 0 Off, 1 Primary, 2 Secondary, 3 Both
     int window_scale = 1; ///< 100, 150, 200 %

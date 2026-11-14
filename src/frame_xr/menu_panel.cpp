@@ -2172,7 +2172,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         SetSetting(t.id, model.muzzle_flash ? 0 : 1, host);
         break;
-    case Id::CalibrateAim: // AzaharFrame kiufix: the game on view, the steps as toasts
+    case Id::CalibrateAim: // AzaharFrame kiufix (kiuaim2: Check Aim): the game on view, its targets
         if (host.calibrate_aim && model.aim_calibration_ok) {
             host.calibrate_aim();
             ask(MenuCommand::Continue);

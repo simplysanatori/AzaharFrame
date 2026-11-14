@@ -925,7 +925,7 @@ int main(int argc, char** argv) {
     {
         // AzaharFrame kiumenus: Aiming lives on the Controls page now (it scrolls): Kid Icarus:
         // Uprising, Direct Aim with the C-Stick & Gyro mod. The page at the top, scrolled to
-        // Aiming, and to the end (Recoil's strengths, Weapon Size, Laser Sight, Calibrate Aim).
+        // Aiming, and to the end (Recoil's strengths, Weapon Size, Laser Sight, Check Aim).
         MenuModel go = pg;
         go.game_title = "Kid Icarus: Uprising";
         go.motion_controls = 1;

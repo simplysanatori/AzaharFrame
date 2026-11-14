@@ -31,6 +31,8 @@ constexpr AtlasRect kBeamRect{1240, 0, 128, 256}; // kBeamLevels x kBeamTexWidth
 // AzaharFrame kiugyro: Light Gun's laser sight under it: the red beam, then the red dot.
 constexpr AtlasRect kLaserBeamRect{1240, 256, 128, 256};
 constexpr AtlasRect kLaserDotRect{1240, 512, 32, 32}; // kLaserDotPixels
+// AzaharFrame kiuaim2: Check Aim's target, beside the dot.
+constexpr AtlasRect kAimTargetRect{1280, 512, 48, 48}; // kAimTargetPixels
 constexpr AtlasRect kStripRect{0, 900, 512, 80};
 constexpr int kAtlasWidth = 1368;
 constexpr int kAtlasHeight = 980;

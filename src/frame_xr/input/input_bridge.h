@@ -21,7 +21,10 @@ namespace FrameXr::Input {
 struct GyroAimFrame {
     GyroAimMode mode = GyroAimMode::Off;
     bool clutch = false;
-    AimCalibration calibration; ///< AzaharFrame kiufix: Light Gun's target through it
+    /// AzaharFrame kiuaim2: Direct Aim's target this frame, from the one ray it draws and aims
+    /// with (Input::AimRay), through the game's Check Aim map (controls.cpp).
+    LightGunTarget target;
+    bool checking = false; ///< AzaharFrame kiuaim2: Check Aim runs (no Turn Zone meanwhile)
 };
 
 class InputBridge {

@@ -570,8 +570,8 @@ std::string LabelFor(Id id) {
         return "Weapon Size";
     case Id::WeaponScale:
         return "Weapon Scale";
-    case Id::CalibrateAim:
-        return "Calibrate Aim";
+    case Id::CalibrateAim: // AzaharFrame kiuaim2: was Calibrate Aim
+        return "Check Aim";
     case Id::CalibrateAimReset:
         return "Reset";
     case Id::AngelsAimSettings:
@@ -842,7 +842,7 @@ std::string ExplainFor(Id id) {
     case Id::WeaponScale:
         return "Makes the weapon in your hand bigger or smaller.";
     case Id::CalibrateAim:
-        return "Point at the top screen's centre, then two corners, pressing the grip at each, so the reticle lands where you aim.";
+        return "Optional. Shows targets on the top screen one at a time: put the reticle on each and pull the trigger. In the air they reach its corners.";
     case Id::ShowControllers:
         return "Shows the controllers in VR.";
     case Id::ControllersInFront: // AzaharFrame ctrlfront
@@ -1868,7 +1868,7 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     // was); the rest goes under it.
     const float picture_h = (c.y1 - (kChoiceH + kSupportH + kChoiceH)) - 4.0f - list.y0;
     // Aiming's rows: Aiming and Gyro Sensitivity always; Recoil and Weapon in Hand (with their
-    // own rows; AzaharFrame kiuflash: Muzzle Flash among Weapon in Hand's) while it is on; Laser Sight, Turn Zone, Turn Speed and Calibrate Aim with Direct
+    // own rows; AzaharFrame kiuflash: Muzzle Flash among Weapon in Hand's) while it is on; Laser Sight, Turn Zone, Turn Speed and Check Aim with Direct
     // Aim (stored 2).
     std::vector<Id> aim_rows{Id::GyroAim, Id::GyroSensitivity};
     if (model.gyro_aim != 0) {

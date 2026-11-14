@@ -272,11 +272,13 @@ private:
     bool muzzle_flash_logged = false;
     bool recoil_real_logged = false;
     bool laser_logged = false; // AzaharFrame kiufix
-    // AzaharFrame kiufix: Calibrate Aim: the running game's (its own file), and the steps.
-    Input::AimCalibration aim_cal;
-    uint64_t aim_cal_title = 0;
-    Input::AimCalibrationFlow cal_flow;
-    int64_t cal_prompt_ns = 0;
+    // AzaharFrame kiuaim2: Check Aim: the running game's map (its own file), and the steps.
+    Input::AimMap aim_map;
+    uint64_t aim_map_title = 0;
+    Input::AimCheckFlow check_flow;
+    Input::GripClutch check_trigger; ///< the aiming controller's trigger, pressed with hysteresis
+    bool check_trigger_was = true;
+    bool check_prompt = false;
     int reticle_modes_logged = -1; ///< AzaharFrame fixes7: the reticle switches, as logged
     bool edge_stick_logged = false; ///< AzaharFrame kiu: C-Stick at Edge pushing (logged)
     int reticle_hand_shown = -1; ///< AzaharFrame polish: ReticleDrivingHand, last frame
