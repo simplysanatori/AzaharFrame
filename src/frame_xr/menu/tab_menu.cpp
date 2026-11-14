@@ -625,6 +625,16 @@ std::string LabelFor(Id id) {
         return "For Another Version";
     case Id::InstallCheatFile:
         return "Install from File";
+    case Id::Ctgp7Install: // AzaharFrame ctgp7
+        return "Install";
+    case Id::Ctgp7Launch:
+        return "Launch";
+    case Id::Ctgp7Cancel:
+        return "Cancel";
+    case Id::Ctgp7Website:
+        return "Official Website";
+    case Id::Ctgp7Uninstall:
+        return "Uninstall";
     default:
         return {};
     }

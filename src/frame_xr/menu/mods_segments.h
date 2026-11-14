@@ -88,6 +88,9 @@ struct ModOffer {
     /// AzaharFrame fixes7: a cancelled download's parts are kept: Install says Resume, and the line
     /// "12 of 300 MB Downloaded" (ResumeText); "" none
     std::string resume;
+    /// AzaharFrame ctgp7: the catalog's "requires": "ctgp7": Install asks "Requires CTGP-7" first
+    /// while CTGP-7 is not installed
+    bool requires_ctgp7 = false;
     bool operator==(const ModOffer&) const = default;
 };
 
@@ -127,6 +130,7 @@ enum class ModsDialogKind : uint8_t {
                  ///< (`mod`, "2,308") and Size (`other`, "About 4.7 GB"): Cancel, Optimize
     RemoveOriginal, ///< AzaharFrame ui3: kRemoveOriginalTitle, `mod` = RemoveOriginalBody: Cancel, Remove
     Notice, ///< AzaharFrame savestate: `mod` the title, `other` the body, `confirm` (and `cancel`)
+    RequiresCtgp7, ///< AzaharFrame ctgp7: kRequiresCtgp7Title, kRequiresCtgp7Body: Cancel, Open CTGP-7
 };
 
 struct ModsDialog {
@@ -141,6 +145,9 @@ struct ModsDialog {
     std::string title;
     std::string confirm, cancel; ///< AzaharFrame savestate: Notice's buttons (cancel "" none)
     std::string extra; ///< AzaharFrame memwarn: Notice's third button, before them ("" none)
+    /// AzaharFrame ctgp7: a checkbox under the supporting text with this label ("" none), off when
+    /// the dialog opens (MenuView::dialog_check; Id::DialogCheck)
+    std::string check;
     bool operator==(const ModsDialog&) const = default;
 };
 

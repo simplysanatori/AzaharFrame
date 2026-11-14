@@ -13,11 +13,15 @@ namespace FrameXr::Menu {
 void TabMenu::DrawMods(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& pane) {
     constexpr float kPad = 24.0f, kSegH = 48.0f, kGap = 12.0f;
     const Rect c{pane.x0 + kPad, pane.y0 + kPad, pane.x1 - kPad, pane.y1 - kPad};
-    const auto& opts = OptionsFor(Id::ModsSegment);
+    // AzaharFrame ctgp7: CTGP-7 as a fourth segment while Mario Kart 7 is open
+    const bool ctgp7 = model.mods.ctgp7.shown;
+    const std::vector<std::string> opts = ModsSegmentLabels(ctgp7);
     const Rect seg{c.x0, c.y0, c.x0 + kit.SegmentedWidth(opts), c.y0 + kSegH};
     const int hover = view.hover.id == Id::ModsSegment ? view.hover.index : -1;
     const int pressed = view.pressed.id == Id::ModsSegment ? view.pressed.index : -1;
-    const int selected = static_cast<int>(view.mods_segment);
+    const ModsSegment segment =
+        view.mods_segment == ModsSegment::Ctgp7 && !ctgp7 ? ModsSegment::Cheats : view.mods_segment;
+    const int selected = static_cast<int>(segment);
     kit.Segmented(seg, opts, selected, hover, pressed);
     const auto e = kit.SegmentEdges(seg, opts);
     for (int i = 0; i < static_cast<int>(opts.size()); i++) {
@@ -26,7 +30,7 @@ void TabMenu::DrawMods(Kit& kit, const MenuModel& model, const MenuView& view, c
     }
     // The segment's area: the pane's width (its own padding), under the segmented button.
     const Rect area{pane.x0, seg.y1 + kGap, pane.x1, pane.y1};
-    switch (view.mods_segment) {
+    switch (segment) {
     case ModsSegment::Cheats:
         DrawCheats(kit, model, view, area);
         break;
@@ -35,6 +39,9 @@ void TabMenu::DrawMods(Kit& kit, const MenuModel& model, const MenuView& view, c
         break;
     case ModsSegment::Textures:
         DrawTextures(kit, model, view, area);
+        break;
+    case ModsSegment::Ctgp7: // AzaharFrame ctgp7
+        DrawCtgp7(kit, model, view, area);
         break;
     }
 }

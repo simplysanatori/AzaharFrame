@@ -502,6 +502,9 @@ ModsDialog DialogFor(const ModsDialog& dialog, const MenuView& view, const MenuM
     if (dialog.kind != ModsDialogKind::None) {
         return dialog;
     }
+    if (view.requires_ctgp7) { // AzaharFrame ctgp7: the menu's own question
+        return {ModsDialogKind::RequiresCtgp7};
+    }
     if (const ModsDialog c = CompatConfirmDialog(model, view); c.kind != ModsDialogKind::None) {
         return c;
     }
@@ -1075,6 +1078,10 @@ float TabMenu::DrawOptimizeRow(Kit& kit, const PackOptimize& o, const MenuView& 
     return yy + 8.0f;
 }
 
+namespace {
+void Checkbox(Kit& kit, float cx, float cy, int value, bool enabled); // below
+} // namespace
+
 void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view) {
     if (d.kind == ModsDialogKind::None) {
         return;
@@ -1145,6 +1152,11 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         body = d.other;
         confirm = d.confirm;
         break;
+    case ModsDialogKind::RequiresCtgp7: // AzaharFrame ctgp7
+        headline = kRequiresCtgp7Title;
+        body = kRequiresCtgp7Body;
+        confirm = kRequiresCtgp7Open;
+        break;
     case ModsDialogKind::None:
         break;
     }
@@ -1171,9 +1183,12 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
     const float numbers_h = numbers ? 16.0f + 1.0f + kRowH * static_cast<float>(d.rows.size()) +
                                           1.0f + (d.status != 0 ? 8.0f + kRowH : 0.0f)
                                     : 0.0f;
+    // AzaharFrame ctgp7: a checkbox row under the supporting text (Material's list item with a
+    // leading checkbox, 48 dp)
+    const float check_h = d.check.empty() ? 0.0f : 8.0f + 48.0f;
     const float h = kP + head_lh * static_cast<float>(head_lines.size()) + 16.0f +
-                    body_lh * static_cast<float>(body_lines.size()) + numbers_h + rows_h + 24.0f +
-                    kButtonH + kP;
+                    body_lh * static_cast<float>(body_lines.size()) + numbers_h + rows_h + check_h +
+                    24.0f + kButtonH + kP;
     const Rect box{(kPanelW - kW) * 0.5f, (kPanelH - h) * 0.5f, (kPanelW + kW) * 0.5f,
                    (kPanelH + h) * 0.5f};
     kit.Fill(box, 28.0f, Tok::kSurfaceContainerHigh);
@@ -1188,6 +1203,16 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         kit.TextSized(box.x0 + kP, y + body_lh * 0.5f + kit.CapHeightSized(kBody, false) * 0.5f,
                       kBody, false, Tok::kOnSurfaceVariant, l);
         y += body_lh;
+    }
+    if (!d.check.empty()) { // AzaharFrame ctgp7
+        y += 8.0f;
+        const Rect row{box.x0 + kP - 12.0f, y, box.x1 - kP, y + 48.0f};
+        kit.StateLayer(row, 24.0f, Tok::kOnSurface, StateOf(view, {Id::DialogCheck}));
+        Checkbox(kit, box.x0 + kP + 9.0f, row.Cy(), view.dialog_check ? 2 : 0, true);
+        kit.TextSized(box.x0 + kP + 34.0f, row.Cy() + kit.CapHeightSized(kBody, false) * 0.5f, kBody,
+                      false, Tok::kOnSurface, d.check);
+        AddHit(row, {Id::DialogCheck}, panel);
+        y += 48.0f;
     }
     if (numbers) { // AzaharFrame memguard: the list (label left, value right), the status row
         const auto divider = [&](float at) {

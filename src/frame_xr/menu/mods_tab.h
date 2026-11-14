@@ -11,18 +11,21 @@
 #include <cstdint>
 
 #include "frame_xr/menu/cheats_tab.h"
+#include "frame_xr/menu/ctgp7_tab.h" // AzaharFrame ctgp7
 #include "frame_xr/menu/mods_segments.h"
 
 namespace FrameXr::Menu {
 
 // AzaharFrame emerald added Homebrew here; ui3 made it a tab of its own (Tab::Homebrew)
-enum class ModsSegment : uint8_t { Cheats, Mods, Textures };
+// AzaharFrame ctgp7: CTGP-7, shown only while Mario Kart 7 is open (ctgp7_tab.h)
+enum class ModsSegment : uint8_t { Cheats, Mods, Textures, Ctgp7 };
 
 struct ModsTabModel {
     CheatsModel cheats;
     ModsListModel mods;
     TexturesModel textures;
     ZipModel zip; ///< AzaharFrame zipinstall: Install from Zip
+    Ctgp7Model ctgp7; ///< AzaharFrame ctgp7
     bool operator==(const ModsTabModel&) const = default;
 };
 
