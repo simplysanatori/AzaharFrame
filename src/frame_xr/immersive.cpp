@@ -2209,7 +2209,7 @@ void OnGameInput(Input::InputFrame& in) {
                       saved.distance, saved.size,
                       Settings::values.vr_immersive_follow_screen.GetValue()))
                 : WorldScaleSetting();
-        const float after = L::ClampWorldScale(before * world_ratio);
+        const float after = L::WorldScaleAfterGrip(before, world_ratio); // exact, not a stop
         if (after != before) {
             auto& ws = Settings::values.vr_immersive_world_scale;
             if (g.title_id) {
@@ -2218,7 +2218,7 @@ void OnGameInput(Input::InputFrame& in) {
             ws.SetValue(after);
             g.world_migration = 1; // the player's own value from now on
         }
-        const long shown = std::lround(after);
+        const long shown = L::WorldScaleWhole(after);
         if (shown != g.world_toasted) {
             g.world_toasted = shown;
             ShowToastText(L::WorldScaleToast(after));

@@ -73,9 +73,18 @@ inline int WorldScaleStop(float percent) {
     }
     return best;
 }
+/// The grip's World Scale after a ratio of the stick's push: exact, only clamped (never snapped to
+/// a slider stop; the menu's slider shows the nearest stop, the value stays as it is).
+inline float WorldScaleAfterGrip(float before, float ratio) {
+    return ClampWorldScale(ClampWorldScale(before) * ratio);
+}
+/// The whole percent the toast shows for `percent` (what WorldScaleText prints).
+inline long WorldScaleWhole(float percent) {
+    return std::lround(ClampWorldScale(percent));
+}
 /// "45%", "100%" (as rounded).
 inline std::string WorldScaleText(float percent) {
-    return std::to_string(std::lround(ClampWorldScale(percent))) + "%";
+    return std::to_string(WorldScaleWhole(percent)) + "%";
 }
 /// "World Scale: 45%", "World Scale: 100%" (the grip's toast and the menu's).
 inline std::string WorldScaleToast(float percent) {
