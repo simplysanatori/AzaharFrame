@@ -35,12 +35,10 @@
 #include <string>
 #include <vector>
 #include "common/common_types.h"
+#include "core/frame_cgfx.h" // AzaharFrame kiuweap2: the poses (SkeletalPose, Mat34)
 
 namespace FileSys {
 class RomFSReader;
-}
-namespace FrameCgfx {
-struct UvAnim;
 }
 
 namespace FrameWeapons {
@@ -210,6 +208,25 @@ struct BulletInfo {
     std::vector<FlashPart> parts; ///< file, texture, hash, components, pack PNG (as the flashes')
 };
 
+/// AzaharFrame kiuweap2: how Pit holds the weapon, from the game's own animations of his class
+/// (player/g<class>.zrc, character/mdl.arc!mdl/00.bcres): in a pose, the primary anchor's space
+/// in the holding hand's (`to_hand`, row major 3x4) and the fist's centre in that hand's space
+/// (the grip bone's origin for a weapon with one, else the fist marker of Pit's hand; game
+/// units).
+struct HoldPose {
+    FrameCgfx::Mat34 to_hand{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+    std::array<float, 3> fist{};
+};
+struct HoldInfo {
+    bool known = false; ///< made by a build that makes it (else the weapon is made again once)
+    bool valid = false; ///< read from the game's files (else the class's own fit is used)
+    /// The holding hand: RHandN; a bow's LHandN (Pit holds it in his left hand); a cannon's
+    /// RArmN (it has no right hand: the forearm is the cannon).
+    std::string hand;
+    HoldPose idle; ///< his idle (ChrPit00Wait<Class>), its first frame
+    HoldPose shot; ///< his aiming pose (ChrPit00ShotWait<Class>; clubs have none: the idle)
+};
+
 struct Weapon {
     int id = -1;
     int cls = -1;
@@ -228,6 +245,7 @@ struct Weapon {
     std::vector<Part> parts;
     FlashInfo flash; ///< AzaharFrame kiuflash
     BulletInfo bullets; ///< AzaharFrame kiuflash
+    HoldInfo hold;      ///< AzaharFrame kiuweap2
 };
 
 struct Manifest {
@@ -254,6 +272,24 @@ TexturePack ReadTexturePack(u64 title_id);
 /// What the pack holds for these hashes (the files' names, sizes and times; 0 for nothing).
 u64 PackKey(const TexturePack* pack, const std::vector<u64>& hashes);
 
+/// AzaharFrame kiuweap2: Pit's idle and aiming poses of a class (skeletal animations of
+/// player/g<class>.zrc), read once per class.
+struct ClassPoses {
+    FrameCgfx::SkeletalPose idle, shot;
+};
+/// The file: "g<class>.zrc".
+std::string PoseZrcName(int cls);
+/// The animations' names: "ChrPit00Wait<Name>", "ChrPit00ShotWait<Name>" (Name: the game's
+/// class name, Rifle, Snipe, Nail, Bow, Palm, Pillar, Launch, Bit, Arm).
+std::string IdleAnimation(int cls);
+std::string ShotAnimation(int cls);
+/// Reads both (an aiming pose that is missing is the idle). False with the reason.
+bool ReadClassPoses(std::span<const u8> pose_zrc, int cls, ClassPoses& out, std::string& error);
+/// A weapon's hold (HoldInfo) from its skeleton (`m`: the weapon's fmdl model, Pit and the
+/// weapon; `anchor`: its primary anchor bone) posed by the class's poses. Not valid when the
+/// skeleton lacks the bones.
+HoldInfo MakeHold(const FrameCgfx::Model& m, int cls, s32 anchor, const ClassPoses& poses);
+
 /// One weapon's .zrc made into its files (in memory). Pure but for the pack's files: tested.
 struct Converted {
     Weapon info;
@@ -261,9 +297,12 @@ struct Converted {
 };
 /// `class_anims` (AzaharFrame kiumodels): the material animations of the class's Pit file
 /// (ReadClassUvAnims), for the parts' UvMotion; none: glow cards flow.
+/// `poses` (AzaharFrame kiuweap2): the class's Pit poses (ReadClassPoses), for the hold; none:
+/// the hold is not valid (the class's own fit).
 bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string& error,
                    const TexturePack* pack = nullptr,
-                   const std::vector<FrameCgfx::UvAnim>* class_anims = nullptr);
+                   const std::vector<FrameCgfx::UvAnim>* class_anims = nullptr,
+                   const ClassPoses* poses = nullptr);
 
 /// AzaharFrame kiumodels: the class's Pit file (player/a<class>.zrc: LZ11, darc,
 /// character/mdl.arc!mdl/00.bcres) read for its texture coordinator animations (the weapons'
@@ -272,6 +311,7 @@ bool ReadClassUvAnims(std::span<const u8> class_zrc, std::vector<FrameCgfx::UvAn
                       std::string& error);
 /// The class's Pit file name: "a<class>.zrc".
 std::string ClassZrcName(int cls);
+
 /// A part's UvMotion from the animations (the coordinator `coord` of `material`; a scale on it
 /// turns the slide: the game samples at scale * (uv - translate)). None when nothing targets it.
 UvMotion GameUvMotion(const std::vector<FrameCgfx::UvAnim>& anims, const std::string& material,

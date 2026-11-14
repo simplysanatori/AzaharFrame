@@ -305,6 +305,13 @@ Bytes Cgfx(const std::vector<std::tuple<std::string, s32, std::array<float, 3>>>
         f.Rel(bo, f.Str(name));
         f.W32(bo + 8, static_cast<u32>(i));
         f.W32(bo + 0xC, static_cast<u32>(parent));
+        // AzaharFrame kiuweap2: its own transform: scale 1, no turn, its offset from its parent.
+        for (std::size_t k = 0; k < 3; k++) {
+            const float from = parent >= 0 ? std::get<2>(bones[static_cast<std::size_t>(parent)])[k]
+                                           : 0.0f;
+            f.F(bo + 0x20 + 4 * k, 1.0f);
+            f.F(bo + 0x38 + 4 * k, t[k] - from);
+        }
         // The inverse bind matrix: a translation by -t (bones are translations here).
         const float inv[12] = {1, 0, 0, -t[0], 0, 1, 0, -t[1], 0, 0, 1, -t[2]};
         for (int k = 0; k < 12; k++) {
@@ -807,6 +814,116 @@ Bytes AnimCgfx(const std::vector<AnimSpec>& anims, u32 revision = 0x07000000u) {
     f.W32(0x1C + 80, static_cast<u32>(entries.size())); // the 11th dictionary
     f.Rel(0x1C + 84, f.Dict(entries));
     return f.b;
+}
+
+// ---- AzaharFrame kiuweap2: Pit's poses (skeletal animations) ----
+
+/// One bone's Transform element: slots 0-9 (scale xyz, rotation xyz, w, translation xyz), each
+/// a constant, a curve (its keys) or absent (not given).
+struct PoseBone {
+    std::string bone;
+    std::map<int, float> constants;
+    std::map<int, std::vector<std::pair<float, float>>> curves;
+};
+struct PoseAnim {
+    std::string name;
+    std::vector<PoseBone> bones;
+};
+
+/// A CGFX file of skeletal animations (the 10th dictionary), as the game's Pit files have them.
+Bytes PoseCgfx(const std::vector<PoseAnim>& anims) {
+    Buf f;
+    f.Alloc(0x14 + 8 + 16 * 8);
+    f.Magic(0, "CGFX");
+    f.W16(4, 0xFEFF);
+    f.W16(6, 0x14);
+    f.Magic(0x14, "DATA");
+    std::vector<std::pair<std::string, std::size_t>> entries;
+    for (const PoseAnim& a : anims) {
+        const std::size_t ao = f.Alloc(0x28);
+        f.Magic(ao, "CANM");
+        f.W32(ao + 4, 0x07000000u);
+        f.Rel(ao + 8, f.Str(a.name));
+        f.Rel(ao + 0xC, f.Str("SkeletalAnimation"));
+        f.W32(ao + 0x10, 1);
+        f.F(ao + 0x14, 60.0f);
+        std::vector<std::pair<std::string, std::size_t>> elems;
+        for (const PoseBone& b : a.bones) {
+            const std::size_t eo = f.Alloc(12 + 4 * 10);
+            u32 flags = 0;
+            f.Rel(eo + 4, f.Str(b.bone));
+            f.W32(eo + 8, 5); // Transform
+            for (int slot = 0; slot < 10; slot++) {
+                const std::size_t word = eo + 12 + 4 * static_cast<std::size_t>(slot);
+                if (const auto c = b.constants.find(slot); c != b.constants.end()) {
+                    flags |= 1u << (6 + slot);
+                    f.F(word, c->second);
+                } else if (const auto k = b.curves.find(slot); k != b.curves.end()) {
+                    const auto& keys = k->second;
+                    const std::size_t cv = f.Alloc(20 + 8 * keys.size());
+                    f.F(cv, keys.front().first);
+                    f.F(cv + 4, keys.back().first);
+                    f.W32(cv + 8, 6u << 5 | 4u);
+                    f.W32(cv + 12, static_cast<u32>(keys.size()));
+                    f.F(cv + 16, 1.0f / std::max(keys.back().first, 1.0f));
+                    for (std::size_t i = 0; i < keys.size(); i++) {
+                        f.F(cv + 20 + 8 * i, keys[i].first);
+                        f.F(cv + 24 + 8 * i, keys[i].second);
+                    }
+                    const std::size_t g = f.Alloc(24);
+                    f.F(g + 4, keys.back().first);
+                    f.W32(g + 12, 4);
+                    f.W32(g + 16, 1);
+                    f.Rel(g + 20, cv);
+                    f.Rel(word, g);
+                } else {
+                    flags |= 1u << (16 + slot);
+                }
+            }
+            f.W32(eo, flags);
+            elems.emplace_back(b.bone, eo);
+        }
+        if (!elems.empty()) {
+            f.W32(ao + 0x18, static_cast<u32>(elems.size()));
+            f.Rel(ao + 0x1C, f.Dict(elems));
+        }
+        entries.emplace_back(a.name, ao);
+    }
+    f.W32(0x1C + 72, static_cast<u32>(entries.size())); // the 10th dictionary
+    f.Rel(0x1C + 76, f.Dict(entries));
+    return f.b;
+}
+
+constexpr float kPi = 3.14159265f;
+
+/// A blade (weapon 0's class) gripped by GripN (on Pit's right hand, 0.076 above it), as the
+/// game's: the blade's mesh on GripN, its muzzle on it.
+Bytes BladeZrc() {
+    const Tri wpn{{{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}}, {0, 0, 1}};
+    const Bytes bcres = Cgfx({{"TopN", -1, {0, 0, 0}},
+                              {"RHandN", 0, {-5, 12, 0}},
+                              {"GripN", 1, {-5, 12.076f, 0}},
+                              {"LHandN", 0, {5, 12, 0}},
+                              {"LHandFistM", 3, {5.899f, 12.076f, 0}}},
+                             {{"Wpn", "Tex"}}, {{"Wpn", {2}, 1, wpn, -1}});
+    const Bytes fmdl = Darc({{"fmdl/00.bcres", bcres}});
+    const Bytes js =
+        Darc({{"json/00.json", WeaponJson("WPNID_WPN_RIFLE_00", "GripN", {-4.55f, 0.1f, -9.89f})}});
+    return Lz11Store(Darc({{"character/fmdl.arc", Lz11Store(fmdl)}, {"character/json.arc", js}}));
+}
+
+/// The blades' Pit poses (player/g0.zrc): his idle turns the grip half a turn about x (and a
+/// little about y) and moves it, his aiming pose turns it a little about x (a curve) and keeps its
+/// place; both turn his hand too (the hold is in the hand's space: no change).
+Bytes BladePoses() {
+    const PoseBone hand{"RHandN", {{3, 0.3f}, {5, -0.2f}}, {}};
+    const PoseBone idle{"GripN", {{0, 1.0f}, {1, 1.0f}, {2, 1.0f}, {3, kPi}, {4, 0.117f}, {5, 0.0f},
+                                  {7, -0.898f}, {8, -0.076f}, {9, 0.0f}}, {}};
+    const PoseBone shot{"GripN", {}, {{3, {{0.0f, 0.5f}, {30.0f, 0.9f}}}}};
+    const Bytes bcres = PoseCgfx({{"ChrPit00WaitRifle", {hand, idle}},
+                                  {"ChrPit00ShotWaitRifle", {hand, shot}},
+                                  {"ChrPit00WaitSnipe", {}}});
+    return Lz11Store(Darc({{"character/mdl.arc", Lz11Store(Darc({{"mdl/00.bcres", bcres}}))}}));
 }
 
 /// A class Pit file (player/a<class>.zrc) around an animation file.
@@ -1587,6 +1704,15 @@ TEST_CASE("Muzzle Flash: every weapon of a game's files", "[.kiuflash_real]") {
         files.emplace_back(name, Bytes((std::istreambuf_iterator<char>(f)),
                                        std::istreambuf_iterator<char>()));
     }
+    // AzaharFrame kiuweap2: the class files too when they are there (Pit's poses: the hold).
+    for (int cls = 0; cls < FrameWeapons::kClasses; cls++) {
+        const std::string name = FrameWeapons::PoseZrcName(cls);
+        std::ifstream f(std::string{zrc_dir} + "/" + name, std::ios::binary);
+        if (f) {
+            files.emplace_back(name, Bytes((std::istreambuf_iterator<char>(f)),
+                                           std::istreambuf_iterator<char>()));
+        }
+    }
     auto rom = std::make_shared<MemoryRomFS>(RomFS("eu", files));
     FrameWeapons::TexturePack pack;
     const std::string before = FileUtil::GetUserPath(FileUtil::UserPath::LoadDir);
@@ -2070,4 +2196,219 @@ TEST_CASE("Weapon models: every weapon of a game's files, the glows' motion", "[
             }
         }
     }
+}
+
+// ---- AzaharFrame kiuweap2: how Pit holds the weapon ----
+
+namespace {
+std::array<float, 3> At(const FrameCgfx::Mat34& m, const std::array<float, 3>& p) {
+    std::array<float, 3> r{};
+    for (std::size_t i = 0; i < 3; i++) {
+        r[i] = m[i * 4] * p[0] + m[i * 4 + 1] * p[1] + m[i * 4 + 2] * p[2] + m[i * 4 + 3];
+    }
+    return r;
+}
+void CheckMat(const FrameCgfx::Mat34& a, const FrameCgfx::Mat34& b) {
+    for (std::size_t i = 0; i < 12; i++) {
+        INFO("element " << i);
+        CHECK(a[i] == Approx(b[i]).margin(1e-4));
+    }
+}
+FrameCgfx::Bone MakeBone(const std::string& name, s32 index, s32 parent,
+                         const std::array<float, 3>& at) {
+    FrameCgfx::Bone b;
+    b.name = name;
+    b.index = index;
+    b.parent = parent;
+    b.bind = {1, 0, 0, at[0], 0, 1, 0, at[1], 0, 0, 1, at[2]};
+    return b;
+}
+} // namespace
+
+TEST_CASE("CGFX: a bone's transform, a pose of the skeleton", "[kiuweap2]") {
+    // Rz * Ry * Rx * S, then the translation.
+    const auto id = FrameCgfx::LocalTransform({1, 1, 1}, {0, 0, 0}, {1, 2, 3});
+    CheckMat(id, {1, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 3});
+    const auto rx = FrameCgfx::LocalTransform({1, 1, 1}, {kPi / 2, 0, 0}, {0, 0, 0});
+    const auto y = At(rx, {0, 1, 0});
+    CHECK(y[2] == Approx(1.0f).margin(1e-5)); // about x: y to z
+    const auto xz = FrameCgfx::LocalTransform({2, 1, 1}, {kPi / 2, 0, kPi / 2}, {0, 0, 0});
+    const auto x = At(xz, {1, 0, 0}); // scaled, then x's turn (none), then about z: x to y
+    CHECK(x[0] == Approx(0.0f).margin(1e-5));
+    CHECK(x[1] == Approx(2.0f));
+    const auto zz = At(xz, {0, 0, 1}); // about x: z to -y, then about z: -y to x
+    CHECK(zz[0] == Approx(1.0f).margin(1e-5));
+    // A pose: a bone it holds takes its keys (the rest of its parts its own), one it does not
+    // keeps its bind place against its parent.
+    FrameCgfx::Model m;
+    m.bones = {MakeBone("TopN", 0, -1, {0, 0, 0}), MakeBone("ArmN", 1, 0, {0, 10, 0}),
+               MakeBone("HandN", 2, 1, {3, 10, 0})};
+    m.bones[1].translation = {0, 10, 0};
+    m.bones[2].translation = {3, 0, 0};
+    FrameCgfx::SkeletalPose pose;
+    FrameCgfx::BoneKey arm;
+    arm.bone = "ArmN";
+    arm.srt[5] = kPi / 2; // turned a quarter about z; its place (absent) its own
+    pose.bones.push_back(arm);
+    REQUIRE(pose.Find("ArmN"));
+    CHECK_FALSE(pose.Find("HandN"));
+    const auto world = FrameCgfx::PoseBones(m, pose);
+    REQUIRE(world.size() == 3);
+    const auto hand = At(world[2], {0, 0, 0});
+    CHECK(hand[0] == Approx(0.0f).margin(1e-5));
+    CHECK(hand[1] == Approx(13.0f)); // the hand, 3 along the arm's x, now up
+    // A loop in a bad file: an answer, never a hang.
+    m.bones[0].parent = 2;
+    CHECK(FrameCgfx::PoseBones(m, pose).size() == 3);
+}
+
+TEST_CASE("CGFX: Pit's poses read from a skeletal animation", "[kiuweap2]") {
+    Bytes bcres;
+    std::string error;
+    REQUIRE(FrameCgfx::DarcMember(BladePoses(), "character/mdl.arc!mdl/00.bcres", bcres, error));
+    FrameCgfx::SkeletalPose p;
+    const bool read = FrameCgfx::ReadSkeletalPose(bcres, "ChrPit00WaitRifle", p, error);
+    INFO(error);
+    REQUIRE(read);
+    CHECK(p.animation == "ChrPit00WaitRifle");
+    CHECK(p.frames == 60.0f);
+    const auto* g = p.Find("GripN");
+    REQUIRE(g);
+    CHECK(*g->srt[3] == Approx(kPi));
+    CHECK(*g->srt[6] == Approx(-0.898f)); // translation x (the slot after w)
+    CHECK(*g->srt[7] == Approx(-0.076f));
+    const auto* h = p.Find("RHandN");
+    REQUIRE(h);
+    CHECK_FALSE(h->srt[0]); // absent: the bone's own
+    CHECK(*h->srt[3] == Approx(0.3f));
+    // A curve: its first key.
+    REQUIRE(FrameCgfx::ReadSkeletalPose(bcres, "ChrPit00ShotWaitRifle", p, error));
+    REQUIRE(p.Find("GripN"));
+    CHECK(*p.Find("GripN")->srt[3] == Approx(0.5f));
+    CHECK_FALSE(p.Find("GripN")->srt[6]);
+    // No such animation; not a CGFX file; every cut: an error, never a crash.
+    CHECK_FALSE(FrameCgfx::ReadSkeletalPose(bcres, "ChrPit00WaitBow", p, error));
+    CHECK_FALSE(FrameCgfx::ReadSkeletalPose(Bytes(8, 0), "ChrPit00WaitRifle", p, error));
+    for (std::size_t n = 0; n + 4 < bcres.size(); n += 5) {
+        Bytes cut(bcres.begin(), bcres.begin() + static_cast<std::ptrdiff_t>(n));
+        FrameCgfx::ReadSkeletalPose(cut, "ChrPit00ShotWaitRifle", p, error);
+    }
+    // A class's both (an aiming pose that is missing is the idle).
+    CHECK(FrameWeapons::PoseZrcName(6) == "g6.zrc");
+    CHECK(FrameWeapons::IdleAnimation(1) == "ChrPit00WaitSnipe");
+    CHECK(FrameWeapons::ShotAnimation(8) == "ChrPit00ShotWaitArm");
+    FrameWeapons::ClassPoses cp;
+    REQUIRE(FrameWeapons::ReadClassPoses(BladePoses(), 1, cp, error));
+    CHECK(cp.shot.animation == "ChrPit00WaitSnipe");
+    CHECK_FALSE(FrameWeapons::ReadClassPoses(BladePoses(), 3, cp, error));
+}
+
+TEST_CASE("Weapon models: the hold from Pit's poses, by class", "[kiuweap2]") {
+    // A blade: its grip bone in the right hand, as his idle and his aiming pose put it.
+    Bytes bcres;
+    std::string error;
+    REQUIRE(FrameCgfx::DarcMember(BladeZrc(), "character/fmdl.arc!fmdl/00.bcres", bcres, error));
+    FrameCgfx::File file;
+    REQUIRE(FrameCgfx::ReadCgfx(bcres, file, error));
+    const auto& m = file.models[0];
+    CHECK(m.bones[2].translation[1] == Approx(0.076f)); // the bone's own, read
+    FrameWeapons::ClassPoses poses;
+    REQUIRE(FrameWeapons::ReadClassPoses(BladePoses(), 0, poses, error));
+    const auto h = FrameWeapons::MakeHold(m, FrameWeapons::kBlade, m.BoneIndex("GripN"), poses);
+    CHECK(h.known);
+    REQUIRE(h.valid);
+    CHECK(h.hand == "RHandN");
+    CheckMat(h.idle.to_hand, FrameCgfx::LocalTransform({1, 1, 1}, {kPi, 0.117f, 0},
+                                                       {-0.898f, -0.076f, 0}));
+    CHECK(h.idle.fist[0] == Approx(-0.898f)); // the grip bone's origin
+    CHECK(h.idle.fist[1] == Approx(-0.076f));
+    CheckMat(h.shot.to_hand, FrameCgfx::LocalTransform({1, 1, 1}, {0.5f, 0, 0}, {0, 0.076f, 0}));
+    // Without a grip bone (claws, as the bind pose has them): the hand itself, the fist the left
+    // fist marker mirrored to the right.
+    const auto c = FrameWeapons::MakeHold(m, FrameWeapons::kClaws, m.BoneIndex("RHandN"), poses);
+    REQUIRE(c.valid);
+    CheckMat(c.idle.to_hand, FrameCgfx::Identity34());
+    CHECK(c.idle.fist[0] == Approx(-0.899f));
+    CHECK(c.idle.fist[1] == Approx(0.076f));
+    // A bow: in Pit's left hand, the marker as it is.
+    const auto b = FrameWeapons::MakeHold(m, FrameWeapons::kBow, m.BoneIndex("LHandN"), poses);
+    REQUIRE(b.valid);
+    CHECK(b.hand == "LHandN");
+    CHECK(b.idle.fist[0] == Approx(0.899f));
+    // A cannon: no right hand, the forearm holds it; the fist where the hand would be (the left
+    // arm's, mirrored).
+    FrameCgfx::Model cannon;
+    cannon.bones = {MakeBone("TopN", 0, -1, {0, 0, 0}), MakeBone("RArmN", 1, 0, {-3, 12, 0}),
+                    MakeBone("LArmN", 2, 0, {3, 12, 0}), MakeBone("LHandN", 3, 2, {5.177f, 12, 0}),
+                    MakeBone("LHandFistM", 4, 3, {6.076f, 12.076f, 0})};
+    const auto k = FrameWeapons::MakeHold(cannon, FrameWeapons::kCannon, 1, {});
+    REQUIRE(k.valid);
+    CHECK(k.hand == "RArmN");
+    CHECK(k.idle.fist[0] == Approx(-3.076f));
+    CHECK(k.idle.fist[1] == Approx(0.076f));
+    // No hand: not valid (the class's own fit), though known.
+    FrameCgfx::Model bare;
+    bare.bones = {MakeBone("TopN", 0, -1, {0, 0, 0})};
+    const auto none = FrameWeapons::MakeHold(bare, FrameWeapons::kBlade, 0, poses);
+    CHECK(none.known);
+    CHECK_FALSE(none.valid);
+}
+
+TEST_CASE("Weapon models: the hold in the cache, made again once", "[kiuweap2]") {
+    const std::string dir = TestDir("frame_weapon_hold_cache");
+    constexpr u64 kTitle = 0x0004000000030300ull;
+    auto rom = std::make_shared<MemoryRomFS>(
+        RomFS("us", {{"m000.zrc", BladeZrc()}, {"g0.zrc", BladePoses()}, {"m200.zrc", ClawZrc()}}));
+    FrameWeapons::RunResult r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.made == 2);
+    FrameWeapons::Manifest m;
+    std::string error;
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    REQUIRE(m.Find(0));
+    REQUIRE(m.Find(24));
+    const auto& h = m.Find(0)->hold;
+    CHECK(h.known);
+    REQUIRE(h.valid);
+    CHECK(h.hand == "RHandN");
+    CheckMat(h.idle.to_hand, FrameCgfx::LocalTransform({1, 1, 1}, {kPi, 0.117f, 0},
+                                                       {-0.898f, -0.076f, 0}));
+    CHECK(h.idle.fist[0] == Approx(-0.898f));
+    CheckMat(h.shot.to_hand, FrameCgfx::LocalTransform({1, 1, 1}, {0.5f, 0, 0}, {0, 0.076f, 0}));
+    // The claws' class has no poses in these files: known, not valid ("hold -").
+    CHECK(m.Find(24)->hold.known);
+    CHECK_FALSE(m.Find(24)->hold.valid);
+    // Kept when nothing changed.
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.kept == 2);
+    // A manifest from before the hold (no hold lines): each made again once, then kept; saved
+    // again as it is meanwhile: still not known.
+    {
+        std::ifstream in(dir + "weapons.txt");
+        std::string text, line;
+        while (std::getline(in, line)) {
+            if (line.rfind("hold", 0) != 0) {
+                text += line + "\n";
+            }
+        }
+        in.close();
+        std::ofstream(dir + "weapons.txt") << text;
+    }
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    CHECK_FALSE(m.Find(0)->hold.known);
+    CHECK(m.version == FrameWeapons::kConverterVersion); // no version change
+    REQUIRE(FrameWeapons::WriteManifest(dir + "weapons.txt", m, error));
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    CHECK_FALSE(m.Find(0)->hold.known);
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.made == 2);
+    r = FrameWeapons::ConvertGame(rom, kTitle, dir);
+    CHECK(r.kept == 2);
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    CHECK(m.Find(0)->hold.valid);
+    // A bad hold line: the manifest is not taken (made again), never a crash.
+    {
+        std::ofstream(dir + "weapons.txt", std::ios::app) << "hold RHandN 1 2 nan\n";
+    }
+    CHECK_FALSE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    std::filesystem::remove_all(dir);
 }

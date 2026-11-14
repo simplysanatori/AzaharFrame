@@ -1547,6 +1547,24 @@ void RecordShots(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vie
 
 } // namespace
 
+namespace {
+
+/// AzaharFrame kiuweap2: a weapon's fit inputs, with the game's hold in the pose asked for.
+::FrameXr::Vis::FitWeapon FitInputs(const FrameWeapons::Weapon& info, HoldPick pose) {
+    ::FrameXr::Vis::FitWeapon fw{info.cls, info.muzzle, info.muzzle_valid, std::nullopt};
+    if (info.hold.valid) {
+        const FrameWeapons::HoldPose& hp = pose == HoldPick::Shot ? info.hold.shot : info.hold.idle;
+        FitHold h;
+        h.to_hand = hp.to_hand;
+        h.fist = hp.fist;
+        h.left = info.hold.hand == "LHandN";
+        fw.hold = h;
+    }
+    return fw;
+}
+
+} // namespace
+
 void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2>& hands) { // AzaharFrame kiuguns
     // The weapon's fit, with the class's live tune (test switches), and its muzzle.
     weapon_fits.clear();
@@ -1587,10 +1605,12 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
                 }
             }
             const bool left = h == Input::HandIndex(Input::Hand::Left);
-            weapon_fits = FitWeaponToHand({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
+            const auto fw = FitInputs( // AzaharFrame kiuweap2: the game's hold
+                info, HoldPickFor(info.cls, Common::FrameTestSwitches::Value(kHoldSwitch)));
+            weapon_fits = FitWeaponToHand(fw, left, sides, tune);
             weapon_scale = FitClassScale(info.cls) * tune.scale; // AzaharFrame kiuflash
             muzzle_hand = h;
-            muzzle = FitMuzzle({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
+            muzzle = FitMuzzle(fw, left, sides, tune);
 
             const auto forearm = Common::FrameTestSwitches::Value(kPalmForearmSwitch);
             const PalmMode mode =
@@ -1891,7 +1911,8 @@ void ControllerModels::UpdateWeapon(int id) {
                         }
                     }
                 }
-                const ::FrameXr::Vis::FitWeapon fw{w->cls, w->muzzle, w->muzzle_valid};
+                const ::FrameXr::Vis::FitWeapon fw = FitInputs(
+                    *w, HoldPickFor(w->cls, Common::FrameTestSwitches::Value(kHoldSwitch)));
                 const auto fits = FitWeaponToHand(fw, false, sides);
                 const auto at = FitMuzzle(fw, false, sides);
                 for (std::size_t i = 0; at && !fits.empty() && i < l.files.size(); i++) {

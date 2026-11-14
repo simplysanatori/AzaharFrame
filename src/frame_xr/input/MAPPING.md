@@ -184,6 +184,19 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   another fighter in the records (multiplayer) and in menus. Every class's muzzle (the json's
   `muzzleNode_` + `muzzleOffset_`) is on the aim ray: held classes are turned so it is, worn ones
   raised onto it, the orbitars' middle is on the hand's line; a bow shoots from the hand.
+  AzaharFrame kiuweap2: blades, staffs, clubs, bows and cannons are held as Pit holds them in the
+  game: the converter reads his class's poses (`player/g<class>.zrc`, `character/mdl.arc`'s
+  skeletal animations `ChrPit00Wait<Class>` and `ChrPit00ShotWait<Class>`, first frame) and keeps
+  the weapon's place in his holding hand (`hold` line of the manifest, `HoldInfo`; a manifest
+  without it is made again once, no version change). The fit puts his hand on the player's:
+  blades, staffs and clubs by the fist (`HoldMap::Grip`: the fist's axis along the Frame
+  controller's handle, the hilt through it, so a blade rises from the thumb's side as in his
+  grip); bows and cannons by the hand's line (`HoldMap::Point`: fingers along the ray, thumb up;
+  the bow upright in the fist, in his left hand's grip mirrored to the right; the cannon along
+  the forearm, its housing outward). Staffs take his aiming grip (his idle one points the staff
+  back along the forearm). Their muzzles follow the weapon (the shots, the flash and the laser
+  start at its tip), not the ray. Claws, palms, arms and orbitars keep their fits (the game's hold
+  of them is the hand itself). Test switch (live): `AZAHARFRAME_KIU_HOLD=idle|shot`.
 - **Muzzle Flash** (`vr_light_gun_flash`, per game too, on by default; shown under Weapon in
   Hand while it is on; AzaharFrame kiuflash): a flash at the weapon's muzzle on each of the
   game's own shots (the same shots record as Recoil, read for either; `vis/muzzle_flash.h`). The

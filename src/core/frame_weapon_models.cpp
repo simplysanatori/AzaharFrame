@@ -752,6 +752,103 @@ bool ReadClassUvAnims(std::span<const u8> class_zrc, std::vector<FrameCgfx::UvAn
     return true;
 }
 
+// ---- AzaharFrame kiuweap2: how Pit holds the weapon ----
+
+std::string PoseZrcName(int cls) {
+    return fmt::format("g{}.zrc", cls);
+}
+
+namespace {
+const char* GameClassName(int cls) {
+    static constexpr const char* kNames[kClasses] = {"Rifle",  "Snipe", "Nail", "Bow", "Palm",
+                                                     "Pillar", "Launch", "Bit", "Arm"};
+    return cls >= 0 && cls < kClasses ? kNames[cls] : "?";
+}
+} // namespace
+
+std::string IdleAnimation(int cls) {
+    return fmt::format("ChrPit00Wait{}", GameClassName(cls));
+}
+
+std::string ShotAnimation(int cls) {
+    return fmt::format("ChrPit00ShotWait{}", GameClassName(cls));
+}
+
+bool ReadClassPoses(std::span<const u8> pose_zrc, int cls, ClassPoses& out, std::string& error) {
+    Bytes bcres;
+    if (!FrameCgfx::DarcMember(pose_zrc, "character/mdl.arc!mdl/00.bcres", bcres, error)) {
+        return false;
+    }
+    ClassPoses p;
+    if (!FrameCgfx::ReadSkeletalPose(bcres, IdleAnimation(cls), p.idle, error)) {
+        return false;
+    }
+    std::string why;
+    if (!FrameCgfx::ReadSkeletalPose(bcres, ShotAnimation(cls), p.shot, why)) {
+        p.shot = p.idle; // clubs have no aiming pose
+    }
+    out = std::move(p);
+    return true;
+}
+
+HoldInfo MakeHold(const FrameCgfx::Model& m, int cls, s32 anchor, const ClassPoses& poses) {
+    HoldInfo h;
+    h.known = true;
+    const s32 hand = m.BoneIndex(cls == kBow ? "LHandN" : "RHandN");
+    const s32 arm = m.BoneIndex("RArmN");
+    const s32 ref = hand >= 0 ? hand : (cls == kBow ? -1 : arm);
+    const std::size_t n = m.bones.size();
+    if (ref < 0 || anchor < 0 || static_cast<std::size_t>(anchor) >= n ||
+        static_cast<std::size_t>(ref) >= n) {
+        return h;
+    }
+    h.hand = m.bones[static_cast<std::size_t>(ref)].name;
+    // The fist's centre when the weapon has no grip bone: the fist marker of Pit's left hand
+    // (LHandFistM, in the bind pose), mirrored for his right (Pit's right is -x); for a cannon,
+    // where his right hand would be on the forearm: the left arm's hand and fist, mirrored.
+    const auto translation = [](const FrameCgfx::Mat34& t) {
+        return std::array<float, 3>{t[3], t[7], t[11]};
+    };
+    const auto bind = [&](s32 b) { return m.bones[static_cast<std::size_t>(b)].bind; };
+    const s32 fist_marker = m.BoneIndex("LHandFistM");
+    const s32 left_hand = m.BoneIndex("LHandN");
+    const s32 left_arm = m.BoneIndex("LArmN");
+    std::array<float, 3> marker{0.9f, 0.076f, 0.0f}; // the files' value when a skeleton lacks it
+    if (fist_marker >= 0 && left_hand >= 0) {
+        const s32 base = (h.hand == "RArmN" && left_arm >= 0) ? left_arm : left_hand;
+        marker = translation(FrameCgfx::Multiply34(FrameCgfx::Inverse34(bind(base)),
+                                                   bind(fist_marker)));
+    } else if (h.hand == "RArmN") {
+        marker[0] += 2.177f; // Pit's hand bone's length (when a skeleton lacks the left arm)
+    }
+    const std::string& anchor_name = m.bones[static_cast<std::size_t>(anchor)].name;
+    const bool grip_bone = anchor_name == "GripN" || anchor_name == "SnipeM";
+    const auto pose = [&](const FrameCgfx::SkeletalPose& sp, HoldPose& out) {
+        const std::vector<FrameCgfx::Mat34> world = FrameCgfx::PoseBones(m, sp);
+        out.to_hand = FrameCgfx::Multiply34(
+            FrameCgfx::Inverse34(world[static_cast<std::size_t>(ref)]),
+            world[static_cast<std::size_t>(anchor)]);
+        if (grip_bone) {
+            out.fist = translation(out.to_hand);
+        } else {
+            out.fist = marker;
+            if (cls != kBow) {
+                out.fist[0] = -out.fist[0];
+            }
+        }
+    };
+    pose(poses.idle, h.idle);
+    pose(poses.shot, h.shot);
+    const auto finite = [](const HoldPose& p) {
+        return std::all_of(p.to_hand.begin(), p.to_hand.end(),
+                           [](float f) { return std::isfinite(f) && std::abs(f) < 1e4f; }) &&
+               std::all_of(p.fist.begin(), p.fist.end(),
+                           [](float f) { return std::isfinite(f) && std::abs(f) < 1e4f; });
+    };
+    h.valid = finite(h.idle) && finite(h.shot);
+    return h;
+}
+
 UvMotion GameUvMotion(const std::vector<FrameCgfx::UvAnim>& anims, const std::string& material,
                       s32 coord, float scale_u, float scale_v) {
     UvMotion m;
@@ -864,7 +961,8 @@ UvMotion FlowMotion(const PartBuilder& pb, Side primary, u32 wrap_u, u32 wrap_v)
 } // namespace
 
 bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string& error,
-                   const TexturePack* pack, const std::vector<FrameCgfx::UvAnim>* class_anims) {
+                   const TexturePack* pack, const std::vector<FrameCgfx::UvAnim>* class_anims,
+                   const ClassPoses* poses) {
     if (id < 0 || id >= kWeapons) {
         error = "not a weapon id";
         return false;
@@ -912,6 +1010,12 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
     {
         const s32 b = anchor_of(primary);
         w.anchor = b >= 0 ? m.bones[static_cast<std::size_t>(b)].name : std::string{};
+    }
+    // AzaharFrame kiuweap2: how Pit holds it (his class's poses; none: the class's own fit).
+    if (poses) {
+        w.hold = MakeHold(m, cls, anchor_of(primary), *poses);
+    } else {
+        w.hold.known = true;
     }
     const std::map<Side, FrameCgfx::Mat34> space{
         {Side::Centre, to_anchor(Side::Centre)},
@@ -1815,10 +1919,14 @@ bool ConvertFlash(int id, std::span<const u8> source_zrc, int source, bool neutr
 //           <bullet pack key>
 //   bullet <file> <texture> <texture hash> <components> <flip> [pack PNG]
 //   uvanim <file> <source: 1 game, 2 flow> <frames> <du> <dv> <turns>   (kiumodels, version 4)
+//   hold <hand bone|-> <idle: fist x y z, anchor to hand 12 numbers (row major 3x4)>
+//        <aiming: the same>                                            (kiuweap2, HoldInfo)
 // A part line belongs to the weapon line before it; the PNG's path is the rest of the line. A
 // uvanim line belongs to that weapon's part of the same file.
 // AzaharFrame kiuflash: the flashes and flash lines too, and the bullets and bullet lines (builds
 // before them skip them; a weapon line without a flashes or a bullets line is made again).
+// AzaharFrame kiuweap2: the hold line the same way (no version change: builds before it keep
+// their files and skip the line; this one makes a weapon without it again, once).
 
 bool WriteManifest(const std::string& path, const Manifest& m, std::string& error) {
     std::string out = "# Kid Icarus: Uprising's weapons, made by Azahar for Frame from this game's "
@@ -1869,6 +1977,24 @@ bool WriteManifest(const std::string& path, const Manifest& m, std::string& erro
                 out += fmt::format("uvanim {} {} {} {} {} {}\n", p.file,
                                    static_cast<int>(p.uv.source), p.uv.frames, p.uv.du, p.uv.dv,
                                    p.uv.turns);
+            }
+        }
+        // AzaharFrame kiuweap2: how Pit holds it (a weapon without the line is made again).
+        if (w.hold.known) {
+            const HoldInfo& h = w.hold;
+            if (!h.valid) {
+                out += "hold -\n";
+            } else {
+                out += "hold " + h.hand;
+                for (const HoldPose* hp : {&h.idle, &h.shot}) {
+                    for (const float f : hp->fist) {
+                        out += fmt::format(" {}", f);
+                    }
+                    for (const float f : hp->to_hand) {
+                        out += fmt::format(" {}", f);
+                    }
+                }
+                out += "\n";
             }
         }
         // AzaharFrame kiuflash: for a weapon made with its flashes (one made by a build before
@@ -1995,6 +2121,31 @@ bool ReadManifest(const std::string& path, Manifest& out, std::string& error) {
             p.glow = glow != 0;
             p.replaced_flip = flip != 0;
             current->parts.push_back(std::move(p));
+        } else if (key == "hold" && current) { // AzaharFrame kiuweap2
+            HoldInfo h;
+            h.known = true;
+            in >> h.hand;
+            if (in && h.hand != "-") {
+                bool ok = h.hand == "RHandN" || h.hand == "LHandN" || h.hand == "RArmN";
+                for (HoldPose* hp : {&h.idle, &h.shot}) {
+                    for (float& f : hp->fist) {
+                        ok = ok && static_cast<bool>(in >> f) && std::isfinite(f) &&
+                             std::abs(f) < 1e4f;
+                    }
+                    for (float& f : hp->to_hand) {
+                        ok = ok && static_cast<bool>(in >> f) && std::isfinite(f) &&
+                             std::abs(f) < 1e4f;
+                    }
+                }
+                if (!ok) {
+                    error = "a bad hold line";
+                    return false;
+                }
+                h.valid = true;
+            } else {
+                h.hand.clear();
+            }
+            current->hold = std::move(h);
         } else if (key == "flashes" && current) { // AzaharFrame kiuflash
             FlashInfo& f = current->flash;
             in >> f.rapid >> f.charged >> f.source;
@@ -2160,13 +2311,14 @@ public:
             old->pack_key == PackKey(pack, old->texture_hashes) &&
             std::all_of(old->parts.begin(), old->parts.end(),
                         [&](const Part& p) { return FileUtil::Exists(dir + p.file); }) &&
-            FlashCurrent(old->flash) && BulletsCurrent(old->bullets)) {
+            FlashCurrent(old->flash) && BulletsCurrent(old->bullets) && old->hold.known) {
             res.kept++;
             return true;
         }
         Converted c;
         std::string why;
-        if (!ConvertWeapon(id, zrc, c, why, pack, ClassAnims(ClassOf(id)))) {
+        if (!ConvertWeapon(id, zrc, c, why, pack, ClassAnims(ClassOf(id)),
+                           Poses(ClassOf(id)))) {
             LOG_WARNING(Frontend, "xr: weapon models: {} ({}): {}", ZrcName(id), id, why);
             res.failed++;
             return false;
@@ -2290,7 +2442,32 @@ private:
         return it->second ? &*it->second : nullptr;
     }
 
+    /// AzaharFrame kiuweap2: the class's Pit poses (how he holds his weapon), read once per
+    /// class (nullptr when the file is missing or bad: the class's own fit).
+    const ClassPoses* Poses(int cls) {
+        auto it = class_poses.find(cls);
+        if (it == class_poses.end()) {
+            std::optional<ClassPoses> poses;
+            const std::string name = PoseZrcName(cls);
+            const auto* f = index.Find(manifest.region + "/player/" + name);
+            Bytes zrc;
+            std::string why = "not in the RomFS";
+            ClassPoses read;
+            if (f && index.Read(*f, zrc, u64{8} << 20) && ReadClassPoses(zrc, cls, read, why)) {
+                poses = std::move(read);
+                LOG_INFO(Frontend, "xr: weapon models: {}: Pit's hold of the {} ({}, {})", name,
+                         ClassName(cls), poses->idle.animation, poses->shot.animation);
+            } else {
+                LOG_WARNING(Frontend, "xr: weapon models: {}: {} (the {}'s own fit)", name,
+                            f ? why : std::string{"not in the RomFS"}, ClassName(cls));
+            }
+            it = class_poses.emplace(cls, std::move(poses)).first;
+        }
+        return it->second ? &*it->second : nullptr;
+    }
+
     std::map<int, std::optional<std::vector<FrameCgfx::UvAnim>>> class_anims;
+    std::map<int, std::optional<ClassPoses>> class_poses;
     FrameCgfx::RomFSIndex index;
     Manifest manifest;
     u64 title_id = 0;

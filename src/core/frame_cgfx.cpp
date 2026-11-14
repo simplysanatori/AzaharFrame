@@ -915,6 +915,12 @@ struct Cgfx {
                 b.index = r.S32(bo + 8);
                 b.parent = r.S32(bo + 0xC);
                 b.bind = Inverse34(Matrix(bo + 0xA4));
+                for (int k = 0; k < 3; k++) { // AzaharFrame kiuweap2
+                    const std::size_t ks = static_cast<std::size_t>(k);
+                    b.scale[ks] = r.F32(bo + 0x20 + ks * 4);
+                    b.rotation[ks] = r.F32(bo + 0x2C + ks * 4);
+                    b.translation[ks] = r.F32(bo + 0x38 + ks * 4);
+                }
                 m.bones.push_back(std::move(b));
             }
             // In index order when the indices are a permutation (they are in the files seen).
@@ -1424,6 +1430,145 @@ bool ReadUvAnims(std::span<const u8> data, std::vector<UvAnim>& out, std::string
         error = e.what();
         return false;
     }
+}
+
+// ---- AzaharFrame kiuweap2: skeletal animations (a pose) ----
+
+const BoneKey* SkeletalPose::Find(std::string_view bone) const {
+    for (const BoneKey& b : bones) {
+        if (b.bone == bone) {
+            return &b;
+        }
+    }
+    return nullptr;
+}
+
+bool ReadSkeletalPose(std::span<const u8> data, std::string_view animation, SkeletalPose& out,
+                      std::string& error) {
+    try {
+        const Reader r(data);
+        if (!r.Magic(0, "CGFX") || r.U16(4) != 0xFEFF) {
+            throw Bad("not a CGFX file");
+        }
+        const u16 header = r.U16(6);
+        if (!r.Magic(header, "DATA")) {
+            throw Bad("CGFX: no DATA");
+        }
+        const Cgfx c{r};
+        // The 10th dictionary: skeletal animations.
+        const std::size_t p = header + 8 + std::size_t{9} * 8;
+        const std::size_t dict = r.U32(p) ? r.RelNonNull(p + 4) : 0;
+        for (const auto& [name, ao] : c.Dict(dict)) {
+            if (name != animation) {
+                continue;
+            }
+            if (!r.Magic(ao, "CANM")) {
+                throw Bad("CGFX: not a CANM");
+            }
+            SkeletalPose pose;
+            pose.animation = name;
+            const u32 revision = r.U32(ao + 4);
+            pose.frames = r.F32(ao + 0x14);
+            const std::size_t elements = r.U32(ao + 0x18) ? r.RelNonNull(ao + 0x1C) : 0;
+            for (const auto& [bone, eo] : c.Dict(elements)) {
+                const u32 flags = r.U32(eo);
+                const std::size_t type_at = eo + (revision <= 0x05000000u ? 0x10 : 8);
+                if (r.U32(type_at) != 5) {
+                    continue; // Transform only (no others in the game's files)
+                }
+                const std::size_t content = type_at + 4;
+                BoneKey key;
+                const std::size_t n = r.Rel(eo + 4);
+                key.bone = n ? r.CString(n) : bone;
+                // Ten slots: scale xyz, rotation xyz, (rotation w, unused), translation xyz;
+                // flags: constant from bit 6, absent from bit 16.
+                for (int slot = 0; slot < 10; slot++) {
+                    if (slot == 6 || (flags & (1u << (16 + slot)))) {
+                        continue;
+                    }
+                    const std::size_t at = content + std::size_t(slot) * 4;
+                    float v = 0.0f;
+                    if (flags & (1u << (6 + slot))) {
+                        v = r.F32(at);
+                    } else {
+                        Key first, last;
+                        bool linear = true;
+                        ReadGroup(r, r.RelNonNull(at), first, last, linear);
+                        v = first.value; // the animation's first frame (its keys start at 0)
+                    }
+                    if (std::isfinite(v)) {
+                        key.srt[static_cast<std::size_t>(slot < 6 ? slot : slot - 1)] = v;
+                    }
+                }
+                pose.bones.push_back(std::move(key));
+            }
+            out = std::move(pose);
+            return true;
+        }
+        throw Bad("CGFX: no skeletal animation " + std::string(animation));
+    } catch (const Bad& e) {
+        error = e.what();
+        return false;
+    }
+}
+
+Mat34 LocalTransform(const std::array<float, 3>& scale, const std::array<float, 3>& rotation,
+                     const std::array<float, 3>& translation) {
+    const float cx = std::cos(rotation[0]), sx = std::sin(rotation[0]);
+    const float cy = std::cos(rotation[1]), sy = std::sin(rotation[1]);
+    const float cz = std::cos(rotation[2]), sz = std::sin(rotation[2]);
+    // Rz * Ry * Rx
+    const float r[9] = {cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx,
+                        sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx,
+                        -sy,     cy * sx,                cy * cx};
+    Mat34 m{};
+    for (int row = 0; row < 3; row++) {
+        for (int col = 0; col < 3; col++) {
+            m[static_cast<std::size_t>(row * 4 + col)] =
+                r[row * 3 + col] * scale[static_cast<std::size_t>(col)];
+        }
+        m[static_cast<std::size_t>(row * 4 + 3)] = translation[static_cast<std::size_t>(row)];
+    }
+    return m;
+}
+
+std::vector<Mat34> PoseBones(const Model& model, const SkeletalPose& pose) {
+    const std::size_t n = model.bones.size();
+    std::vector<Mat34> world(n, Identity34());
+    std::vector<u8> state(n, 0); // 0 to do, 1 doing (a loop), 2 done
+    const auto solve = [&](auto&& self, std::size_t i) -> const Mat34& {
+        if (state[i] == 2 || state[i] == 1) {
+            return world[i];
+        }
+        state[i] = 1;
+        const Bone& b = model.bones[i];
+        const bool has_parent = b.parent >= 0 && static_cast<std::size_t>(b.parent) < n;
+        Mat34 local;
+        if (const BoneKey* k = pose.Find(b.name)) {
+            std::array<float, 3> sc = b.scale, ro = b.rotation, tr = b.translation;
+            for (std::size_t a = 0; a < 3; a++) {
+                sc[a] = k->srt[a].value_or(sc[a]);
+                ro[a] = k->srt[3 + a].value_or(ro[a]);
+                tr[a] = k->srt[6 + a].value_or(tr[a]);
+            }
+            local = LocalTransform(sc, ro, tr);
+        } else if (has_parent) {
+            // Its bind transform relative to its parent.
+            local = Multiply34(Inverse34(model.bones[static_cast<std::size_t>(b.parent)].bind),
+                               b.bind);
+        } else {
+            local = b.bind;
+        }
+        // (A parent being solved, a loop in a bad file, gives its value so far: no recursion.)
+        world[i] = has_parent ? Multiply34(self(self, static_cast<std::size_t>(b.parent)), local)
+                              : local;
+        state[i] = 2;
+        return world[i];
+    };
+    for (std::size_t i = 0; i < n; i++) {
+        solve(solve, i);
+    }
+    return world;
 }
 
 std::array<float, 3> BindPosition(const Model& model, const SubMesh& sub, const Vertex& v,
