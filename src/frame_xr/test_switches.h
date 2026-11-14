@@ -33,6 +33,7 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_IMMERSIVE_LOCAL",          "AZAHARFRAME_IMMERSIVE_WORLD_TAG",
         "AZAHARFRAME_IMMERSIVE_TAG_OFFSET",     "AZAHARFRAME_IMMERSIVE_POSITION_SCALE",
         "AZAHARFRAME_XR_SINGLE_FLASH",          "AZAHARFRAME_XR_REFRESH_RATE",
+        "AZAHARFRAME_XR_FLASH_BACKING", // AzaharFrame flash
         "AZAHARFRAME_IMMERSIVE_HOLD",           "AZAHARFRAME_XR_IMAGE_LAG",
         "AZAHARFRAME_CSTICK_EDGE", // AzaharFrame kiugyro
     };
@@ -142,6 +143,13 @@ inline bool OnFrom(const std::optional<std::string>& v) {
 inline constexpr const char* kCStickEdgeSwitch = "AZAHARFRAME_CSTICK_EDGE";
 inline bool CStickEdgeOn(const std::optional<std::string>& test_switch, bool setting) {
     return setting && OnFrom(test_switch);
+}
+
+/// AzaharFrame flash: AZAHARFRAME_XR_FLASH_BACKING (live): "0" leaves the top screen's layer out
+/// on a refresh SINGLE_FLASH hides it, as 1.1.1-523 did (an A/B of the backing only); anything
+/// else, or unset: the black backing takes its place (app.cpp, Hud::BackingImage).
+inline bool BackingFrom(const std::optional<std::string>& v) {
+    return !(v && *v == "0");
 }
 
 /// AZAHARFRAME_XR_SINGLE_FLASH (lane dbl): each top screen picture on one display refresh only.

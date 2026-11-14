@@ -58,6 +58,11 @@ public:
     bool PassthroughLayer(const ViewPose& pose, XrSpace space, XrCompositionLayerProjection& layer,
                           XrCompositionLayerProjectionView (&views)[2]) const;
 
+    /// AzaharFrame flash: Motion Clarity's backing (motion_clarity.h): an opaque black square of
+    /// the atlas (no new swapchain), as the swapchain and rect of `quad`; its pose, size and eye
+    /// are left to the caller (the screen's). False until the atlas has an image.
+    bool BackingImage(Quad& quad) const;
+
     /// Any thread.
     void ShowToast(Toast kind);
     /// Any thread. One line of UTF-8; "°" is drawn as a small ring (the font has none).

@@ -519,6 +519,10 @@ void Runtime::FrameLoop() {
     TestSwitches::SingleFlash single_flash;
     bool test_single_flash =
         TestSwitches::OnFrom(Common::FrameTestSwitches::Value("AZAHARFRAME_XR_SINGLE_FLASH"));
+    // AzaharFrame flash: the black backing on a hidden refresh (AZAHARFRAME_XR_FLASH_BACKING=0:
+    // the layer left out, as before), live.
+    bool flash_backing =
+        TestSwitches::BackingFrom(Common::FrameTestSwitches::Value("AZAHARFRAME_XR_FLASH_BACKING"));
     // AzaharFrame integ9: the test-switch file read again when it changed (once a second, after
     // xrEndFrame): the live switches applied, each change logged and shown in a toast.
     const auto poll_test_switches = [&] {
@@ -535,6 +539,8 @@ void Runtime::FrameLoop() {
             }
             if (c.name == "AZAHARFRAME_XR_SINGLE_FLASH") {
                 test_single_flash = TestSwitches::OnFrom(Common::FrameTestSwitches::Value(c.name));
+            } else if (c.name == "AZAHARFRAME_XR_FLASH_BACKING") { // AzaharFrame flash
+                flash_backing = TestSwitches::BackingFrom(Common::FrameTestSwitches::Value(c.name));
             } else if (c.name == "AZAHARFRAME_XR_IMAGE_LAG") {
                 UpdateImageLag("test switch changed"); // AzaharFrame imglag
             } else if (c.name == "AZAHARFRAME_XR_REFRESH_RATE") {
@@ -795,6 +801,15 @@ void Runtime::FrameLoop() {
                     test_single_flash, t.has_image,
                     ImageLag::SerialOnView(t.frame_serial, sent_serial.load(), image_lag.load()));
             }
+            // AzaharFrame flash: on a hidden refresh an opaque black quad takes the top screen's
+            // place in the layer list, with each eye's pose, size and shape. SteamVR makes each
+            // quad layer the overlay of its index (openxr_quadlayer_<i>) and hides the overlays
+            // past a frame's count: leaving the screens out hid and showed overlays 0 and 1 at
+            // 60 Hz, with nothing of ours over the view on the hidden refreshes, so the
+            // compositor's own background and overlays (and the controllers, drawn under every
+            // quad) flickered through. The list now keeps its shape on every refresh.
+            Quad backing;
+            const bool backing_ok = hide_top && flash_backing && hud.BackingImage(backing);
             const auto add_screen = [&](VideoCore::XrScreen s, XrSpace space, const XrPosef& pose,
                                         XrExtent2Df size, XrEyeVisibility eye, float curve) {
                 // AzaharFrame doubling: a packed top screen is one swapchain, the left eye in
@@ -828,10 +843,13 @@ void Runtime::FrameLoop() {
                     tq.curve_radius = curve;
                     toast_screens.push_back(tq);
                 }
-                if (!use.layer) {
-                    return; // no picture, or (AzaharFrame dbl) shown once already
+                // AzaharFrame flash: shown once already: the black backing in its place.
+                const bool as_backing = top && hide_top && backing_ok &&
+                                        chain.handle != XR_NULL_HANDLE && chain.has_image;
+                if (!use.layer && !as_backing) {
+                    return; // no picture, or (AzaharFrame dbl) shown once already, no backing
                 }
-                if (s == VideoCore::XrScreen::TopLeft) { // AzaharFrame imglag
+                if (s == VideoCore::XrScreen::TopLeft && !as_backing) { // AzaharFrame imglag
                     top_carried = true;
                     top_serial = chain.frame_serial;
                 }
@@ -840,7 +858,11 @@ void Runtime::FrameLoop() {
                 q.image_rect = {{0, 0},
                                 {static_cast<int32_t>(chain.width),
                                  static_cast<int32_t>(chain.height)}};
-                if (packed_top && top) {
+                if (as_backing) {
+                    q.swapchain = backing.swapchain;
+                    q.image_rect = backing.image_rect;
+                    q.flags = backing.flags;
+                } else if (packed_top && top) {
                     const int32_t half =
                         static_cast<int32_t>((chain.height - VideoCore::kXrPackedGap) / 2);
                     q.image_rect.extent.height = half;

@@ -251,3 +251,12 @@ TEST_CASE("Test switches: SINGLE_FLASH leaves out a picture shown once, live",
     CHECK(f.Hide(true, true, 2));        // on live: the picture shown while off is not new
     CHECK_FALSE(f.Hide(true, true, 3));
 }
+
+// AzaharFrame flash
+TEST_CASE("Test switches: FLASH_BACKING is on unless 0, live", "[frame_xr][test_switches]") {
+    CHECK(TS::BackingFrom(std::nullopt));
+    CHECK(TS::BackingFrom(std::string{"1"}));
+    CHECK(TS::BackingFrom(std::string{""}));
+    CHECK_FALSE(TS::BackingFrom(std::string{"0"}));
+    CHECK(TS::ApplyFor("AZAHARFRAME_XR_FLASH_BACKING") == TS::Apply::Live);
+}
