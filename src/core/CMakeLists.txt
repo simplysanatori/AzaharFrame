@@ -50,6 +50,8 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     frame_crash_report.h # AzaharFrame crashreport
     frame_crash_send.cpp # AzaharFrame crashreport
     frame_crash_send.h # AzaharFrame crashreport
+    frame_angels_report.cpp # AzaharFrame kiumenus
+    frame_angels_report.h
     mods/crash_guard.cpp # AzaharFrame compat
     mods/crash_guard.h # AzaharFrame compat
     mods/catalog.h # AzaharFrame moddata

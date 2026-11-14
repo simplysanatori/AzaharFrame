@@ -43,6 +43,10 @@
 #include "core/mods/zip_install.h" // AzaharFrame zipinstall
 #include "citra_qt/frame_crash_guard.h" // AzaharFrame compat
 #include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
+#include <cmath>
+#include "common/scm_rev.h"
+#include "core/frame_crash_send.h"
+#include "common/settings.h"
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/controls_presets.h" // AzaharFrame kiufix: CStickModInstalled
 #include "frame_xr/kiu_scan.h"         // AzaharFrame kiufix: IsKidIcarus
@@ -705,6 +709,36 @@ void FrameMods::RefreshAngelsAim() {
                      m.effects_pack ? "installed" : "not installed");
             FrameXr::SetInGameMenuAngelsAim(m);
         });
+}
+
+Core::AngelsReport::Info FrameMods::AngelsAimInfo(const std::string& game_title) {
+    Core::AngelsReport::Info i;
+    const auto& v = Settings::values;
+    i.app_version = Common::g_build_fullname;
+    i.release = Core::CrashReport::ReleaseName();
+    i.title_id = title_id;
+    i.title = game_title;
+    const Mods::Compat::Game& g = GameInfo();
+    if (g.region != Mods::Compat::Region::Unknown) {
+        i.region = Mods::Compat::RegionName(g.region);
+    }
+    if (g.version) {
+        i.game_version = Mods::Compat::VersionText(*g.version);
+    }
+    i.mod_installed = FrameXr::CStickModInstalled(title_id);
+    i.aiming = static_cast<int>(v.vr_gyro_aim.GetValue());
+    i.weapon_in_hand = v.vr_light_gun_weapon.GetValue();
+    i.laser_sight = v.vr_light_gun_laser.GetValue();
+    i.recoil = v.vr_light_gun_recoil.GetValue();
+    i.recoil_charged = static_cast<int>(v.vr_light_gun_recoil_charged.GetValue());
+    i.recoil_rapid = static_cast<int>(v.vr_light_gun_recoil_rapid.GetValue());
+    i.weapon_size = static_cast<int>(v.vr_light_gun_weapon_size.GetValue());
+    i.weapon_scale = static_cast<int>(v.vr_light_gun_weapon_scale.GetValue());
+    i.gyro_sensitivity = static_cast<int>(std::lround(v.vr_gyro_sensitivity.GetValue() * 10.0f));
+    i.turn_zone = static_cast<int>(v.vr_light_gun_turn_zone.GetValue());
+    i.turn_speed = static_cast<int>(std::lround(v.vr_light_gun_turn_speed.GetValue() * 10.0f));
+    i.immersive = v.vr_immersive_mode.GetValue() != 0;
+    return i;
 }
 
 void FrameMods::RefreshMods() { // AzaharFrame ctgp7b

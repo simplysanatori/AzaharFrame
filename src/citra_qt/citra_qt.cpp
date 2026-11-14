@@ -5194,6 +5194,15 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
             }
         });
         return;
+    case C::AngelsAimReport: // AzaharFrame kiumenus: Send Report's dialog in the window
+        g_frame_mirror->SetMenuWindow(true);
+        QTimer::singleShot(0, this, [this] {
+            if (g_frame_mods) {
+                FrameCrashDialog::ShowAngelsAimReport(
+                    this, g_frame_mods->AngelsAimInfo(game_title.toStdString()));
+            }
+        });
+        return;
     case C::About:
         g_frame_mirror->SetMenuWindow(true);
         QTimer::singleShot(0, this, [this] { FrameCrashDialog::ShowAbout(this); });

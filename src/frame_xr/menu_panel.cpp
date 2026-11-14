@@ -2165,6 +2165,9 @@ void MenuPanel::Click(Target t, Host& host) {
         controls_page = 0;
         scroll_to_aiming = true;
         break;
+    case Id::AngelsAimSend: // AzaharFrame kiumenus: Azahar's window, Send Report's dialog
+        ask(MenuCommand::AngelsAimReport);
+        break;
     case Id::AngelsAimReport: // "Open GitHub?" first
         if (!model.mods.angels_aim.report_url.empty()) {
             view.open_link = model.mods.angels_aim.report_url;

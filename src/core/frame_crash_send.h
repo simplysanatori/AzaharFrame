@@ -15,6 +15,8 @@
 #pragma once
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "core/frame_crash_report.h"
 
@@ -44,5 +46,19 @@ std::string ManualTitle(const std::string& note);
 /// database while it runs, removed after. Blocks (a few seconds at most): call it off the GUI
 /// thread. One send at a time.
 SendResult Send(const Report& r, const std::string& dsn, const std::string& work_dir);
+
+/// AzaharFrame kiumenus: a short report from a feature's own page (Angel's Aim's Send Report): a
+/// message event with tags and extras, and the player's words as user feedback attached to it.
+/// Nothing else goes (no log, no screenshot, no stack), and the same extras are taken out of the
+/// event as for Send.
+struct Feedback {
+    std::string message;  ///< the event's title
+    std::string comments; ///< the player's words ("" none: no user feedback is made)
+    std::string release;  ///< "" ReleaseName()
+    std::vector<std::pair<std::string, std::string>> tags;
+    std::vector<std::pair<std::string, std::string>> extra;
+};
+/// Same rules as Send (own Sentry for this one report, off thread, one at a time).
+SendResult SendFeedback(const Feedback& f, const std::string& dsn, const std::string& work_dir);
 
 } // namespace Core::CrashReport

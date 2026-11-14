@@ -562,6 +562,8 @@ std::string LabelFor(Id id) {
         return "Aiming Settings";
     case Id::AngelsAimReport:
         return "Report an Issue";
+    case Id::AngelsAimSend:
+        return "Send Report";
     case Id::ShowControllers:
         return "Show Controllers";
     case Id::WindowScale:
