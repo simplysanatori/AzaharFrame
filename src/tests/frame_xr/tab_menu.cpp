@@ -503,7 +503,10 @@ const MenuLayout::Hit* FindHit(const Drawn& d, Id id, int index) {
 
 // AzaharFrame kiumenus: the Controls page scrolls; draws it with the reticle's rows (`rows_up` dp
 // above Aiming) or with Aiming itself at the top of the list.
-void DrawControlsAt(Drawn& d, const MenuModel& m, MenuView& v, float rows_up) {
+void DrawControlsAt(Drawn& d, MenuModel m, MenuView& v, float rows_up) {
+    if (rows_up > 0.0f) {
+        m.gyro_aim = 2; // Aiming's rows below, so the page scrolls as far as the reticle's rows
+    }
     v.scroll[static_cast<int>(Tab::Controls)] = 0.0f;
     d.Draw(m, v);
     v.scroll[static_cast<int>(Tab::Controls)] = std::max(0.0f, d.menu.Layout().aiming_scroll - rows_up);
