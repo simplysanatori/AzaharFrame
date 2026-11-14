@@ -68,10 +68,22 @@ inline constexpr const char* kAngelsAimEffectsPack = "Effect Textures";
 inline constexpr const char* kAngelsAimSettings = "Settings";
 inline constexpr const char* kAngelsAimInstalled = "Installed";
 inline constexpr const char* kAngelsAimNotInstalled = "Not Installed";
+/// Send Report's dialog (citra_qt/frame_crash_dialog.cpp, in Azahar's window with the VR keyboard).
+inline constexpr const char* kAngelsAimSendTitle = "Send Report";
+inline constexpr const char* kAngelsAimBug = "Bug";
+inline constexpr const char* kAngelsAimIdea = "Idea";
+inline constexpr const char* kAngelsAimBugNote = "What Happened? (Optional)";
+inline constexpr const char* kAngelsAimIdeaNote = "What's Your Idea? (Optional)";
+inline constexpr const char* kAngelsAimConsent =
+    "Sends this report and your Angel's Aim settings to the developer.";
+inline constexpr const char* kAngelsAimSending = "Sending...";
+inline constexpr const char* kAngelsAimSent = "Report Sent";
+inline constexpr const char* kAngelsAimNotSent = "Couldn't Send Report";
+inline constexpr const char* kAngelsAimNotSentHint = "Try Again, or Use Report an Issue.";
 /// Report an Issue's page: a new issue, titled and labelled for Angel's Aim (GitHub ignores a
 /// label the repository does not have). The body is added by the Qt side (AngelsAimReportUrl).
 inline constexpr const char* kAngelsAimIssuesUrl =
-    "https://github.com/simplysanatori/AzaharFrame/issues/new?title=%5BAngel%27s%20Aim%5D%20&labels=angels-aim";
+    "https://github.com/simplysanatori/AzaharFrame/issues/new?title=%5BAngel%27s%20Aim%5D%20&labels=Angel%27s%20Aim";
 
 /// The page with a prefilled body (percent-encoded; kept short, as the menu's links are at most
 /// 300 characters): the app's version, the game's region and version, the mod's state.

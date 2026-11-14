@@ -247,6 +247,7 @@ enum class Id : int {
     // AzaharFrame kiufix: the Mods tab's Angel's Aim segment (angels_aim_tab.h)
     AngelsAimSettings, ///< Aiming Settings: the Controls tab at Aiming
     AngelsAimReport,   ///< Report an Issue ("Open GitHub?" first)
+    AngelsAimSend,     ///< AzaharFrame kiumenus: Send Report (Azahar's window, its own dialog)
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);

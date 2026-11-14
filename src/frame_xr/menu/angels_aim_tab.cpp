@@ -180,10 +180,15 @@ void TabMenu::DrawAngelsAim(Kit& kit, const MenuModel& model, const MenuView& vi
         }
         y += 8.0f;
     }
-    { // Report an Issue: a text button (open_in_new), and its line
+    { // Send Report (to the developer, Qt's dialog) and Report an Issue (GitHub), then their line
+        const std::string send = LabelFor(Id::AngelsAimSend);
+        const float sw = kit.TextWidth(Type::Label, send) + 48.0f;
+        const Rect sb{c.x0, y, c.x0 + sw, y + kButtonH};
+        kit.Button(sb, ButtonStyle::Tonal, 0, send, StateOf(view, {Id::AngelsAimSend}));
+        AddHit({sb.x0, sb.Cy() - 24.0f, sb.x1, sb.Cy() + 24.0f}, {Id::AngelsAimSend}, shown);
         const std::string label = LabelFor(Id::AngelsAimReport);
         const float w = kit.TextWidth(Type::Label, label) + 28.0f + 24.0f;
-        const Rect b{c.x0 - 12.0f, y, c.x0 - 12.0f + w, y + kButtonH};
+        const Rect b{sb.x1 + 8.0f, y, sb.x1 + 8.0f + w, y + kButtonH};
         const bool can = !m.report_url.empty();
         kit.Button(b, ButtonStyle::Text, Sym::kOpenInNew, label,
                    StateOf(view, {Id::AngelsAimReport}, can));

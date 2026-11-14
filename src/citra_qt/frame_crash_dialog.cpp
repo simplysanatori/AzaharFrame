@@ -32,6 +32,7 @@
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QStandardPaths>
 #include <QTextBlock>
 #include <QTextBrowser>
@@ -49,11 +50,13 @@
 #include "common/frame_crash.h"
 #include "common/logging/log.h"
 #include "common/scm_rev.h"
+#include "core/frame_angels_report.h"
 #include "core/frame_crash_report.h"
 #include "core/frame_crash_send.h"
 #include "core/mods/crash_guard.h"
 #include "core/save_backup.h"
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/menu/angels_aim_tab.h"
 #include "frame_xr/menu/crash_note.h"
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu/swkbd_view.h"
@@ -452,6 +455,132 @@ private:
     QPushButton* send = nullptr;
 };
 
+
+// AzaharFrame kiumenus: Angel's Aim's Send Report (Bug or Idea, an optional text, the consent line).
+// Sentry is started only for this send (Core::CrashReport::SendFeedback); no switch of the app's
+// is involved: like Report a Problem, the tap on Send Report is the consent. A failed send keeps
+// the text and the choice.
+class AngelsAimDialog : public QDialog {
+public:
+    AngelsAimDialog(QWidget* parent, const Core::AngelsReport::Info& info_)
+        : QDialog(parent), info(info_) {
+        namespace Menu = FrameXr::Menu;
+        setWindowTitle(QString::fromUtf8(Menu::kAngelsAimSendTitle));
+        auto* layout = new QVBoxLayout(this);
+        layout->setContentsMargins(24, 24, 24, 16);
+        layout->setSpacing(12);
+        layout->addWidget(Headline(QString::fromUtf8(Menu::kAngelsAimSendTitle)));
+        auto* kinds = new QHBoxLayout;
+        bug = new QRadioButton(QString::fromUtf8(Menu::kAngelsAimBug));
+        idea = new QRadioButton(QString::fromUtf8(Menu::kAngelsAimIdea));
+        bug->setChecked(true);
+        kinds->addWidget(bug);
+        kinds->addWidget(idea);
+        kinds->addStretch(1);
+        layout->addLayout(kinds);
+        note_label = new QLabel(QString::fromUtf8(Menu::kAngelsAimBugNote));
+        layout->addWidget(note_label);
+        note = new QPlainTextEdit;
+        note->setTabChangesFocus(true);
+        note->setFixedHeight(note->fontMetrics().lineSpacing() * 3 + 16);
+        note->setReadOnly(FrameXr::IsStarted() && FrameXr::VrShowing());
+        filter = new NoteFilter(note, Menu::kAngelsAimBugNote);
+        note->viewport()->installEventFilter(filter);
+        connect(note, &QPlainTextEdit::textChanged, this, [this] {
+            const QString t = note->toPlainText();
+            if (t.size() > FrameXr::Menu::kCrashNoteMax) {
+                note->setPlainText(t.left(FrameXr::Menu::kCrashNoteMax));
+                note->moveCursor(QTextCursor::End);
+            }
+        });
+        connect(idea, &QRadioButton::toggled, this, [this](bool on) {
+            note_label->setText(QString::fromUtf8(on ? FrameXr::Menu::kAngelsAimIdeaNote
+                                                     : FrameXr::Menu::kAngelsAimBugNote));
+        });
+        note_label->setBuddy(note);
+        layout->addWidget(note);
+        auto* consent = new QLabel(QString::fromUtf8(Menu::kAngelsAimConsent));
+        consent->setWordWrap(true);
+        layout->addWidget(consent);
+        status = new QLabel;
+        status->setWordWrap(true);
+        status->hide();
+        layout->addWidget(status);
+        auto* buttons = new QHBoxLayout;
+        buttons->addStretch(1);
+        cancel = TextButton(tr("Cancel"));
+        send = TextButton(QString::fromUtf8(Menu::kAngelsAimSendTitle));
+        cancel->setDefault(true);
+        buttons->addWidget(cancel);
+        buttons->addWidget(send);
+        layout->addLayout(buttons);
+        connect(cancel, &QPushButton::clicked, this, [this] { reject(); });
+        connect(send, &QPushButton::clicked, this, [this] { Send(); });
+        setMinimumWidth(520);
+    }
+
+    QPlainTextEdit* Note() { return note; }
+    QRadioButton* IdeaButton() { return idea; }
+    QPushButton* SendButton() { return send; }
+
+private:
+    void Send() {
+        namespace Menu = FrameXr::Menu;
+        for (QWidget* w : std::initializer_list<QWidget*>{send, cancel, bug, idea, note}) {
+            w->setEnabled(false);
+        }
+        status->setText(QString::fromUtf8(Menu::kAngelsAimSending));
+        status->show();
+        const auto payload = Core::AngelsReport::BuildPayload(
+            idea->isChecked() ? Core::AngelsReport::Type::Idea : Core::AngelsReport::Type::Bug,
+            note->toPlainText().trimmed().toStdString(), info, CR::Scrubber::ForThisMachine());
+        const std::string work = CrashDir() + "send";
+        QPointer<AngelsAimDialog> self = this;
+        auto result = std::make_shared<CR::SendResult>();
+        QThread* thread = QThread::create([payload, work, result] {
+            *result = CR::SendFeedback(payload, CR::BuiltInDsn(), work);
+            std::error_code ec;
+            std::filesystem::remove(work, ec);
+        });
+        connect(thread, &QThread::finished, this, [self, result, thread] {
+            thread->deleteLater();
+            if (!self) {
+                return;
+            }
+            if (result->ok) {
+                LOG_INFO(Frontend, "angel's aim report: sent ({})", result->event_id);
+                if (FrameXr::IsStarted()) {
+                    FrameXr::ShowToastText(FrameXr::Menu::kAngelsAimSent, FrameXr::ToastTime::Long);
+                }
+                self->accept();
+                return;
+            }
+            LOG_WARNING(Frontend, "angel's aim report: not sent: {}", result->error);
+            for (QWidget* w : std::initializer_list<QWidget*>{self->send, self->cancel, self->bug,
+                                                              self->idea, self->note}) {
+                w->setEnabled(true);
+            }
+            self->status->setText(QStringLiteral("%1. %2")
+                                      .arg(QString::fromUtf8(FrameXr::Menu::kAngelsAimNotSent),
+                                           QString::fromUtf8(FrameXr::Menu::kAngelsAimNotSentHint)));
+            if (FrameXr::IsStarted()) {
+                FrameXr::ShowToastText(FrameXr::Menu::kAngelsAimNotSent, FrameXr::ToastTime::Long);
+            }
+        });
+        thread->start();
+    }
+
+    Core::AngelsReport::Info info;
+    QRadioButton* bug = nullptr;
+    QRadioButton* idea = nullptr;
+    QLabel* note_label = nullptr;
+    QPlainTextEdit* note = nullptr;
+    NoteFilter* filter = nullptr;
+    QLabel* status = nullptr;
+    QPushButton* cancel = nullptr;
+    QPushButton* send = nullptr;
+};
+
 // A sample report for the pictures: a real record of this process (its maps, a stack through
 // this file) read back through the same code as a real one.
 CR::Report SampleReport(CR::Kind kind) {
@@ -716,6 +845,29 @@ void ShowReportProblem(QWidget* parent, const ProblemContext& context) {
              CR::CanSend() ? "offered" : "not built in");
     AnswerForTest(d, QStringLiteral("Sentry test feedback %1")
                          .arg(QDateTime::currentDateTimeUtc().toString(Qt::ISODate)));
+}
+
+QDialog* MakeAngelsAimReport(QWidget* parent, const Core::AngelsReport::Info& info) {
+    return new AngelsAimDialog(parent, info);
+}
+
+void ShowAngelsAimReport(QWidget* parent, const Core::AngelsReport::Info& info) {
+    auto* d = static_cast<AngelsAimDialog*>(MakeAngelsAimReport(parent, info));
+    d->setAttribute(Qt::WA_DeleteOnClose);
+    d->open();
+    LOG_INFO(Frontend, "angel's aim report: shown (Sentry {})",
+             CR::CanSend() ? "built in" : "not built in");
+#ifndef AZAHARFRAME_RELEASE_BUILD
+    if (FrameTestEnv("AZAHARFRAME_TEST_CRASH_ANSWER") == QStringLiteral("send")) {
+        QPointer<AngelsAimDialog> self = d; // test driver, as the others: answers by itself
+        QTimer::singleShot(2000, d, [self] {
+            if (self) {
+                self->Note()->setPlainText(QStringLiteral("Mock run: Angel's Aim Send Report test"));
+                self->SendButton()->click();
+            }
+        });
+    }
+#endif
 }
 
 QDialog* MakeAbout(QWidget* parent, bool links_open) {

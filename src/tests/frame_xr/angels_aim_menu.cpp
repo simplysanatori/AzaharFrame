@@ -61,6 +61,7 @@ TEST_CASE("Angel's Aim: Report an Issue's page", "[kiufix]") {
     const std::string url =
         AngelsAimReportUrl("1.1.1-524 kiufix", "Europe 1.0", true);
     CHECK(IsAngelsAimReportUrl(url));
+    CHECK(url.find("labels=Angel%27s%20Aim") != std::string::npos);
     CHECK(url.rfind(kAngelsAimIssuesUrl, 0) == 0);
     CHECK(url.find("&body=Azahar%20for%20Frame%201.1.1-524%20kiufix%0AGame%3A%20Europe%201.0%0A"
                    "C-Stick%20%26%20Gyro%20mod%3A%20installed") != std::string::npos);
