@@ -990,14 +990,11 @@ HeldQuadPose HeldQuad(const Input::Posef& in_view, float eye_x, float distance, 
 
 /// AzaharFrame heldquad: HeldQuad's `eye_share` for mode 2 from the game's far scenery
 /// (StereoFarOnQuad's separation on the quad over the IPD): 0 with no far width known (below 0)
-/// or none (one camera), 1 at parallel; kept from 0 to 2. Mode 3: 1 (each quad on its eye).
-/// AzaharFrame natural: mode 3 with its eye quads `quad_half` from the middle (Mode3Natural; NaN:
-/// on the eyes): the rays come from where the game's own far scenery (its slider of 0.01,
-/// GameFarOnQuad) puts straight ahead, half of it outwards from the quad's middle, so the share
-/// is that over the eye's distance from the quad's middle. Mode3Natural puts the quads exactly
-/// that far in, so it is 1 (the rays from the eye) at any 3D Depth.
-float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width,
-                     float quad_half = kQuadsOnEyes);
+/// or none (one camera), 1 at parallel; kept from 0 to 2. Mode 3: 1, the rays from the eye.
+/// AzaharFrame natural: also with mode 3's eye quads moved in by half the game's own far scenery
+/// (Mode3Natural): that far scenery puts straight ahead exactly in front of the eye. Exactly 1,
+/// not worked out from the far width again: the quads' place came from an earlier read of it.
+float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width);
 
 /// AzaharFrame heldquad: one display frame's head pose, as the game camera was made from it
 /// (Immersive OnFrame, with VideoCore::Immersive::VRData): its time (XrContentPose::time, the

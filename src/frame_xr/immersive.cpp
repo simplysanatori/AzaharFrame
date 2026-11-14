@@ -1876,11 +1876,10 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
             anchored && g.tuning.hold_warp && g.view.valid ? held : nullptr;
         // Mode 2's pictures come from the game's own two cameras: their far scenery says where
         // on the quad each eye's rays come from (the eye at parallel, the middle at 3D Depth 0).
-        // AzaharFrame natural: mode 3's eye quads off its eyes (Mode3Natural) likewise.
+        // Mode 3: from the eye (also with its eye quads moved in, Mode3Natural).
         const float eye_share = L::EyeShareOnQuad(
             g.solved, g.mode, g.half_ipd,
-            VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed),
-            g.quad_half);
+            VideoCore::Immersive::g_stereo_far_width.load(std::memory_order_relaxed));
         for (int eye = 0; eye < 2; eye++) {
             const Input::Posef in_view =
                 L::FullQuadInView(g.solved, g.mode, eye, g.half_ipd, g.quad_half);

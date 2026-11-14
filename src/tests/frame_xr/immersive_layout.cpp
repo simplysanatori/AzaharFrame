@@ -2131,7 +2131,11 @@ TEST_CASE("FrameXr immersive: a held picture with any World Scale, Follow Screen
         const float quad_half =
             mode == 3 ? Mode3Natural(f, uni(1.0f, 100.0f), half_ipd, game_far_m).quad_half
                       : kQuadsOnEyes;
-        const float share = EyeShareOnQuad(s, mode, half_ipd, far_width, quad_half);
+        const float share = EyeShareOnQuad(s, mode, half_ipd, far_width);
+        if (mode == 3) { // from the eye, whatever the far width read now (or none)
+            REQUIRE(EyeShareOnQuad(s, mode, half_ipd, -1.0f) == 1.0f);
+            REQUIRE(EyeShareOnQuad(s, mode, half_ipd, far_width * 3.0f) == 1.0f);
+        }
         share_worst = std::max<double>(share_worst, std::abs(share - (mode == 3 ? 1.0f : f)));
         const Quatf rest = YawRotation(Rad(uni(-180, 180)));
         const float t_deg = uni(-10.0f, 10.0f);

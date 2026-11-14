@@ -967,12 +967,7 @@ void PoseRing::Keep(uint32_t mode, const Posef& rest) {
     rest_ = rest;
 }
 
-float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width,
-                     float quad_half) {
-    if (mode == 3 && std::isfinite(quad_half) && std::abs(half_ipd - quad_half) > 1e-6f) {
-        const float share = GameFarOnQuad(solved, far_width) / 2.0f / (half_ipd - quad_half);
-        return std::isfinite(share) ? std::clamp(share, 0.0f, 2.0f) : 1.0f;
-    }
+float EyeShareOnQuad(const HeadLocked& solved, uint32_t mode, float half_ipd, float far_width) {
     if (mode != 2) {
         return 1.0f;
     }
