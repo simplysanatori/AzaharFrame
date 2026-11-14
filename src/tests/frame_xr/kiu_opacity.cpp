@@ -75,6 +75,15 @@ void Draw(Pixel& p, Pipe pipe, const Fragment& f, float shader_fade) {
         p.a += Vis::CoverAlpha(light[0], light[1], light[2]);
         break;
     }
+    case Pipe::AddedHeld: { // light added as Added's; coverage held: MAX, not summed
+        std::array<float, 3> light{};
+        for (int i = 0; i < 3; i++) {
+            light[i] = f.colour[i] * z;
+            p.rgb[i] += light[i];
+        }
+        p.a = std::max(p.a, Vis::CoverAlpha(light[0], light[1], light[2]));
+        break;
+    }
     }
 }
 
@@ -120,6 +129,7 @@ TEST_CASE("See-through: opacity 100 % takes the old path", "[kiuopacity]") {
     CHECK(Vis::DrawnIn(DrawStage::Whole, true));
     CHECK(Vis::PipeFor(DrawStage::Whole, false) == Pipe::Opaque);
     CHECK(Vis::PipeFor(DrawStage::Whole, true) == Pipe::Added);
+    CHECK(Vis::FlashPipe(1.0f) == Pipe::Added);
     std::mt19937 rng(62);
     std::uniform_real_distribution<float> u(0.0f, 1.0f);
     for (int i = 0; i < 1000; i++) {
@@ -161,7 +171,8 @@ TEST_CASE("See-through: under 100 % a depth stage first, the nearest surface onl
         CHECK(Vis::DrawnIn(DrawStage::Added, true));
         CHECK(Vis::PipeFor(DrawStage::Depth, false) == Pipe::DepthOnly);
         CHECK(Vis::PipeFor(DrawStage::Colour, false) == Pipe::Blended);
-        CHECK(Vis::PipeFor(DrawStage::Added, true) == Pipe::Added);
+        CHECK(Vis::PipeFor(DrawStage::Added, true) == Pipe::AddedHeld);
+        CHECK(Vis::FlashPipe(o) == Pipe::AddedHeld);
         CHECK(Vis::StageFade(DrawStage::Colour, 0.8f, o) == Approx(0.8f * o));
         CHECK(Vis::StageFade(DrawStage::Added, 1.0f, o) == Approx(o));
         // The depth flag (+32) leaves the other bits as the shader tests them: mirrored (+1),
@@ -257,7 +268,23 @@ TEST_CASE("See-through: the glows, flames and flash dim with the weapon", "[kiuo
     const Pixel p = DrawWeapon({{{0.2f, 0.2f, 0.2f}, 0.4f, false}, {{0.5f, 0.3f, 0.0f}, 0.38f, true}},
                                1.0f, 0.5f);
     CHECK(p.rgb[0] == Approx(0.2f * 0.5f + 0.5f * 0.5f));
-    CHECK(p.a == Approx(0.5f + Vis::CoverAlpha(0.25f, 0.15f, 0.0f)));
+    CHECK(p.a == Approx(0.5f)); // the glow's coverage (0.15) held under the surface's
+    // Overlapping glow cards (a glowing weapon's): at 100 % their coverage sums, as it always
+    // did; see-through it never goes past the opacity, so the screen still shows through.
+    {
+        std::vector<Fragment> parts{{{0.2f, 0.2f, 0.2f}, 0.4f, false}};
+        for (int k = 0; k < 8; k++) {
+            parts.push_back({{1.0f, 1.0f, 1.0f}, 0.30f + 0.01f * static_cast<float>(k), true});
+        }
+        const std::vector<Fragment> cards(parts.begin() + 1, parts.end());
+        CHECK(DrawWeapon(cards, 1.0f, 1.0f).a >= 1.0f);
+        for (const float o : {0.2f, 0.3f, 0.6f, 0.9f}) {
+            const Pixel held = DrawWeapon(parts, 1.0f, o);
+            CHECK(held.a == Approx(o));
+            // Beside the body (glow cards alone): one card's coverage.
+            CHECK(DrawWeapon(cards, 1.0f, o).a == Approx(Vis::CoverAlpha(o, o, o)));
+        }
+    }
     // A glow behind the surface stays hidden, as with the solid weapon.
     const Pixel hidden =
         DrawWeapon({{{0.2f, 0.2f, 0.2f}, 0.4f, false}, {{0.5f, 0.3f, 0.0f}, 0.45f, true}}, 1.0f,

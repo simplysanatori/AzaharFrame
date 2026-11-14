@@ -26,7 +26,10 @@
 //     Then Added: the glows, a palm's flames, the muzzle flash and added bullets, their light
 //     and coverage alpha both times the opacity (the coverage, clamp(max(light) x 0.6, 0, 0.6),
 //     is taken from the light after it is scaled; never under 4/255 where there is light),
-//     on top of the faded surface.
+//     on top of the faded surface. Their light still adds, but their coverage is held at the
+//     most of what is there and their own (blend op MAX), not summed: overlapping glow cards
+//     summed it to 1 and hid the screen behind a glowing weapon at any opacity. So nothing of a
+//     see-through weapon covers more than its opacity.
 //   - A faded weapon is drawn after the other hand's controller, so the controller shows
 //     through it too.
 // Laser Sight is drawn elsewhere and is unchanged.
@@ -102,6 +105,7 @@ enum class Pipe : uint8_t {
     Added,     ///< added light, no depth written (as always)
     DepthOnly, ///< kiuopacity: no colour, depth written
     Blended,   ///< kiuopacity: premultiplied over, depth LEQUAL, no depth written
+    AddedHeld, ///< kiuopacity: added light, its coverage held (MAX, not summed), no depth written
 };
 constexpr Pipe PipeFor(DrawStage stage, bool added) {
     switch (stage) {
@@ -112,9 +116,14 @@ constexpr Pipe PipeFor(DrawStage stage, bool added) {
     case DrawStage::Colour:
         return Pipe::Blended;
     case DrawStage::Added:
-        return Pipe::Added;
+        return Pipe::AddedHeld;
     }
     return Pipe::Opaque;
+}
+
+/// The muzzle flash's pipeline (drawn on its own, after the weapon): as the glows'.
+constexpr Pipe FlashPipe(float opacity) {
+    return SeeThrough(opacity) ? Pipe::AddedHeld : Pipe::Added;
 }
 
 /// The shader's fade (params.z) for a stage: Whole keeps `fade` as it was.

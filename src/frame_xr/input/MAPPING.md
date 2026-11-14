@@ -201,7 +201,9 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   (LEQUAL, nothing written to depth), premultiplied at the opacity and blended over what is
   there, so the fade is even and shows no inner or back faces; its glows, a palm's flames and
   the muzzle flash (added light) are drawn after it with their light and coverage alpha times
-  the opacity, and the other hand's controller is drawn first so it shows through. At 100 % the
+  the opacity, their coverage held at the most of what is there and their own (blend op MAX,
+  not summed, so overlapping glow cards never cover more than the opacity), and the other hand's
+  controller is drawn first so it shows through. At 100 % the
   pass is as before (no extra draws). The controllers' image is premultiplied (the layer, and
   Controllers in Front of Screen's eye quads, have only `XR_COMPOSITION_LAYER_BLEND_TEXTURE_
   SOURCE_ALPHA_BIT`), so the screens and the room show through it the same way in either path.

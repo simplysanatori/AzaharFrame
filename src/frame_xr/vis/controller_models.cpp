@@ -205,10 +205,14 @@ struct ControllerModels::Gpu {
     /// AzaharFrame kiuopacity (see_through.h): a see-through part's depth stage (no colour) and
     /// its colour stage (premultiplied over, depth LEQUAL, no depth written).
     vk::Pipeline pipeline_depth, pipeline_fade;
+    /// AzaharFrame kiuopacity: a see-through part's added light, its coverage held (MAX).
+    vk::Pipeline pipeline_add_held;
     vk::Pipeline Of(Pipe p) const {
         switch (p) {
         case Pipe::Added:
             return pipeline_add;
+        case Pipe::AddedHeld:
+            return pipeline_add_held;
         case Pipe::DepthOnly:
             return pipeline_depth;
         case Pipe::Blended:
@@ -534,7 +538,7 @@ void ControllerModels::DestroyXr() {
         if (g.pipeline_add) {
             g.device.destroyPipeline(g.pipeline_add);
         }
-        for (const vk::Pipeline p : {g.pipeline_depth, g.pipeline_fade}) { // AzaharFrame kiuopacity
+        for (const vk::Pipeline p : {g.pipeline_depth, g.pipeline_fade, g.pipeline_add_held}) { // kiuopacity
             if (p) {
                 g.device.destroyPipeline(p);
             }
@@ -1118,16 +1122,26 @@ void ControllerModels::Setup(Runtime& rt) {
     // Depth as the opaque pipeline's (written, LEQUAL); the colour stage tests it, as the glows.
     const auto made_depth = variant(&depth_state, &depth_only_blend);
     const auto made_fade = variant(&add_depth, &fade_blend);
+    // A see-through part's added light: the colour added as the glows', the coverage held at the
+    // most of what is there and its own (MAX: blend factors are ignored), so overlapping cards
+    // never cover more than the opacity (see_through.h).
+    vk::PipelineColorBlendAttachmentState add_held_att = add_att;
+    add_held_att.alphaBlendOp = vk::BlendOp::eMax;
+    const vk::PipelineColorBlendStateCreateInfo add_held_blend{.attachmentCount = 1,
+                                                               .pAttachments = &add_held_att};
+    const auto made_add_held = variant(&add_depth, &add_held_blend);
     g.device.destroyShaderModule(vert);
     g.device.destroyShaderModule(frag);
     if (made.result != vk::Result::eSuccess || made_add.result != vk::Result::eSuccess ||
-        made_depth.result != vk::Result::eSuccess || made_fade.result != vk::Result::eSuccess) {
+        made_depth.result != vk::Result::eSuccess || made_fade.result != vk::Result::eSuccess ||
+        made_add_held.result != vk::Result::eSuccess) {
         throw std::runtime_error("pipeline");
     }
     g.pipeline = made.value;
     g.pipeline_add = made_add.value;
     g.pipeline_depth = made_depth.value;
     g.pipeline_fade = made_fade.value;
+    g.pipeline_add_held = made_add_held.value;
 
     g.sampler = g.device.createSampler({
         .magFilter = vk::Filter::eLinear,
@@ -1365,7 +1379,7 @@ template <typename GpuT, typename WeaponT>
 void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& view_proj,
                  const XrPosef& head_pose, const Input::Posef& hand_aim, float fade,
                  const std::array<float, 3>& muzzle, float fit_scale, const FlashFrame& flash,
-                 float tune_size) {
+                 float tune_size, Pipe pipe_kind = Pipe::Added) {
     const XrPosef aim = ToXr(hand_aim);
     const Mat aim_m = FromPose(aim.orientation, aim.position);
     const auto o = Apply(aim_m, muzzle[0], muzzle[1], muzzle[2], 1.0f);
@@ -1393,7 +1407,7 @@ void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vie
                 continue;
             }
             if (!pipeline) {
-                c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline_add);
+                c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.Of(pipe_kind));
                 pipeline = true;
             }
             if (!bound) {
@@ -1697,7 +1711,8 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
                     // AzaharFrame kiuopacity: its light and coverage times Weapon Opacity.
                     RecordFlash(c, g, *g.weapon_live, view_proj, views.head, hand.aim,
                                 hand.fade * std::clamp(hand.weapon_opacity, 0.0f, 1.0f), from,
-                                weapon_scale, hand.flash, flash_size);
+                                weapon_scale, hand.flash, flash_size,
+                                FlashPipe(hand.weapon_opacity));
                 }
                 // AzaharFrame kiuflash: its projectiles in flight.
                 if (!shot_draws.empty() && hand.shots.on) {
