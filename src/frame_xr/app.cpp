@@ -430,6 +430,21 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
     const double window_present_ms = telemetry.window_present_max_us.exchange(0) / 1000.0;
     const double alloc_ms = telemetry.device_alloc_max_us.exchange(0) / 1000.0;
     const double alloc_mib = telemetry.device_alloc_max_bytes.exchange(0) / 1048576.0;
+    // AzaharFrame flash3: shaders and pipelines queued and built in this second (the boot's
+    // backlog and misses in play), the backlog left, and draws left out for a pipeline still
+    // being built.
+    static uint64_t builds_queued_seen = 0, builds_done_seen = 0, skips_seen = 0;
+    const uint64_t builds_queued = telemetry.shader_builds_queued.load(std::memory_order_relaxed);
+    const uint64_t builds_done = telemetry.shader_builds_done.load(std::memory_order_relaxed);
+    const uint64_t skips = telemetry.draws_skipped.load(std::memory_order_relaxed);
+    const std::string builds = fmt::format(
+        ", shader and pipeline builds {} queued, {} done ({} waiting), draws skipped {}",
+        builds_queued - std::min(builds_queued, builds_queued_seen),
+        builds_done - std::min(builds_done, builds_done_seen),
+        builds_queued - std::min(builds_queued, builds_done), skips - std::min(skips, skips_seen));
+    builds_queued_seen = builds_queued;
+    builds_done_seen = builds_done;
+    skips_seen = skips;
     Vis::NoteXrSecond({seconds, frames, late[0], wait_max_ms}); // AzaharFrame vrvis: stats panel
     // AzaharFrame menuux: Dynamic Resolution judges the second (the headset's frames).
     const auto gpu = VideoCore::DynamicResolution::TakeGpuSecond();
@@ -452,14 +467,14 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
              "endFrame errors {}, state {}, screens {}, {}, window presents {}, XR queue lock wait "
              "max {:.2f} ms, emu submit max {:.2f} ms (lock wait {:.2f}), window present max "
              "{:.2f} ms, vkAllocateMemory max {:.1f} ms (largest {:.0f} MiB), slowest frame "
-             "{:.1f} ms ({}), eyes from different game frames {}",
+             "{:.1f} ms ({}), eyes from different game frames {}{}",
              seconds, frames, wait_avg_ms, wait_max_ms, rel[0], rel[1], rel[2], late[0], late[1],
              late[2], spill_shown, spill_replaced, emu_waits, emu_wait_ms,
              unfinished[0], unfinished[1], unfinished[2], skipped, end_errors,
              StateName(state.load()), screens_live.load() ? "live" : "off", emu, window_presents,
              queue_wait_ms, emu_submit_ms, emu_submit_wait_ms, window_present_ms, alloc_ms, alloc_mib,
              worst.period_ms,
-             PhasesText(worst), eyes_mixed);
+             PhasesText(worst), eyes_mixed, builds);
 }
 
 void Runtime::LogFlatSummary(double seconds) {

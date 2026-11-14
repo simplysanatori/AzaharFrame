@@ -8,6 +8,7 @@
 #include "common/math_util.h"
 #include "common/microprofile.h"
 #include "common/settings.h"
+#include "common/stall_telemetry.h" // AzaharFrame flash3
 #include "core/core.h"
 #include "core/loader/loader.h"
 #include "core/memory.h"
@@ -491,6 +492,8 @@ bool RasterizerVulkan::AccelerateDrawBatchInternal(bool is_indexed) {
 
     const bool wait_built = !async_shaders || regs.pipeline.num_vertices <= 6;
     if (!pipeline_cache.BindPipeline(pipeline_info, wait_built)) {
+        // AzaharFrame flash3: counted for the XR thread's per-second line
+        Common::StallTelemetry::Get().draws_skipped.fetch_add(1, std::memory_order_relaxed);
         return true;
     }
 

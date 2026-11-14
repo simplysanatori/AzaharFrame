@@ -16,6 +16,7 @@
 #include "common/param_package.h"
 #include "common/settings.h"
 #include "frame_xr/dynamic_resolution.h" // AzaharFrame menuux
+#include "video_core/vr_cache_save.h"        // AzaharFrame flash3
 #include "frame_xr/immersive.h"          // AzaharFrame fovonce: MeasureCameraAgain
 #include "frame_xr/immersive_layout.h"   // AzaharFrame kiu: Horizontal and Vertical Scale
 #include "frame_xr/input/default_bindings.h"
@@ -486,6 +487,9 @@ void MenuPanel::Open(const XrPosef& at, float width, std::vector<std::pair<std::
     view.open_menu = view.tooltip = view.dragging = Id::None;
     view.tooltip_index = -1;
     Resume();
+    // AzaharFrame flash3: the driver pipeline cache is saved now (queued off the emulation
+    // thread, at most every 30 s, only when it grew), so a crash later keeps what was built.
+    VideoCore::PipelineCacheSave::Request("the VR menu opened");
 }
 
 void MenuPanel::Resume() {

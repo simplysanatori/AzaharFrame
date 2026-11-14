@@ -60,6 +60,7 @@ Files with `AzaharFrame` marks (53 files differ from the tag in `src`, `CMakeLis
 | `src/video_core/renderer_vulkan/vk_texture_runtime.cpp`, `src/video_core/renderer_opengl/gl_texture_runtime.cpp` | `UploadCustom` uploads every stored level; the image of a custom texture has no more levels than its file; a custom texture has one image at scale 1, sampled, never filtered or scaled up |
 | `src/citra_qt/game_list.cpp` | the texture pack entry in the game's menu |
 | `src/video_core/renderer_vulkan/vk_swapchain.cpp` | Mailbox or Immediate presentation of the desktop window in VR |
+| `src/video_core/renderer_vulkan/vk_pipeline_cache.{h,cpp}`, `vk_shader_disk_cache.{h,cpp}`, `vk_rasterizer.cpp` | the driver pipeline cache (`.bin`) written through a temporary file and a rename, and also once the cached pipelines are built and when the VR menu opens (`video_core/vr_cache_save.h`; on the pipeline workers, only when it grew); how the start got the cached pipelines; draws skipped for a pipeline still being built, counted (`StallTelemetry::draws_skipped`) |
 | `src/video_core/renderer_vulkan/renderer_vulkan.{h,cpp}` | `RenderToXr()` from `SwapBuffers()`, the XR target, the queue lock, no second window in VR |
 | `src/video_core/shader/generator/shader_uniforms.h` | `vr_immersive_mode_factor` defaults to 1 (it was 0, which divides by zero outside CitraVR's Android app) |
 | `src/citra_qt/main.ui`, `aboutdialog.ui` | the name "Azahar for Frame" (no mark possible in the XML) |

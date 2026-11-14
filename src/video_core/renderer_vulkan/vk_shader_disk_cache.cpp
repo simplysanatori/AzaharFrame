@@ -1476,6 +1476,9 @@ bool ShaderDiskCache::InitPLCache(const std::atomic_bool& stop_loading,
             // The cached shaders are compiled above, so a pipeline that is not built yet was queued
             if (!it_pl.value()->TryBuild(false)) {
                 loaded_cached_pipelines.push_back(it_pl.value().get());
+                cached_in_background++; // AzaharFrame flash3
+            } else {
+                cached_from_driver++; // AzaharFrame flash3
             }
 
             LOG_DEBUG(Render_Vulkan, "    built.");
@@ -1484,6 +1487,12 @@ bool ShaderDiskCache::InitPLCache(const std::atomic_bool& stop_loading,
             MALFORMED_DISK_CACHE;
         }
     }
+
+    // AzaharFrame flash3: how the start got the cached pipelines.
+    LOG_INFO(Render_Vulkan,
+             "PL disk shader cache for title {:016X}: {} pipelines from the driver pipeline cache "
+             "at once, {} in the background",
+             title_id, cached_from_driver, cached_in_background);
 
     // Switch to append mode to receive new entries.
     return pl_cache.SwitchMode(CacheFile::CacheOpMode::APPEND);

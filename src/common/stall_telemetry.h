@@ -75,6 +75,9 @@ struct StallTelemetry {
     std::atomic<std::uint64_t> shader_builds_queued{0};
     std::atomic<std::uint64_t> shader_builds_done{0};
     std::atomic<std::int64_t> emu_frame_end_steady_us{0};
+    // AzaharFrame flash3: draws left out because their pipeline was still being built (Vulkan,
+    // async shaders), cumulative; the XR thread's per-second line gives the second's.
+    std::atomic<std::uint64_t> draws_skipped{0};
 
     static StallTelemetry& Get() {
         static StallTelemetry instance;

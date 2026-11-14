@@ -25,6 +25,7 @@
 #include "video_core/shader/generator/glsl_fs_shader_gen.h"
 #include "video_core/shader/generator/glsl_shader_gen.h"
 #include "video_core/shader/generator/spv_fs_shader_gen.h"
+#include "video_core/vr_cache_save.h" // AzaharFrame flash3
 
 using namespace Pica::Shader::Generator;
 using Pica::Shader::FSConfig;
@@ -131,6 +132,9 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
     }
 
     BuildLayout();
+    // AzaharFrame flash3: frame_xr may ask for a save while the game runs (the VR menu opens).
+    VideoCore::PipelineCacheSave::Register(
+        this, [this](const char* why) { QueueSaveDriverPipelineDiskCache(why); });
 }
 
 void PipelineCache::BuildLayout() {
@@ -149,6 +153,7 @@ void PipelineCache::BuildLayout() {
 }
 
 PipelineCache::~PipelineCache() {
+    VideoCore::PipelineCacheSave::Register(this, nullptr); // AzaharFrame flash3: no more queued
     pipeline_workers.WaitForRequests();
     shader_workers.WaitForRequests();
     SaveDriverPipelineDiskCache();
@@ -177,7 +182,11 @@ void PipelineCache::SwitchCache(u64 title_id, const std::atomic_bool& stop_loadi
     if (!driver_pipeline_cache) {
         vk::PipelineCacheCreateInfo cache_info{};
         try {
+            std::scoped_lock lock{save_mutex}; // AzaharFrame flash3: an early save reads it
             driver_pipeline_cache = instance.GetDevice().createPipelineCacheUnique(cache_info);
+            driver_cache_title = GetProgramID();
+            driver_cache_titled = true;
+            driver_cache_saved_size = 0;
         } catch (const vk::SystemError& err) {
             LOG_ERROR(Render_Vulkan, "Failed to create pipeline cache: {}", err.what());
             return;
@@ -222,10 +231,96 @@ bool PipelineCache::SetCacheLoadFlag(u64 title_id) {
 }
 
 void PipelineCache::QueueClearCacheLoadFlag(u64 title_id) {
-    pipeline_workers.QueueWork([path = GetLoadFlagPath(title_id), disk_cache = curr_disk_cache] {
+    // AzaharFrame flash3: once the cached pipelines are built, the driver cache is saved (when it
+    // grew), so what the start built survives a crash or SteamVR ending the app; and the log says
+    // how long the pipelines built in the background took.
+    pipeline_workers.QueueWork([this, title_id, path = GetLoadFlagPath(title_id),
+                                disk_cache = curr_disk_cache,
+                                start = std::chrono::steady_clock::now()] {
         disk_cache->WaitLoadCachedPipelines();
         FileUtil::Delete(path);
+        LOG_INFO(Render_Vulkan,
+                 "Cached pipelines of title_id={:016X}: {} from the driver pipeline cache at "
+                 "once, {} built in the background, done in {:.1f} s",
+                 title_id, disk_cache->CachedFromDriver(), disk_cache->CachedInBackground(),
+                 std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+        SaveDriverPipelineDiskCacheIfGrown("the cached pipelines are built", title_id);
     });
+}
+
+void PipelineCache::QueueSaveDriverPipelineDiskCache(const char* why) { // AzaharFrame flash3
+    if (!Settings::values.use_disk_shader_cache) {
+        return;
+    }
+    pipeline_workers.QueueWork([this, why] { SaveDriverPipelineDiskCacheIfGrown(why, 0); });
+}
+
+void PipelineCache::SaveDriverPipelineDiskCacheIfGrown(const char* why, u64 title) {
+    // AzaharFrame flash3: a pipeline worker. vkGetPipelineCacheData is internally synchronized
+    // (see SaveDriverPipelineDiskCache); save_mutex keeps the cache from being replaced meanwhile.
+    if (!Settings::values.use_disk_shader_cache) {
+        return;
+    }
+    std::scoped_lock lock{save_mutex};
+    if (!driver_pipeline_cache || !driver_cache_titled ||
+        (title != 0 && title != driver_cache_title)) {
+        return; // none, or another game's by now
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (title == 0 && last_early_save.time_since_epoch().count() != 0 &&
+        now - last_early_save < kEarlySaveGap) {
+        return; // the VR menu opened again soon after
+    }
+    const vk::Device device = instance.GetDevice();
+    std::size_t size = 0;
+    if (device.getPipelineCacheData(*driver_pipeline_cache, &size, nullptr) !=
+            vk::Result::eSuccess ||
+        size <= driver_cache_saved_size) {
+        LOG_DEBUG(Render_Vulkan, "Pipeline cache not saved ({}): unchanged at {} KB", why,
+                  size / 1024);
+        return;
+    }
+    const auto start = std::chrono::steady_clock::now();
+    const auto cache_data = device.getPipelineCacheData(*driver_pipeline_cache);
+    if (!WriteDriverPipelineDiskCache(cache_data, driver_cache_title)) {
+        return;
+    }
+    last_early_save = now;
+    LOG_INFO(Render_Vulkan,
+             "Saved pipeline cache for title_id={:016X} ({} KB, was {} KB, in {:.1f} ms; {})",
+             driver_cache_title, cache_data.size() / 1024, driver_cache_saved_size / 1024,
+             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
+                 .count(),
+             why);
+    driver_cache_saved_size = cache_data.size();
+}
+
+bool PipelineCache::WriteDriverPipelineDiskCache(const std::vector<u8>& data, u64 title) {
+    // AzaharFrame flash3: a temporary file and a rename: a crash or a kill in the middle leaves
+    // the old .bin whole (it was opened with "wb", emptied first, and could be cut short).
+    const auto cache_file_path = fmt::format("{}{:016X}-{:X}{:X}.bin", GetPipelineCacheDir(),
+                                             title, instance.GetVendorID(), instance.GetDeviceID());
+    const auto temp_path = cache_file_path + ".tmp";
+    {
+        FileUtil::IOFile cache_file{temp_path, "wb"};
+        if (!cache_file.IsOpen()) {
+            LOG_ERROR(Render_Vulkan, "Unable to open pipeline cache for writing");
+            return false;
+        }
+        if (cache_file.WriteBytes(data.data(), data.size()) != data.size() ||
+            !cache_file.Flush()) {
+            LOG_ERROR(Render_Vulkan, "Error during pipeline cache write");
+            cache_file.Close();
+            FileUtil::Delete(temp_path);
+            return false;
+        }
+    }
+    if (!FileUtil::Rename(temp_path, cache_file_path)) {
+        LOG_ERROR(Render_Vulkan, "Unable to put the new pipeline cache in place");
+        FileUtil::Delete(temp_path);
+        return false;
+    }
+    return true;
 }
 
 std::string PipelineCache::GetLoadFlagPath(u64 title_id) const {
@@ -242,6 +337,12 @@ void PipelineCache::LoadDriverPipelineDiskCache(
 
     auto load_cache = [this, &cache_info, &callback](bool allow_fallback) {
         const vk::Device device = instance.GetDevice();
+        // AzaharFrame flash3: replaced under save_mutex (an early save on a pipeline worker reads
+        // it), with the title it belongs to and the size it has on disk.
+        std::scoped_lock lock{save_mutex};
+        driver_cache_title = GetProgramID();
+        driver_cache_titled = true;
+        driver_cache_saved_size = cache_info.initialDataSize;
         try {
             driver_pipeline_cache = device.createPipelineCacheUnique(cache_info);
         } catch (const vk::SystemError& err) {
@@ -250,6 +351,7 @@ void PipelineCache::LoadDriverPipelineDiskCache(
                 // Fall back to empty cache
                 cache_info.initialDataSize = 0;
                 cache_info.pInitialData = nullptr;
+                driver_cache_saved_size = 0; // AzaharFrame flash3
                 try {
                     driver_pipeline_cache = device.createPipelineCacheUnique(cache_info);
                 } catch (const vk::SystemError& err) {
@@ -320,27 +422,17 @@ void PipelineCache::SaveDriverPipelineDiskCache() {
     std::scoped_lock lock{save_mutex};
     const auto save_start = std::chrono::steady_clock::now();
 
-    const auto cache_dir = GetPipelineCacheDir();
-    const u32 vendor_id = instance.GetVendorID();
-    const u32 device_id = instance.GetDeviceID();
-    const u64 program_id = GetProgramID();
     // Include both device info and program id in cache path to handle both GPU changes and
-    // different games
-    const auto cache_file_path =
-        fmt::format("{}{:016X}-{:X}{:X}.bin", cache_dir, program_id, vendor_id, device_id);
-
-    FileUtil::IOFile cache_file{cache_file_path, "wb"};
-    if (!cache_file.IsOpen()) {
-        LOG_ERROR(Render_Vulkan, "Unable to open pipeline cache for writing");
-        return;
-    }
-
+    // different games. AzaharFrame flash3: the title the cache was loaded for (the same as
+    // GetProgramID here: a title switch saves before it changes it), written through a temporary
+    // file and a rename (WriteDriverPipelineDiskCache).
+    const u64 program_id = driver_cache_titled ? driver_cache_title : GetProgramID();
     const vk::Device device = instance.GetDevice();
     const auto cache_data = device.getPipelineCacheData(*driver_pipeline_cache);
-    if (cache_file.WriteBytes(cache_data.data(), cache_data.size()) != cache_data.size()) {
-        LOG_ERROR(Render_Vulkan, "Error during pipeline cache write");
+    if (!WriteDriverPipelineDiskCache(cache_data, program_id)) {
         return;
     }
+    driver_cache_saved_size = cache_data.size(); // AzaharFrame flash3
 
     const auto save_ms = std::chrono::duration<double, std::milli>(
                              std::chrono::steady_clock::now() - save_start)

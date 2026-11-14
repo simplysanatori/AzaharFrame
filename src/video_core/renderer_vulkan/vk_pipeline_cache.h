@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <chrono> // AzaharFrame flash3
+
 #include <bitset>
 #include <mutex>
 #include <unordered_set>
@@ -118,7 +120,19 @@ public:
     /// file write is guarded by save_mutex.
     void SaveDriverPipelineDiskCache();
 
+    /// AzaharFrame flash3: queues a save of the driver pipeline cache on the pipeline workers
+    /// (off the emulation thread), skipped when it was saved less than kEarlySaveGap ago or has
+    /// not grown since it was loaded or saved. `why` is a string literal, for the log.
+    void QueueSaveDriverPipelineDiskCache(const char* why);
+
 private:
+    /// AzaharFrame flash3: the early save itself (a pipeline worker); `title`: only if the cache is
+    /// still that title's (0: whichever it is).
+    void SaveDriverPipelineDiskCacheIfGrown(const char* why, u64 title);
+    /// AzaharFrame flash3: writes the data to the title's .bin through a temporary file and a
+    /// rename, so a stop in the middle never leaves a cut file. Under save_mutex.
+    bool WriteDriverPipelineDiskCache(const std::vector<u8>& data, u64 title);
+
     friend ShaderDiskCache;
 
     /// Loads the driver pipeline cache
@@ -171,7 +185,17 @@ private:
     vk::UniquePipelineLayout pipeline_layout;
     /// Serializes concurrent SaveDriverPipelineDiskCache calls (frontend
     /// pause/quit paths can race with each other and with title switch).
+    /// AzaharFrame flash3: and guards driver_pipeline_cache's replacement (a title switch) against
+    /// the early saves on the pipeline workers, with the fields below.
     std::mutex save_mutex;
+    /// AzaharFrame flash3: the title whose .bin driver_pipeline_cache was loaded from (when
+    /// driver_cache_titled), its size when loaded or last saved, and when an early save last
+    /// wrote it.
+    u64 driver_cache_title{0};
+    bool driver_cache_titled{false};
+    std::size_t driver_cache_saved_size{0};
+    std::chrono::steady_clock::time_point last_early_save{};
+    static constexpr std::chrono::seconds kEarlySaveGap{30};
     std::size_t num_worker_threads;
     Common::ThreadWorker pipeline_workers;
     Common::ThreadWorker shader_workers;
