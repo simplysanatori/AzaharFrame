@@ -951,7 +951,33 @@ int main(int argc, char** argv) {
         go.game_value[static_cast<std::size_t>(Id::MuzzleFlash)] = true;
         gv.hover = {Id::MuzzleFlash, kLabelIndex};
         gv.tooltip = Id::MuzzleFlash;
+        {
+            // Scrolled down to Muzzle Flash (low in General).
+            frame_xr::ui::Canvas scratch;
+            scratch.Init(static_cast<int>(kPanelW * px_per_dp + 0.5f),
+                         static_cast<int>(kPanelH * px_per_dp + 0.5f));
+            const auto on_view = [&](Id id) {
+                for (const auto& hit : menu.Hits()) {
+                    if (hit.t.id == id && hit.t.index == -1) {
+                        return true; // a row the list's edge cuts is a target too
+                    }
+                }
+                return false;
+            };
+            for (float s = 0.0f; s <= 3000.0f; s += 20.0f) {
+                gv.scroll[static_cast<int>(Tab::Settings)] = s;
+                kit.Begin(scratch);
+                menu.Draw(kit, go, gv);
+                if (on_view(Id::MuzzleFlash) || s >= menu.MaxScroll()) {
+                    // Two rows more, so it sits above the list's edge with its tooltip.
+                    gv.scroll[static_cast<int>(Tab::Settings)] =
+                        std::min(s + 180.0f, menu.MaxScroll());
+                    break;
+                }
+            }
+        }
         ok &= shot("5h4-settings-aiming-muzzle-flash-tooltip", go, gv);
+        gv.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
     }
     {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip

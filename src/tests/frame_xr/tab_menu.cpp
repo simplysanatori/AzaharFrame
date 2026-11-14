@@ -3131,8 +3131,16 @@ TEST_CASE("Tab menu: Muzzle Flash under Weapon in Hand", "[frame_xr][tabmenu][ki
             m.gyro_aim = aiming;
             m.weapon_in_hand = weapon;
             m.muzzle_flash = true;
-            d.Draw(m, v);
-            const bool row = HasHit(d, Id::MuzzleFlash, -1);
+            // Scrolled down until the row is on view (the aiming rows are low in General).
+            bool row = false;
+            for (float scroll = 0.0f; scroll <= 3000.0f && !row; scroll += kRowH) {
+                v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+                d.Draw(m, v);
+                row = HasHit(d, Id::MuzzleFlash, -1) && HasHit(d, Id::WeaponInHand, -1);
+                if (scroll >= d.menu.MaxScroll()) {
+                    break;
+                }
+            }
             CHECK(row == (aiming != 0 && weapon));
             if (row) {
                 const MenuLayout::Hit* in_hand = FindHit(d, Id::WeaponInHand, -1);

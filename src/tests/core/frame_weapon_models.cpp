@@ -1334,6 +1334,11 @@ TEST_CASE("Muzzle Flash: the cache: with the weapon, made again once, a class's 
     }
     REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
     CHECK_FALSE(m.Find(24)->flash.known);
+    // Saved again as it is (a run that made another weapon): still not known, never "no flash".
+    REQUIRE(FrameWeapons::WriteManifest(dir + "weapons.txt", m, error));
+    REQUIRE(FrameWeapons::ReadManifest(dir + "weapons.txt", m, error));
+    CHECK_FALSE(m.Find(24)->flash.known);
+    CHECK_FALSE(m.Find(28)->flash.known);
     r = FrameWeapons::ConvertGame(rom, kTitle, dir);
     CHECK(r.made == 2);
     r = FrameWeapons::ConvertGame(rom, kTitle, dir);

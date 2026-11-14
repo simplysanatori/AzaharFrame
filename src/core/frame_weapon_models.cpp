@@ -1202,8 +1202,12 @@ bool WriteManifest(const std::string& path, const Manifest& m, std::string& erro
             }
             out += "\n";
         }
-        // AzaharFrame kiuflash: always written, so a weapon made before the flashes is known.
+        // AzaharFrame kiuflash: for a weapon made with its flashes (one made by a build before
+        // them, kept as it was, keeps none: it is made again when next asked for).
         const FlashInfo& f = w.flash;
+        if (!f.known) {
+            continue;
+        }
         out += fmt::format("flashes {} {} {} {}\n", f.rapid.empty() ? "-" : f.rapid,
                            f.charged.empty() ? "-" : f.charged, f.source, Hex(f.pack_key));
         for (const FlashPart& p : f.parts) {
