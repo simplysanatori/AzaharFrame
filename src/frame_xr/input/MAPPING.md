@@ -194,6 +194,16 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   file has no flash borrows its class's first, in neutral colours. Recoil and Laser Sight are
   untouched by it. Test switch (live): `AZAHARFRAME_KIU_FLASH=size,ms` (a size factor, a
   duration).
+- **Projectiles** (`vr_light_gun_projectile`, per game too, on by default; under Muzzle Flash;
+  AzaharFrame kiuflash), with **Projectile Size** and **Projectile Speed** (50 to 200 %, 100 % by
+  default; shown while it is on): each of the game's own shots flies as the weapon's own bullet
+  (its effect file's bullet model, `core/frame_weapon_models.h` ConvertBullets, or its bullet
+  sprites when it has no mesh) from the muzzle to where the aim ray meets the top screen
+  (Calibrate Aim's point when the game has one; held on the screen), then shrinks into it
+  (`vis/projectile.h`). 14 m/s rapid, 9 m/s charged (110 to 220 ms and 180 to 380 ms), at most 8
+  at once, turning slowly about the way they fly (the bullets' own animations are not read).
+  Projectiles is mirrored in `vr_controls_preset_done` bits 30 and 31; Size and Speed are plain
+  new keys. Test switch (live): `AZAHARFRAME_KIU_SHOT=speed,size` (factors on top).
 - **Laser Sight** (`vr_light_gun_laser`, per game too, off by default; shown with Direct Aim;
   AzaharFrame kiuguns): on, the red laser sight above, from the weapon's muzzle when the weapon
   is drawn (`ControllerModels::WeaponMuzzle`), else from the controller; off, the aiming hand has

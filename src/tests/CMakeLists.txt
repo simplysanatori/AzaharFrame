@@ -33,6 +33,7 @@ add_executable(tests
     ../frame_xr/vis/weapon_fit.cpp # AzaharFrame kiuguns
     frame_xr/kiu_weapons.cpp # AzaharFrame kiuguns
     ../frame_xr/vis/muzzle_flash.cpp # AzaharFrame kiuflash
+    ../frame_xr/vis/projectile.cpp # AzaharFrame kiuflash
     frame_xr/kiu_flash.cpp # AzaharFrame kiuflash
     frame_xr/gyro_aim.cpp # AzaharFrame kiugyro
     frame_xr/kiufix.cpp # AzaharFrame kiufix

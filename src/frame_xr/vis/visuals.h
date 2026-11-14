@@ -32,6 +32,7 @@
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/vis/muzzle_flash.h" // AzaharFrame kiuflash
+#include "frame_xr/vis/projectile.h"   // AzaharFrame kiuflash
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
@@ -127,6 +128,9 @@ public:
     /// AzaharFrame kiuflash: the weapon's muzzle flash this frame (muzzle_flash.h), drawn with
     /// the weapon set by SetWeapon. Cleared by TakeInput; GameFrame sets it.
     void SetMuzzleFlash(const FlashFrame& flash);
+    /// AzaharFrame kiuflash: the projectiles' signal this frame (projectile.h), for the weapon
+    /// in `hand`. Cleared by TakeInput; GameFrame sets it.
+    void SetShots(int hand, const ShotSignal& shots);
     /// AzaharFrame kiuguns: no beam or dot this frame where `hand` points at `over` (the top
     /// screen, Laser Sight off: Input::AimBeamFor). Cleared by TakeInput.
     void SetBeamHidden(int hand, const Input::PanelQuad& over);

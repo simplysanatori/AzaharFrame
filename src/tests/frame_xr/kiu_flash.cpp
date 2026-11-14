@@ -23,6 +23,7 @@
 #include "frame_xr/input/gyro_aim.h"
 #include "frame_xr/vis/model_file.h"
 #include "frame_xr/vis/muzzle_flash.h"
+#include "frame_xr/vis/projectile.h"
 #include "frame_xr/vis/weapon_fit.h"
 
 using Catch::Approx;
@@ -438,6 +439,185 @@ TEST_CASE("Muzzle Flash: the per-frame cost", "[kiuflash]") {
     CHECK(us < 100.0); // well under 0.1 ms, even under qemu
 }
 
+// ---- AzaharFrame kiuflash: Projectiles ----
+
+TEST_CASE("Projectiles: how long a shot flies", "[kiuflash]") {
+    // The distance over the kind's speed: 2.8 m at 14 m/s is 200 ms.
+    CHECK(Vis::ShotFlightNs(2.8f, false, 1.0f) == Approx(200'000'000).margin(1000));
+    CHECK(Vis::ShotFlightNs(2.7f, true, 1.0f) == Approx(300'000'000).margin(1000));
+    // Held within the kind's limits: a near screen still reads, a far one does not drag.
+    CHECK(Vis::ShotFlightNs(0.3f, false, 1.0f) == Vis::kRapidMinNs);
+    CHECK(Vis::ShotFlightNs(30.0f, false, 1.0f) == Vis::kRapidMaxNs);
+    CHECK(Vis::ShotFlightNs(0.3f, true, 1.0f) == Vis::kChargedMinNs);
+    CHECK(Vis::ShotFlightNs(30.0f, true, 1.0f) == Vis::kChargedMaxNs);
+    // Projectile Speed 200 %: half the time, the limits too; 50 %: twice.
+    CHECK(Vis::ShotFlightNs(2.8f, false, 2.0f) == Approx(100'000'000).margin(1000));
+    CHECK(Vis::ShotFlightNs(30.0f, false, 2.0f) == Vis::kRapidMaxNs / 2);
+    CHECK(Vis::ShotFlightNs(2.8f, false, 0.5f) == Approx(400'000'000).margin(1000));
+    // A charged shot is slower than a rapid one over the same way.
+    for (const float m : {0.5f, 1.0f, 2.0f, 3.0f, 5.0f}) {
+        CHECK(Vis::ShotFlightNs(m, true, 1.0f) > Vis::ShotFlightNs(m, false, 1.0f));
+    }
+    // Odd input: no crash, a time within the limits.
+    CHECK(Vis::ShotFlightNs(std::nanf(""), false, std::nanf("")) == Vis::kRapidMinNs);
+    CHECK(Vis::ShotFlightNs(-1.0f, false, 1.0f) == Vis::kRapidMinNs);
+}
+
+TEST_CASE("Projectiles: from the muzzle into the screen, several at once", "[kiuflash]") {
+    Vis::Projectiles p;
+    const V3 from{0.1f, 1.2f, -0.5f}, to{0.1f, 1.2f, -3.3f}; // 2.8 m ahead: 200 ms
+    int64_t t = 5'000 * kMs;
+    p.Fire(from, to, false, t, 1.0f, 1.0f);
+    REQUIRE(p.InFlight() == 1);
+    auto d = p.Current(t);
+    REQUIRE(d.size() == 1);
+    CHECK(Len(Sub(d[0].at, from)) == Approx(0.0f).margin(1e-5));
+    CHECK(d[0].forward[2] == Approx(-1.0f));
+    CHECK(d[0].size == Approx(Vis::kRapidSizeM));
+    CHECK(d[0].strength > 0.0f);
+    CHECK_FALSE(d[0].charged);
+    // Halfway at half the time, along the straight line; full strength by then.
+    d = p.Current(t + 100 * kMs);
+    REQUIRE(d.size() == 1);
+    CHECK(d[0].at[2] == Approx(-1.9f).margin(1e-4));
+    CHECK(d[0].at[1] == Approx(1.2f));
+    CHECK(d[0].strength == Approx(1.0f));
+    // At the screen, then into it: shrinking to nothing at the point, then gone.
+    const int64_t flight = Vis::ShotFlightNs(2.8f, false, 1.0f);
+    d = p.Current(t + flight + Vis::kEnterNs / 2);
+    REQUIRE(d.size() == 1);
+    CHECK(Len(Sub(d[0].at, to)) == Approx(0.0f).margin(1e-5));
+    CHECK(d[0].size == Approx(Vis::kRapidSizeM * 0.5f));
+    CHECK(d[0].strength == Approx(0.5f));
+    CHECK(p.Current(t + flight + Vis::kEnterNs).empty());
+    CHECK(p.InFlight() == 0);
+    // Rapid fire: each shot its own, at most kMaxShots (the oldest go first).
+    for (int i = 0; i < 10; i++) {
+        p.Fire(from, to, false, t + i * 20 * kMs, 1.0f, 1.0f);
+    }
+    CHECK(p.InFlight() == static_cast<std::size_t>(Vis::kMaxShots));
+    d = p.Current(t + 180 * kMs);
+    REQUIRE(!d.empty());
+    CHECK(d.front().serial == 4); // 1 and 2 of the ten (serials 2 and 3 here) went first
+    for (std::size_t i = 1; i < d.size(); i++) {
+        CHECK(d[i].serial == d[i - 1].serial + 1);
+        CHECK(d[i].at[2] >= d[i - 1].at[2] - 1e-5f); // the later, the nearer the muzzle
+        CHECK(d[i].spin != d[i - 1].spin);           // each its own turn
+    }
+    // A charged one: its own size and kind; Projectile Size scales it.
+    p.Clear();
+    p.Fire(from, to, true, t, 1.0f, 1.5f);
+    d = p.Current(t + 10 * kMs);
+    REQUIRE(d.size() == 1);
+    CHECK(d[0].charged);
+    CHECK(d[0].size == Approx(Vis::kChargedSizeM * 1.5f));
+    // A clock that went back (a load): an old shot is let go.
+    CHECK(p.Current(t - 2'000 * kMs).empty());
+}
+
+TEST_CASE("Projectiles: a bullet turned the way it flies", "[kiuflash]") {
+    std::mt19937 rng(11);
+    std::uniform_real_distribution<float> u(-1.0f, 1.0f);
+    for (int i = 0; i < 300; i++) {
+        Vis::ShotDraw d;
+        d.at = {u(rng), 1.0f + u(rng), u(rng) - 2.0f};
+        V3 f{u(rng), u(rng) * 0.5f, -1.0f + u(rng) * 0.3f};
+        d.forward = Unit(f);
+        d.size = 0.05f + 0.1f * (u(rng) + 1.0f);
+        d.spin = u(rng) * 6.0f;
+        const auto m = Vis::ShotTransform(d);
+        // Its +z (its head) along the way it flies, every axis `size` long and square to the
+        // others, right handed, at the shot.
+        CHECK(Dot(Unit(Col(m, 2)), d.forward) == Approx(1.0f).margin(1e-4));
+        for (int c = 0; c < 3; c++) {
+            CHECK(Len(Col(m, c)) == Approx(d.size).epsilon(1e-3));
+        }
+        CHECK(Dot(Col(m, 0), Col(m, 1)) == Approx(0.0f).margin(1e-5));
+        const V3 x = Col(m, 0), y = Col(m, 1), z = Col(m, 2);
+        const V3 c{x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]};
+        CHECK(Dot(c, z) > 0.0f);
+        CHECK(Len(Sub(Col(m, 3), d.at)) == Approx(0.0f).margin(1e-6));
+    }
+    // Straight up or down: still a frame.
+    Vis::ShotDraw d;
+    d.forward = {0, 1, 0};
+    d.size = 0.1f;
+    for (const float v : Vis::ShotTransform(d)) {
+        CHECK(std::isfinite(v));
+    }
+}
+
+TEST_CASE("Projectiles: the live tune", "[kiuflash]") {
+    auto t = Vis::ParseShotTune(std::string{"1.5,2"});
+    CHECK(t.speed == Approx(1.5f));
+    CHECK(t.size == Approx(2.0f));
+    t = Vis::ParseShotTune(std::string{"0.5"});
+    CHECK(t.speed == Approx(0.5f));
+    CHECK(t.size == 1.0f);
+    t = Vis::ParseShotTune(std::string{"9,0.1"});
+    CHECK(t.speed == 1.0f);
+    CHECK(t.size == 1.0f);
+    CHECK(Vis::ParseShotTune(std::nullopt).speed == 1.0f);
+}
+
+TEST_CASE("Projectiles: a game's choice survives an older build", "[kiuflash]") {
+    auto& v = Settings::values;
+    CHECK(v.vr_light_gun_projectile.GetValue()); // on by default
+    CHECK(v.vr_light_gun_projectile_size.GetValue() == 100);
+    CHECK(v.vr_light_gun_projectile_speed.GetValue() == 100);
+    v.vr_controls_preset_done.SetGlobal(false);
+    v.vr_controls_preset_done.SetValue(FrameXr::kPresetGyroAim);
+    v.vr_light_gun_projectile.SetGlobal(false);
+    v.vr_light_gun_projectile.SetValue(false);
+    FrameXr::MirrorWeaponInHand();
+    const uint32_t saved = v.vr_controls_preset_done.GetValue();
+    CHECK(FrameXr::kProjectileMirrorMask == 0xC0000000u);
+    CHECK((saved & FrameXr::kProjectileMirrorMask) >> FrameXr::kProjectileMirrorShift == 1);
+    CHECK((saved & 0x3FFFC000u) == 0); // kiufix's bits and Muzzle Flash's untouched
+    for (int round = 0; round < 2; round++) {
+        v.vr_light_gun_projectile.SetGlobal(true); // the key dropped by an older build
+        CHECK(FrameXr::RestoreWeaponInHand());
+        CHECK_FALSE(v.vr_light_gun_projectile.UsingGlobal());
+        CHECK_FALSE(v.vr_light_gun_projectile.GetValue());
+        FrameXr::MirrorWeaponInHand();
+        CHECK(v.vr_controls_preset_done.GetValue() == saved);
+    }
+    v.vr_light_gun_projectile.SetValue(true);
+    FrameXr::MirrorWeaponInHand();
+    CHECK((v.vr_controls_preset_done.GetValue() & FrameXr::kProjectileMirrorMask) ==
+          (2u << FrameXr::kProjectileMirrorShift));
+    v.vr_light_gun_projectile.SetGlobal(true);
+    FrameXr::MirrorWeaponInHand();
+    CHECK((v.vr_controls_preset_done.GetValue() & FrameXr::kProjectileMirrorMask) == 0);
+    CHECK_FALSE(FrameXr::RestoreWeaponInHand());
+    v.vr_controls_preset_done.SetGlobal(true);
+}
+
+TEST_CASE("Projectiles: the per-frame cost", "[kiuflash]") {
+    // The XR thread's share each frame with eight in flight: the list and two eyes' transforms.
+    Vis::Projectiles p;
+    float sink = 0.0f;
+    constexpr int kFrames = 20000;
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < kFrames; i++) {
+        const int64_t now = int64_t{i} * 11 * kMs;
+        if (i % 3 == 0) {
+            p.Fire({0, 1, 0}, {0.2f, 1.3f, -3.0f}, i % 30 == 0, now, 1.0f, 1.0f);
+        }
+        for (const auto& d : p.Current(now)) {
+            for (int e = 0; e < 2; e++) {
+                sink += Vis::ShotTransform(d)[12];
+            }
+        }
+    }
+    const double us = std::chrono::duration<double, std::micro>(
+                          std::chrono::steady_clock::now() - t0)
+                          .count() /
+                      kFrames;
+    WARN("projectiles CPU per frame: " << us << " us (sink " << sink << ")");
+    CHECK(us < 100.0);
+}
+
 // ---- Desktop proofs (hidden): AZAHARFRAME_TEST_KIU_MODELS=<a folder the converter made>,
 // AZAHARFRAME_TEST_KIU_FLASH_CARDS=<out file>: each weapon's fit in the right hand, its muzzle and
 // its flash cards placed as the app places them, 10 % into the flash, the head level, for two
@@ -517,6 +697,106 @@ TEST_CASE("Muzzle Flash: the cards of converted weapons", "[.kiuflash_real]") {
                   << '\n';
             }
         }
+        }
+    }
+    CHECK(m.weapons.size() > 0);
+}
+
+// AZAHARFRAME_TEST_KIU_MODELS=<a folder the converter made>, AZAHARFRAME_TEST_KIU_SHOTS=<out
+// file>: each weapon's bullets placed as the app places them, a shot fired from its muzzle (as the
+// flash's, out of the barrel) to a screen 2.5 m ahead and 0.1 m up, at 15, 50 and 85 % of its
+// flight and halfway into the screen, the eye 0.22 m above and 0.42 m behind the controller.
+TEST_CASE("Projectiles: the bullets of converted weapons", "[.kiuflash_real]") {
+    const char* dir = std::getenv("AZAHARFRAME_TEST_KIU_MODELS");
+    const char* out = std::getenv("AZAHARFRAME_TEST_KIU_SHOTS");
+    REQUIRE(dir);
+    REQUIRE(out);
+    FrameWeapons::Manifest m;
+    std::string error;
+    REQUIRE(FrameWeapons::ReadManifest(std::string{dir} + "/weapons.txt", m, error));
+    std::ofstream o(out);
+    const V3 eye{0.0f, 0.22f, 0.42f}, up{0, 1, 0};
+    for (const auto& w : m.weapons) {
+        std::vector<Vis::FitSide> sides;
+        for (const auto& p : w.parts) {
+            for (const auto s : p.sides) {
+                const auto fs = static_cast<Vis::FitSide>(static_cast<int>(s));
+                if (std::find(sides.begin(), sides.end(), fs) == sides.end()) {
+                    sides.push_back(fs);
+                }
+            }
+        }
+        const Vis::FitWeapon fw{w.cls, w.muzzle, w.muzzle_valid};
+        const auto muzzle = Vis::FitMuzzle(fw, false, sides);
+        const auto fits = Vis::FitWeaponToHand(fw, false, sides);
+        REQUIRE(muzzle);
+        REQUIRE(!fits.empty());
+        float push = 0.0f;
+        for (const auto& p : w.parts) {
+            Vis::ModelFile pf;
+            REQUIRE(Vis::LoadModelFile(std::string{dir} + "/" + p.file, pf, error,
+                                       Vis::kModelFlagWeaponSpace));
+            if (!p.glow) {
+                push = std::max(push, Vis::FlashPush(pf.vertices, fits[0].transform, *muzzle));
+            }
+        }
+        const V3 from{(*muzzle)[0], (*muzzle)[1], (*muzzle)[2] - push};
+        const V3 to{0.0f, 0.1f, -2.5f};
+        o << "path " << w.id << ' ' << from[0] << ' ' << from[1] << ' ' << from[2] << ' ' << to[0]
+          << ' ' << to[1] << ' ' << to[2] << '\n';
+        for (const bool charged : {false, true}) {
+            Vis::Projectiles shots;
+            shots.Fire(from, to, charged, 0, 1.0f, 1.0f);
+            const int64_t flight = Vis::ShotFlightNs(Len(Sub(to, from)), charged, 1.0f);
+            for (const float f : {0.15f, 0.5f, 0.85f, 1.0f + 0.5f * Vis::kEnterNs / flight}) {
+                const auto draws = shots.Current(static_cast<int64_t>(f * flight));
+                REQUIRE(draws.size() == 1);
+                const Vis::ShotDraw& d = draws[0];
+                for (const auto& part : w.bullets.parts) {
+                    Vis::ModelFile mf;
+                    REQUIRE(Vis::LoadModelFile(std::string{dir} + "/" + part.file, mf, error,
+                                               Vis::kModelFlagWeaponSpace));
+                    const bool cards = (mf.flags & Vis::kModelFlagFlash) != 0;
+                    for (std::size_t k = 0; k < mf.components.size(); k++) {
+                        const auto& c = mf.components[k];
+                        if (c.name != (charged ? "charged" : "rapid")) {
+                            continue;
+                        }
+                        const float* v = c.motion.data();
+                        const auto ext =
+                            Vis::FlashCardSize(mf.vertices, mf.indices, c.first_index, c.index_count);
+                        std::array<float, 16> t;
+                        float mode, r, g, b, core = 0.0f, added = 1.0f, vcol = 0.0f;
+                        if (cards) {
+                            t = Vis::FlashCardTransform(false, d.at, d.forward, eye, up,
+                                                        d.size / std::max(ext.Units(), 1e-4f),
+                                                        0.0f, d.spin);
+                            mode = v[FrameWeapons::kFlashMode];
+                            r = v[FrameWeapons::kFlashRed];
+                            g = v[FrameWeapons::kFlashGreen];
+                            b = v[FrameWeapons::kFlashBlue];
+                            core = v[FrameWeapons::kFlashCore];
+                        } else {
+                            t = Vis::ShotTransform(d);
+                            mode = v[FrameWeapons::kBulletMode];
+                            r = v[FrameWeapons::kBulletRed];
+                            g = v[FrameWeapons::kBulletGreen];
+                            b = v[FrameWeapons::kBulletBlue];
+                            added = v[FrameWeapons::kBulletAdded];
+                            vcol = v[FrameWeapons::kBulletVertexColour];
+                        }
+                        o << "bullet " << w.id << ' ' << (charged ? "charged" : "rapid") << ' '
+                          << f << ' ' << part.file << ' ' << k << ' ' << (cards ? "card" : "mesh");
+                        for (const float x : t) {
+                            o << ' ' << x;
+                        }
+                        o << ' ' << d.strength << ' ' << mode << ' ' << Vis::FlashLinear(r) << ' '
+                          << Vis::FlashLinear(g) << ' ' << Vis::FlashLinear(b) << ' ' << core
+                          << ' ' << added << ' ' << ext.half_width << ' ' << ext.half_length
+                          << ' ' << ext.middle << ' ' << vcol << '\n';
+                    }
+                }
+            }
         }
     }
     CHECK(m.weapons.size() > 0);

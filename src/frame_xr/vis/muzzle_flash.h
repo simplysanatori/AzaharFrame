@@ -60,6 +60,14 @@ public:
         has_ = false;
         start_ns_ = -1;
     }
+    /// AzaharFrame kiuflash: the shots seen while active (the projectiles fire one each) and
+    /// whether the last was charged.
+    uint32_t Shots() const {
+        return shot_;
+    }
+    bool LastCharged() const {
+        return charged_;
+    }
 
 private:
     bool has_ = false;

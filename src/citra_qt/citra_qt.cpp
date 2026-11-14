@@ -516,6 +516,9 @@ struct FrameKeepControls {
           weapon{Settings::values.vr_light_gun_weapon}, // AzaharFrame kiuguns
           laser{Settings::values.vr_light_gun_laser},
           flash{Settings::values.vr_light_gun_flash}, // AzaharFrame kiuflash
+          projectile{Settings::values.vr_light_gun_projectile},
+          projectile_size{Settings::values.vr_light_gun_projectile_size},
+          projectile_speed{Settings::values.vr_light_gun_projectile_speed},
           recoil_charged{Settings::values.vr_light_gun_recoil_charged}, // AzaharFrame kiufix
           recoil_rapid{Settings::values.vr_light_gun_recoil_rapid},
           weapon_size{Settings::values.vr_light_gun_weapon_size},
@@ -538,6 +541,9 @@ struct FrameKeepControls {
         weapon.Restore();
         laser.Restore();
         flash.Restore();
+        projectile.Restore();
+        projectile_size.Restore();
+        projectile_speed.Restore();
         recoil_charged.Restore(); // AzaharFrame kiufix
         recoil_rapid.Restore();
         weapon_size.Restore();
@@ -560,6 +566,9 @@ struct FrameKeepControls {
     FrameKeepSetting<bool, false> weapon; // AzaharFrame kiuguns
     FrameKeepSetting<bool, false> laser;
     FrameKeepSetting<bool, false> flash; // AzaharFrame kiuflash
+    FrameKeepSetting<bool, false> projectile;
+    FrameKeepSetting<u32, true> projectile_size;
+    FrameKeepSetting<u32, true> projectile_speed;
     FrameKeepSetting<u32, true> recoil_charged; // AzaharFrame kiufix
     FrameKeepSetting<u32, true> recoil_rapid;
     FrameKeepSetting<u32, true> weapon_size;
@@ -5545,6 +5554,15 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::MuzzleFlash: // AzaharFrame kiuflash
         set(v.vr_light_gun_flash, r.value != 0);
+        break;
+    case S::Projectiles: // AzaharFrame kiuflash
+        set(v.vr_light_gun_projectile, r.value != 0);
+        break;
+    case S::ProjectileSize:
+        set(v.vr_light_gun_projectile_size, std::clamp<u32>(u, 50, 200));
+        break;
+    case S::ProjectileSpeed:
+        set(v.vr_light_gun_projectile_speed, std::clamp<u32>(u, 50, 200));
         break;
     case S::RecoilCharged: // AzaharFrame kiufix: percent
         set(v.vr_light_gun_recoil_charged, std::min<u32>(u, 100));

@@ -305,6 +305,12 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::LaserSight;
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         return MenuSetting::MuzzleFlash;
+    case Id::Projectiles: // AzaharFrame kiuflash
+        return MenuSetting::Projectiles;
+    case Id::ProjectileSize:
+        return MenuSetting::ProjectileSize;
+    case Id::ProjectileSpeed:
+        return MenuSetting::ProjectileSpeed;
     case Id::RecoilCharged: // AzaharFrame kiufix
         return MenuSetting::RecoilCharged;
     case Id::RecoilRapid:
@@ -1003,6 +1009,11 @@ void MenuPanel::BuildModel(const Host& host) {
     m.weapon_in_hand = v.vr_light_gun_weapon.GetValue(); // AzaharFrame kiuguns
     m.laser_sight = v.vr_light_gun_laser.GetValue();
     m.muzzle_flash = v.vr_light_gun_flash.GetValue(); // AzaharFrame kiuflash
+    m.projectiles = v.vr_light_gun_projectile.GetValue();
+    m.projectile_size =
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_projectile_size.GetValue(), 50, 200));
+    m.projectile_speed =
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_projectile_speed.GetValue(), 50, 200));
     m.recoil_charged = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_charged.GetValue(), 100));
     m.recoil_rapid = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_rapid.GetValue(), 100));
     m.weapon_size = static_cast<int>(std::min<u32>(v.vr_light_gun_weapon_size.GetValue(), 1));
@@ -1384,6 +1395,20 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::MuzzleFlash: // AzaharFrame kiuflash: per game in Per-Game
         Apply(v.vr_light_gun_flash, value != 0, per_game);
         r.setting = MenuSetting::MuzzleFlash;
+        break;
+    case Id::Projectiles: // AzaharFrame kiuflash: per game in Per-Game
+        Apply(v.vr_light_gun_projectile, value != 0, per_game);
+        r.setting = MenuSetting::Projectiles;
+        break;
+    case Id::ProjectileSize: // AzaharFrame kiuflash: percent, per game in Per-Game
+        r.value = std::clamp(value, 50, 200);
+        Apply(v.vr_light_gun_projectile_size, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::ProjectileSize;
+        break;
+    case Id::ProjectileSpeed:
+        r.value = std::clamp(value, 50, 200);
+        Apply(v.vr_light_gun_projectile_speed, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::ProjectileSpeed;
         break;
     case Id::RecoilCharged: // AzaharFrame kiufix: percent, per game in Per-Game
         r.value = std::clamp(value, 0, 100);
@@ -2157,6 +2182,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         SetSetting(t.id, model.muzzle_flash ? 0 : 1, host);
+        break;
+    case Id::Projectiles: // AzaharFrame kiuflash
+        SetSetting(t.id, model.projectiles ? 0 : 1, host);
         break;
     case Id::CalibrateAim: // AzaharFrame kiufix: the game on view, the steps as toasts
         if (host.calibrate_aim && model.aim_calibration_ok) {

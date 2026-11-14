@@ -1872,8 +1872,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // AzaharFrame kiuflash: Muzzle Flash, with the weapon in hand; its shots are read for it
     // too (Recoil keeps its own switch).
     const bool flash_on = weapon_on && Settings::values.vr_light_gun_flash.GetValue();
+    // AzaharFrame kiuflash: Projectiles, the same way (each shot flies into the screen).
+    const bool projectiles_on = weapon_on && Settings::values.vr_light_gun_projectile.GetValue();
     bool weapon_shown = false;
-    Kiu::SetWanted(weapon_on, kiu && (recoil_on || flash_on), kiu);
+    Kiu::SetWanted(weapon_on, kiu && (recoil_on || flash_on || projectiles_on), kiu);
     // AzaharFrame kiufix: the game's controls not on the mod's gyro: the controller cannot steer.
     if (aim_scheme_hint.Update(in.time_ns, kiu, Kiu::ControlScheme())) {
         ShowToastText(Input::kAimNeedsGyroToast, ToastTime::Long);
@@ -1895,8 +1897,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         }
     }
     // AzaharFrame kiuflash: a flash at the weapon's muzzle on each of the game's own shots.
+    // AzaharFrame kiuflash: the same shots fire the projectiles (ShotSignal; the target is set
+    // with Laser Sight's point below).
     {
-        const bool active = flash_on && weapon_shown;
+        const bool active = (flash_on || projectiles_on) && weapon_shown;
         const bool readable = Kiu::ShotsReadable();
         muzzle_flash.SetDurationMs(
             active ? Vis::ParseFlashTune(Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_FLASH"))
@@ -1905,12 +1909,26 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         muzzle_flash.Update(in.time_ns, Kiu::ShotTotal(), readable, active);
         if (active && readable != muzzle_flash_logged) {
             muzzle_flash_logged = readable;
-            LOG_INFO(Frontend, "xr: muzzle flash: {}",
+            LOG_INFO(Frontend, "xr: muzzle flash and projectiles: {}",
                      readable ? "on the game's own shots" : "waiting for the shots record");
         }
         const Vis::FlashFrame flash = muzzle_flash.Current(in.time_ns);
-        if (active && flash.shown) {
+        if (active && flash_on && flash.shown) {
             visuals.SetMuzzleFlash(flash);
+        }
+        shot_signal = {};
+        if (active && projectiles_on && readable) {
+            const Vis::ShotTune tune =
+                Vis::ParseShotTune(Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_SHOT"));
+            shot_signal.on = true;
+            shot_signal.shots = muzzle_flash.Shots();
+            shot_signal.charged = muzzle_flash.LastCharged();
+            shot_signal.speed =
+                static_cast<float>(Settings::values.vr_light_gun_projectile_speed.GetValue()) /
+                100.0f * tune.speed;
+            shot_signal.size =
+                static_cast<float>(Settings::values.vr_light_gun_projectile_size.GetValue()) /
+                100.0f * tune.size;
         }
     }
     // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
@@ -1967,9 +1985,20 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                                  : Input::IntersectQuad(Input::RayFromPose(aim_hand.aim), panels.top)
                                        .point_world);
         }
+        // AzaharFrame kiuflash: the projectiles fly to the same point (Calibrate Aim's when the
+        // game has one), held on the top screen (the game's reticle stops at its edge too).
+        if (shot_signal.on && target.valid) {
+            const Input::Vec3f p = Input::PointOnQuad(panels.top, std::clamp(target.u, 0.0f, 1.0f),
+                                                      std::clamp(target.v, 0.0f, 1.0f));
+            shot_signal.target_valid = true;
+            shot_signal.target = {p.x, p.y, p.z};
+        }
         if (beam.hide_top) {
             visuals.SetBeamHidden(gyro_aim_hand, panels.top);
         }
+    }
+    if (shot_signal.on) { // AzaharFrame kiuflash
+        visuals.SetShots(gyro_aim_hand, shot_signal);
     }
     {
         // AzaharFrame kiu: C-Stick at Edge starts and stops (one line each). AzaharFrame kiu2:

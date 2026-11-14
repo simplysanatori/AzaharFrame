@@ -120,6 +120,9 @@ enum class Id : int {
     WeaponInHand,    ///< AzaharFrame kiuguns: a switch, while Aiming is not Off
     LaserSight,      ///< AzaharFrame kiuguns: a switch, with Direct Aim
     MuzzleFlash,     ///< AzaharFrame kiuflash: a switch, with Weapon in Hand on
+    Projectiles,     ///< AzaharFrame kiuflash: a switch, with Weapon in Hand on
+    ProjectileSize,  ///< a slider, 50 to 200 (percent), with Projectiles on
+    ProjectileSpeed, ///< a slider, 50 to 200 (percent), with Projectiles on
     ShowControllers,
     WindowScale,
     Depth3d,            ///< AzaharFrame depth3d: Settings::values.factor_3d, per game
@@ -352,6 +355,9 @@ struct MenuModel {
     bool weapon_in_hand = true; ///< AzaharFrame kiuguns: vr_light_gun_weapon
     bool laser_sight = false;   ///< AzaharFrame kiuguns: vr_light_gun_laser
     bool muzzle_flash = true;   ///< AzaharFrame kiuflash: vr_light_gun_flash
+    bool projectiles = true;    ///< AzaharFrame kiuflash: vr_light_gun_projectile
+    int projectile_size = 100;  ///< percent (50 to 200)
+    int projectile_speed = 100; ///< percent (50 to 200)
     int recoil_charged = 100;   ///< AzaharFrame kiufix: percent (0 to 100)
     int recoil_rapid = 50;      ///< percent (0 to 100)
     int weapon_size = 0;        ///< 0 Game Size, 1 Hand Size

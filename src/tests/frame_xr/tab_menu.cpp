@@ -2938,6 +2938,7 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
                           Id::ReticleAtEdge, Id::ReticleCenter, Id::ReticleStick, Id::GyroAim,
                           Id::GyroSensitivity, Id::Recoil, Id::RecoilCharged, Id::RecoilRapid,
                           Id::WeaponInHand, Id::WeaponSize, Id::WeaponScale, Id::MuzzleFlash,
+                          Id::Projectiles, Id::ProjectileSize, Id::ProjectileSpeed,
                           Id::LaserSight, Id::TurnZone, Id::TurnSpeed});
     MenuModel m = Sample();
     m.scope = 1;
@@ -3194,6 +3195,78 @@ TEST_CASE("Tab menu: Muzzle Flash under Weapon in Hand", "[frame_xr][tabmenu][ki
     m.game_value = {};
     m.game_value[static_cast<std::size_t>(Id::MuzzleFlash)] = true;
     CHECK(GameValueRows(m, Tab::Controls) == std::vector<Id>{Id::MuzzleFlash});
+}
+
+// AzaharFrame kiuflash: Projectiles under Muzzle Flash, its Size and Speed under it while it is on.
+TEST_CASE("Tab menu: Projectiles and their size and speed", "[frame_xr][tabmenu][kiuflash]") {
+    CHECK(LabelFor(Id::Projectiles) == "Projectiles");
+    CHECK(LabelFor(Id::ProjectileSize) == "Projectile Size");
+    CHECK(LabelFor(Id::ProjectileSpeed) == "Projectile Speed");
+    CHECK(ExplainFor(Id::Projectiles) == "Your shots fly from your weapon into the screen.");
+    CHECK(ExplainFor(Id::ProjectileSize) == "How big your shots are.");
+    CHECK(ExplainFor(Id::ProjectileSpeed) == "How fast your shots fly.");
+    for (const Id id : {Id::Projectiles, Id::ProjectileSize, Id::ProjectileSpeed}) {
+        CHECK(PerGameSetting(id));
+    }
+    for (const Id id : {Id::ProjectileSize, Id::ProjectileSpeed}) {
+        const SliderRange r = SliderFor(id);
+        CHECK(r.min == 50.0f);
+        CHECK(r.max == 200.0f);
+    }
+    Drawn d;
+    MenuModel m = Sample();
+    m.gyro_aim = 2;
+    MenuView v;
+    v.tab = Tab::Controls;
+    const auto find = [&](Id id, int index) {
+        for (float scroll = 0.0f; scroll <= 4000.0f; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Controls)] = scroll;
+            d.Draw(m, v);
+            if (HasHit(d, id, index)) {
+                return true;
+            }
+            if (scroll >= d.menu.MaxScroll()) {
+                break;
+            }
+        }
+        return false;
+    };
+    for (const bool weapon : {false, true}) {
+        for (const bool on : {false, true}) {
+            INFO("weapon " << weapon << ", projectiles " << on);
+            m.weapon_in_hand = weapon;
+            m.projectiles = on;
+            CHECK(find(Id::Projectiles, -1) == weapon);
+            CHECK(find(Id::ProjectileSize, kLabelIndex) == (weapon && on));
+            CHECK(find(Id::ProjectileSpeed, kLabelIndex) == (weapon && on));
+            if (weapon && on) {
+                // In order: Muzzle Flash, Projectiles, Projectile Size, Projectile Speed.
+                REQUIRE(find(Id::ProjectileSpeed, kLabelIndex));
+                const MenuLayout::Hit* flash = FindHit(d, Id::MuzzleFlash, -1);
+                const MenuLayout::Hit* proj = FindHit(d, Id::Projectiles, -1);
+                const MenuLayout::Hit* size = FindHit(d, Id::ProjectileSize, kLabelIndex);
+                const MenuLayout::Hit* speed = FindHit(d, Id::ProjectileSpeed, kLabelIndex);
+                REQUIRE(proj != nullptr);
+                REQUIRE(size != nullptr);
+                REQUIRE(speed != nullptr);
+                if (flash) {
+                    CHECK(proj->r.y0 >= flash->r.y1 - 0.01f);
+                }
+                CHECK(size->r.y0 >= proj->r.y1 - 0.01f);
+                CHECK(speed->r.y0 >= size->r.y1 - 0.01f);
+                Audit a;
+                a.Draw(m, v);
+                a.Check("Controls, Projectiles");
+                CHECK(a.Drew("Projectile Speed"));
+            }
+        }
+    }
+    m.scope = 1;
+    m.game_value = {};
+    m.game_value[static_cast<std::size_t>(Id::ProjectileSize)] = true;
+    m.game_value[static_cast<std::size_t>(Id::Projectiles)] = true;
+    CHECK(GameValueRows(m, Tab::Controls) ==
+          std::vector<Id>{Id::Projectiles, Id::ProjectileSize});
 }
 
 TEST_CASE("Tab menu: the reticle's switches", "[frame_xr][tabmenu][reticle]") {

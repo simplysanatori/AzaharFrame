@@ -634,6 +634,9 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     ReadGlobalSetting(Settings::values.vr_light_gun_laser);
     ReadGlobalSetting(Settings::values.vr_light_gun_flash); // AzaharFrame kiuflash
+    ReadGlobalSetting(Settings::values.vr_light_gun_projectile);
+    ReadGlobalSetting(Settings::values.vr_light_gun_projectile_size);
+    ReadGlobalSetting(Settings::values.vr_light_gun_projectile_speed);
     ReadGlobalSetting(Settings::values.vr_light_gun_recoil_charged); // AzaharFrame kiufix
     ReadGlobalSetting(Settings::values.vr_light_gun_recoil_rapid);
     ReadGlobalSetting(Settings::values.vr_light_gun_weapon_size);
@@ -1349,6 +1352,9 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     WriteGlobalSetting(Settings::values.vr_light_gun_laser);
     WriteGlobalSetting(Settings::values.vr_light_gun_flash); // AzaharFrame kiuflash
+    WriteGlobalSetting(Settings::values.vr_light_gun_projectile);
+    WriteGlobalSetting(Settings::values.vr_light_gun_projectile_size);
+    WriteGlobalSetting(Settings::values.vr_light_gun_projectile_speed);
     WriteGlobalSetting(Settings::values.vr_light_gun_recoil_charged); // AzaharFrame kiufix
     WriteGlobalSetting(Settings::values.vr_light_gun_recoil_rapid);
     WriteGlobalSetting(Settings::values.vr_light_gun_weapon_size);

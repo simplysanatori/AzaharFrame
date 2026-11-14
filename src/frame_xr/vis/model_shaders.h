@@ -27,8 +27,8 @@ layout(push_constant) uniform PC {
                   // +1 mirrored, +2 nothing before x = 0 (a palm's forearm drawn on its own),
                   // +4 a glow (unlit, added to what is behind: the additive pipeline),
                   // +16 a muzzle flash's card (kiuflash: key its colour and white core, up its
-                  // colour mode, half width, half length and middle along y; x 1 for a fan;
-                  // with +4)
+                  // colour mode, half width, half length and middle along y; x 1 for a fan,
+                  // 2 a projectile's bullet mesh times its vertex colour, 3 one without; with +4)
 } pc;
 
 layout(location = 0) in vec3 a_position;
@@ -113,9 +113,18 @@ void main() {
                                : pc.key.rgb * t.rgb * t.a;
         // Its edges fade, so a sprite that reaches its border shows no square (a fan's from
         // its sides and far end only: its point is at the muzzle).
-        vec2 q = vec2(v_position.x / max(pc.up.y, 1e-4), (v_position.y - pc.up.w) / max(pc.up.z, 1e-4));
-        float edge = pc.params.x > 0.5 ? max(abs(q.x), q.y) : max(abs(q.x), abs(q.y));
-        light *= (1.0 - smoothstep(0.75, 1.0, edge)) * clamp(pc.params.z, 0.0, 1.0);
+        // AzaharFrame kiuflash: a projectile's bullet mesh (x 2 or 3): no edge to fade; with x 2
+        // its vertex colour (in the tangent's place) times the light.
+        if (pc.params.x > 1.5) {
+            if (pc.params.x < 2.5) {
+                light *= clamp(v_tangent.rgb, 0.0, 1.0) * clamp(v_tangent.a, 0.0, 1.0);
+            }
+        } else {
+            vec2 q = vec2(v_position.x / max(pc.up.y, 1e-4), (v_position.y - pc.up.w) / max(pc.up.z, 1e-4));
+            float edge = pc.params.x > 0.5 ? max(abs(q.x), q.y) : max(abs(q.x), abs(q.y));
+            light *= 1.0 - smoothstep(0.75, 1.0, edge);
+        }
+        light *= clamp(pc.params.z, 0.0, 1.0);
         // A coverage alpha from the light itself, as the glows' (AzaharFrame kiufix): light at
         // alpha 0 can be dropped as clear.
         float cover = clamp(max(light.r, max(light.g, light.b)) * 0.6, 0.0, 0.6);

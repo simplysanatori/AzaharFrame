@@ -90,7 +90,7 @@ std::string SliderText(Id id, float value) {
         return Format("%.1fx", value / 10.0f);
     }
     if (id == Id::TurnZone || id == Id::RecoilCharged || id == Id::RecoilRapid ||
-        id == Id::WeaponScale) { // AzaharFrame kiugyro: "10%" (kiufix: the strengths, the scale)
+        id == Id::WeaponScale || id == Id::ProjectileSize || id == Id::ProjectileSpeed) { // AzaharFrame kiugyro: "10%" (kiufix: the strengths, the scale)
         return Format("%.0f%%", value);
     }
     if (id == Id::AutosaveEvery) { // AzaharFrame autosave: the stop's minutes
@@ -295,6 +295,9 @@ bool PerGameSetting(Id id) {
     case Id::WeaponInHand: // AzaharFrame kiuguns
     case Id::LaserSight:
     case Id::MuzzleFlash: // AzaharFrame kiuflash
+    case Id::Projectiles:
+    case Id::ProjectileSize:
+    case Id::ProjectileSpeed:
     case Id::RecoilCharged: // AzaharFrame kiufix
     case Id::RecoilRapid:
     case Id::WeaponSize:
@@ -312,8 +315,9 @@ const std::vector<Id>& ControlsScopeRows() {
         Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,  Id::ReticleAtEdge,
         Id::ReticleCenter, Id::ReticleStick,        Id::GyroAim,       Id::GyroSensitivity,
         Id::Recoil,        Id::RecoilCharged,       Id::RecoilRapid,   Id::WeaponInHand,
-        Id::WeaponSize,    Id::WeaponScale,         Id::MuzzleFlash,   Id::LaserSight,
-        Id::TurnZone,      Id::TurnSpeed}; // fixes7; AzaharFrame kiuflash: Muzzle Flash
+        Id::WeaponSize,    Id::WeaponScale,         Id::MuzzleFlash,   Id::Projectiles,
+        Id::ProjectileSize, Id::ProjectileSpeed,    Id::LaserSight,    Id::TurnZone,
+        Id::TurnSpeed}; // fixes7; AzaharFrame kiuflash: Muzzle Flash, Projectiles and theirs
     return kRows;
 }
 
@@ -549,6 +553,12 @@ std::string LabelFor(Id id) {
         return "Laser Sight";
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         return "Muzzle Flash";
+    case Id::Projectiles:
+        return "Projectiles";
+    case Id::ProjectileSize:
+        return "Projectile Size";
+    case Id::ProjectileSpeed:
+        return "Projectile Speed";
     case Id::RecoilCharged: // AzaharFrame kiufix
         return "Charged Shot";
     case Id::RecoilRapid:
@@ -801,6 +811,12 @@ std::string ExplainFor(Id id) {
         return "A red beam from your weapon to where you aim.";
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         return "A flash at your weapon's tip on each shot.";
+    case Id::Projectiles:
+        return "Your shots fly from your weapon into the screen.";
+    case Id::ProjectileSize:
+        return "How big your shots are.";
+    case Id::ProjectileSpeed:
+        return "How fast your shots fly.";
     case Id::RecoilCharged: // AzaharFrame kiufix
         return "How strong the buzz is for a charged shot.";
     case Id::RecoilRapid:
@@ -936,6 +952,9 @@ SliderRange SliderFor(Id id) {
     }
     if (id == Id::RecoilCharged || id == Id::RecoilRapid) { // AzaharFrame kiufix: 0 to 100 %
         return {0.0f, 100.0f, 10.0f};
+    }
+    if (id == Id::ProjectileSize || id == Id::ProjectileSpeed) { // AzaharFrame kiuflash
+        return {50.0f, 200.0f, 10.0f};
     }
     if (id == Id::WeaponScale) { // AzaharFrame kiufix: 50 to 150 %
         return {50.0f, 150.0f, 10.0f};
@@ -1846,6 +1865,11 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             aim_rows.push_back(Id::WeaponSize);
             aim_rows.push_back(Id::WeaponScale);
             aim_rows.push_back(Id::MuzzleFlash); // AzaharFrame kiuflash
+            aim_rows.push_back(Id::Projectiles);
+            if (model.projectiles) {
+                aim_rows.push_back(Id::ProjectileSize);
+                aim_rows.push_back(Id::ProjectileSpeed);
+            }
         }
         if (model.gyro_aim == 2) {
             aim_rows.push_back(Id::LaserSight);
@@ -2039,6 +2063,15 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             break;
         case Id::MuzzleFlash: // AzaharFrame kiuflash
             switch_row(id, model.muzzle_flash);
+            break;
+        case Id::Projectiles:
+            switch_row(id, model.projectiles);
+            break;
+        case Id::ProjectileSize:
+            slider_row(id, y, model.projectile_size);
+            break;
+        case Id::ProjectileSpeed:
+            slider_row(id, y, model.projectile_speed);
             break;
         case Id::CalibrateAim: {
             // The label, then Reset (while this game has one) and Start, as buttons.

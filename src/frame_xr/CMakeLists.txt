@@ -131,6 +131,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/weapon_fit.h
     vis/muzzle_flash.cpp # AzaharFrame kiuflash
     vis/muzzle_flash.h
+    vis/projectile.cpp # AzaharFrame kiuflash
+    vis/projectile.h
     vis/panel_art.cpp
     vis/panel_art.h
     vis/panels.cpp

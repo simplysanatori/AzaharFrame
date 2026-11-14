@@ -241,6 +241,7 @@ private:
     Input::Recoil recoil;          ///< AzaharFrame kiugyro: Light Gun's recoil
     Input::ShotRecoil shot_recoil; ///< AzaharFrame kiuguns: Recoil on the game's own shots
     Vis::MuzzleFlash muzzle_flash; ///< AzaharFrame kiuflash: Muzzle Flash on the same shots
+    Vis::ShotSignal shot_signal;   ///< AzaharFrame kiuflash: the projectiles' this frame
     bool muzzle_flash_logged = false;
     bool recoil_real_logged = false;
     bool laser_logged = false; // AzaharFrame kiufix

@@ -987,6 +987,52 @@ int main(int argc, char** argv) {
         MenuModel win = go;
         win.controls_page = 1;
         ok &= shot("kiu-controls-14-window-page", win, at(0.0f));
+        // AzaharFrame kiuflash: Muzzle Flash and Projectiles (with its Size and Speed) under
+        // Weapon in Hand's rows: the end of the page, their tooltips, Projectiles off, one held.
+        MenuModel fx = go;
+        fx.projectile_size = 150;
+        fx.projectile_speed = 80;
+        fx.game_value[static_cast<std::size_t>(Id::Projectiles)] = true;
+        const auto aiming_at = [&](const MenuModel& model, Id row) {
+            // The scroll that shows `row` with a row to spare below (a tooltip goes above it).
+            frame_xr::ui::Canvas scratch;
+            scratch.Init(static_cast<int>(kPanelW * px_per_dp + 0.5f),
+                         static_cast<int>(kPanelH * px_per_dp + 0.5f));
+            MenuView sv = at(0.0f);
+            for (float s = 0.0f; s <= 4000.0f; s += 20.0f) {
+                sv.scroll[static_cast<int>(Tab::Controls)] = s;
+                kit.Begin(scratch);
+                menu.Draw(kit, model, sv);
+                for (const auto& hit : menu.Hits()) {
+                    if (hit.t.id == row) {
+                        return std::min(s + 180.0f, menu.MaxScroll());
+                    }
+                }
+                if (s >= menu.MaxScroll()) {
+                    break;
+                }
+            }
+            return 0.0f;
+        };
+        ok &= shot("kiu-controls-15-muzzle-flash-projectiles", fx,
+                   at(aiming_at(fx, Id::ProjectileSpeed)));
+        ok &= shot("kiu-controls-15b-tooltip-muzzle-flash", fx,
+                   at(aiming_at(fx, Id::MuzzleFlash), Id::MuzzleFlash, kLabelIndex, true));
+        ok &= shot("kiu-controls-15c-tooltip-projectiles", fx,
+                   at(aiming_at(fx, Id::Projectiles), Id::Projectiles, kLabelIndex, true));
+        ok &= shot("kiu-controls-15d-tooltip-projectile-size", fx,
+                   at(aiming_at(fx, Id::ProjectileSize), Id::ProjectileSize, kLabelIndex, true));
+        ok &= shot("kiu-controls-15e-tooltip-projectile-speed", fx,
+                   at(aiming_at(fx, Id::ProjectileSpeed), Id::ProjectileSpeed, kLabelIndex, true));
+        MenuView held = at(aiming_at(fx, Id::ProjectileSpeed));
+        held.dragging = Id::ProjectileSize;
+        held.hover = {Id::ProjectileSize};
+        ok &= shot("kiu-controls-15f-projectile-size-held", fx, held);
+        MenuModel nofx = fx;
+        nofx.projectiles = false;
+        nofx.muzzle_flash = false;
+        ok &= shot("kiu-controls-15g-flash-and-projectiles-off", nofx,
+                   at(aiming_at(nofx, Id::Projectiles)));
     }
     {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip

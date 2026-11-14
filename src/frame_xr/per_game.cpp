@@ -130,6 +130,15 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         f(v.vr_light_gun_flash);
         return true;
+    case Id::Projectiles: // AzaharFrame kiuflash
+        f(v.vr_light_gun_projectile);
+        return true;
+    case Id::ProjectileSize:
+        f(v.vr_light_gun_projectile_size);
+        return true;
+    case Id::ProjectileSpeed:
+        f(v.vr_light_gun_projectile_speed);
+        return true;
     case Id::RecoilCharged: // AzaharFrame kiufix
         f(v.vr_light_gun_recoil_charged);
         return true;
