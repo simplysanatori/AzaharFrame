@@ -7,7 +7,9 @@
 // position (SteamVR's overlay of that index), absent quads are collapsed in their own slot, new
 // ones go where the producers' order puts them, and the runtime's limit drops the oldest absent.
 
+#include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/layer_slots.h"
@@ -196,4 +198,79 @@ TEST_CASE("Layer slots: over the limit, reserved slots go last and stay gone",
     CHECK(Where(out, "eye") == eyes);
     // A new list reserves all four again.
     CHECK(Names(HudFrame(m, 4, {{G::Top, "eye"}})) == "res_ res_ res_ res_ eye");
+}
+
+TEST_CASE("Layer slots: the VR menu's list with Motion Clarity's backing fits 16 layers",
+          "[frame_xr][flash][flash2]") {
+    // flash2: Motion Clarity stays in effect in the menu, so the screens keep their backing: 4
+    // screen layers (backing and screen per eye). The menu's list as app.cpp makes it: the HUD's
+    // Toast, Label and Badge reserved (not the hint chip, which shows only in play), the dim and
+    // the menu panel (Ui), then the Top group as Visuals::TopLayers fills it from the room left
+    // (pointer dots, the controllers' projection layer, their two eye quads, the beams).
+    constexpr std::size_t kLimit = 16, kScreens = 4;
+    LS::Map<Q> m;
+    const auto frame = [&](int dots_wanted, int beams_wanted, bool budget_from_all) {
+        m.Begin(1);
+        for (const G g : {G::Toast, G::Label, G::Badge}) {
+            m.Reserve(g, 'h', 0, 0, Q{"res"});
+        }
+        m.Add(G::Ui, 'd', 8, 8, Q{"dim"});
+        m.Add(G::Ui, 'm', 1470, 980, Q{"menu"});
+        // The Top group's room: before flash2 from Size(), which counts the Top group's own slots
+        // of earlier frames too.
+        const std::size_t used = kScreens + (budget_from_all ? m.Size() : m.SizeBefore(G::Top));
+        std::size_t room = kLimit > used ? kLimit - used : 0;
+        const std::size_t dots = std::min<std::size_t>(room, static_cast<std::size_t>(dots_wanted));
+        room -= dots;
+        const bool models = room > 0;
+        room -= models ? 1 : 0;
+        const bool eyes = room >= 2;
+        room -= eyes ? 2 : 0;
+        const std::size_t beams = std::min<std::size_t>(room, static_cast<std::size_t>(beams_wanted));
+        if (eyes) {
+            m.Add(G::Top, 'e', 2, 1, Q{"eye"});
+            m.Add(G::Top, 'e', 2, 1, Q{"eye"});
+        }
+        for (std::size_t i = 0; i < beams; i++) {
+            m.Add(G::Top, 'b', 3, 1, Q{"beam"});
+        }
+        for (std::size_t i = 0; i < dots; i++) {
+            m.Add(G::Top, 'c', 1, 1, Q{"dot"});
+        }
+        std::vector<LS::Map<Q>::Out> out;
+        m.End(kLimit - kScreens - (models ? 1 : 0), out, [](Q& q) { q.size *= LS::kCollapse; });
+        struct Result {
+            std::size_t layers;
+            bool models, eyes;
+            std::size_t beams;
+            std::string names;
+        };
+        return Result{kScreens + (models ? 1 : 0) + out.size(), models, eyes, beams, Names(out)};
+    };
+    // Both controllers pointing at the menu, for 2 s, one of them looking away now and then: all
+    // of it shows, in 16 layers, and the list keeps its length and order.
+    std::string first;
+    for (int f = 0; f < 240; f++) {
+        const auto r = frame(f % 60 < 50 ? 2 : 1, f % 60 < 50 ? 2 : 1, false);
+        CHECK(r.layers <= kLimit);
+        CHECK(r.models);
+        CHECK(r.eyes);
+        CHECK(r.beams == (f % 60 < 50 ? 2u : 1u));
+        if (f == 0) {
+            first = r.names;
+            CHECK(r.layers == kLimit);
+        }
+    }
+    CHECK(m.Dropped() == 0);
+    CHECK(m.Added() == 11); // made on the first frame only
+    CHECK(first == "dim menu res_ res_ res_ eye eye beam beam dot dot");
+    // The budget before flash2, from Size(): on the next frame the Top group's own slots took its
+    // room, and the eye quads and the beams went (the "vis: 16 layers allowed" warnings of the
+    // owner's menus, with 2 screen layers then; with the backing's 4 even the models would go).
+    LS::Map<Q> fresh;
+    std::swap(m, fresh);
+    frame(2, 2, true);
+    const auto old = frame(2, 2, true);
+    CHECK_FALSE(old.eyes);
+    CHECK(old.beams == 0u);
 }

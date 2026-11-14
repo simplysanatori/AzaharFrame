@@ -74,6 +74,10 @@ struct ScreenLayers {
     /// picture for the head pose (modes 2 and 3, not paused by the menu or the bottom screen).
     /// Motion Clarity flashes it (motion_clarity.h).
     bool head_driven = false;
+    /// AzaharFrame flash2: the game on view is in a Full mode (2 or 3), engaged or paused for a
+    /// while (the VR menu, the game's keyboard, the bottom screen shown or in focus, the head not
+    /// tracked). Motion Clarity is in effect all that time, so its brightness does not step.
+    bool full_mode = false;
 };
 
 /// XR thread, while building the layers and the pointer targets. Not in immersive mode: the

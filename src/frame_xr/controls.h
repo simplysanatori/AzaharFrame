@@ -127,10 +127,12 @@ public:
             return menu_window ? 2 : 1;
         }
         if (game_running) {
-            return 3;
+            return kGameContext;
         }
         return mirror.Enabled() ? 4 : 5;
     }
+    /// AzaharFrame flash2: LayerContext while the game is played (no VR menu or keyboard).
+    static constexpr uint32_t kGameContext = 3;
     /// AzaharFrame curve: the Screen Curve (degrees) for the screens as `shown`: 0 unless they
     /// are the normal screens (not the immersive ones) and the runtime takes cylinder layers.
     uint32_t CurveFor(const Immersive::ScreenLayers& shown) const;

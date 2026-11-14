@@ -1993,6 +1993,7 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
     out.bottom_pose = placement.bottom_pose;
     out.bottom_size = placement.bottom_size;
     out.show_bottom = BottomShown();
+    out.full_mode = g.live && IsViewMode(g.mode); // AzaharFrame flash2
 
     if (g.engaged && !IsViewMode(g.mode)) {
         // Mode 1: fixed in the room, ahead of where the head was when the game started (or the

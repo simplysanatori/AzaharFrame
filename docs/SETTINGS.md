@@ -224,7 +224,7 @@ Full modes only. When you resize the immersive screen (grip and stick left or ri
 
 ## Motion Clarity
 
-Full modes only. Shows each game picture once, for one refresh of the headset, and black until the next one. Turning your head, the world stays sharp and single instead of doubling. The screen is dimmer: at 60 fps it is lit half the time, which looks about three quarters as bright, and some people notice a slight flicker at the edges of their view. Games that run under 60 fps, a game that pauses or stalls, and the VR menu show as before.
+Full modes only. Shows each game picture once, for one refresh of the headset, and black until the next one. Turning your head, the world stays sharp and single instead of doubling. The screen is dimmer: at 60 fps it is lit half the time, which looks about three quarters as bright, and some people notice a slight flicker at the edges of their view. Games that run under 60 fps show as before. The VR menu, a paused game and a stall keep the same brightness.
 
 ## View Matrix Register
 

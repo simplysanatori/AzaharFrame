@@ -5,7 +5,10 @@
 // AzaharFrame flash: Motion Clarity's scheduling (frame_xr/motion_clarity.h): which refreshes show
 // the picture and which the black backing, at 60 and 30 pictures a second on 120 Hz, through
 // stalls, late pictures, the menu and a pause; the override, the setting and the log.
+// flash2: the same share of light in the menu, a pause, learning, late pictures and gaps (no
+// brightness step), and the layer list through a menu.
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -40,9 +43,13 @@ std::string Run(MC::Scheduler& s, uint32_t every, int refreshes, uint64_t& pictu
 TEST_CASE("Motion Clarity: 60 pictures on 120 Hz, each on one refresh", "[frame_xr][flash]") {
     MC::Scheduler s;
     uint64_t pic = 0;
-    // Learning: 8 pictures (16 refreshes) held, then the rate is known.
-    const std::string learn = Run(s, 2, 18, pic);
-    CHECK(learn.substr(0, 17) == std::string(17, 'P'));
+    // Learning: 8 pictures (16 refreshes), then the rate is known. flash2: flashed on the beat
+    // meanwhile (it was held lit: a bright step at every start).
+    std::vector<MC::Why> learn_whys;
+    const std::string learn = Run(s, 2, 18, pic, true, true, &learn_whys);
+    CHECK(learn == "PBPBPBPBPBPBPBPBPB");
+    CHECK(learn_whys[0] == MC::Why::Learning);
+    CHECK(learn_whys[16] == MC::Why::Fresh);
     CHECK(s.Fast());
     CHECK(s.Mean() == 2.0f);
     CHECK(s.LateAfter() == 3u);
@@ -99,13 +106,15 @@ TEST_CASE("Motion Clarity: the rate changes with hysteresis", "[frame_xr][flash]
     CHECK(s.Fast());
 }
 
-TEST_CASE("Motion Clarity: a late picture or a stall is held, never dark for long",
+TEST_CASE("Motion Clarity: a late picture or a stall flashes on, never dark for long",
           "[frame_xr][flash]") {
     MC::Scheduler s;
     uint64_t pic = 0;
     Run(s, 2, 40, pic);
     REQUIRE(s.Fast());
-    // One picture late by two refreshes (4 refreshes): lit, dark, dark, held again, then the next.
+    // One picture late by two refreshes (4 refreshes): lit, dark, dark, shown again one refresh
+    // after the next was due; flash2: the next picture, due on the refresh after a lit one, waits
+    // one refresh (it made a lit run of 2 before), and the game's beat goes on from it.
     std::string out;
     pic++;
     for (int i = 0; i < 4; i++) {
@@ -113,18 +122,25 @@ TEST_CASE("Motion Clarity: a late picture or a stall is held, never dark for lon
     }
     pic++;
     out += s.Next({true, true, pic}).show ? 'P' : 'B';
-    CHECK(out == "PBBPP");
-    // A stall of 2 s: held all the way after the third refresh, and the decision says why.
+    out += s.Next({true, true, pic}).show ? 'P' : 'B';
+    out += Run(s, 2, 8, pic);
+    CHECK(out == "PBBPBPBPBPBPBP");
+    // flash2: a stall of 2 s (a savestate loading, a race starting): the frozen picture on every
+    // other refresh after the first late one, as bright as in play, never lit twice in a row.
     pic++;
     std::string stall;
     MC::Why last = MC::Why::Off;
     for (int i = 0; i < 240; i++) {
         const MC::Decision d = s.Next({true, true, pic});
         stall += d.show ? 'P' : 'B';
-        last = d.why;
+        if (d.show) {
+            last = d.why;
+        }
     }
-    CHECK(stall.substr(0, 3) == "PBB");
-    CHECK(stall.substr(3) == std::string(237, 'P'));
+    CHECK(stall.substr(0, 6) == "BPBBPB"); // waits a refresh, lit, waits for the next, late
+    CHECK(stall.find("PP") == std::string::npos);
+    CHECK(stall.find("BBB") == std::string::npos);
+    CHECK(std::count(stall.begin(), stall.end(), 'P') == 119);
     CHECK(last == MC::Why::Late);
     // The stall's long interval is not taken for the game's rate: still fast, and a late picture
     // still waits only one refresh past its time, with the odd dropped frame in the mean.
@@ -134,25 +150,38 @@ TEST_CASE("Motion Clarity: a late picture or a stall is held, never dark for lon
     CHECK(s.Fast());
 }
 
-TEST_CASE("Motion Clarity: menus, pauses and off are held; turning on never hides a new picture",
+TEST_CASE("Motion Clarity: menus and pauses flash on the beat; turning on never hides a new "
+          "picture",
           "[frame_xr][flash]") {
     MC::Scheduler s;
     uint64_t pic = 0;
     Run(s, 2, 40, pic);
     std::vector<MC::Why> whys;
-    // The VR menu open (not steady): every refresh shows the picture.
-    CHECK(Run(s, 2, 10, pic, true, false, &whys) == std::string(10, 'P'));
-    CHECK(whys.back() == MC::Why::Unsteady);
-    // Paused under the menu (no new pictures, not steady), then the menu closes: the old picture
-    // is held (late), and the next new one flashes again; the rate is still known.
+    // flash2: the VR menu open (not steady) with the game's pictures still coming: each on one
+    // refresh, as in play (it was held lit: 100 %).
+    CHECK(Run(s, 2, 10, pic, true, false, &whys) == "PBPBPBPBPB");
+    CHECK(whys[0] == MC::Why::Unsteady);
+    CHECK(whys[1] == MC::Why::Dark);
+    // Paused under the menu (no new pictures, not steady): the paused picture on every other
+    // refresh. The menu closes: still the paused picture, on the same beat; the next new one
+    // flashes again; the rate is still known.
+    std::string paused;
     for (int i = 0; i < 120; i++) {
-        CHECK(s.Next({true, false, pic}).show);
+        paused += s.Next({true, false, pic}).show ? 'P' : 'B';
     }
-    CHECK(s.Next({true, true, pic}).show); // closed: still the paused picture, held
+    std::string expect;
+    for (int i = 0; i < 60; i++) {
+        expect += "PB";
+    }
+    CHECK(paused == expect);
+    CHECK(s.Next({true, true, pic}).show); // closed: still the paused picture, on the beat
     CHECK(s.Fast());
     pic++;
-    CHECK(s.Next({true, true, pic}).show);
-    CHECK_FALSE(s.Next({true, true, pic}).show);
+    CHECK_FALSE(s.Next({true, true, pic}).show); // due right after a lit refresh: waits one
+    CHECK(s.Next({true, true, pic}).why == MC::Why::Fresh);
+    pic++;
+    CHECK_FALSE(s.Next({true, true, pic}).show); // the game's beat goes on from there
+    CHECK(s.Next({true, true, pic}).why == MC::Why::Fresh);
     // Off: held, but followed, so turning on at the second refresh of a picture shows the backing
     // and the first refresh of the next picture shows it.
     pic++;
@@ -211,12 +240,218 @@ TEST_CASE("Motion Clarity: a short gap without a picture keeps the rate", "[fram
     CHECK(next(++pic).why == MC::Why::Learning);
 }
 
+namespace {
+
+/// flash2: a session at 120 Hz through the scheduler and the log, as app.cpp drives them: each
+/// refresh's facts, and the decisions as 'P' (lit), 'B' (backing) or '-' (no picture).
+struct Session {
+    static constexpr int64_t kPeriod = 8'333'333;
+    MC::Scheduler s;
+    MC::Log log;
+    int64_t t = 1'000'000'000;
+    uint64_t pic = 0;
+    std::string out;
+
+    void Refresh(bool steady, bool new_picture, bool on = true, bool gap = false) {
+        if (new_picture) {
+            pic++;
+        }
+        t += kPeriod;
+        const MC::Decision d = s.Next({on, steady, gap ? 0 : pic, t, kPeriod});
+        log.Note(!d.show ? MC::Why::Dark : d.why);
+        out += gap ? '-' : d.show ? 'P' : 'B';
+    }
+    /// `n` refreshes of a game at 60 pictures a second (`steady`: played, else in the menu).
+    void Play(int n, bool steady = true) {
+        for (int i = 0; i < n; i++) {
+            Refresh(steady, i % 2 == 0);
+        }
+    }
+    /// `n` refreshes of a still picture (paused, a stall).
+    void Still(int n, bool steady) {
+        for (int i = 0; i < n; i++) {
+            Refresh(steady, false);
+        }
+    }
+};
+
+/// The lit share of each whole second (120 refreshes) of `s` from `from`, gaps left out.
+std::vector<float> LitPerSecond(const std::string& s, std::size_t from = 0) {
+    std::vector<float> shares;
+    for (std::size_t at = from; at + 120 <= s.size(); at += 120) {
+        const std::string sec = s.substr(at, 120);
+        const auto lit = std::count(sec.begin(), sec.end(), 'P');
+        const auto dark = std::count(sec.begin(), sec.end(), 'B');
+        shares.push_back(lit + dark == 0 ? 0.0f : static_cast<float>(lit) / (lit + dark));
+    }
+    return shares;
+}
+
+} // namespace
+
+TEST_CASE("Motion Clarity: the VR menu opens and closes at 50 % with no step",
+          "[frame_xr][flash]") {
+    // flash2: the owner's headset session (report 64): each VR menu went 50 % -> 100 % lit for
+    // 1-9 s. Racing, the menu opened (immersive paused: not steady; the game's pictures stop a
+    // few refreshes later, paused), 4 s in the menu, closed, racing again; then the Quick Load
+    // dialog's menu the same way.
+    Session x;
+    x.Play(240); // learnt, flashing
+    REQUIRE(x.s.Fast());
+    const std::size_t from = x.out.size();
+    for (int round = 0; round < 2; round++) {
+        x.Play(6, false);        // the menu shows, the last pictures of the game
+        x.Still(480, false);     // paused under it
+        x.Still(3, true);        // closed: the game resumes a few refreshes later
+        x.Play(600);             // racing
+    }
+    const std::string run = x.out.substr(from);
+    CHECK(run.find("PP") == std::string::npos);
+    CHECK(run.find("BBB") == std::string::npos);
+    for (const float share : LitPerSecond(run)) {
+        CHECK(share >= 0.45f);
+        CHECK(share <= 0.55f);
+    }
+    CHECK(x.log.Steps() == 0);
+    CHECK(x.s.Fast());
+    // The log says so: flashing, 50 %, no step, no lit run longer than one refresh.
+    const std::string line = x.log.Second(x.s.Mean(), Session::kPeriod, true);
+    CHECK(line.find("Motion Clarity flashing") == 0);
+    CHECK(line.find("brightness steps 0, longest lit run 1;") != std::string::npos);
+}
+
+TEST_CASE("Motion Clarity: the menu at the game's start and the bottom screen in focus",
+          "[frame_xr][flash]") {
+    // flash2: a game starting (the rate not known yet) and the menu opened before it is
+    // learnt; the bottom screen in focus with the game running (not steady, pictures coming):
+    // all at the same share, never a lit run.
+    Session x;
+    x.Play(10);
+    x.Still(240, false); // the menu, the rate still not known
+    CHECK_FALSE(x.s.Fast());
+    x.Play(240);
+    CHECK(x.s.Fast());
+    x.Play(480, false); // the bottom screen in focus: the game runs, immersive paused
+    x.Play(240);
+    CHECK(x.out.find("PP") == std::string::npos);
+    for (const float share : LitPerSecond(x.out)) {
+        CHECK(share >= 0.45f);
+        CHECK(share <= 0.55f);
+    }
+    CHECK(x.log.Steps() == 0);
+}
+
+TEST_CASE("Motion Clarity: late pictures make no lit run; a long stall stays at 50 %",
+          "[frame_xr][flash]") {
+    // flash2: a game that drops or delays a picture now and then (intervals of 1, 3 and 4
+    // refreshes among the 2s), then a 3 s stall (a savestate loading, a race starting).
+    Session x;
+    x.Play(240);
+    REQUIRE(x.s.Fast());
+    const std::size_t from = x.out.size();
+    const int intervals[] = {2, 2, 3, 1, 2, 4, 2, 2, 1, 3, 2, 2, 2, 5, 2, 1, 2, 3};
+    for (int k = 0; k < 20; k++) {
+        for (const int n : intervals) {
+            for (int i = 0; i < n; i++) {
+                x.Refresh(true, i == 0);
+            }
+        }
+    }
+    const std::string jitter = x.out.substr(from);
+    CHECK(jitter.find("PP") == std::string::npos);
+    CHECK(jitter.find("BBB") == std::string::npos);
+    CHECK(x.s.Fast());
+    const std::size_t stall_at = x.out.size();
+    x.Still(360, true);
+    const std::string stall = x.out.substr(stall_at);
+    CHECK(stall.find("PP") == std::string::npos);
+    CHECK(stall.find("BBB") == std::string::npos); // never dark longer than a picture's time
+    for (const float share : LitPerSecond(stall)) {
+        CHECK(share >= 0.45f);
+        CHECK(share <= 0.55f);
+    }
+    x.Play(240);
+    CHECK(x.out.substr(stall_at).find("PP") == std::string::npos);
+    CHECK(x.log.Steps() == 0);
+    CHECK(x.s.Fast());
+}
+
+TEST_CASE("Motion Clarity: a 30 a second game stays held, in play and in the menu",
+          "[frame_xr][flash]") {
+    // flash2: unchanged: lit on every refresh (25 % flashing at 30 Hz would flicker). Its menu
+    // is held too, so the menu makes no step; a 60 <-> 30 change still does (the hysteresis).
+    Session x;
+    for (int i = 0; i < 400; i++) {
+        x.Refresh(true, i % 4 == 0);
+    }
+    REQUIRE_FALSE(x.s.Fast());
+    const std::size_t from = x.out.size();
+    std::vector<MC::Why> whys;
+    for (int i = 0; i < 240; i++) {
+        x.Refresh(true, i % 4 == 0);
+    }
+    x.Still(240, false); // the menu
+    for (int i = 0; i < 240; i++) {
+        x.Refresh(true, i % 4 == 0);
+    }
+    CHECK(x.out.substr(from) == std::string(720, 'P'));
+    const uint32_t steps = x.log.Steps();
+    // 60 a second again: flashing (one step down), then 30 (one step up).
+    x.Play(360);
+    CHECK(x.s.Fast());
+    for (int i = 0; i < 400; i++) {
+        x.Refresh(true, i % 4 == 0);
+    }
+    CHECK_FALSE(x.s.Fast());
+    CHECK(x.log.Steps() == steps + 2);
+}
+
+TEST_CASE("Motion Clarity: the top screen's layers stay through a menu", "[frame_xr][flash]") {
+    // flash2: in effect for the whole of a Full mode, engaged or not, so the backing stays under
+    // each eye's screen when the menu opens and immersive pauses; the screens' part of the list
+    // (backing, screen per eye: their swapchains) is the same on every refresh, lit or dark.
+    // Before, the menu turned it off: the backing went and the list lost two layers.
+    CHECK(MC::InEffect(true, std::nullopt, /*full_mode=*/true));
+    Session x;
+    std::vector<std::string> lists;
+    const auto refresh = [&](bool engaged, bool new_picture) {
+        x.Refresh(engaged, new_picture);
+        const bool dark = x.out.back() == 'B';
+        const MC::TopLayers tl = MC::TopLayersFor(MC::InEffect(true, std::nullopt, true), true,
+                                                  true, dark);
+        CHECK_FALSE(tl.omit);
+        std::string list;
+        for (const char* eye : {"L", "R"}) {
+            if (tl.backing) {
+                list += std::string("backing") + eye + " ";
+            }
+            list += std::string("top") + eye + " "; // collapsed or not: the same swapchain
+        }
+        lists.push_back(list);
+    };
+    for (int i = 0; i < 240; i++) {
+        refresh(true, i % 2 == 0);
+    }
+    for (int i = 0; i < 360; i++) {
+        refresh(false, i < 4 && i % 2 == 0); // the menu
+    }
+    for (int i = 0; i < 240; i++) {
+        refresh(true, i % 2 == 0);
+    }
+    for (const std::string& list : lists) {
+        CHECK(list == "backingL topL backingR topR ");
+    }
+    CHECK(x.out.find('B', 240) < 250);       // dark refreshes in the menu too
+    CHECK(x.out.substr(240, 360).find("PP") == std::string::npos);
+}
+
 TEST_CASE("Motion Clarity: the override, the setting and the picture ids", "[frame_xr][flash]") {
     CHECK(MC::OverrideFrom(std::nullopt) == std::nullopt);
     CHECK(MC::OverrideFrom(std::string("1")) == true);
     CHECK(MC::OverrideFrom(std::string("0")) == false);
     CHECK(MC::OverrideFrom(std::string("")) == std::nullopt);
-    // The setting only in the Full modes (head-driven); the switch's 1 in every mode, 0 never.
+    // The setting only in the Full modes (flash2: engaged or paused for the menu); the switch's 1
+    // in every mode, 0 never.
     CHECK(MC::InEffect(true, std::nullopt, true));
     CHECK_FALSE(MC::InEffect(true, std::nullopt, false));
     CHECK_FALSE(MC::InEffect(false, std::nullopt, true));

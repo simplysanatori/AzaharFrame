@@ -197,6 +197,14 @@ public:
     std::size_t Size() const {
         return slots_.size();
     }
+    /// flash2: the slots of the groups before `group` (absent ones too). What the frame carries
+    /// before that group's quads: Size() also counts that group's own slots from earlier frames,
+    /// so a budget for it taken from Size() shrank by what it had placed before (the Top group
+    /// in a menu: its beams and the controllers' eye quads left out with room to spare).
+    std::size_t SizeBefore(Group group) const {
+        return static_cast<std::size_t>(std::count_if(
+            slots_.begin(), slots_.end(), [group](const Slot& s) { return s.key.group < group; }));
+    }
     /// Totals since the start, for the log: slots made, dropped over the limit, context resets.
     uint64_t Added() const {
         return added_;

@@ -703,12 +703,27 @@ scheduler measures the game's rate from the pictures it sees (the game's top scr
 recorded per release, `ShownPicture::picture`, so a 30 fps game's two releases of one picture are
 one picture): it flashes at a mean of 2.5 refreshes a picture or fewer (48 fps and up at 120 Hz;
 left above 3.0) and holds a slower game (`AZAHARFRAME_XR_FLASH_SLOW=twice`: two refreshes of each,
-for an A/B). A picture still on view one refresh after the next was due is shown again and held
-until a new one comes, so the screen is never dark longer than one picture's time. The VR menu,
-the game's keyboard, a pause and the bottom screen in focus hold as before. The switch stays as an
-override: 1 on in every mode (as it always was), 0 off. `AZAHARFRAME_XR_FLASH_BACKING=0` leaves
-the layer out on dark refreshes, as the bare switch did. A per-state log line (`xr: Motion Clarity
-flashing: ...`, then every 10 s) gives the rate, the lit share and why refreshes were held.
+for an A/B). A picture still on view one refresh after the next was due is shown again, so the
+screen is never dark longer than one picture's time. AzaharFrame flash2: the owner's headset test
+saw the brightness step from 50 % to 100 % lit for 1 to 9 s at each VR menu (immersive paused, so
+Motion Clarity went off), at each Dynamic Resolution step (the new swapchain's empty refreshes
+made the scheduler learn the rate again, 150 ms lit) and in stalls (handoff report 64). Now it is
+in effect for the whole of a Full mode (`ScreenLayers::full_mode`: engaged, or paused for the VR
+menu, the game's keyboard, a pause or the bottom screen), with the backing all that time, and
+outside play (paused, learning the rate, a picture shown again late) the newest picture is lit on
+a fixed beat at 60 a second (every other refresh at 120 Hz, never two lit in a row); a new
+picture due on the refresh after a lit one waits one refresh. A gap without a picture of up to
+0.5 s keeps the learnt rate. Only a game under the full rate is held, in play and in its menus
+alike. The menu panel is a quad of its own after the screens, so the menu stays fully lit. The
+switch stays as an override: 1 on in every mode (as it always was), 0 off.
+`AZAHARFRAME_XR_FLASH_BACKING=0` leaves the layer out on dark refreshes, as the bare switch did. A
+per-state log line (`xr: Motion Clarity flashing: ...`, then every 10 s) gives the rate, the lit
+share, the brightness steps (a lit run of 6 refreshes after flashing, or flashing again after
+one), the longest lit run and why refreshes were lit. The layer slots line gives the most layers
+a frame carried in the last second (again whenever a list carries more than it said): with the backing kept, the VR menu's list is 4 screen layers, the
+toast, label and badge slots, the dim and the menu, and the controllers' layer, eye quads, beams
+and dots: 16 with both controllers pointing at the menu (the hint chip's slot is reserved in play
+only, and the controllers' budget no longer counts their own earlier slots).
 
 AzaharFrame oot: the tag follows the world, not the swap. A game frame's swap is not always the
 frame its world was drawn in: Ocarina of Time 3D swaps 30 times a second, and 60 with the owner's

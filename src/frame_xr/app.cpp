@@ -532,6 +532,9 @@ void Runtime::FrameLoop() {
     LayerSlots::Map<SlotQuad> layer_slots;
     std::vector<LayerSlots::Map<SlotQuad>::Out> slot_out;
     uint64_t slots_logged_added = 0, slots_logged_dropped = 0, slots_logged_resets = 0;
+    // flash2: the most layers a frame carried (and its screens' layers) in the last second, and
+    // the most logged for the list now in use.
+    std::size_t layers_most = 0, layers_most_screens = 0, layers_logged_most = 0;
     // AzaharFrame flash: Motion Clarity (motion_clarity.h): the setting vr_motion_clarity with
     // AZAHARFRAME_XR_SINGLE_FLASH as its override, AZAHARFRAME_XR_FLASH_SLOW for slow games and
     // AZAHARFRAME_XR_FLASH_BACKING for an A/B of the backing, all live (test_switches.h).
@@ -844,9 +847,11 @@ void Runtime::FrameLoop() {
             // AZAHARFRAME_XR_SINGLE_FLASH): each game picture of the top screen on one display
             // refresh only, in the Full modes while the game is played, at its full rate. Judged
             // on the picture this refresh would show (with the image lag, the one the last frame
-            // carried), so no picture is seen on two refreshes. Held (as without it) with the VR
-            // menu, the game's keyboard, a pause or the bottom screen in focus, for a game under
-            // the full rate, and for a picture late past its time.
+            // carried), so no picture is seen on two refreshes. Held (as without it) for a game
+            // under the full rate. flash2: with the VR menu, the game's keyboard, a pause or the
+            // bottom screen in focus (immersive paused, the game still in a Full mode), while the
+            // rate is learnt and for a picture late past its time, the newest picture is lit on
+            // the same beat, so the brightness never steps; the backing stays all that time.
             const VrUi::ScreenDraw draw = ui ? ui->ScreenDrawFor(shown) : VrUi::ScreenDraw{};
             bool hide_top = false;
             MotionClarity::TopLayers top_layers;
@@ -855,9 +860,13 @@ void Runtime::FrameLoop() {
                 const ScreenChain& t = screens[static_cast<std::size_t>(VideoCore::XrScreen::TopLeft)];
                 MotionClarity::Refresh rf;
                 rf.on = MotionClarity::InEffect(Settings::values.vr_motion_clarity.GetValue(),
-                                                clarity_override, shown.head_driven);
-                rf.steady = ui && ui->PlayOnView() && !draw.swapped && shown.show_top;
+                                                clarity_override, shown.full_mode);
+                // flash2: in a Full mode, played only while immersive is engaged (paused, the
+                // top screen is not the head-driven one: on the beat).
+                rf.steady = ui && ui->PlayOnView() && !draw.swapped && shown.show_top &&
+                            (shown.head_driven || !shown.full_mode);
                 rf.time_ns = fs.predictedDisplayTime; // flash2: how long a gap lasts
+                rf.period_ns = fs.predictedDisplayPeriod; // flash2: the beat while learning
                 if (t.handle != XR_NULL_HANDLE && t.has_image) {
                     const uint64_t on_view = ImageLag::SerialOnView(
                         t.frame_serial, sent_serial.load(), image_lag.load());
@@ -1082,12 +1091,19 @@ void Runtime::FrameLoop() {
             // order (as slot_add keys them: their group and the HUD's one swapchain), so a toast
             // or a label that first shows mid-game fills its own slot and never moves the Top
             // group (the controllers' eye quads, beams, dots) to other overlays.
+            // flash2: the hint chip only in the game's list: it shows when a grip takes a screen
+            // in play, never in the VR menu or the keyboard, whose lists keep that layer for
+            // Motion Clarity's backing (16 in all with both controllers pointing at the menu).
             Quad hud_stand_in;
             if (hud.HudPlaceholder(hud_stand_in)) {
                 const uint64_t hud_chain = reinterpret_cast<uint64_t>(hud_stand_in.swapchain);
+                const bool in_game = !ui || ui->LayerContext() == VrUi::kGameContext;
                 for (const LayerSlots::Group g : {LayerSlots::Group::Toast, LayerSlots::Group::Hint,
                                                   LayerSlots::Group::Label,
                                                   LayerSlots::Group::Badge}) {
+                    if (g == LayerSlots::Group::Hint && !in_game) {
+                        continue;
+                    }
                     layer_slots.Reserve(g, hud_chain, 0, 0, SlotQuad{local_space, hud_stand_in});
                 }
             }
@@ -1162,8 +1178,11 @@ void Runtime::FrameLoop() {
             ui->SetOccluders(std::move(occluders)); // AzaharFrame ctrlfront: for the next picture
         }
         if (fs.shouldRender && ui) {
+            // flash2: what comes before the Top group (its own slots from earlier frames are its
+            // room, not in use).
             models_layer = ui->TopLayers(
-                top_quads, screen_layers + layer_slots.Size() + (passthrough ? 1 : 0));
+                top_quads, screen_layers + layer_slots.SizeBefore(LayerSlots::Group::Top) +
+                               (passthrough ? 1 : 0));
             for (const Quad& q : top_quads) {
                 slot_add(LayerSlots::Group::Top, local_space, q);
             }
@@ -1205,6 +1224,10 @@ void Runtime::FrameLoop() {
                             layer_ptrs.size(), ui->MaxLayers());
             }
             layer_ptrs.resize(ui->MaxLayers());
+        }
+        if (fs.shouldRender && layer_ptrs.size() >= layers_most) { // flash2: for the log
+            layers_most = layer_ptrs.size();
+            layers_most_screens = screen_layers;
         }
         XrFrameEndInfo ei{XR_TYPE_FRAME_END_INFO};
         ei.displayTime = fs.predictedDisplayTime;
@@ -1254,18 +1277,29 @@ void Runtime::FrameLoop() {
         if (since >= 1.0) {
             LogSummary(since, wait_count ? wait_sum_ms / wait_count : 0.0, wait_max_ms, worst);
             pacing.Second(since); // AzaharFrame pacing
+            if (layer_slots.Resets() != slots_logged_resets) {
+                layers_logged_most = 0; // flash2: a new list
+            }
             if (layer_slots.Added() != slots_logged_added ||
                 layer_slots.Dropped() != slots_logged_dropped ||
-                layer_slots.Resets() != slots_logged_resets) { // AzaharFrame flash
+                layer_slots.Resets() != slots_logged_resets ||
+                layers_most > layers_logged_most) { // AzaharFrame flash
+                // flash2: and the most layers a frame carried in the last second (the screens
+                // with Motion Clarity's backing, the slots, the controllers' projection layer)
+                // against the runtime's limit; again when a list carries more than it said.
                 LOG_INFO(Frontend,
                          "xr: layer slots: {} after the screens ({} made, {} dropped over the "
-                         "runtime's limit, {} lists since the start)",
+                         "runtime's limit, {} lists since the start); at most {} layers of {} "
+                         "({} of them screens) in the last second",
                          layer_slots.Size(), layer_slots.Added(), layer_slots.Dropped(),
-                         layer_slots.Resets());
+                         layer_slots.Resets(), layers_most, ui ? ui->MaxLayers() : 0,
+                         layers_most_screens);
                 slots_logged_added = layer_slots.Added();
                 slots_logged_dropped = layer_slots.Dropped();
                 slots_logged_resets = layer_slots.Resets();
+                layers_logged_most = std::max(layers_logged_most, layers_most);
             }
+            layers_most = layers_most_screens = 0;
             if (const std::string line = clarity_log.Second(
                     clarity.Mean(), fs.predictedDisplayPeriod, flash_backing);
                 !line.empty()) {

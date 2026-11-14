@@ -22,12 +22,20 @@
 //     A 30 a second game (4 refreshes each) would be lit 1 refresh in 4: 25 % of the light,
 //     flickering at 30 Hz, so it is held as before (Slow::Hold). AZAHARFRAME_XR_FLASH_SLOW=twice
 //     shows it on 2 refreshes of 4 instead (the second warped, as any held picture), for an A/B;
-//   - a picture late past its time (a dropped game frame, a stall, a loading screen) is shown
-//     again from one refresh after the time the next one was due, and held while none comes: the
-//     screen never goes dark for longer than one picture's time;
-//   - held (no flashing) while the VR menu, the game's keyboard or the bottom screen in focus is
-//     shown, or the game is paused, so menus are steady; and outside the Full modes, where the
-//     picture does not follow the head (the setting's row is locked there).
+//   - flash2: the same share of light in every other state of a Full mode, so the brightness
+//     never steps (the owner's headset test of 2026-11-14 saw 50 % -> 100 % lit for 1-9 s each
+//     time the VR menu opened, report 64): with the VR menu, the game's keyboard, a pause or the
+//     bottom screen in focus (immersive is paused then and the top screen is not head-driven; it
+//     is flashed where it is, under the menu's own quads), while the rate is learnt, and for a
+//     picture late past its time (a dropped game frame, a stall, a loading screen), the newest
+//     picture is lit on a fixed beat at the game's rate (every other refresh at 60 pictures on
+//     120 Hz; Scheduler::Beat), never on two refreshes in a row: a still picture flashed at
+//     60 Hz looks as bright as one in play and cannot double. A late picture is shown again one
+//     refresh after the next was due, as before, and then on the beat, so the screen is never
+//     dark for longer than one picture's time; a new picture due before the beat waits for it;
+//   - held (as without it) for a game under the full rate (above: a 60 <-> 30 change still steps
+//     the brightness, with hysteresis) and outside the Full modes, where the picture does not
+//     follow the head (the setting's row is locked there; Off and Wide).
 //
 // AZAHARFRAME_XR_SINGLE_FLASH keeps working as an override: 1 on (in every mode, as the test
 // switch always was), 0 off, unset the setting. Pure (unit-tested: src/tests/frame_xr/
@@ -59,13 +67,14 @@ inline std::optional<bool> OverrideFrom(const std::optional<std::string>& v) {
 }
 
 /// Whether pictures are flashed at all for this frame: the override, else the setting while the
-/// top screen is the head-driven immersive screen (Full modes, engaged: Immersive::ScreenLayers::
-/// head_driven).
-inline bool InEffect(bool setting, std::optional<bool> override_on, bool head_driven) {
+/// game on view is in a Full mode (Immersive::ScreenLayers::full_mode: modes 2 and 3, engaged or
+/// paused for the VR menu, the game's keyboard or the bottom screen). flash2: it was the setting
+/// while engaged only (head_driven), so opening the menu turned it off: 100 % lit.
+inline bool InEffect(bool setting, std::optional<bool> override_on, bool full_mode) {
     if (override_on) {
         return *override_on;
     }
-    return setting && head_driven;
+    return setting && full_mode;
 }
 
 /// How a game under the full rate (30 or 20 pictures a second) is shown with Motion Clarity on.
@@ -81,13 +90,14 @@ inline Slow SlowFrom(const std::optional<std::string>& v) {
 /// Why a refresh shows the picture or the backing (counted for the log).
 enum class Why : uint8_t {
     Off,      ///< Motion Clarity not in effect: shown (held as before)
-    Unsteady, ///< menu, keyboard, pause, the bottom screen in focus: shown
-    Learning, ///< the picture rate is not known yet: shown
+    Unsteady, ///< menu, keyboard, pause, the bottom screen in focus: shown (flash2: on the beat)
+    Learning, ///< the picture rate is not known yet: shown (flash2: on the beat)
     Slow,     ///< under the full rate: shown (Slow::Hold)
     Fresh,    ///< the first refresh of a new picture: shown
     Second,   ///< Slow::Twice: the picture's second refresh: shown
-    Late,     ///< no new picture past the time one was due: shown again (held)
-    Dark,     ///< shown already: the backing
+    Late,     ///< no new picture past the time one was due: shown again (flash2: on the beat)
+    Dark,     ///< shown already, or not its beat yet: the backing
+    Gap,      ///< flash2: no picture this refresh (a swapchain made anew): nothing drawn
     Count
 };
 inline constexpr std::size_t kWhyCount = static_cast<std::size_t>(Why::Count);
@@ -110,6 +120,8 @@ inline const char* WhyName(Why w) {
         return "late, held";
     case Why::Dark:
         return "backing";
+    case Why::Gap:
+        return "no picture";
     default:
         return "?";
     }
@@ -123,6 +135,9 @@ struct Refresh {
     /// flash2: the refresh's display time (XrTime, ns), for how long a gap without a picture
     /// lasts (kGapKeepNs); 0 not known (a gap then forgets the rate).
     int64_t time_ns = 0;
+    /// flash2: the display period (ns), for the beat (Scheduler::Beat: 60 pictures a second);
+    /// 0 not known (every other refresh).
+    int64_t period_ns = 0;
 };
 
 struct Decision {
@@ -147,6 +162,9 @@ inline constexpr uint32_t kMaxInterval = 12;
 /// after it held about 18 refreshes lit (150 ms), a bright flash at every step. A longer gap (a
 /// game stopped, another starting) learns the next game's rate anew.
 inline constexpr int64_t kGapKeepNs = 500'000'000;
+/// flash2: the beat of the states not played at a known rate (Scheduler::Beat): 60 pictures a
+/// second, a game's full rate.
+inline constexpr double kDefaultRate = 60.0;
 
 class Scheduler {
 public:
@@ -161,7 +179,10 @@ public:
     Decision Next(const Refresh& r) {
         if (r.picture == 0) {
             Gap(r.time_ns);
-            return {true, r.on ? Why::Unsteady : Why::Off};
+            // Nothing is drawn; the next picture is lit at once (flash2: flashing goes on).
+            since_lit_ = kLongAgo;
+            credit_ = 0.0f;
+            return {true, r.on ? Why::Gap : Why::Off};
         }
         last_picture_ns_ = r.time_ns;
         if (r.picture != picture_) {
@@ -171,34 +192,19 @@ public:
             picture_ = r.picture;
             age_ = 0;
             clean_ = r.steady; // an interval counts only when the whole of it was played
+            lits_ = 0;
         } else {
             age_ = std::min<uint32_t>(age_ + 1, 1000);
             clean_ = clean_ && r.steady;
         }
         UpdateRate();
-        if (!r.on) {
-            return {true, Why::Off};
+        since_lit_ = std::min<uint32_t>(since_lit_ + 1, kLongAgo);
+        const Decision d = Decide(r);
+        if (d.show) {
+            lits_ = std::min<uint32_t>(lits_ + 1, 1000);
+            since_lit_ = 0;
         }
-        if (!r.steady) {
-            return {true, Why::Unsteady};
-        }
-        if (filled_ < kHistory) {
-            return {true, Why::Learning};
-        }
-        uint32_t lit = 1;
-        if (!fast_) {
-            if (slow_ == Slow::Hold || mean_ > kTwiceMax) {
-                return {true, Why::Slow};
-            }
-            lit = 2;
-        }
-        if (age_ < lit) {
-            return {true, age_ == 0 ? Why::Fresh : Why::Second};
-        }
-        if (age_ >= LateAfter()) {
-            return {true, Why::Late};
-        }
-        return {false, Why::Dark};
+        return d;
     }
 
     /// Refreshes per picture, the mean of the last kHistory (0: fewer known).
@@ -217,8 +223,82 @@ public:
         const float mean = filled_ < kHistory ? 2.0f : mean_;
         return std::max<uint32_t>(2, static_cast<uint32_t>(std::lround(mean))) + 1;
     }
+    /// flash2: refreshes per lit refresh on the beat (the states that are not played at a known
+    /// rate, and repeats of a late picture): the full rate, kDefaultRate pictures a second, at
+    /// `period_ns` (2 at 120 Hz, the share of light of a 60 a second game in play, and of a 30
+    /// one with Slow::Twice; 2.4 at 144 Hz), else 2. Not the learnt mean: a dropped picture in it
+    /// would dim a menu or a stall. Never under 1.
+    static float Beat(int64_t period_ns) {
+        if (period_ns > 0) {
+            return std::max(1.0f, static_cast<float>(1e9 / kDefaultRate /
+                                                     static_cast<double>(period_ns)));
+        }
+        return 2.0f;
+    }
 
 private:
+    static constexpr uint32_t kLongAgo = 1000;
+
+    /// The rules, after the picture and the rate are followed. flash2: the share of light is
+    /// the same in every state that is not held (Slow::Hold, off): a new picture is lit once
+    /// the beat allows it (not on the refresh after a lit one at 60 pictures on 120 Hz, so the
+    /// menu's beat hands over to the game's pictures with no two lit refreshes in a row); in play
+    /// at a known rate a picture shown once waits for the next as before, until one refresh
+    /// after it was due (LateAfter), and is shown again then; otherwise (the menu, a pause, the
+    /// keyboard, the bottom screen in focus, learning, a picture shown again late) the newest
+    /// picture is lit on the beat (Beat: every other refresh at 120 Hz).
+    Decision Decide(const Refresh& r) {
+        if (!r.on) {
+            credit_ = 0.0f;
+            return {true, Why::Off};
+        }
+        const bool known = filled_ >= kHistory;
+        if (known && !fast_) {
+            if (slow_ == Slow::Hold || mean_ > kTwiceMax) {
+                credit_ = 0.0f;
+                return {true, Why::Slow}; // held, as without it (also in the menu)
+            }
+            if (r.steady) { // Slow::Twice in play: the picture's first 2 refreshes
+                credit_ = 0.0f;
+                if (age_ < 2) {
+                    return {true, age_ == 0 ? Why::Fresh : Why::Second};
+                }
+                if (age_ >= LateAfter()) {
+                    return {true, Why::Late};
+                }
+                return {false, Why::Dark};
+            }
+        }
+        const bool playing = r.steady && known; // at the full rate here
+        const Why held = !r.steady ? Why::Unsteady : !known ? Why::Learning : Why::Late;
+        const float beat = Beat(r.period_ns);
+        if (lits_ == 0) {
+            // A new picture: lit once half a refresh short of the beat has passed since the last
+            // lit refresh (at 120 Hz: not right after one; at 90 Hz, 1.5 a picture: at once).
+            if (static_cast<float>(since_lit_) + 0.5f >= beat) {
+                credit_ = 0.0f;
+                return {true, playing ? Why::Fresh : held};
+            }
+            credit_ += 1.0f / beat;
+            return {false, Why::Dark};
+        }
+        if (playing && lits_ == 1) {
+            // Shown once: the next picture is waited for until one refresh past its time.
+            credit_ = 0.0f;
+            if (since_lit_ < LateAfter()) {
+                return {false, Why::Dark};
+            }
+            return {true, Why::Late};
+        }
+        // On the beat: the credit of 1 / beat a refresh since the last lit one reaches 1.
+        credit_ += 1.0f / beat;
+        if (credit_ >= 1.0f - 1e-4f) {
+            credit_ = std::max(0.0f, credit_ - 1.0f);
+            return {true, held};
+        }
+        return {false, Why::Dark};
+    }
+
     /// flash2: no game picture this refresh. A short gap (kGapKeepNs since the last picture: a
     /// swapchain made anew) keeps the rate, and the next picture is a new one at once (the gap is
     /// not an interval), so flashing goes on with it; a longer one (no game, a new one starting),
@@ -228,6 +308,7 @@ private:
             picture_ = 0;
             age_ = 0;
             clean_ = false;
+            lits_ = 0;
             return;
         }
         Forget();
@@ -241,6 +322,7 @@ private:
         fast_ = false;
         mean_ = 0.0f;
         last_picture_ns_ = 0;
+        lits_ = 0;
     }
     void Push(uint32_t interval) {
         if (interval > kMaxInterval) {
@@ -272,6 +354,9 @@ private:
     bool fast_ = false;
     float mean_ = 0.0f;
     int64_t last_picture_ns_ = 0; ///< flash2: the time of the last refresh with a picture
+    uint32_t lits_ = 0;              ///< flash2: refreshes `picture_` has been lit on
+    uint32_t since_lit_ = kLongAgo;  ///< flash2: refreshes since the last lit one (1: the last)
+    float credit_ = 0.0f;            ///< flash2: the beat's share since the last lit refresh
 };
 
 /// The scheduler's picture id from what a release recorded: its game picture (ShownPicture::
@@ -327,15 +412,45 @@ inline float LitShare(uint32_t shown, uint32_t dark) {
 }
 
 /// The log: each refresh's Why counted; once a second a line when the state changes (off, held,
-/// flashing), and every kLogSeconds while it is not off.
+/// flashing), and every kLogSeconds while it is not off. flash2: also the brightness steps (a
+/// lit run of kStepRun refreshes or more after flashing, and flashing again after one) and the
+/// longest lit run, while Motion Clarity is in effect.
 class Log {
 public:
     static constexpr uint32_t kLogSeconds = 10;
+    /// flash2: lit this many refreshes in a row (50 ms at 120 Hz) is a held picture: the light
+    /// steps up from the flashing share.
+    static constexpr uint32_t kStepRun = 6;
     enum class State : uint8_t { Off, Held, Flashing };
 
     void Note(Why w) {
         second_[static_cast<std::size_t>(w)]++;
         window_[static_cast<std::size_t>(w)]++;
+        // flash2: the steps. Off (not in effect) starts afresh; no picture (nothing drawn) is
+        // neither lit nor dark.
+        if (w == Why::Off) {
+            level_ = Level::None;
+            lit_run_ = 0;
+        } else if (w == Why::Dark) {
+            if (level_ == Level::Held) {
+                steps_++;
+            }
+            level_ = Level::Flashing;
+            lit_run_ = 0;
+        } else if (w != Why::Gap) {
+            lit_run_++;
+            longest_run_ = std::max(longest_run_, lit_run_);
+            if (lit_run_ >= kStepRun && level_ != Level::Held) {
+                if (level_ == Level::Flashing) {
+                    steps_++;
+                }
+                level_ = Level::Held;
+            }
+        }
+    }
+    /// flash2: brightness steps since the start (for the tests; the line gives the window's).
+    uint32_t Steps() const {
+        return steps_total_ + steps_;
     }
     /// The state of the last second: flashing when any refresh showed the backing, off when all
     /// were Off (or none counted), else held.
@@ -344,7 +459,8 @@ public:
             return State::Flashing;
         }
         for (std::size_t i = 0; i < kWhyCount; i++) {
-            if (i != static_cast<std::size_t>(Why::Off) && n[i] > 0) {
+            if (i != static_cast<std::size_t>(Why::Off) && i != static_cast<std::size_t>(Why::Gap) &&
+                n[i] > 0) {
                 return State::Held;
             }
         }
@@ -362,6 +478,9 @@ public:
             if (state == State::Off) {
                 window_.fill(0);
                 seconds_ = 0;
+                steps_total_ += steps_;
+                steps_ = 0;
+                longest_run_ = lit_run_;
             }
             return {};
         }
@@ -369,7 +488,7 @@ public:
         const uint32_t dark = n(Why::Dark);
         uint32_t shown = 0;
         for (std::size_t i = 0; i < kWhyCount; i++) {
-            if (i != static_cast<std::size_t>(Why::Dark)) {
+            if (i != static_cast<std::size_t>(Why::Dark) && i != static_cast<std::size_t>(Why::Gap)) {
                 shown += window_[i];
             }
         }
@@ -381,25 +500,33 @@ public:
                           mean, hz > 0.0 ? hz / mean : 0.0, hz);
             rate = buf;
         }
-        char buf[320];
+        char buf[448];
         std::snprintf(buf, sizeof(buf),
                       "Motion Clarity %s: %s; over %u s, lit %u of %u refreshes (%.0f %%), %s %u; "
-                      "held: late %u, menu or pause %u, slow game %u, learning %u, off %u",
+                      "brightness steps %u, longest lit run %u; lit for: new picture %u, late %u, "
+                      "menu or pause %u, learning %u; held: slow game %u, off %u; no picture %u",
                       state == State::Flashing ? "flashing"
                       : state == State::Held   ? "holding"
                                                : "off",
                       rate.c_str(), seconds_, shown, shown + dark, 100.0 * LitShare(shown, dark),
-                      backing ? "black backing" : "screen left out", dark, n(Why::Late),
-                      n(Why::Unsteady), n(Why::Slow), n(Why::Learning), n(Why::Off));
+                      backing ? "black backing" : "screen left out", dark, steps_, longest_run_,
+                      n(Why::Fresh) + n(Why::Second), n(Why::Late), n(Why::Unsteady),
+                      n(Why::Learning), n(Why::Slow), n(Why::Off), n(Why::Gap));
         window_.fill(0);
         seconds_ = 0;
+        steps_total_ += steps_;
+        steps_ = 0;
+        longest_run_ = lit_run_; // a run going on counts in the next window too
         return buf;
     }
 
 private:
+    enum class Level : uint8_t { None, Flashing, Held }; ///< flash2: for the steps
     std::array<uint32_t, kWhyCount> second_{}, window_{};
     uint32_t seconds_ = 0;
     State state_ = State::Off;
+    Level level_ = Level::None;
+    uint32_t lit_run_ = 0, longest_run_ = 0, steps_ = 0, steps_total_ = 0;
 };
 
 } // namespace FrameXr::MotionClarity
