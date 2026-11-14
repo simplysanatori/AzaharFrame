@@ -1284,10 +1284,12 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_motion_controls, std::min<u32>(u, 3), per_game);
         r.setting = MenuSetting::MotionControls;
         break;
-    case Id::GyroAim: // AzaharFrame kiugyro: per game in Per-Game
-        Apply(v.vr_gyro_aim, std::min<u32>(u, 2), per_game);
+    case Id::GyroAim: // AzaharFrame kiugyro: Aiming; per game in Per-Game
+        // The shown index to the stored value (Direct Aim 2, Gyro Aim 1).
+        r.value = Menu::AimingValueAt(static_cast<int>(std::min<u32>(u, 2)));
+        Apply(v.vr_gyro_aim, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::GyroAim;
-        LOG_INFO(Frontend, "xr: in-game menu: Gyro Aim = {}",
+        LOG_INFO(Frontend, "xr: in-game menu: Aiming = {}",
                  Menu::OptionsFor(id)[std::min<u32>(u, 2)]);
         break;
     case Id::GyroSensitivity: // tenths of 1x from the slider
