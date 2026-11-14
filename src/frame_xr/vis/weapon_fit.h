@@ -72,6 +72,14 @@ std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
                                      const std::vector<FitSide>& sides,
                                      const FitOverride& tune = {});
 
+/// Where the weapon's shots come out, in aim space: its muzzle (the json's node and offset) as
+/// fitted; a pair's two muzzles' middle; without a muzzle, the grip. Laser Sight's beam starts
+/// there. Every class puts its muzzle on the aim ray (held: the fit; worn: the hand frame is
+/// raised onto it; a pair: the middle of the two), so the shot's line runs along the ray.
+std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand,
+                                              const std::vector<FitSide>& sides,
+                                              const FitOverride& tune = {});
+
 /// The class's default scale (metres per game unit).
 float FitClassScale(int cls);
 

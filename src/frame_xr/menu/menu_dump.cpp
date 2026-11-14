@@ -931,6 +931,21 @@ int main(int argc, char** argv) {
         gv.hover = {Id::GyroAim, kLabelIndex};
         gv.tooltip = Id::GyroAim;
         ok &= shot("5h-settings-aiming-gyro-aim-tooltip", go, gv);
+        // AzaharFrame kiuguns: Direct Aim with Recoil off, Weapon in Hand on and Laser Sight on,
+        // Laser Sight's tooltip shown.
+        go.gyro_aim = 2;
+        go.gyro_sensitivity = 10;
+        go.recoil = false;
+        go.weapon_in_hand = true;
+        go.laser_sight = true;
+        go.game_value[static_cast<std::size_t>(Id::Recoil)] = true;
+        go.game_value[static_cast<std::size_t>(Id::LaserSight)] = true;
+        gv.hover = {Id::LaserSight, kLabelIndex};
+        gv.tooltip = Id::LaserSight;
+        ok &= shot("5h2-settings-aiming-laser-sight-recoil", go, gv);
+        gv.hover = {Id::WeaponInHand, kLabelIndex};
+        gv.tooltip = Id::WeaponInHand;
+        ok &= shot("5h3-settings-aiming-weapon-in-hand-tooltip", go, gv);
     }
     {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip

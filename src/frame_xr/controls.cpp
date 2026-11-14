@@ -1771,7 +1771,8 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // AzaharFrame kiuguns: what Kid Icarus: Uprising's memory is read for (kiu_weapon.h): the
     // weapon in hand and the shots, only while Gyro Aim steers in the game.
     const bool kiu = gyro_aim_hand >= 0 && Kiu::IsKidIcarus(GameTitleId());
-    const bool recoil_on = gyro_aim_hand >= 0 && Settings::values.vr_light_gun_recoil.GetValue();
+    const bool recoil_on =
+        Input::RecoilActive(gyro_aim_hand, Settings::values.vr_light_gun_recoil.GetValue());
     const bool weapon_on = kiu && Settings::values.vr_light_gun_weapon.GetValue();
     bool weapon_shown = false;
     Kiu::SetWanted(weapon_on, kiu && recoil_on);
@@ -1787,11 +1788,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             }
         }
         if (id >= 0) {
-            // Laser Sight off: no beam or dot over the top screen (the game's reticle shows the
-            // aim; the weapon stays on the same ray).
-            visuals.SetWeapon(gyro_aim_hand, id,
-                              Settings::values.vr_light_gun_laser.GetValue() ? Input::PanelQuad{}
-                                                                              : panels.top);
+            visuals.SetWeapon(gyro_aim_hand, id);
             weapon_shown = true;
         }
     }
@@ -1818,15 +1815,21 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         }
     }
     // AzaharFrame kiugyro: Light Gun's laser sight (red beam and dot) while it has the reticle.
+    // AzaharFrame kiuguns: only with Laser Sight on (from the weapon's muzzle when it is shown);
+    // off, no beam over the top screen with Direct Aim or the weapon in hand.
     if (gyro_aim_hand >= 0) {
         const Input::HandInput& aim_hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
         const Input::LightGunTarget target = Input::LightGunTargetFor(aim_hand, panels.top);
-        // AzaharFrame kiuguns: with the weapon in hand, only when Laser Sight is on.
-        if (Input::LaserSight(gyro_aim_frame.mode, true, Kiu::Locked(), target) &&
-            (!weapon_shown || Settings::values.vr_light_gun_laser.GetValue())) {
+        const Input::AimBeam beam =
+            Input::AimBeamFor(gyro_aim_frame.mode, Settings::values.vr_light_gun_laser.GetValue(),
+                              weapon_shown, Kiu::Locked(), target);
+        if (beam.laser) {
             visuals.SetLaser(gyro_aim_hand,
                              Input::IntersectQuad(Input::RayFromPose(aim_hand.aim), panels.top)
                                  .point_world);
+        }
+        if (beam.hide_top) {
+            visuals.SetBeamHidden(gyro_aim_hand, panels.top);
         }
     }
     {

@@ -414,3 +414,78 @@ TEST_CASE("Weapon fit: the orbitars float, small and across the ray", "[kiuguns]
     CHECK(std::fabs(bob[1]) <= 0.008f);
     CHECK(bob[1] != 0.0f);
 }
+
+TEST_CASE("Laser Sight and Recoil: each switch turns its feature off", "[kiuguns]") {
+    using FrameXr::Input::AimBeamFor;
+    using FrameXr::Input::GyroAimMode;
+    using FrameXr::Input::LightGunTarget;
+    using FrameXr::Input::RecoilActive;
+    LightGunTarget on_screen;
+    on_screen.valid = true;
+    on_screen.u = 0.5f;
+    on_screen.v = 0.5f;
+    // Direct Aim, the reticle read: Laser Sight on draws the red laser, off hides the beam over
+    // the top screen; with or without the weapon.
+    for (const bool weapon : {false, true}) {
+        auto b = AimBeamFor(GyroAimMode::LightGun, true, weapon, true, on_screen);
+        CHECK(b.laser);
+        CHECK_FALSE(b.hide_top);
+        b = AimBeamFor(GyroAimMode::LightGun, false, weapon, true, on_screen);
+        CHECK_FALSE(b.laser);
+        CHECK(b.hide_top);
+    }
+    // Not locked or off the screen: no laser, whatever the switch.
+    CHECK_FALSE(AimBeamFor(GyroAimMode::LightGun, true, true, false, on_screen).laser);
+    CHECK_FALSE(AimBeamFor(GyroAimMode::LightGun, true, true, true, LightGunTarget{}).laser);
+    // Gyro Aim: no laser; the beam over the top screen hidden only with the weapon in hand.
+    CHECK_FALSE(AimBeamFor(GyroAimMode::Gyro, true, true, true, on_screen).laser);
+    CHECK_FALSE(AimBeamFor(GyroAimMode::Gyro, false, false, true, on_screen).hide_top);
+    CHECK(AimBeamFor(GyroAimMode::Gyro, false, true, true, on_screen).hide_top);
+    // Recoil off: no pulse at all, on the game's shots or timed.
+    CHECK(RecoilActive(1, true));
+    CHECK_FALSE(RecoilActive(1, false));
+    CHECK_FALSE(RecoilActive(-1, true));
+    FrameXr::Input::ShotRecoil shots;
+    FrameXr::Input::Recoil timed;
+    const bool active = RecoilActive(1, false);
+    for (int i = 0; i < 50; i++) {
+        const int64_t t = int64_t{i} * 16'000'000;
+        CHECK_FALSE(shots.Update(t, 100 + static_cast<uint64_t>(i), true, active).fire);
+        CHECK_FALSE(timed.Update(t, (i % 4) < 2, active).fire);
+    }
+}
+
+TEST_CASE("Weapon fit: every class's muzzle on the aim ray", "[kiuguns]") {
+    // Each class's muzzle as the game's json gives it (the study's first weapon of each).
+    const struct {
+        int cls;
+        std::array<float, 3> muzzle;
+    } kSamples[] = {{0, {-4.55f, 0.10f, -9.89f}}, {1, {-0.2f, 0.0f, 12.4f}},
+                    {2, {-1.3f, 0.0f, 0.0f}},     {3, {0.0f, -0.175f, 0.0f}},
+                    {4, {-2.9f, 0.0f, 0.0f}},     {5, {0.03f, 0.01f, -16.49f}},
+                    {6, {-8.2f, -4.7f, 1.3f}},    {7, {0.0f, 0.0f, 1.1f}},
+                    {8, {-5.7f, 0.0f, 0.0f}}};
+    for (const auto& s : kSamples) {
+        const std::vector<Vis::FitSide> sides =
+            (s.cls == 2 || s.cls == 7) ? std::vector{Vis::FitSide::Right, Vis::FitSide::Left}
+                                       : std::vector{Vis::FitSide::Centre};
+        for (const bool left : {false, true}) {
+            const auto m = Vis::FitMuzzle({s.cls, s.muzzle, true}, left, sides);
+            REQUIRE(m);
+            INFO("class " << s.cls << (left ? " left" : " right"));
+            if (s.cls == 3) {
+                // A bow shoots from the hand: its muzzle is the grip, at the palm, under the ray.
+                CHECK((*m)[1] == Approx(-0.0525f).margin(0.02f));
+                continue;
+            }
+            if (s.cls == 7) {
+                // The orbitars' middle: above the hand, on its line.
+                CHECK((*m)[0] == Approx(0.0f).margin(1e-4));
+                continue;
+            }
+            CHECK((*m)[0] == Approx(0.0f).margin(1e-3));
+            CHECK((*m)[1] == Approx(0.0f).margin(1e-3));
+            CHECK((*m)[2] < 0.06f);
+        }
+    }
+}

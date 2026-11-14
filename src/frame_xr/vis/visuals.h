@@ -122,9 +122,10 @@ public:
     /// AzaharFrame kiuguns: Kid Icarus: Uprising's equipped weapon (`id`, 0 to 107) is drawn in
     /// place of `hand`'s controller this frame (ControllerModels; the controller when the weapon
     /// is not ready). Cleared by TakeInput; GameFrame sets it.
-    /// `hide_over`: while the weapon is shown, no beam or dot where the hand points at this
-    /// quad (the top screen: the game's reticle shows the aim; Laser Sight off), else invisible.
-    void SetWeapon(int hand, int id, const Input::PanelQuad& hide_over = {});
+    void SetWeapon(int hand, int id);
+    /// AzaharFrame kiuguns: no beam or dot this frame where `hand` points at `over` (the top
+    /// screen, Laser Sight off: Input::AimBeamFor). Cleared by TakeInput.
+    void SetBeamHidden(int hand, const Input::PanelQuad& over);
 
 private:
     struct Impl;

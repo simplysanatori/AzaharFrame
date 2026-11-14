@@ -546,6 +546,7 @@ bool ReadFiles(std::array<ModelFile, 2>& files) {
 
 void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands) {
     layer_ready = false;
+    muzzle_hand = -1; // AzaharFrame kiuguns: FitWeapon sets it again
     const bool any = hands[0].shown || hands[1].shown;
 
     // ---- The files, once a run, on a thread ----
@@ -647,6 +648,7 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
             }
         }
         UpdateWeapon(weapon);
+        FitWeapon(hands);
     }
     if (!any) {
         g.shown_fresh = false; // when they come back, a new image first
@@ -1154,24 +1156,15 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
 
 } // namespace
 
-void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& hands) {
+void ControllerModels::FitWeapon(const std::array<Hand, 2>& hands) { // AzaharFrame kiuguns
+    // The weapon's fit, with the class's live tune (test switches), and its muzzle.
+    weapon_fits.clear();
+    muzzle_hand = -1;
+    muzzle.reset();
+    if (!gpu) {
+        return;
+    }
     Gpu& g = *gpu;
-    const Files& f = *files;
-    vk::CommandBuffer& c = g.cmd;
-    c.reset();
-    c.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-    std::array<vk::ClearValue, 3> clears{}; // colour: zero, nothing round the models
-    clears[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
-    c.beginRenderPass({.renderPass = g.render_pass,
-                       .framebuffer = g.framebuffers[g.index],
-                       .renderArea = {{0, 0}, {g.eye_w * 2, g.eye_h}},
-                       .clearValueCount = static_cast<uint32_t>(clears.size()),
-                       .pClearValues = clears.data()},
-                      vk::SubpassContents::eInline);
-    c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline);
-    const Mat head = FromPose(views.head.orientation, views.head.position);
-    // AzaharFrame kiuguns: the weapon's fit, with the class's live tune (test switches).
-    std::vector<FitPart> weapon_fits;
     for (int h = 0; h < 2; h++) {
         const Hand& hand = hands[static_cast<std::size_t>(h)];
         if (hand.shown && hand.weapon >= 0 && g.weapon_live && g.weapon_live->id == hand.weapon) {
@@ -1192,6 +1185,8 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
             }
             const bool left = h == Input::HandIndex(Input::Hand::Left);
             weapon_fits = FitWeaponToHand({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
+            muzzle_hand = h;
+            muzzle = FitMuzzle({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
             const std::string logged = fmt::format("{} {} {} {}", info.id, left ? "left" : "right",
                                                    name, value.value_or("default"));
             if (logged != g.weapon_fit_logged) {
@@ -1205,6 +1200,24 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
             }
         }
     }
+}
+
+void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& hands) {
+    Gpu& g = *gpu;
+    const Files& f = *files;
+    vk::CommandBuffer& c = g.cmd;
+    c.reset();
+    c.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    std::array<vk::ClearValue, 3> clears{}; // colour: zero, nothing round the models
+    clears[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
+    c.beginRenderPass({.renderPass = g.render_pass,
+                       .framebuffer = g.framebuffers[g.index],
+                       .renderArea = {{0, 0}, {g.eye_w * 2, g.eye_h}},
+                       .clearValueCount = static_cast<uint32_t>(clears.size()),
+                       .pClearValues = clears.data()},
+                      vk::SubpassContents::eInline);
+    c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline);
+    const Mat head = FromPose(views.head.orientation, views.head.position);
     for (int e = 0; e < 2; e++) {
         const vk::Viewport vp{static_cast<float>(g.eye_w * e), 0.0f, static_cast<float>(g.eye_w),
                               static_cast<float>(g.eye_h), 0.0f, 1.0f};

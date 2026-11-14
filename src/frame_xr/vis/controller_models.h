@@ -26,12 +26,15 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <optional>
+#include <vector>
 #include <string>
 #include <thread>
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/input/types.h"
 #include "frame_xr/vis/model_file.h"
+#include "frame_xr/vis/weapon_fit.h" // AzaharFrame kiuguns
 
 namespace FrameXr {
 class Runtime;
@@ -66,6 +69,11 @@ public:
     /// XR thread, each frame while models are wanted (anything shown or not): reads the files
     /// the first time, sets up the GPU side, releases a finished image and draws the next one.
     void Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands);
+    /// AzaharFrame kiuguns: the weapon's muzzle in `hand`'s aim space, while the weapon is drawn
+    /// there (Laser Sight's beam starts at it); the fit of the last Frame.
+    std::optional<std::array<float, 3>> WeaponMuzzle(int hand) const {
+        return hand == muzzle_hand ? muzzle : std::nullopt;
+    }
     /// The layer for this frame's xrEndFrame, or null. Valid until the next Frame.
     const XrCompositionLayerBaseHeader* Layer() const;
     /// XR thread, before the session ends: everything on the GPU (the files stay read).
@@ -77,6 +85,10 @@ private:
     /// AzaharFrame kiuguns: reads, uploads and swaps the weapon in hand (XR thread, no waits).
     void UpdateWeapon(int id);
     void UploadWeapon();
+    void FitWeapon(const std::array<Hand, 2>& hands);
+    std::vector<FitPart> weapon_fits; ///< this frame's, for the weapon's hand
+    int muzzle_hand = -1;
+    std::optional<std::array<float, 3>> muzzle;
 
     struct Files;
     struct Gpu;

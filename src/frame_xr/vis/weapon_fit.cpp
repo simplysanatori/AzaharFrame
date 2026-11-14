@@ -111,6 +111,12 @@ FitMat Compose(const V3& at, const M3& r, float scale, const V3& grip, bool mirr
     return m;
 }
 
+V3 TransformPoint(const FitMat& m, const V3& p) {
+    return {m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12],
+            m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
+            m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]};
+}
+
 enum class Rule { Held, Worn, Pair };
 
 struct ClassFit {
@@ -251,13 +257,27 @@ std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
             const V3 off = left ? V3{-offset[0], offset[1], offset[2]} : offset;
             const V3 wrist{kWrist[0] + off[0], kWrist[1] + off[1], kWrist[2] + off[2]};
             const bool mirror = left_hand && !left;
-            out.push_back({left ? FitSide::Left : FitSide::Right,
-                           Compose(mirror ? at(kWrist) : wrist, Mul(t, base), scale, c.grip, mirror),
-                           mirror});
+            FitMat m = Compose(mirror ? at(kWrist) : wrist, Mul(t, base), scale, c.grip, mirror);
+            // The hand frame raised onto the ray at its muzzle (the left claw's is its own: +x),
+            // the tune's offset kept on top.
+            if (w.muzzle_valid) {
+                const FitMat plain = Compose(kWrist, Mul(t, base), scale, c.grip, mirror);
+                const V3 mz = left ? V3{-w.muzzle[0], w.muzzle[1], w.muzzle[2]} : w.muzzle;
+                const V3 p = TransformPoint(plain, mz);
+                m[12] -= p[0];
+                m[13] -= p[1];
+            }
+            out.push_back({left ? FitSide::Left : FitSide::Right, m, mirror});
         } else {
             const M3 base = Turn({-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {0, 1, 0});
-            out.push_back({FitSide::Centre, Compose(at(kWrist), Mul(turn, base), scale, c.grip, left_hand),
-                           left_hand});
+            FitMat m = Compose(at(kWrist), Mul(turn, base), scale, c.grip, left_hand);
+            if (w.muzzle_valid) {
+                const FitMat plain = Compose(kWrist, Mul(turn, base), scale, c.grip, left_hand);
+                const V3 p = TransformPoint(plain, w.muzzle);
+                m[12] -= p[0];
+                m[13] -= p[1];
+            }
+            out.push_back({FitSide::Centre, m, left_hand});
         }
         break;
     }
@@ -281,6 +301,25 @@ std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
     }
     }
     return out;
+}
+
+std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand,
+                                              const std::vector<FitSide>& sides,
+                                              const FitOverride& tune) {
+    const auto parts = FitWeaponToHand(w, left_hand, sides, tune);
+    if (parts.empty() || w.cls < 0 || w.cls >= 9) {
+        return std::nullopt;
+    }
+    V3 sum{};
+    for (const FitPart& p : parts) {
+        V3 mz = w.muzzle_valid ? w.muzzle : kFits[w.cls].grip;
+        if (p.side == FitSide::Left && kFits[w.cls].rule == Rule::Worn) {
+            mz[0] = -mz[0]; // the left claw's muzzle, in its own hand's space
+        }
+        const V3 q = TransformPoint(p.transform, mz);
+        sum = {sum[0] + q[0], sum[1] + q[1], sum[2] + q[2]};
+    }
+    return Scale(sum, 1.0f / static_cast<float>(parts.size()));
 }
 
 } // namespace FrameXr::Vis

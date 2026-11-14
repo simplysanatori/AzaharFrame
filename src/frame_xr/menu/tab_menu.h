@@ -118,7 +118,7 @@ enum class Id : int {
     TurnSpeed,       ///< AzaharFrame kiugyro: a slider, 2 to 40 (tenths of 1x), Direct Aim only
     Recoil,          ///< AzaharFrame kiugyro: a switch, while Aiming is not Off
     WeaponInHand,    ///< AzaharFrame kiuguns: a switch, while Aiming is not Off
-    LaserSight,      ///< AzaharFrame kiuguns: a switch, Direct Aim with Weapon in Hand on
+    LaserSight,      ///< AzaharFrame kiuguns: a switch, with Direct Aim
     ShowControllers,
     WindowScale,
     Depth3d,            ///< AzaharFrame depth3d: Settings::values.factor_3d, per game

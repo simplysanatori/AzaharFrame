@@ -125,7 +125,7 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   range) Light Gun uses Gyro instead and says why once in the log (`xr: Light Gun: Gyro instead:
   ...`); `xr: Light Gun: reticle found` when it reads it again, and every 5 s the reading, the
   target, the gain and the game frame.
-- **Laser sight:** while Light Gun has the reticle (read from the game, not fallen back to
+- **Laser sight** (with Laser Sight on; AzaharFrame kiuguns): while Light Gun has the reticle (read from the game, not fallen back to
   Gyro) and its ray is on the top screen, the controller's beam is red and ends in a small red
   dot (`LaserDotSize`: half the pointer dot's) where the ray meets the screen, which is where the
   loop steers the reticle (on the ground, pointing past the box, the two part: the reticle waits
@@ -160,11 +160,15 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   holds (`kiu_weapon.h`: the game's getWeaponId record, slot 0 in single player only, settled
   for 0.5 s; the models from the player's own game, `core/frame_weapon_models.h`, fitted by
   `vis/weapon_fit.h`). The controller is drawn until the weapon is ready, for no weapon, with
-  another fighter in the records (multiplayer) and in menus. **Laser Sight**
-  (`vr_light_gun_laser`, per game too, off by default; shown with Direct Aim and Weapon in Hand):
-  off, the weapon's hand has no beam or dot over the top screen (the game's reticle shows the
-  aim; the weapon is on the same ray); on, the red laser sight above. The bottom screen, menus
-  and the room keep the beam. Test switches (live): `AZAHARFRAME_KIU_FIT_<CLASS>` (BLADE, STAFF,
+  another fighter in the records (multiplayer) and in menus. Every class's muzzle (the json's
+  `muzzleNode_` + `muzzleOffset_`) is on the aim ray: held classes are turned so it is, worn ones
+  raised onto it, the orbitars' middle is on the hand's line; a bow shoots from the hand.
+- **Laser Sight** (`vr_light_gun_laser`, per game too, off by default; shown with Direct Aim;
+  AzaharFrame kiuguns): on, the red laser sight above, from the weapon's muzzle when the weapon
+  is drawn (`ControllerModels::WeaponMuzzle`), else from the controller; off, the aiming hand has
+  no beam or dot over the top screen with Direct Aim, or with the weapon in hand (the game's
+  reticle shows the aim; the weapon is on the same ray). The bottom screen, menus and the room
+  keep the beam (`Input::AimBeamFor`). Test switches (live): `AZAHARFRAME_KIU_FIT_<CLASS>` (BLADE, STAFF,
   CLAWS, BOW, PALM, CLUB, CANNON, ORBITARS, ARM) `=dx,dy,dz,yaw,pitch,roll,scale` (cm, degrees,
   a factor), `AZAHARFRAME_KIU_WEAPON=<id>` (0 to 107: show that weapon), and
   `AZAHARFRAME_KIU_WEAPON_GLOW=1` (draw the effect cards too).

@@ -142,7 +142,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
                 rows.push_back(row(Id::Recoil, RowKind::Switch, 0, m.recoil));
                 // AzaharFrame kiuguns
                 rows.push_back(row(Id::WeaponInHand, RowKind::Switch, 0, m.weapon_in_hand));
-                if (m.gyro_aim == 2 && m.weapon_in_hand) {
+                if (m.gyro_aim == 2) { // Direct Aim (stored 2)
                     rows.push_back(row(Id::LaserSight, RowKind::Switch, 0, m.laser_sight));
                 }
             }
