@@ -673,7 +673,7 @@ std::string ExplainFor(Id id) {
     case Id::ReticleStick: // AzaharFrame kiu
         return "The right stick moves the bottom screen's touch point, instead of the C-Stick.";
     case Id::ReticleEdgeCStick:
-        return "Touching near an edge of the bottom screen pushes the C-Stick that way, for games that turn the camera with it.";
+        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Hold the reticle at an edge of the bottom screen to push the C-Stick that way.";
     case Id::HideBottomScreen:
         return "Shows only the top screen.";
     case Id::ScreenShape:

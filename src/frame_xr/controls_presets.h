@@ -14,6 +14,9 @@
 
 #include <cstdint>
 #include <iterator>
+#include <vector>
+
+#include "core/mods/library.h"
 
 namespace FrameXr {
 
@@ -26,6 +29,9 @@ struct ControlsPreset {
     /// AzaharFrame kiu: Settings::values.vr_reticle_edge_cstick on (C-Stick at Edge; false:
     /// keep the setting).
     bool edge_cstick = false;
+    /// AzaharFrame kiuedge: edge_cstick is given only when a C-Stick mod for the game is installed
+    /// (ApplyControlsPreset's `cstick_mod_installed`); without one the setting is left alone.
+    bool edge_cstick_needs_mod = false;
 };
 
 /// AzaharFrame kiu: the bits of vr_controls_preset_done: a preset value already decided for the
@@ -48,7 +54,8 @@ enum ControlsPresetField : uint32_t {
 inline constexpr ControlsPreset kKidIcarusUprisingControls{.name = "Kid Icarus: Uprising",
                                                            .bottom_screen_reticle = 3,
                                                            .motion_controls = 0,
-                                                           .edge_cstick = true};
+                                                           .edge_cstick = true,
+                                                           .edge_cstick_needs_mod = true};
 
 struct ControlsPresetTitle {
     uint64_t title_id;
@@ -74,12 +81,32 @@ inline const ControlsPreset* FindControlsPreset(uint64_t title_id) {
     return nullptr;
 }
 
+/// AzaharFrame kiuedge: catalogue ids of the Kid Icarus: Uprising C-Stick mods (C-Stick & Gyro and
+/// its widescreen builds; hosiniku's kiu-cstick-aim, whose entry another lane adds).
+inline constexpr const char* kCStickModIds[] = {
+    "kiu-cstick-gyro",
+    "kiu-cstick-gyro-widescreen-16-9",
+    "kiu-cstick-gyro-ultrawide-21-9",
+    "kiu-cstick-aim",
+};
+
+/// AzaharFrame kiuedge: whether one of these (a game's mod list, Mods::Library::ListLoaded) is a
+/// turned-on C-Stick mod: a catalogue id in kCStickModIds; or, for a mod put in by hand or from a
+/// zip, a full code replacement (code.bin, as C-Stick & Gyro installs) or a name with "cstick" /
+/// "c-stick" / "c_stick" in it (item name, id or file path). Mods in the library but off do not count.
+bool CStickModInstalled(const std::vector<Mods::ModInfo>& mods);
+/// The same for the mods folder of this title (Mods::Default()).
+bool CStickModInstalled(uint64_t title_id);
+
 /// AzaharFrame kiu: gives the running game the preset's values, with the game's file read into
 /// the settings: each one only where the game has no value of its own, the global value is still
 /// the default, and vr_controls_preset_done does not have its bit. A value given, or one the game
 /// already had, sets its bit (in the game's value of vr_controls_preset_done, saved with the
 /// game's file); a global value the player changed sets none (the preset may give it later, once
 /// the global value is the default again). Returns the bits given this time.
-uint32_t ApplyControlsPreset(const ControlsPreset& preset);
+/// AzaharFrame kiuedge: a value with `edge_cstick_needs_mod` is given only when
+/// `cstick_mod_installed`; without one it is left alone and not marked, so installing the mod
+/// later lets the preset give it then (still only where the player has no value of their own).
+uint32_t ApplyControlsPreset(const ControlsPreset& preset, bool cstick_mod_installed);
 
 } // namespace FrameXr

@@ -3473,7 +3473,8 @@ void GMainWindow::BootGame(const QString& filename) {
         // AzaharFrame kiu: starting values only: never over the game's own value, a global one
         // the player set, or a value the preset gave the game before (ApplyControlsPreset).
         if (const FrameXr::ControlsPreset* cp = FrameXr::FindControlsPreset(title_id)) {
-            FrameXr::ApplyControlsPreset(*cp);
+            // AzaharFrame kiuedge: C-Stick at Edge only with a C-Stick mod installed for the game.
+            FrameXr::ApplyControlsPreset(*cp, FrameXr::CStickModInstalled(title_id));
         }
 #endif
     }

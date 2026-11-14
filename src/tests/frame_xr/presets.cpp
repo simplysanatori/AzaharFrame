@@ -288,7 +288,7 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
     const ControlsPreset& kiu = *FindControlsPreset(id);
     SECTION("a fresh game gets them, Right Stick Moves Touch stays off") {
         ResetControlsSettings();
-        CHECK(ApplyControlsPreset(kiu) ==
+        CHECK(ApplyControlsPreset(kiu, true) ==
               (kPresetReticle | kPresetMotionControls | kPresetEdgeCStick));
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 3);
         CHECK(v.vr_motion_controls.GetValue() == 0);
@@ -301,7 +301,7 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
         CHECK(v.vr_reticle_edge_cstick.GetValue(true) == false);
         CHECK(v.vr_controls_preset_done.GetValue() == 7u);
         // Booting again changes nothing.
-        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(ApplyControlsPreset(kiu, true) == 0u);
     }
     SECTION("a value the player saved for the game is never overwritten") {
         ResetControlsSettings();
@@ -313,7 +313,7 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
         v.vr_motion_controls.SetValue(1);
         v.vr_reticle_edge_cstick.SetGlobal(false);
         v.vr_reticle_edge_cstick.SetValue(false);
-        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(ApplyControlsPreset(kiu, true) == 0u);
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
         CHECK(v.vr_motion_controls.GetValue() == 1);
         CHECK(!v.vr_reticle_edge_cstick.GetValue());
@@ -325,7 +325,7 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
         v.vr_motion_controls.SetValue(3); // global Headset
         v.vr_reticle_edge_cstick.SetValue(true); // global on (the preset's own value)
         v.vr_bottom_screen_reticle.SetValue(1); // global Left Controller
-        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(ApplyControlsPreset(kiu, true) == 0u);
         CHECK(v.vr_motion_controls.UsingGlobal());
         CHECK(v.vr_motion_controls.GetValue() == 3);
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 1);
@@ -333,14 +333,14 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
     }
     SECTION("after the preset, the player's choice stays: a new value, or Use Global Value") {
         ResetControlsSettings();
-        ApplyControlsPreset(kiu);
+        ApplyControlsPreset(kiu, true);
         // Use Global Value for Motion Controls and C-Stick at Edge, a new value for the reticle
         // (what the game's file keeps, with the marker).
         v.vr_motion_controls.SetGlobal(true);
         v.vr_reticle_edge_cstick.SetGlobal(true);
         v.vr_bottom_screen_reticle.SetValue(2);
         // The next start reads the same file back: nothing is given again.
-        CHECK(ApplyControlsPreset(kiu) == 0u);
+        CHECK(ApplyControlsPreset(kiu, true) == 0u);
         CHECK(v.vr_motion_controls.UsingGlobal());
         CHECK(v.vr_motion_controls.GetValue() == 1);
         CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
@@ -351,10 +351,73 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu]") {
         ResetControlsSettings();
         v.vr_controls_preset_done.SetGlobal(false);
         v.vr_controls_preset_done.SetValue(kPresetReticle); // an earlier build gave the reticle
-        CHECK(ApplyControlsPreset(kiu) == (kPresetMotionControls | kPresetEdgeCStick));
+        CHECK(ApplyControlsPreset(kiu, true) == (kPresetMotionControls | kPresetEdgeCStick));
         CHECK(v.vr_bottom_screen_reticle.UsingGlobal()); // Use Global Value chosen back then
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 0);
         CHECK(v.vr_reticle_edge_cstick.GetValue());
     }
     ResetControlsSettings();
+}
+
+TEST_CASE("FrameXr Controls preset: C-Stick at Edge needs the C-Stick mod", "[frame_xr][kiu][kiuedge]") {
+    auto& v = Settings::values;
+    const ControlsPreset& kiu = *FindControlsPreset(0x0004000000030200ull);
+    SECTION("no mod: the setting is left alone and not marked, the rest is given") {
+        ResetControlsSettings();
+        CHECK(ApplyControlsPreset(kiu, false) == (kPresetReticle | kPresetMotionControls));
+        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+        CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
+        CHECK(v.vr_controls_preset_done.GetValue() == 3u);
+        // The mod installed later: given then.
+        CHECK(ApplyControlsPreset(kiu, true) == kPresetEdgeCStick);
+        CHECK(v.vr_reticle_edge_cstick.GetValue());
+    }
+    SECTION("the player's own choice is never overwritten, mod or not") {
+        ResetControlsSettings();
+        v.vr_reticle_edge_cstick.SetGlobal(false);
+        v.vr_reticle_edge_cstick.SetValue(false); // turned off for this game
+        CHECK(ApplyControlsPreset(kiu, true) == (kPresetReticle | kPresetMotionControls));
+        CHECK(!v.vr_reticle_edge_cstick.GetValue());
+        ResetControlsSettings();
+        v.vr_reticle_edge_cstick.SetValue(true); // global on
+        CHECK(ApplyControlsPreset(kiu, false) == (kPresetReticle | kPresetMotionControls));
+        CHECK(v.vr_reticle_edge_cstick.GetValue());
+        CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
+    }
+    ResetControlsSettings();
+}
+
+namespace {
+Mods::ModInfo MakeMod(std::string id, bool managed, Mods::ModState state = Mods::ModState::Active,
+                      std::vector<std::string> files = {}) {
+    Mods::ModInfo m;
+    m.id = id;
+    m.name = id;
+    m.managed = managed;
+    m.state = state;
+    m.files = std::move(files);
+    return m;
+}
+} // namespace
+
+TEST_CASE("FrameXr CStickModInstalled: catalogue ids and files", "[frame_xr][kiu][kiuedge]") {
+    using Mods::ModState;
+    CHECK(!CStickModInstalled(std::vector<Mods::ModInfo>{}));
+    for (const char* id : {"kiu-cstick-gyro", "kiu-cstick-gyro-widescreen-16-9", "kiu-cstick-aim"}) {
+        INFO(id);
+        CHECK(CStickModInstalled({MakeMod(id, true)}));
+        CHECK(!CStickModInstalled({MakeMod(id, true, ModState::Inactive)})); // library only
+    }
+    // Other mods of the game do not count, managed (60 FPS fix, soundtrack) or by hand.
+    CHECK(!CStickModInstalled({MakeMod("kiu-cd-quality-soundtrack", true),
+                               MakeMod("unmanaged:romfs", false, ModState::Active,
+                                       {"romfs/a.bin"}),
+                               MakeMod("unmanaged:code.ips", false, ModState::Active,
+                                       {"exefs/code.ips"})}));
+    // By hand: a full code replacement, or a cstick name.
+    CHECK(CStickModInstalled({MakeMod("unmanaged:exefs", false, ModState::Active,
+                                      {"exefs/code.bin", "exheader.bin"})}));
+    CHECK(CStickModInstalled({MakeMod("unmanaged:kiu-cstick-aim", false, ModState::Active,
+                                      {"kiu-cstick-aim/code.ips"})}));
+    CHECK(CStickModInstalled({MakeMod("zip-C-Stick Aim", true)}));
 }

@@ -33,7 +33,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Bottom Screen Reticle](#bottom-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off (Kid Icarus: Uprising: Headset) | global and per game | at once |
 | [Reticle Speed](#reticle-speed) | 0.5x to 4.0x, in 0.1x steps | 2.0x | global and per game | at once |
 | [At Edge](#at-edge) | **Follow**, **Snap to Middle** | Follow | global and per game | at once |
-| [C-Stick at Edge](#c-stick-at-edge) | on or off | off (Kid Icarus: Uprising: on) | global and per game | at once |
+| [C-Stick at Edge](#c-stick-at-edge) | on or off | off (Kid Icarus: Uprising with the C-Stick mod: on) | global and per game | at once |
 | [Aim Only While Pressed](#aim-only-while-pressed) | on or off | off | global and per game | at once |
 | [Right Stick Moves Touch](#right-stick-moves-touch) | on or off | off | global and per game | at once |
 | [Mouse Mode](#mouse-mode) | **Bottom Screen**, **Pointer** | Bottom Screen | the mouse | at once |
@@ -128,7 +128,7 @@ What the reticle does at the edge of the bottom screen. **Follow**: the dot stay
 
 ## C-Stick at Edge
 
-While the reticle touches near an edge of the bottom screen, the touch lifts and the C-Stick pushes toward that edge instead: part of the way where the edge band starts, all the way at the edge. Kid Icarus: Uprising with the C-Stick & Gyro mod ignores the C-Stick while the screen is touched, so this is what turns the camera there, the same way it turns when the mod's C-Stick aiming pushes past its aiming box. The band is the same turn of your head or controller at any **Reticle Speed**: about 3 degrees. Move back from the edge and the touch comes back where the reticle is; lift the trigger and both let go. While it is on, the reticle stays on the edge as with **At Edge** on **Follow**, whatever **At Edge** is set to. Kid Icarus: Uprising starts with it on. Shown under **Bottom Screen Reticle** while it is on.
+While the reticle touches near an edge of the bottom screen, the touch lifts and the C-Stick pushes toward that edge instead: part of the way where the edge band starts, all the way at the edge. Kid Icarus: Uprising with the C-Stick & Gyro mod ignores the C-Stick while the screen is touched, so this is what turns the camera there, the same way it turns when the mod's C-Stick aiming pushes past its aiming box. The band is the same turn of your head or controller at any **Reticle Speed**: about 3 degrees. Move back from the edge and the touch comes back where the reticle is; lift the trigger and both let go. While it is on, the reticle stays on the edge as with **At Edge** on **Follow**, whatever **At Edge** is set to. Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Kid Icarus: Uprising starts with it on once a C-Stick mod (that one or kiu-cstick-aim) is installed for the game. Shown under **Bottom Screen Reticle** while it is on.
 
 ## Aim Only While Pressed
 
