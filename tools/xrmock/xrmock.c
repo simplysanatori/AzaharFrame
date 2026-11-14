@@ -26,6 +26,9 @@
 //                             frame (eye views that differ from frame to frame)
 //   MOCK_XR_TURN=<deg/s>[,<deg>]  the head turns from side to side at this speed, this far
 //                             either way (default 40), instead of the slow sway
+//   MOCK_XR_ROLL=<deg/s>[,<deg>]  the head rolls (about its forward axis, after the yaw) from
+//                             side to side at this speed, this far either way (default 20); the
+//                             trace's endFrame lines (MOCK_XR_TRACE_POSE=5) add roll=
 //   MOCK_XR_NECK=<m>          the head turns about a neck this far behind the eyes (0: about
 //                             the eyes), so a turn moves the eyes as a real head does
 //   MOCK_XR_IPD=<m>[,<m>@<s>] the distance between the eyes (0.064), and optionally the one it
@@ -155,6 +158,8 @@ static int gSway = 1;
 static float gEyeWobbleRad = 0.0f; // MOCK_XR_EYE_WOBBLE, in radians
 // AzaharFrame turns: MOCK_XR_TURN (speed in degrees a second, how far either way) and MOCK_XR_NECK.
 static double gTurnRate = 0.0, gTurnAmp = 40.0, gNeck = 0.0;
+// AzaharFrame fovscale: MOCK_XR_ROLL (speed in degrees a second, how far either way).
+static double gRollRate = 0.0, gRollAmp = 20.0;
 // AzaharFrame ipd: MOCK_XR_IPD (the distance between the eyes, and the one after the step) and
 // MOCK_XR_IPD_JITTER.
 static double gIpd = 0.064, gIpd2 = 0.0, gIpdAt = 0.0, gIpdJitter = 0.0;
@@ -176,7 +181,21 @@ static int gInstances = 0, gSessionsOnInstance = 0, gFocusOnce = 0, gNoFocus = 0
 static int gHeadScripted = 0;
 static XrPosef gHeadPose;
 
-// The head: 1.6 m up, turning about the vertical axis.
+// AzaharFrame fovscale: a triangle wave, `rate` degrees a second, `amp` degrees either way, in
+// radians.
+static float triangleRad(XrTime t, double rate, double amp) {
+    const double period = 4.0 * amp / rate;
+    const double phase = fmod((double)(t - gT0) / 1e9, period) / period;
+    const double tri = phase < 0.5 ? 4.0 * phase - 1.0 : 3.0 - 4.0 * phase;
+    return (float)(amp * tri * 3.14159265358979 / 180.0);
+}
+
+// AzaharFrame fovscale: the head's roll at `t` (MOCK_XR_ROLL), radians; 0 without it.
+static float headRoll(XrTime t) {
+    return gRollRate > 0.0 && !gHeadScripted ? triangleRad(t, gRollRate, gRollAmp) : 0.0f;
+}
+
+// The head: 1.6 m up, turning about the vertical axis (and rolling, MOCK_XR_ROLL).
 static XrPosef headAt(XrTime t) {
     if (gHeadScripted) return gHeadPose;
     float yaw = 0;
@@ -191,7 +210,14 @@ static XrPosef headAt(XrTime t) {
     }
     // The eyes this far ahead of the neck they turn about: they move with the turn.
     const float n = (float)gNeck;
-    return (XrPosef){{0, sinf(yaw * 0.5f), 0, cosf(yaw * 0.5f)}, {-n * sinf(yaw), 1.6f, n - n * cosf(yaw)}};
+    XrPosef p = {{0, sinf(yaw * 0.5f), 0, cosf(yaw * 0.5f)}, {-n * sinf(yaw), 1.6f, n - n * cosf(yaw)}};
+    const float roll = headRoll(t);
+    if (roll != 0.0f) {
+        // About the head's own forward axis, after the yaw: yaw x roll(z).
+        const XrQuaternionf qr = {0, 0, sinf(roll * 0.5f), cosf(roll * 0.5f)};
+        p.orientation = qmul(p.orientation, qr);
+    }
+    return p;
 }
 
 // ---- paths -----------------------------------------------------------------
@@ -1603,8 +1629,17 @@ static XrResult XRAPI_CALL mEndFrame(XrSession s, const XrFrameEndInfo* ei) {
     if (poseTraceE < 0) poseTraceE = getenv("MOCK_XR_TRACE_POSE") && getenv("MOCK_XR_TRACE_POSE")[0] == '5';
     if (poseTraceE) {
         const XrPosef hp = headAt(ei->displayTime);
-        trace("endFrame layers=%u t=%.6f yaw=%.6f%s", ei->layerCount, (double)(ei->displayTime - gT0) / 1e9,
-              2.0 * atan2((double)hp.orientation.y, (double)hp.orientation.w) * 57.29577951308232, buf);
+        if (gRollRate > 0.0) {
+            // AzaharFrame fovscale: the yaw from the forward axis (the roll comes after it).
+            const XrQuaternionf q = hp.orientation;
+            const double fx = -2.0 * (q.x * q.z + q.w * q.y), fz = -(1.0 - 2.0 * (q.x * q.x + q.y * q.y));
+            trace("endFrame layers=%u t=%.6f yaw=%.6f roll=%.6f%s", ei->layerCount,
+                  (double)(ei->displayTime - gT0) / 1e9, atan2(-fx, -fz) * 57.29577951308232,
+                  (double)headRoll(ei->displayTime) * 57.29577951308232, buf);
+        } else {
+            trace("endFrame layers=%u t=%.6f yaw=%.6f%s", ei->layerCount, (double)(ei->displayTime - gT0) / 1e9,
+                  2.0 * atan2((double)hp.orientation.y, (double)hp.orientation.w) * 57.29577951308232, buf);
+        }
     } else {
         trace("endFrame layers=%u%s", ei->layerCount, buf);
     }
@@ -1787,6 +1822,12 @@ static void init(void) {
         gTurnRate = atof(turn);
         const char* comma = strchr(turn, ',');
         if (comma && atof(comma + 1) > 0.0) gTurnAmp = atof(comma + 1);
+    }
+    const char* roll = getenv("MOCK_XR_ROLL"); // AzaharFrame fovscale
+    if (roll && *roll) {
+        gRollRate = atof(roll);
+        const char* comma = strchr(roll, ',');
+        if (comma && atof(comma + 1) > 0.0) gRollAmp = atof(comma + 1);
     }
     const char* neck = getenv("MOCK_XR_NECK");
     if (neck && *neck) gNeck = atof(neck);

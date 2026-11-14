@@ -2015,6 +2015,26 @@ GMainWindow::GMainWindow(Core::System& system_)
                     continue;
                 }
                 const QString what = parts[1].trimmed();
+                // AzaharFrame fovscale: "hold" turns frame advancing on (the game stops at the end
+                // of its frame), "step" lets one frame through, "go" turns it off. Held before a
+                // load, the game stops at the first frame after it, the same in every run: two
+                // runs with other settings show the same game moment (the mock's picture checks).
+                if (what == QStringLiteral("hold") || what == QStringLiteral("step") ||
+                    what == QStringLiteral("go")) {
+                    QTimer::singleShot(static_cast<int>(parts[0].toDouble() * 1000.0), this,
+                                       [this, what] {
+                                           LOG_INFO(Frontend, "xr test: frame advance {}",
+                                                    what.toStdString());
+                                           auto& limiter = system.frame_limiter;
+                                           if (what == QStringLiteral("step")) {
+                                               limiter.AdvanceFrame();
+                                           } else {
+                                               limiter.SetFrameAdvancing(what ==
+                                                                         QStringLiteral("hold"));
+                                           }
+                                       });
+                    continue;
+                }
                 const bool save = what.startsWith(QStringLiteral("save"));
                 // AzaharFrame oot: loadanyN loads slot N with Load Anyway (a state from another
                 // build, as the owner's quick save is for a mock of this one), asking nothing.
