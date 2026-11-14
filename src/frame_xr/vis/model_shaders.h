@@ -29,9 +29,9 @@ layout(push_constant) uniform PC {
                   // +8 (kiumodels, with +4) a moving glow: key and up, unused by a glow's light,
                   // hold its motion (weapon_fit.h GlowMotion): key = (u, v, gain, sway),
                   // up = (phase a, phase b, wave, 0)
-                  // +16 a muzzle flash's card (kiuflash, with +4; +8 in lane/kiuflash, moved at
-                  // integ13 to leave +8 to kiumodels: key its colour and white core, up its
-                  // colour mode, half width, half length and middle along y; x 1 for a fan)
+                  // +16 a muzzle flash's card (kiuflash, with +4; clear of kiumodels' +8): key
+                  // its colour and white core, up its colour mode, half width, half length and
+                  // middle along y; x 1 for a fan
 } pc;
 
 layout(location = 0) in vec3 a_position;
@@ -116,7 +116,7 @@ void main() {
         discard;
     }
     if ((int(pc.params.w + 0.5) & 16) != 0) {
-        // AzaharFrame kiuflash: a muzzle flash's card, as light (added, alpha 0): the texture's
+        // AzaharFrame kiuflash: a muzzle flash's card, as light (added): the texture's
         // own colour times the set's (mode 0), its red channel as light in the colour (1), or a
         // two-tone mask: green the shape in the colour, red a white core (2).
         vec4 t = texture(u_colour, v_uv);
@@ -129,7 +129,10 @@ void main() {
         vec2 q = vec2(v_position.x / max(pc.up.y, 1e-4), (v_position.y - pc.up.w) / max(pc.up.z, 1e-4));
         float edge = pc.params.x > 0.5 ? max(abs(q.x), q.y) : max(abs(q.x), abs(q.y));
         light *= (1.0 - smoothstep(0.75, 1.0, edge)) * clamp(pc.params.z, 0.0, 1.0);
-        fragColor = vec4(OUT_LINEAR ? light : linearToSrgb(light), 0.0);
+        // A coverage alpha from the light itself, as the glows' (AzaharFrame kiufix): light at
+        // alpha 0 can be dropped as clear.
+        float cover = clamp(max(light.r, max(light.g, light.b)) * 0.6, 0.0, 0.6);
+        fragColor = vec4(OUT_LINEAR ? light : linearToSrgb(light), cover);
         return;
     }
     if (pc.params.w > 3.5) {
