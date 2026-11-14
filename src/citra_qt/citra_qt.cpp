@@ -57,6 +57,7 @@
 #include "citra_qt/frame_preload_confirm.h" // AzaharFrame memguard
 #include "citra_qt/frame_memwarn.h"         // AzaharFrame memwarn
 #include "video_core/custom_textures/preload_budget.h" // AzaharFrame memguard
+#include "video_core/custom_textures/custom_tex_manager.h" // AzaharFrame savemem
 #include "citra_qt/camera/qt_multimedia_camera.h"
 #include "citra_qt/camera/still_image_camera.h"
 #include "citra_qt/citra_qt.h"
@@ -6181,11 +6182,19 @@ void GMainWindow::FrameMemoryEvent(int action, u64 used, u64 max) {
         return;
     }
     frame_memwarn_asking = true;
-    // No Save State in this dialog: a save state needs about 0.9 GB more while it is written (the
-    // serialized system, then its compressed copy), so at this level it could cross the limit and
-    // get Azahar closed in the middle of it. The autosaves wait for the same reason
+    // No Save State in this dialog: a save state needs its serialized system more while it is
+    // written (about 300 MB for a big game), so at this level it could cross the limit and get
+    // Azahar closed in the middle of it. The autosaves wait for the same reason
     // (FrameMemWarn::Critical in FrameAutosaveGates). Saving in the game costs nothing.
-    const bool textures = Settings::values.custom_textures.GetValue();
+    // AzaharFrame savemem: Turn Off Custom Textures, and the advice, only when they hold enough to
+    // matter (MW::TexturesMatter); with a few MB of them, or none loaded, it would not help.
+    const u64 texture_bytes = Settings::values.custom_textures.GetValue()
+                                  ? system.CustomTexManager().HeldBytesHint()
+                                  : 0;
+    const bool textures = MW::TexturesMatter(texture_bytes, max);
+    frame_memwarn_textures = textures;
+    LOG_INFO(Frontend, "memwarn: custom textures hold {} MiB{}", texture_bytes >> 20,
+             textures ? "" : ": not worth turning off");
     const MW::PauseText t = MW::MakePauseText(used, max, textures);
     LOG_WARNING(Frontend, "memwarn: paused: {}: {}", t.title, t.body);
     const QString shots = FrameTestEnv("AZAHARFRAME_TEST_MEMWARN_SHOTS");
@@ -6207,7 +6216,7 @@ void GMainWindow::FrameMemoryEvent(int action, u64 used, u64 max) {
 #ifdef ENABLE_FRAME_XR
             } else if (frame_notice_answer) {
                 // as the in-game menu's buttons: confirm 1, cancel 0, extra 2
-                const bool tex = Settings::values.custom_textures.GetValue();
+                const bool tex = frame_memwarn_textures; // AzaharFrame savemem: as offered
                 FrameNoticeAnswer(code == kMemoryStop       ? 2
                                   : code == kMemoryTextures ? (tex ? 1 : 0)
                                                             : (tex ? 0 : 1));
@@ -7500,8 +7509,10 @@ void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string det
     // or an autosave from this build cut short, Undo Load) gets the same notice, through FrameAsk:
     // in VR the in-game menu, where upstream's message box below would not be seen while the game
     // runs with the menu closed. A failed save keeps upstream's message.
-    const bool anyway_failed =
-        result == RS::ErrorSavestate && std::exchange(frame_load_anyway_pending, false);
+    // AzaharFrame savemem: only a load's error is Load Anyway's (a save's error in between must
+    // not disarm its save data backup)
+    const bool anyway_failed = result == RS::ErrorSavestate && system.SavestateErrorOnLoad() &&
+                               std::exchange(frame_load_anyway_pending, false);
     if (result == RS::ErrorSavestate && (anyway_failed || system.SavestateErrorOnLoad())) {
         if (anyway_failed && !frame_rescue_root.empty()) { // not loaded: the save data is as it was
             Core::SaveBackup::Disarm(frame_rescue_root);
@@ -8509,7 +8520,7 @@ Core::Autosave::Gates GMainWindow::FrameAutosaveGates() const {
     // The game stands for its shaders (or the disk cache loads at the start)
     g.shaders_busy =
         loading_shaders_label->isVisible() || (backlog && (last <= 0 || now_us - last > 500'000));
-    // AzaharFrame memwarn: at the pause level a save state's extra 0.9 GB could cross the limit
+    // AzaharFrame memwarn: at the pause level a save state's extra ~300 MB could cross the limit
     g.memory_low = FrameMemWarn::Critical();
     return g;
 }
@@ -8707,6 +8718,24 @@ void GMainWindow::FramePushAutosaves() {
 #endif
 }
 
+// AzaharFrame savemem: a slot's save the writer could not write: Couldn't Save State with the
+// reason, as when the save failed on the emulation thread (OnCoreError). With the game stopped,
+// in VR, a toast: the notice lives in the in-game menu, and a message box on the window behind
+// VR would not be seen.
+void GMainWindow::FrameSlotSaveFailed(Core::SaveFailure failure, const std::string& path) {
+    LOG_WARNING(Frontend, "savestate: save failed: {} not written ({})", path,
+                static_cast<int>(failure));
+    frame_save_failures++; // the Quick Save confirmation stops waiting for the file
+#ifdef ENABLE_FRAME_XR
+    if (FrameXr::VrShowing() && !emulation_running) {
+        FrameXr::ShowToastText(Core::kSaveFailedTitle, FrameXr::ToastTime::Long);
+        return;
+    }
+#endif
+    FrameAsk(QString::fromUtf8(Core::kSaveFailedTitle),
+             QString::fromStdString(Core::SaveFailedBody(failure)), tr("OK"), {}, {});
+}
+
 // AzaharFrame advfix: "Couldn't Autosave" (with the reason when known), at most once every
 // kFailureToastGapMs: a toast in VR, the status bar in Flat. The details are in the log.
 void GMainWindow::FrameAutosaveFailed(Core::Autosave::Failure failure) {
@@ -8734,6 +8763,16 @@ void GMainWindow::FrameAutosaveFailed(Core::Autosave::Failure failure) {
 }
 
 void GMainWindow::FrameAutosaveWritten(const Core::Autosave::Writer::Done& done) {
+    // AzaharFrame savemem: a slot's save (Quick Save too) is written here, after the game went on:
+    // a failure is told from here, as soon as it is known, whether the game runs, is paused (the
+    // in-game menu) or has stopped since. Never through the core's RunLoop, where it was taken
+    // for a failed Load Anyway and could hold up Stop Game.
+    if (done.slot_save) {
+        if (const auto failure = Core::Autosave::SlotSaveFailure(done)) {
+            FrameSlotSaveFailed(*failure, done.path);
+        }
+        return;
+    }
     if (!done.autosave || !emulation_running) {
         return;
     }

@@ -38,6 +38,7 @@
 #include "core/arm/fastinterp/fastinterp.h"
 #endif
 #include "core/autosave.h" // AzaharFrame autosave
+#include "common/transient_memory.h" // AzaharFrame savemem
 #include "core/cheats/cheats.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -237,6 +238,9 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         if (app_loader) {
             app_loader->ReadProgramId(title_id);
         }
+        if (autosave_writer) {
+            autosave_writer->WaitIdle(); // AzaharFrame savemem: a save to this slot still writing
+        }
         auto info = GetSaveStateInfo(title_id, movie.GetCurrentMovieID(), param);
         if (info.slot == std::numeric_limits<u32>::max()) {
             // Should not happen
@@ -388,10 +392,14 @@ System::ResultStatus System::RunLoop(bool tight_loop) {
         LOG_INFO(Core, "Begin save to slot {}", slot);
         try {
             const auto t0 = std::chrono::steady_clock::now();
-            System::SaveState(slot);
-            // AzaharFrame autosave: the time the game's picture stood still for it (serialize,
-            // compress and write, all on this thread)
-            LOG_INFO(Core, "Save completed: the emulation thread was held for {} ms",
+            // AzaharFrame savemem: serialized here, compressed and written by the writer
+            // (SaveStateInBackground): the game's picture stands still for the serialization
+            // alone, no longer for the compression and the write too
+            SaveStateInBackground(slot);
+            LOG_INFO(Core,
+                     "Save to slot {}: the emulation thread was held for {} ms; the writer "
+                     "compresses and writes it",
+                     slot,
                      std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::steady_clock::now() - t0)
                          .count());
@@ -568,13 +576,56 @@ Autosave::Writer& System::AutosaveWriter() {
     return *autosave_writer;
 }
 
+// AzaharFrame savemem
+void System::SaveStateInBackground(u32 slot) {
+    Autosave::Writer& writer = AutosaveWriter();
+    // One serialized state in memory at a time: a save, or an autosave, still being written is
+    // finished first (seldom: a quick save is written in about a second)
+    const auto w0 = std::chrono::steady_clock::now();
+    writer.WaitIdle();
+    const auto waited = std::chrono::steady_clock::now() - w0;
+    if (waited > std::chrono::milliseconds(20)) {
+        LOG_INFO(Core, "Save to slot {}: waited {} ms for the last state's write", slot,
+                 std::chrono::duration_cast<std::chrono::milliseconds>(waited).count());
+    }
+    if (app_loader && !app_loader->SupportsSaveStates()) {
+        throw std::runtime_error("Savestates are not supported by the current application "
+                                 "loader (Artic Base).");
+    }
+    const auto t0 = std::chrono::steady_clock::now();
+    auto hold = std::make_shared<Common::TransientMemory::Hold>();
+    std::string raw = SerializeState(hold.get());
+    const u64 now_s = static_cast<u64>(std::chrono::duration_cast<std::chrono::seconds>(
+                                           std::chrono::system_clock::now().time_since_epoch())
+                                           .count());
+    Autosave::Writer::Job job;
+    job.path = SaveStatePath(slot);
+    job.header = CurrentStateHeader(title_id, now_s);
+    job.hold = std::move(hold);
+    job.raw = std::move(raw);
+    job.autosave = false;
+    job.slot_save = true;
+    job.slot = slot;
+    job.program_id = title_id;
+    job.movie_id = movie.GetCurrentMovieID();
+    job.serialize_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::steady_clock::now() - t0)
+                           .count();
+    writer.Submit(std::move(job));
+}
+
 // The emulation thread's part: serialize, hand the rest to the writer, ask for the picture.
 void System::MakeAutosave() {
     const auto reason = static_cast<Autosave::Reason>(autosave_reason);
+    // AzaharFrame savemem: one serialized state in memory at a time (a quick save still writing)
+    if (autosave_writer) {
+        autosave_writer->WaitIdle();
+    }
     const auto t0 = std::chrono::steady_clock::now();
     std::string raw;
+    auto hold = std::make_shared<Common::TransientMemory::Hold>(); // AzaharFrame savemem
     try {
-        raw = SerializeState();
+        raw = SerializeState(hold.get());
     } catch (const std::exception& e) {
         LOG_ERROR(Core, "autosave: not made: {}", e.what());
         if (autosave_callback) {
@@ -596,6 +647,7 @@ void System::MakeAutosave() {
                    ? Autosave::MenuPathFor(job.dir, title_id, movie_id)
                    : Autosave::PathFor(job.dir, title_id, movie_id, static_cast<s64>(now_s));
     job.header = CurrentStateHeader(title_id, now_s);
+    job.hold = std::move(hold); // AzaharFrame savemem
     job.raw = std::move(raw);
     job.reason = reason;
     job.program_id = title_id;
@@ -661,6 +713,12 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
 
     u64_le program_id = 0;
     app_loader->ReadProgramId(program_id);
+    // AzaharFrame savemem: a slot's .tmp left by a save killed during its write (none is being
+    // written now: the writer is idle)
+    if (autosave_writer) {
+        autosave_writer->WaitIdle();
+    }
+    RemoveStaleStateTemps(FileUtil::GetUserPath(FileUtil::UserPath::StatesDir), program_id);
     if (restore_plugin_context.has_value() && restore_plugin_context->is_enabled &&
         restore_plugin_context->use_user_load_parameters) {
         if (restore_plugin_context->user_load_parameters.low_title_Id ==

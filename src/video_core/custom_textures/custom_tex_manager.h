@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <atomic> // AzaharFrame savemem
+#include <chrono> // AzaharFrame savemem
 #include <list>
 #include <mutex>    // AzaharFrame memguard
 #include <optional> // AzaharFrame memguard
@@ -82,7 +84,14 @@ public:
 
     /// AzaharFrame memguard: the custom texture pixel data held in memory now (decoded PNGs,
     /// read DDS/KTX files), for the log when a game stops
-    u64 HeldBytes() const;
+    /// AzaharFrame savemem: `skip_busy` leaves out a texture whose decode holds its lock now
+    /// (never waits; for HeldBytesHint).
+    u64 HeldBytes(bool skip_busy = false) const;
+    /// AzaharFrame savemem: HeldBytes as of the last few seconds (worked out by TickFrame at most
+    /// every 2 s, and by Unload), for the memory dialog's advice. Any thread.
+    u64 HeldBytesHint() const {
+        return held_hint.load(std::memory_order_relaxed);
+    }
 
     /// AzaharFrame memwarn: custom textures were turned off while the game runs (the memory
     /// dialog): every texture's pixel data and the queued uploads go, and the heap is given back.
@@ -160,6 +169,8 @@ private:
     bool skip_mipmap{false};
     bool flip_png_files{true};
     bool use_new_hash{true};
+    std::atomic<u64> held_hint{0}; ///< AzaharFrame savemem: HeldBytesHint
+    std::chrono::steady_clock::time_point held_hint_at{}; ///< emulation thread
 };
 
 } // namespace VideoCore

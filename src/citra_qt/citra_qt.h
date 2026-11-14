@@ -285,6 +285,7 @@ private:
     void FrameSetAutosaveSetting(int which, u32 value);
     void FrameAutosaveKeepChanged();
     void FrameAutosaveWritten(const Core::Autosave::Writer::Done& done);
+    void FrameSlotSaveFailed(Core::SaveFailure failure, const std::string& path); // savemem
     void FrameAutosaveFailed(Core::Autosave::Failure failure);        // AzaharFrame advfix
     void FrameUndoOffered(int slot);                                  // AzaharFrame advfix
     std::vector<Core::SaveBackup::Part> FrameSaveParts(u64 title_id); // AzaharFrame advfix
@@ -548,6 +549,7 @@ private:
     // AzaharFrame memwarn
     std::unique_ptr<FrameMemWarn> frame_memwarn;
     bool frame_memwarn_asking = false;       ///< its dialog shows (VR menu or Qt)
+    bool frame_memwarn_textures = false; ///< AzaharFrame savemem: it offers Turn Off Custom Textures
     QDialog* frame_memwarn_dialog = nullptr; ///< the Qt one, while it shows
     bool frame_memwarn_resume = false;       ///< the Qt one paused the game: its answer resumes
     QString frame_memwarn_answer_test;       ///< AZAHARFRAME_TEST_MEMWARN_ANSWER's choice

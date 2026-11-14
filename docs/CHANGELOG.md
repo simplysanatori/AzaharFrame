@@ -55,6 +55,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Undo Load** takes back a load from a slot or an autosave, until the game closes.
 - A state that can't be read stops the game with a message instead of crashing it.
 - A state or Quick Save that can't be written shows **Couldn't Save State**. The game keeps running, and the slot keeps the state it had.
+- Quick Save and the slots pause the game for the moment the state is copied (about 0.1 to 0.3 seconds), not while it is compressed and written, and need a third of the memory they did.
 
 ### Autosave
 
@@ -65,7 +66,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Autosaves never replace a slot or the Quick Save.
 - The autosave made when you open the menu has a spot of its own. It doesn't count toward the newest 3, so opening the menu never removes an older autosave.
 - An autosave pauses the game for about 0.2 to 0.5 seconds.
-- Autosaves wait while memory is nearly full, because writing one needs about 0.9 GB more for a moment.
+- Autosaves wait while memory is nearly full, because writing one needs about 300 MB more for a moment in a big game.
 - In Azahar's window, autosaves are at the end of **Emulation > Load State**. The settings are in **Emulation > Configure > General** and in a game's **Properties**.
 
 ### Settings
@@ -145,6 +146,9 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Bug fixes
 
+- Fixed a crash right after loading some save states, seen in Kid Icarus: Uprising.
+- Fixed memory growing with every save state until the game was closed. On the Frame, a few Quick Saves in a row could pause the game with **Azahar Is Almost Out of Memory**, and each save froze the game longer than the last.
+- **Azahar Is Almost Out of Memory** no longer opens for a save state's own memory, and offers **Turn Off Custom Textures** only when they hold a good share of the memory.
 - Fixed a freeze when switching between VR and Flat.
 - Fixed Azahar's menus no longer responding after some messages in VR.
 - Fixed a crash when loading a save state after a long pause with the microphone in use.

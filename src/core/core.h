@@ -77,6 +77,10 @@ namespace Loader {
 class AppLoader;
 }
 
+namespace Common::TransientMemory {
+class Hold; // AzaharFrame savemem
+}
+
 namespace Core {
 
 enum class SaveFailure : u8; // AzaharFrame advfix: core/savestate.h
@@ -446,15 +450,20 @@ public:
         return save_state_status;
     }
 
+    /// Serializes, compresses and writes the state to `slot`, all on the calling thread.
     void SaveState(u32 slot) const;
+    /// AzaharFrame savemem: the file of `slot` for the running game (and movie).
+    std::string SaveStatePath(u32 slot) const;
 
     /// AzaharFrame savestate: `allow_mismatch` (Load Anyway) skips only the build check. A failure
     /// reading the archive into the system throws SaveStateHalfLoaded (savestate.h).
     void LoadState(u32 slot, bool allow_mismatch = false);
     /// AzaharFrame autosave: the same from any state file.
     void LoadStateAt(const std::string& path, bool allow_mismatch = false);
-    /// AzaharFrame autosave: the system serialized (not compressed).
-    std::string SerializeState() const;
+    /// AzaharFrame autosave: the system serialized (not compressed). AzaharFrame savemem: `hold`,
+    /// when given, takes over counting it as transient memory (common/transient_memory.h) with no
+    /// gap between the serialization's count and the caller's.
+    std::string SerializeState(Common::TransientMemory::Hold* hold = nullptr) const;
 
     std::vector<u8> SaveStateBuffer() const;
 
@@ -615,6 +624,12 @@ private:
     bool save_state_allow_mismatch = false; ///< AzaharFrame savestate: Signal::LoadAnyway
     // AzaharFrame autosave
     void MakeAutosave();
+    /// AzaharFrame savemem: a slot's save (Signal::Save): the emulation thread serializes, the
+    /// autosave writer compresses and writes it, so the game is held for the serialization alone.
+    /// A write that fails is told by the writer (Writer::Done, slot_save and not ok; the frontend
+    /// shows Couldn't Save State from its on_done, paused, running or stopped). Throws as
+    /// SaveState when the system cannot be serialized.
+    void SaveStateInBackground(u32 slot);
     std::unique_ptr<Autosave::Writer> autosave_writer;
     bool autosave_pending = false;
     u32 autosave_reason = 0;

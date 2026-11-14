@@ -115,6 +115,7 @@ add_library(citra_common STATIC EXCLUDE_FROM_ALL
     x64/cpu_detect.h
     x64/xbyak_abi.h
     x64/xbyak_util.h
+    transient_memory.h
     zstd_compression.cpp
     zstd_compression.h
   )

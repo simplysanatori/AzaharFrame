@@ -197,3 +197,65 @@ TEST_CASE("Memory watch: the texts", "[frame_xr]") {
     CHECK(n.textures.empty());
     CHECK(n.body.find("Save in the game, then stop it.") != std::string::npos);
 }
+
+// AzaharFrame savemem: a save state's memory, held for a moment (common/transient_memory.h)
+TEST_CASE("Memory watch: a save's own spike does not pause", "[frame_xr][savemem]") {
+    const auto mib = [](double share) {
+        return static_cast<std::uint64_t>(share * static_cast<double>(kMax));
+    };
+    Watcher w;
+    CHECK(w.Step(At(0.70), 0) == Action::None);
+    // A quick save holds 25 % of the limit for a moment: 95 % with it, 70 % without
+    CHECK(w.Step(At(0.95, 3), 2'000, mib(0.25)) == Action::None);
+    CHECK(w.Spared());
+    CHECK_FALSE(w.Critical()); // the autosaves need not wait for it either
+    // Its "high" events (the save crossed memory.high) are its own: not a step, at the sample
+    // right after it either. 86 % without it is the game's: the toast, not the pause.
+    CHECK(w.Step(At(0.86, 9), 2'250) == Action::Warn);
+    CHECK_FALSE(w.Spared());
+    CHECK(w.Step(At(0.86, 9), 4'250) == Action::None);
+    // A later step is the game's again: pauses at Level 1
+    CHECK(w.Step(At(0.86, 10), 6'250) == Action::Pause);
+}
+
+TEST_CASE("Memory watch: near the limit without the save, it still pauses",
+          "[frame_xr][savemem]") {
+    const auto mib = [](double share) {
+        return static_cast<std::uint64_t>(share * static_cast<double>(kMax));
+    };
+    {
+        // 99 % with the save's 4 %, 95 % without: over Level 2 either way
+        Watcher w;
+        CHECK(w.Step(At(0.99), 0, mib(0.04)) == Action::Pause);
+        CHECK(w.Critical());
+        CHECK_FALSE(w.Spared());
+    }
+    {
+        // Spared during the save, but the memory stays once it ends: the next sample pauses
+        Watcher w;
+        CHECK(w.Step(At(0.97), 0, mib(0.15)) == Action::None);
+        CHECK(w.Spared());
+        CHECK(w.Step(At(0.95), 250) == Action::Pause);
+    }
+    {
+        // A save's memory is never more than all of it
+        Watcher w;
+        CHECK(w.Step(At(0.50), 0, kMax * 2) == Action::None);
+    }
+}
+
+TEST_CASE("Memory watch: custom textures, only when they matter", "[frame_xr][savemem]") {
+    constexpr std::uint64_t kSmall = 4379 * kMiB; // the owner's Frame
+    CHECK_FALSE(TexturesMatter(0, kSmall));        // none loaded (Kid Icarus, no pack)
+    CHECK_FALSE(TexturesMatter(64 * kMiB, kSmall));
+    CHECK_FALSE(TexturesMatter(400 * kMiB, kSmall)); // under 10 % of 4.3 GB
+    CHECK(TexturesMatter(500 * kMiB, kSmall));
+    CHECK(TexturesMatter(kMax / 10 + 1, kMax));
+    CHECK_FALSE(TexturesMatter(100 * kMiB, 600 * kMiB)); // the 128 MiB floor
+    CHECK(TexturesMatter(128 * kMiB, 600 * kMiB));
+    // The dialog's advice follows (MakePauseText's flag is TexturesMatter's answer)
+    CHECK(MakePauseText(4000 * kMiB, kSmall, false).body ==
+          "Using 3.9 of 4.3 GB. The game is paused so Azahar isn't closed and your progress "
+          "stays safe. Save in the game, then stop it.");
+    CHECK(MakePauseText(4000 * kMiB, kSmall, false).textures.empty());
+}

@@ -309,9 +309,9 @@ The 3DS microphone works through the Frame's microphone. Azahar's microphone inp
 The Frame's memory is shared with SteamVR, the passthrough cameras and the GPU, so the launcher gives Azahar a limit: about two thirds of the memory, or less when little is free at the start. Past it the system closes Azahar before the headset can freeze, and anything not saved in the game is lost. A large texture pack is the usual cause. I added two warnings before that point:
 
 - At 85% of the limit, a message in front of you says how much is in use, for example **Running Low on Memory: 7.1 of 8.2 GB**. In Flat the status bar says it for 5 seconds. It shows again only after use falls under 80% and comes back, and at most once every 2 minutes.
-- At 93%, the game pauses and **Azahar Is Almost Out of Memory** opens over the in-game menu (in Flat, as a dialog). **Turn Off Custom Textures**, shown while they are on, turns them off for this game until you close it, frees their memory at once and resumes the game. **Resume** carries on as you were, and **Stop Game** closes the game. Either way, save in the game soon. It asks again only after use falls under 88%, or if it keeps climbing.
+- At 93%, the game pauses and **Azahar Is Almost Out of Memory** opens over the in-game menu (in Flat, as a dialog). **Turn Off Custom Textures**, shown while they hold a good share of the memory, turns them off for this game until you close it, frees their memory at once and resumes the game. **Resume** carries on as you were, and **Stop Game** closes the game. Either way, save in the game soon. It asks again only after use falls under 88%, or if it keeps climbing.
 
-There is no **Save State** in that dialog on purpose: writing a save state needs about 0.9 GB more for a moment, which could cross the limit and get Azahar closed in the middle of it. Autosaves wait while memory is that full, too.
+There is no **Save State** in that dialog on purpose: writing a save state needs about 300 MB more for a moment in a big game, which could cross the limit and get Azahar closed in the middle of it. Autosaves wait while memory is that full, too. A save state being made or loaded doesn't set off these warnings by itself: its memory is gone again within a second, so only what the game uses without it counts.
 
 ### Fast Forward
 
