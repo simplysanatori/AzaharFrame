@@ -3869,6 +3869,11 @@ void GMainWindow::ShutdownGame() {
     game_title.clear();
     UpdateWindowTitle();
 
+    // AzaharFrame ctgp7b: the list's rows again when a folder changed while the game ran, or when
+    // the game's own file is gone: a title the game installed again has a new .app (CTGP-7's
+    // launcher, its first run), and the row would start nothing. OnStopGame scans anyway; a game
+    // that stops by itself and Close Game in VR come here only.
+    game_list->RefreshIfPending(!game_path.isEmpty() && !QFileInfo::exists(game_path));
     game_path.clear();
     game_title_id = 0;
     // AzaharFrame catalog3: the game is not running: what waited goes in or out

@@ -19,6 +19,8 @@
 #include "core/ctgp7/cia_build.h"
 #include "core/ctgp7/ctgp7.h"
 #include "core/file_sys/cia_container.h"
+#include "core/hle/service/am/am.h" // AzaharFrame ctgp7b
+#include "core/hle/service/fs/archive.h"
 #include "core/homebrew/net.h"
 #include "core/loader/loader.h"
 
@@ -533,4 +535,55 @@ TEST_CASE("CTGP-7: Uninstall removes only CTGP-7's files; saves and the game sta
         CHECK(TreeOf(p.dir) == std::vector<std::string>{"savefs/game.sav"});
         CHECK(fs::exists(titles + "00040000/00030800/content/00000000.app"));
     }
+}
+
+// AzaharFrame ctgp7b: Install, then the launcher's first run, then Launch or the game list without a
+// restart. The launcher installs its own title again on that run (the owner's log: AM's
+// BeginImportProgram at 583 s): 00000000.tmd with 404c70be.app became 00000001.tmd with
+// 60986578.app, and the game list's row, still holding 404c70be.app, started nothing until Azahar
+// was started again.
+TEST_CASE("CTGP-7: Launch and the game list follow the launcher installing itself again",
+          "[ctgp7]") {
+    const std::string dir = TempDir("listed");
+    const std::string old_sdmc = FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir);
+    fs::create_directories(dir + "sdmc/");
+    FileUtil::UpdateUserPath(FileUtil::UserPath::SDMCDir, dir + "sdmc/");
+    using Service::FS::MediaType;
+    const std::string content = Service::AM::GetTitlePath(MediaType::SDMC, kLauncherTitleId) + "content/";
+    REQUIRE(content.rfind(dir + "sdmc/", 0) == 0);
+    const auto put_tmd = [&](const std::string& name, u32 content_id) {
+        std::vector<u8> tmd = Cia::MakeTmd(kLauncherTitleId, 0, 16, {}, 0);
+        const std::size_t chunk = tmd.size() - 0x30; // the one content chunk: its ID first, big endian
+        for (int i = 0; i < 4; i++) {
+            tmd[chunk + i] = static_cast<u8>(content_id >> (24 - 8 * i));
+        }
+        WriteAll(content + name, std::string(tmd.begin(), tmd.end()));
+    };
+    // what the installer left (the list scanned right after it)
+    put_tmd("00000000.tmd", 0x404c70be);
+    WriteAll(content + "404c70be.app", "launcher, as the installer put it");
+    const std::string listed = Service::AM::GetTitleContentPath(MediaType::SDMC, kLauncherTitleId);
+    CHECK(listed == content + "404c70be.app");
+    CHECK(LauncherPath() == listed);
+    CHECK(Service::AM::ListedContentPath(listed, MediaType::SDMC, kLauncherTitleId) == listed);
+
+    // the launcher's first run installs it again
+    put_tmd("00000001.tmd", 0x60986578);
+    WriteAll(content + "60986578.app", "launcher, as it installed itself");
+    fs::remove(content + "00000000.tmd");
+    fs::remove(content + "404c70be.app");
+    // Launch reads the title as it is
+    CHECK(LauncherPath() == content + "60986578.app");
+    // the list's row still holds 404c70be.app: it starts the title's current content
+    CHECK(Service::AM::ListedContentPath(listed, MediaType::SDMC, kLauncherTitleId) ==
+          content + "60986578.app");
+    // only an installed title is looked up: a ROM file that is gone stays gone, and so does an
+    // installed title that is gone
+    CHECK(Service::AM::ListedContentPath(listed, MediaType::GameCard, kLauncherTitleId).empty());
+    CHECK(Service::AM::ListedContentPath(listed, MediaType::SDMC, 0).empty());
+    CHECK(Service::AM::ListedContentPath(dir + "roms/gone.3ds", MediaType::GameCard, 0).empty());
+    fs::remove_all(content);
+    CHECK(Service::AM::ListedContentPath(listed, MediaType::SDMC, kLauncherTitleId).empty());
+    CHECK(LauncherPath().empty());
+    FileUtil::UpdateUserPath(FileUtil::UserPath::SDMCDir, old_sdmc);
 }
