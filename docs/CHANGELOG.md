@@ -146,6 +146,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Bug fixes
 
+- Fixed a crash right after loading some save states, seen in Kid Icarus: Uprising.
 - Fixed memory growing with every save state until the game was closed. On the Frame, a few Quick Saves in a row could pause the game with **Azahar Is Almost Out of Memory**, and each save froze the game longer than the last.
 - **Azahar Is Almost Out of Memory** no longer opens for a save state's own memory, and offers **Turn Off Custom Textures** only when they hold a good share of the memory.
 - Fixed a freeze when switching between VR and Flat.
