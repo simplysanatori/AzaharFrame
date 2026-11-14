@@ -42,6 +42,9 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::ScaleY:
         f(v.vr_immersive_scale_y);
         return true;
+    case Id::ScaleMode: // AzaharFrame fovscale
+        f(v.vr_immersive_scale_mode);
+        return true;
     case Id::WorldScale: // AzaharFrame natural: World Scale
         f(v.vr_immersive_world_scale);
         return true;

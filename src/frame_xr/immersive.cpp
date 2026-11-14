@@ -376,6 +376,13 @@ struct State {
     u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
     int scale_x = 0;     ///< AzaharFrame kiu: the scales (percent) options.squeeze(_y) are
     int scale_y = 0;
+    /// AzaharFrame fovscale: Stretch or Field of View (vr_immersive_scale_mode), per game, every
+    /// frame; the split last logged (drawn factor and stretch left per axis, -1: not yet).
+    L::ScaleMode scale_mode = L::ScaleMode::FieldOfView;
+    float split_logged[4]{-1.0f, -1.0f, -1.0f, -1.0f};
+    /// AzaharFrame fovscale: the gains last logged, with when (hold.py reads them).
+    float gains_logged[2]{-1.0f, -1.0f};
+    int64_t gains_logged_ms = 0;
     bool screens_were_live = false;
     /// AzaharFrame immersive: when `ref` is taken (Layout::RestPose; SteamVR's recenter moves the
     /// LOCAL space at its change time, and a head pose located before it is still in the old
@@ -526,6 +533,48 @@ u32 WiderLevel() {
         return static_cast<u32>(g.tuning.wider_level);
     }
     return std::min(Settings::values.vr_immersive_wider_view_level.GetValue(), L::kMaxWiderLevel);
+}
+
+// AzaharFrame fovscale: Horizontal and Vertical Scale as Stretch or Field of View (any value
+// past 1 is Field of View, the default).
+L::ScaleMode ScaleModeSetting() {
+    return Settings::values.vr_immersive_scale_mode.GetValue() == 0 ? L::ScaleMode::Stretch
+                                                                     : L::ScaleMode::FieldOfView;
+}
+
+// AzaharFrame fovscale: what each scale draws and what is left as a stretch, when it changes
+// (not while mode 2's menu rule eases in or out); and the gains, to 4 decimals, when they move
+// by more than 0.1 % (at most once a second, so a Detect Game FOV slew is a line a second and
+// the settled value is always logged), for hold.py.
+void LogScaleSplit(float menu_weight) {
+    const L::HeadLocked& s = g.solved;
+    if (menu_weight == 0.0f || menu_weight == 1.0f) {
+        const float now[4]{s.factor, s.stretch_x, s.factor_y, s.stretch_y};
+        bool moved = false;
+        for (int i = 0; i < 4; i++) {
+            moved |= std::abs(now[i] - g.split_logged[i]) > 0.005f;
+        }
+        if (moved) {
+            std::copy(now, now + 4, g.split_logged);
+            LOG_INFO(Frontend,
+                     "xr: immersive: {} {}%: draws {:.2f}x, stretch {:.2f}; {} {}%: draws "
+                     "{:.2f}x, stretch {:.2f} ({}{})",
+                     Names::kHorizontalScale, g.scale_x, s.factor, s.stretch_x,
+                     Names::kVerticalScale, g.scale_y, s.factor_y, s.stretch_y,
+                     L::ScaleModeName(g.scale_mode),
+                     menu_weight == 1.0f ? ", the game's own screen: stretched" : "");
+        }
+    }
+    const int64_t now_ms = VideoCore::Immersive::SteadyMs();
+    const auto off = [](float a, float b) { return std::abs(a - b) > 0.001f * std::abs(b); };
+    if ((off(s.gain_x, g.gains_logged[0]) || off(s.gain, g.gains_logged[1])) &&
+        now_ms - g.gains_logged_ms >= 1000) {
+        g.gains_logged[0] = s.gain_x;
+        g.gains_logged[1] = s.gain;
+        g.gains_logged_ms = now_ms;
+        LOG_INFO(Frontend, "xr: immersive: gains {:.4f} across, {:.4f} up and down", s.gain_x,
+                 s.gain);
+    }
 }
 
 // AzaharFrame fovonce: Match Game Camera's choice in effect (the environment variables win:
@@ -1157,9 +1206,13 @@ void OnFrame(const FrameInfo& info) {
         g.scale_y = L::ScalePercent(Settings::values.vr_immersive_scale_y.GetValue());
         g.options.squeeze = L::SqueezeForScale(g.scale_x);
         g.options.squeeze_y = L::SqueezeForScale(g.scale_y);
+        g.scale_mode = ScaleModeSetting();
+        std::fill(std::begin(g.split_logged), std::end(g.split_logged), -1.0f);
+        g.gains_logged[0] = g.gains_logged[1] = -1.0f;
         LOG_INFO(Frontend,
-                 "xr: immersive: Render Margin {:.1f}x, Horizontal Scale {}%, Vertical Scale {}%",
-                 g.options.wider, g.scale_x, g.scale_y);
+                 "xr: immersive: Render Margin {:.1f}x, Horizontal Scale {}%, Vertical Scale {}% "
+                 "({})",
+                 g.options.wider, g.scale_x, g.scale_y, L::ScaleModeName(g.scale_mode));
         // The saved placement of this game.
         g.title_id = g_title_id.load();
         LoadStore();
@@ -1215,6 +1268,14 @@ void OnFrame(const FrameInfo& info) {
             g.options.squeeze_y = L::SqueezeForScale(scale_y);
             LOG_INFO(Frontend, "xr: immersive: Horizontal Scale {}%, Vertical Scale {}% (changed)",
                      scale_x, scale_y);
+        }
+        // AzaharFrame fovscale: Stretch or Field of View, live too (the quad stays; the game
+        // draws the new factors from its next frame).
+        const L::ScaleMode scale_mode = ScaleModeSetting();
+        if (scale_mode != g.scale_mode) {
+            g.scale_mode = scale_mode;
+            LOG_INFO(Frontend, "xr: immersive: Horizontal and Vertical Scale as {} (changed)",
+                     L::ScaleModeName(scale_mode));
         }
     }
     if (info.screens_live) {
@@ -1378,7 +1439,13 @@ void OnFrame(const FrameInfo& info) {
         // AzaharFrame kiu2: the screen keeps the padded size meanwhile, so the game's own frame
         // (the menu) fills the same area, as big as gameplay; eased with the factor.
         options.size_wider = options.wider;
-        options.wider = L::MenuExact::Factor(options.wider, g.menu_exact.Update(menu, now));
+        const float menu_weight = g.menu_exact.Update(menu, now);
+        options.wider = L::MenuExact::Factor(options.wider, menu_weight);
+        // AzaharFrame fovscale: the scales as field of view, but not in mode 2's menu rule: its
+        // full-screen 2D (pinned to the edges) and the icons on it keep one scale only with equal
+        // factors. Eased with the factor, so nothing jumps.
+        options.scale_fov =
+            g.scale_mode == L::ScaleMode::FieldOfView ? 1.0f - menu_weight : 0.0f;
         if (MatchMode() != Settings::MatchGameCamera::Off) {
             if (g.tuning.fov_trace) {
                 const float row[4]{g.follow.Target(), screen_fov, options.live_fov_y_deg,
@@ -1394,6 +1461,9 @@ void OnFrame(const FrameInfo& info) {
         }
         g.solved = L::SolveHeadLocked(g.head_place, screen_fov, cam.aspect, g.view_fov,
                                       eye_shift, options, g.offset);
+        if (info.screens_live) {
+            LogScaleSplit(menu_weight);
+        }
         // AzaharFrame natural: World Scale is the screen's distance at the angle as set (eased),
         // so the game's own 3D, its natural limit and the leaning all follow it.
         if (info.screens_live) {

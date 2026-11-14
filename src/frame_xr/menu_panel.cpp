@@ -250,6 +250,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::ScaleX;
     case Id::ScaleY:
         return MenuSetting::ScaleY;
+    case Id::ScaleMode: // AzaharFrame fovscale
+        return MenuSetting::ScaleMode;
     case Id::WorldScale:
         return MenuSetting::WorldScale;
     case Id::FollowScreen: // AzaharFrame natural
@@ -1055,6 +1057,7 @@ void MenuPanel::BuildModel(const Host& host) {
     // AzaharFrame kiu: signed percent
     m.scale_x = FrameXr::Immersive::Layout::ScalePercent(v.vr_immersive_scale_x.GetValue());
     m.scale_y = FrameXr::Immersive::Layout::ScalePercent(v.vr_immersive_scale_y.GetValue());
+    m.scale_mode = v.vr_immersive_scale_mode.GetValue() == 0 ? 0 : 1; // AzaharFrame fovscale
     // AzaharFrame natural: World Scale's nearest stop, Follow Screen Size.
     m.world_scale_stop = Immersive::Layout::WorldScaleStop(v.vr_immersive_world_scale.GetValue());
     m.follow_screen = v.vr_immersive_follow_screen.GetValue();
@@ -1305,6 +1308,11 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.value = FrameXr::Immersive::Layout::ScalePercent(value);
         Apply(v.vr_immersive_scale_y, static_cast<s32>(r.value), per_game);
         r.setting = MenuSetting::ScaleY;
+        break;
+    case Id::ScaleMode: // AzaharFrame fovscale: live; Stretch, Field of View
+        r.value = u == 0 ? 0 : 1;
+        Apply(v.vr_immersive_scale_mode, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::ScaleMode;
         break;
     case Id::WorldScale: { // AzaharFrame natural: `value` the slider's stop; eased in
         const auto& stops = Immersive::Layout::kWorldScaleStops;
@@ -1982,6 +1990,7 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::WindowScale:
     case Id::WiderView:
     case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always
+    case Id::ScaleMode:   // AzaharFrame fovscale: Stretch | Field of View
     case Id::TextureFilter:    // AzaharFrame menuux
     case Id::AccurateImageCopies: // AzaharFrame xfergpu: Off | Automatic | On
     case Id::FastForwardSpeed:

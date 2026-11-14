@@ -234,8 +234,8 @@ through cutscenes and menus while the gain follows the measured angle; otherwise
 measurement (Detect Game FOV Always) or the setting. Always slews it in, Once eases in the value
 it wrote.
 
-Three per-game settings change this (**VR** group, logged as
-`xr: immersive: Render Margin ...x, Horizontal Scale ...%, Vertical Scale ...%`):
+Four per-game settings change this (**VR** group, logged as
+`xr: immersive: Render Margin ...x, Horizontal Scale ...%, Vertical Scale ...% (Field of View)`):
 
 - **Render Margin** (called Wider View before 1.2.0; `vr_immersive_wider_view_level`, per game:
   Off, 1.1x to 1.4x, 1.4x by default;
@@ -251,7 +251,9 @@ Three per-game settings change this (**VR** group, logged as
   `vr_immersive_squeeze`, called Squeeze Width in 1.0.0): signed percent, -30 to +30 in 5 % steps,
   0 by default, read every frame (`Layout::ScalePercent`). Positive means larger: the quad keeps
   its height and is that much wider than the picture; negative, that much narrower
-  (`Options::squeeze` = -scale / 100, `Layout::SqueezeForScale`). The yaw gets its own gain,
+  (`Options::squeeze` = -scale / 100, `Layout::SqueezeForScale`). How the picture fills that
+  quad is **Scale Mode** (below): Field of View by default. What follows to the end of the
+  bullet is Stretch, every build before AzaharFrame fovscale. The yaw gets its own gain,
   `gain_x = base gain / (1 + scale)`, so the middle stays locked both ways. The scale applies to
   the quad after Render Margin's even padding, never to what the game draws: at Render Margin
   Off the game still draws exactly its own picture, only shown wider or narrower. Below 0 the HUD
@@ -270,8 +272,38 @@ Three per-game settings change this (**VR** group, logged as
   before 1.2.0.
 - **Vertical Scale** (`vr_immersive_scale_y`, AzaharFrame kiu; it replaces Narrow Height,
   `vr_immersive_squeeze_y`): the same up and down. Positive is taller at the same width, negative
-  shorter, the pitch gain is `base gain / (1 + scale)`; both grips + D-pad up (taller) or down
-  (shorter).
+  shorter, the pitch gain is `base gain / (1 + scale)` in Stretch; both grips + D-pad up (taller)
+  or down (shorter).
+- **Scale Mode** (`vr_immersive_scale_mode`, AzaharFrame fovscale; per game and global, 0 =
+  Stretch, 1 = Field of View, Field of View by default, read every frame; the VR menu's segmented
+  row under the scales, the Qt window's row after them). The quad is the same in both. **Stretch**
+  shows the same picture on it, stretched, as above. **Field of View** has the game draw that
+  much more (or less) on that axis instead, through the two periphery factors the vertex shader
+  already has (`VrFactor`: clip y across, clip x up and down; a 2D vertex on an edge keeps its
+  place): per axis, with `b` Render Margin's factor and `k` = 1 + scale / 100,
+  `drawn = clamp(b x k, kFactorMin, kFovFactorMax)` and the stretch left `r = b x k / drawn`, the
+  axis's gain `base gain / r` (`Layout::ScaleSplit`; Stretch is `drawn = b`, `r = k`, bit for
+  bit). Inside the limits `r = 1`: the picture has one scale both ways, both gains are the base
+  gain, a head roll is a plain rotation (fresh, and held by `HeldQuad`, whose `M` then commutes
+  with a roll), the HUD stays where it is at 0 % (a negative scale trims the margin instead of
+  pulling the HUD in), and Natural 3D's far scenery, its slider limit and mode 3's eye quads no
+  longer change with Horizontal Scale (they take the drawn factor over the quad's width, and the
+  scale cancels). The limits: below the game's own frame (`kFactorMin`; at 1.4x Horizontal Scale
+  down to -28.6 % is all field of view, at Render Margin Off any negative scale is a stretch, as
+  before) the HUD inside the frame would be pushed off the picture; `kFovFactorMax` = 1.4 x 1.3 =
+  1.82 is only a guard (the settings cannot pass it). What a factor cannot take stays a stretch,
+  continuous in the setting. Mode 2's menu rule (`MenuExact`) eases the split off with the
+  factor (`Options::scale_fov` = 1 - its weight): a full-screen 2D screen pinned to the edges and
+  the icons on it keep one scale only with equal factors. Mode 1 is untouched (factor 3.0). The
+  cost: the picture keeps its pixels, so a widened axis has `1 / k` the detail per degree (as
+  Stretch), and past 1.4x some games run out of scenery at the sides (Super Mario 3D Land below
+  its floor): set the game to Stretch. Logged per axis when it changes (`xr: immersive:
+  Horizontal Scale -30%: draws 1.00x, stretch 0.98; Vertical Scale -15%: draws 1.19x, stretch
+  1.00 (Field of View)`), and the gains to 4 decimals when they move by 0.1 % (at most once a
+  second; `xr: immersive: gains 0.7143 across, 0.7143 up and down`), which `hold.py` reads.
+  Rollback: the scale keys keep their meaning (the screen's size), so an older build reading the
+  same file shows the same screen, stretched; nothing is converted, no marker. Presets keep their
+  scales; they are starting values under either mode.
 
 Saved sizes are relative to that default. The file's `world` lines are written by this build;
 `screen` and `view` lines (1.2.0 test builds) and `head` lines (1.0, 1.1) had sizes against other

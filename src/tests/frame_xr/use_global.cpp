@@ -180,6 +180,19 @@ TEST_CASE("Use Global Value: the game's value goes and the game follows the glob
         CHECK(!Marked(Id::FastForwardAudio));
         CHECK(v.fast_forward_audio.GetValue() == Settings::FastForwardAudio::NormalPitch);
     }
+    SECTION("Scale Mode (AzaharFrame fovscale): Field of View by default, Stretch per game") {
+        Keep keep{v.vr_immersive_scale_mode};
+        CHECK(v.vr_immersive_scale_mode.GetDefault() == 1u); // Field of View
+        SetGlobalValue(v.vr_immersive_scale_mode, 1u);
+        CHECK(!Marked(Id::ScaleMode));
+        SetGameValue(v.vr_immersive_scale_mode, 0u); // a game switched back to Stretch
+        CHECK(Marked(Id::ScaleMode));
+        CHECK(v.vr_immersive_scale_mode.GetValue() == 0u);
+        CHECK(v.vr_immersive_scale_mode.GetValue(true) == 1u);
+        CHECK(PerGame::UseGlobalValue(Id::ScaleMode));
+        CHECK(!Marked(Id::ScaleMode));
+        CHECK(v.vr_immersive_scale_mode.GetValue() == 1u);
+    }
     SECTION("only that row") {
         Keep k1{v.texture_filter};
         Keep k2{v.vr_immersive_scale_x};

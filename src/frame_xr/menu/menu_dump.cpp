@@ -993,6 +993,23 @@ int main(int argc, char** argv) {
         v.hover = {Id::WiderView, kLabelIndex};
         v.tooltip = Id::WiderView;
         ok &= shot("5c4-settings-render-margin-tooltip", sc, v);
+        // AzaharFrame fovscale: Scale Mode, Stretch | Field of View, each picked with its
+        // tooltip under the beam, and the label's.
+        sc.scale_x = -30;
+        sc.scale_y = -15;
+        v = settings(SettingsSection::Immersive);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        static constexpr const char* kModes[] = {"stretch", "fov"};
+        for (int i = 0; i < 2; i++) {
+            sc.scale_mode = i;
+            v.hover = {Id::ScaleMode, i};
+            v.tooltip = Id::ScaleMode;
+            v.tooltip_index = i;
+            ok &= shot(std::string("fs-scale-mode-tip-") + kModes[i], sc, v);
+        }
+        v.hover = {Id::ScaleMode, kLabelIndex};
+        v.tooltip_index = kLabelIndex;
+        ok &= shot("fs-scale-mode-tip-label", sc, v);
     }
     MenuModel gv = m; // Global chosen, the game has its own Immersive Mode
     gv.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::GameValue;

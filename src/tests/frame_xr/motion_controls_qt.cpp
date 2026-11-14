@@ -10,6 +10,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
+#include <QLayout>
 #include <QSpinBox>
 #include <QWidget>
 #include <initializer_list>
@@ -254,4 +255,57 @@ TEST_CASE("VR group: Motion Controls is never locked", "[frame_xr][kiu]") {
         CHECK(motion.UsingGlobal());
         CHECK(motion.GetValue() == 1u);
     }
+}
+
+// AzaharFrame fovscale: Scale Mode (Stretch | Field of View) next to the scales: Field of View
+// by default, never locked, each choice with its tooltip, a game's own value or Use global.
+TEST_CASE("VR group: Scale Mode", "[frame_xr][fovscale]") {
+    App();
+    auto& v = Settings::values;
+    Keep<u32, true> keep{v.vr_immersive_scale_mode};
+    CHECK(v.vr_immersive_scale_mode.GetDefault() == 1u);
+    Settings::SetConfiguringGlobal(true);
+    Values(v.vr_immersive_scale_mode, 1u, 0u); // global Field of View, the game's own Stretch
+    {
+        ConfigureFrameVr w;
+        auto* combo = In<QComboBox>(w, "frame_vr_scale_mode_row");
+        REQUIRE(combo);
+        CHECK(combo->isEnabled());
+        CHECK(combo->count() == 2);
+        CHECK(combo->itemText(0) == QStringLiteral("Stretch"));
+        CHECK(combo->itemText(1) == QStringLiteral("Field of View"));
+        CHECK(!combo->itemData(0, Qt::ToolTipRole).toString().isEmpty());
+        CHECK(!combo->itemData(1, Qt::ToolTipRole).toString().isEmpty());
+        CHECK(combo->currentIndex() == 1); // the global value
+        CHECK(combo->toolTip() == kHint);
+        // Next to the scales: the row right after Vertical Scale.
+        auto* y_row = w.findChild<QWidget*>(QStringLiteral("frame_vr_scale_y_row"));
+        auto* mode_row = w.findChild<QWidget*>(QStringLiteral("frame_vr_scale_mode_row"));
+        REQUIRE(y_row);
+        REQUIRE(mode_row);
+        auto* layout = w.layout();
+        REQUIRE(layout);
+        CHECK(layout->indexOf(mode_row) == layout->indexOf(y_row) + 1);
+        Shot(w, "qt-vr-scale-mode-global.png");
+        combo->setCurrentIndex(0);
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_immersive_scale_mode.GetValue(true) == 0u); // the global value changed
+    CHECK(!v.vr_immersive_scale_mode.UsingGlobal());       // the game keeps its own
+    CHECK(v.vr_immersive_scale_mode.GetValue() == 0u);
+    Settings::SetConfiguringGlobal(false);
+    Values(v.vr_immersive_scale_mode, 1u, 0u);
+    {
+        ConfigureFrameVr w;
+        auto* combo = In<QComboBox>(w, "frame_vr_scale_mode_row");
+        REQUIRE(combo);
+        CHECK(combo->count() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
+        CHECK(combo->currentIndex() == 0 + ConfigurationShared::USE_GLOBAL_OFFSET); // Stretch
+        Shot(w, "qt-vr-scale-mode-per-game.png");
+        combo->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX);
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_immersive_scale_mode.UsingGlobal());
+    CHECK(v.vr_immersive_scale_mode.GetValue() == 1u);
+    Settings::SetConfiguringGlobal(true);
 }

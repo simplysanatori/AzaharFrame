@@ -294,6 +294,17 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     scale_y_row = MakeRow(this, QStringLiteral("frame_vr_scale_y_row"), tr(Names::kVerticalScale),
                           tr(Names::kVerticalScaleTip), {scale_y_combo});
     layout->addWidget(scale_y_row);
+    // AzaharFrame fovscale: values 0..1 are Settings::values.vr_immersive_scale_mode (Stretch,
+    // Field of View), live; each choice's tooltip on its item.
+    scale_mode_combo = new QComboBox(this);
+    scale_mode_combo->setObjectName(QStringLiteral("frame_vr_scale_mode_combo"));
+    scale_mode_combo->addItem(tr(Names::kScaleStretch));
+    scale_mode_combo->setItemData(0, tr(Names::kScaleStretchTip), Qt::ToolTipRole);
+    scale_mode_combo->addItem(tr(Names::kScaleFieldOfView));
+    scale_mode_combo->setItemData(1, tr(Names::kScaleFieldOfViewTip), Qt::ToolTipRole);
+    scale_mode_row = MakeRow(this, QStringLiteral("frame_vr_scale_mode_row"),
+                             tr(Names::kScaleMode), tr(Names::kScaleModeTip), {scale_mode_combo});
+    layout->addWidget(scale_mode_row);
 
     // AzaharFrame natural: World Scale (Settings::values.vr_immersive_world_scale, percent): a
     // slider over Names::kWorldScaleStops with its value beside it ("100%" at 100); a
@@ -391,6 +402,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
         hint(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
         hint(scale_x_combo, Settings::values.vr_immersive_scale_x.UsingGlobal());
         hint(scale_y_combo, Settings::values.vr_immersive_scale_y.UsingGlobal());
+        hint(scale_mode_combo, Settings::values.vr_immersive_scale_mode.UsingGlobal());
         hint(mode_combo, Settings::values.vr_immersive_mode.UsingGlobal());
         hint(register_spin, Settings::values.vr_si_mode_register_offset.UsingGlobal());
         hint(eye_edit, Settings::values.vr_immersive_eye_indicator.UsingGlobal());
@@ -418,6 +430,9 @@ void ConfigureFrameVr::SetupPerGameUI() {
     ConfigurationShared::SetColoredComboBox(
         scale_y_combo, scale_y_row,
         ScaleIndex(Settings::values.vr_immersive_scale_y.GetValue(true)));
+    ConfigurationShared::SetColoredComboBox( // AzaharFrame fovscale
+        scale_mode_combo, scale_mode_row,
+        static_cast<int>(std::min<u32>(Settings::values.vr_immersive_scale_mode.GetValue(true), 1)));
     ConfigurationShared::SetColoredComboBox(
         mode_combo, mode_row, static_cast<int>(Settings::values.vr_immersive_mode.GetValue(true)));
     ConfigurationShared::SetColoredComboBox( // AzaharFrame kiu
@@ -485,6 +500,8 @@ void ConfigureFrameVr::SetConfiguration() {
             ScaleIndex(Settings::values.vr_immersive_scale_x.GetValue(true)));
         scale_y_combo->setCurrentIndex(
             ScaleIndex(Settings::values.vr_immersive_scale_y.GetValue(true)));
+        scale_mode_combo->setCurrentIndex(static_cast<int>( // AzaharFrame fovscale
+            std::min<u32>(Settings::values.vr_immersive_scale_mode.GetValue(true), 1)));
         wider_combo->setCurrentIndex(
             static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue(true)));
@@ -528,6 +545,10 @@ void ConfigureFrameVr::SetConfiguration() {
                                       !Settings::values.vr_immersive_scale_x.UsingGlobal());
     ConfigurationShared::SetHighlight(scale_y_row,
                                       !Settings::values.vr_immersive_scale_y.UsingGlobal());
+    ConfigurationShared::SetPerGameSetting(scale_mode_combo, // AzaharFrame fovscale
+                                           &Settings::values.vr_immersive_scale_mode);
+    ConfigurationShared::SetHighlight(scale_mode_row,
+                                      !Settings::values.vr_immersive_scale_mode.UsingGlobal());
     fov_scope->setCurrentIndex(Settings::values.vr_immersive_game_fov.UsingGlobal() ? 0 : 1);
     {
         const bool own = !Settings::values.vr_immersive_depth.UsingGlobal();
@@ -653,6 +674,7 @@ void ConfigureFrameVr::ApplyConfiguration() {
     as_global(Settings::values.vr_immersive_wider_view_level);
     as_global(Settings::values.vr_immersive_scale_x);
     as_global(Settings::values.vr_immersive_scale_y);
+    as_global(Settings::values.vr_immersive_scale_mode); // AzaharFrame fovscale
     as_global(Settings::values.vr_immersive_mode);
     as_global(Settings::values.vr_immersive_positional_game_scaler);
     as_global(Settings::values.vr_immersive_world_scale); // AzaharFrame natural
@@ -683,6 +705,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
                                              [](s32 index) { return ScaleOfIndex(index); });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_scale_y, scale_y_combo,
                                              [](s32 index) { return ScaleOfIndex(index); });
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_scale_mode,
+                                             scale_mode_combo); // AzaharFrame fovscale
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_mode, mode_combo);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_world_scale,
                                              world_scope, [this](s32) { return world_value; });

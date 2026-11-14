@@ -128,6 +128,9 @@ enum class Id : int {
     MatchCamera, ///< AzaharFrame depth: Detect Game FOV, per game
     ScaleX, ///< AzaharFrame kiu: Horizontal Scale, a slider of -30 to +30 % (5 % steps), per game
     ScaleY, ///< AzaharFrame kiu: Vertical Scale, as ScaleX
+    /// AzaharFrame fovscale: how the scales act, Stretch | Field of View
+    /// (vr_immersive_scale_mode), per game
+    ScaleMode,
     WorldScale, ///< AzaharFrame natural: World Scale (vr_immersive_world_scale), per game
     FollowScreen, ///< AzaharFrame natural: Follow Screen Size (vr_immersive_follow_screen), per game
     MoreSettings,
@@ -315,6 +318,7 @@ struct MenuModel {
     int match_camera = 2; ///< AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
     int scale_x = 0; ///< AzaharFrame kiu: percent, -30 to 30
     int scale_y = 0;
+    int scale_mode = 1; ///< AzaharFrame fovscale: 0 Stretch, 1 Field of View
     /// AzaharFrame natural: World Scale's slider stop (Layout::kWorldScaleStops; 20 = 100 %,
     /// Automatic) and Follow Screen Size.
     int world_scale_stop = 20;

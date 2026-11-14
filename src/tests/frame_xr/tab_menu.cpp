@@ -3224,3 +3224,48 @@ TEST_CASE("Tab menu: every selected segment keeps its check", "[frame_xr][tabmen
         }
     }
 }
+
+// AzaharFrame fovscale: Scale Mode is Stretch | Field of View, per game, on the Immersive
+// section right under Horizontal and Vertical Scale, Field of View by default; each choice with
+// its own tooltip, and every tooltip on one line of the pane.
+TEST_CASE("Tab menu: Scale Mode is Stretch or Field of View", "[frame_xr][tabmenu][fovscale]") {
+    CHECK(LabelFor(Id::ScaleMode) == "Scale Mode");
+    CHECK(SectionOf(Id::ScaleMode) == SettingsSection::Immersive);
+    CHECK(PerGameSetting(Id::ScaleMode));
+    CHECK(OptionsFor(Id::ScaleMode) == std::vector<std::string>{"Stretch", "Field of View"});
+    CHECK(HasOptionTips(Id::ScaleMode));
+    CHECK(!ExplainFor(Id::ScaleMode).empty());
+    CHECK(!ExplainOption(Id::ScaleMode, 0).empty());
+    CHECK(!ExplainOption(Id::ScaleMode, 1).empty());
+    CHECK(ExplainOption(Id::ScaleMode, 2).empty());
+    CHECK(ExplainOption(Id::ScaleMode, kLabelIndex).empty());
+    CHECK(MenuModel{}.scale_mode == 1);
+    {
+        Kit kit{1.0f};
+        for (const std::string& text :
+             {ExplainFor(Id::ScaleMode), ExplainOption(Id::ScaleMode, 0),
+              ExplainOption(Id::ScaleMode, 1), ExplainFor(Id::ScaleX)}) {
+            INFO(text);
+            CHECK(kit.TextWidth(Type::Tooltip, text) + 28.0f <= kPanelW * 0.7f);
+        }
+    }
+    for (int pick = 0; pick < 2; pick++) {
+        Drawn d;
+        MenuModel m = Sample();
+        m.scale_mode = pick;
+        MenuView v;
+        v.tab = Tab::Settings;
+        v.section = SettingsSection::Immersive;
+        bool seen[2] = {};
+        for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            d.Draw(m, v);
+            for (int i = 0; i < 2; i++) {
+                seen[i] |= FindHit(d, Id::ScaleMode, i) != nullptr;
+            }
+        }
+        INFO("picked " << pick);
+        CHECK(seen[0]);
+        CHECK(seen[1]);
+    }
+}

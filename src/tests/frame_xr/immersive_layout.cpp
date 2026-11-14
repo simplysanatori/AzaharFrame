@@ -1526,7 +1526,8 @@ TEST_CASE("FrameXr immersive: the anchored screen keeps the scenery at a chosen 
 // (yaw, pitch, roll) about a neck behind and below the eyes and leans. Each eye must see every
 // point of the screen (its middle and corners) in the same direction as when the picture was drawn:
 // far scenery stays where the picture put it. With the head where the picture was drawn, the
-// placement is the one before the anchoring followed the eye.
+// placement is the one before the anchoring followed the eye. AzaharFrame fovscale: each setting
+// solved with the scales as Stretch and as Field of View (both signs), the same checks for both.
 TEST_CASE("FrameXr immersive: the anchored screen keeps far scenery still for any settings",
           "[frame_xr]") {
     std::mt19937 rng(20261113);
@@ -1567,8 +1568,8 @@ TEST_CASE("FrameXr immersive: the anchored screen keeps far scenery still for an
         const float half_ipd = uni(0.027f, 0.040f);
         Options o;
         o.wider = WiderFactor(pick(kMaxWiderLevel + 1));
-        o.squeeze = SqueezeFor(pick(kMaxNarrowPercent + 1));
-        o.squeeze_y = SqueezeFor(pick(kMaxNarrowPercent + 1));
+        o.squeeze = SqueezeForScale(static_cast<int>(pick(2 * kMaxScalePercent + 1)) - kMaxScalePercent);
+        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(2 * kMaxScalePercent + 1)) - kMaxScalePercent);
         o.live_fov_y_deg = pick(3) == 0 ? 0.0f : uni(10, 150);
         const LensOffset offset{uni(-kMaxOffsetDeg, kMaxOffsetDeg), uni(-kMaxOffsetDeg, kMaxOffsetDeg)};
         // Match Game Camera with a measurement, or the settings (Immersive Game FOV, Screen
@@ -1577,6 +1578,8 @@ TEST_CASE("FrameXr immersive: the anchored screen keeps far scenery still for an
         const CameraShape cam = CameraInUse(pick(2) == 1, pick(3) ? uni(10, 150) : 0.0f,
                                             uni(1.2f, 3.0f), setting_fov, shapes[pick(6)]);
         const float fov = pick(2) ? setting_fov : cam.fov_y_deg;
+        for (const float scale_fov : {0.0f, 1.0f}) {
+        o.scale_fov = scale_fov;
         const HeadLocked s = SolveHeadLocked(p, fov, cam.aspect, view,
                                              SharedQuadEyeShift(mode, p, half_ipd), o, offset);
         REQUIRE(std::isfinite(s.tan_half_y));
@@ -1638,14 +1641,15 @@ TEST_CASE("FrameXr immersive: the anchored screen keeps far scenery still for an
                 placements++;
             }
         }
+        } // fovscale: both modes
     }
-    std::printf("anchored screen sweep: %d settings, %d eye placements; worst far scenery error "
+    std::printf("anchored screen sweep (Stretch and Field of View): %d settings, %d eye placements; worst far scenery error "
                 "%.5f degrees (reported %.5f), at the picture's pose %.2g m and %.5f degrees from "
                 "the old placement, screen's middle %.5f degrees from the game camera; without "
                 "following the eye %.2f degrees, mode 2 about the middle of the head %.3f degrees\n",
                 kCombinations, placements, worst, worst_reported, worst_rest_pos, worst_rest_deg,
                 worst_camera, worst_fixed, worst_head_pivot);
-    REQUIRE(placements == kCombinations * kTurns * 2);
+    REQUIRE(placements == kCombinations * kTurns * 2 * 2);
     REQUIRE(worst < 0.002);
     REQUIRE(worst_reported < 0.002);
     REQUIRE(worst_rest_pos < 2e-5);
@@ -2875,4 +2879,168 @@ TEST_CASE("FrameXr immersive: Render Margin Off is exactly the game's picture", 
         }
     }
     REQUIRE(checked == 41 * 15 * 3 * 4 * 3);
+}
+
+// AzaharFrame fovscale: a head roll with Horizontal and Vertical Scale unequal. The game camera
+// rolls 1:1 with the head (ScaleYawPitch); the picture is magnified by 1 / gain along each axis.
+// In Stretch the two gains differ, so a roll is shown sheared, in a fresh picture as well as in
+// one held on a later refresh (HeldQuad keeps the nearest rectangle). In Field of View the
+// scales are drawn by the game and both gains are the base gain: a roll is a plain rotation,
+// fresh and held (no shear residual). Random settings (mode, Render Margin, scales of both signs
+// and unequal, size, distance, Immersive Game FOV, Screen Shape, IPD), a head turned anywhere
+// and rolled up to 10 degrees since the picture, about a neck. The truth is the held-picture
+// sweep's: each point of a fresh picture for the head now, followed back into the held one.
+TEST_CASE("FrameXr fovscale: a head roll at unequal scales leaves no shear in Field of View",
+          "[frame_xr][fovscale]") {
+    std::mt19937 rng(20261115);
+    const auto uni = [&rng](float lo, float hi) {
+        return std::uniform_real_distribution<float>(lo, hi)(rng);
+    };
+    const auto pick = [&rng](uint32_t n) { return static_cast<uint32_t>(rng() % n); };
+    const auto compose = [](const Posef& a, const Posef& b) {
+        return Posef{In::Normalized(In::Multiply(a.orientation, b.orientation)),
+                     a.position + In::Rotate(a.orientation, b.position)};
+    };
+    const auto angle = [](const Vec3f& a, const Vec3f& b) { // degrees, accurate near 0
+        const double ax = a.x, ay = a.y, az = a.z, bx = b.x, by = b.y, bz = b.z;
+        const double cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
+        return std::atan2(std::sqrt(cx * cx + cy * cy + cz * cz), ax * bx + ay * by + az * bz) *
+               180.0 / 3.14159265358979;
+    };
+    const auto ypr = [](float yaw, float pitch, float roll) {
+        const Quatf r{0.0f, 0.0f, std::sin(roll / 2), std::cos(roll / 2)};
+        return In::Normalized(In::Multiply(In::Multiply(YawRotation(yaw), PitchRotation(pitch)), r));
+    };
+    const float shapes[] = {400.0f / 240.0f, 16.0f / 9.0f, 21.0f / 9.0f,
+                            4.0f / 3.0f,     3.0f / 2.0f,  16.0f / 10.0f};
+    // The quad faces the head's forward axis (a level, centred screen: no placement pitch, no
+    // Immersive Offset), so a head roll is a roll of the game camera in the quad's frame.
+    const ViewFov view = Symmetric(50.0f);
+    constexpr int kCases = 600;
+    // [mode Stretch, Field of View][mode 2, 3]: worst held error, worst fresh shear, cases.
+    double held_worst[2][2]{}, fresh_worst[2][2]{}, held_per_deg[2][2]{};
+    double held_inside[2][2]{}; // Field of View within its limits only
+    int counted[2][2]{}, inside[2][2]{};
+    long points = 0;
+    for (int c = 0; c < kCases; c++) {
+        const uint32_t mode = 2 + static_cast<uint32_t>(c % 2);
+        const int mi = mode == 3 ? 1 : 0;
+        const float half_ipd = uni(0.0275f, 0.0375f);
+        const Placement p{0.0f, uni(kMinDistance, kMaxDistance), uni(kMinSize, kMaxSize)};
+        Options o;
+        o.wider = WiderFactor(pick(kMaxWiderLevel + 1));
+        int sx = 0, sy = 0;
+        while (sx == sy) {
+            sx = static_cast<int>(pick(13)) * 5 - 30;
+            sy = static_cast<int>(pick(13)) * 5 - 30;
+        }
+        o.squeeze = SqueezeForScale(sx);
+        o.squeeze_y = SqueezeForScale(sy);
+        const float game_fov = uni(30, 80);
+        const float shape = shapes[pick(6)];
+        const Quatf rest = YawRotation(Rad(uni(-180, 180)));
+        const Quatf rel_then = ypr(Rad(uni(-60, 60)), Rad(uni(-35, 35)), Rad(uni(-10, 10)));
+        const float roll_deg = uni(-10.0f, 10.0f);
+        const Quatf rel_now = In::Normalized(In::Multiply(rel_then, ypr(0.0f, 0.0f, Rad(roll_deg))));
+        const Posef picture{In::Normalized(In::Multiply(rest, rel_then)),
+                            Vec3f{uni(-1, 1), uni(1, 2), uni(-1, 1)}};
+        const Vec3f neck_in_head{0.0f, -uni(0, 0.1f), uni(0, 0.12f)};
+        const Vec3f neck = picture.position + In::Rotate(picture.orientation, neck_in_head);
+        Posef now;
+        now.orientation = In::Normalized(In::Multiply(rest, rel_now));
+        now.position = neck - In::Rotate(now.orientation, neck_in_head);
+        for (int fm = 0; fm < 2; fm++) {
+            o.scale_fov = static_cast<float>(fm);
+            const HeadLocked s =
+                SolveHeadLocked(p, game_fov, shape, view, SharedQuadEyeShift(mode, p, half_ipd), o);
+            REQUIRE(s.pitch_rad == 0.0f);
+            REQUIRE(s.yaw_rad == 0.0f);
+            const bool fits = s.stretch_x == Approx(1.0f).margin(1e-5) &&
+                              s.stretch_y == Approx(1.0f).margin(1e-5);
+            const Quatf cam_then = GameCameraRotation(rel_then, s);
+            const Quatf cam_now = GameCameraRotation(rel_now, s);
+            const HeldPose held{1, picture, cam_then, s};
+            // A fresh picture: a far world direction seen at the head now against the same head
+            // turn without the roll (the picture magnified along the camera's rolled axes).
+            double fresh = 0.0;
+            for (const float u : {-0.6f, 0.0f, 0.6f}) {
+                for (const float v : {-0.6f, 0.0f, 0.6f}) {
+                    const Vec3f w = In::Normalized(Vec3f{u, v, -1.0f});
+                    const float r = Rad(roll_deg);
+                    const Quatf roll{0.0f, 0.0f, std::sin(r / 2), std::cos(r / 2)};
+                    const Vec3f cr = In::Rotate(In::Conjugate(roll), w);
+                    const Vec3f seen = In::Rotate(roll, Vec3f{cr.x / s.gain_x, cr.y / s.gain, cr.z});
+                    fresh = std::max(fresh, angle(seen, Vec3f{w.x / s.gain_x, w.y / s.gain, w.z}));
+                }
+            }
+            double case_held = 0.0;
+            const float hx = s.width() / 2, hy = s.height() / 2;
+            for (int eye = 0; eye < 2; eye++) {
+                const float x = EyeX(eye, half_ipd);
+                const Vec3f eye_now = now.position + In::Rotate(now.orientation, Vec3f{x, 0, 0});
+                const Posef in_view = FullQuadInView(s, mode, eye, half_ipd);
+                const Posef fresh_quad = compose(now, in_view);
+                // The rays from the eye (mode 3; mode 2 at its natural 3D).
+                const Vec3f pc = In::Rotate(In::Conjugate(in_view.orientation),
+                                            Vec3f{x, 0, 0} - in_view.position);
+                const HeldScreen h =
+                    HeldFullQuad(s, mode, eye, half_ipd, picture, now, 1.0f, &held, rest, 1.0f);
+                for (int i = 0; i < 9; i++) {
+                    for (int j = 0; j < 9; j++) {
+                        const float u = -1.0f + 0.25f * i, v = -1.0f + 0.25f * j;
+                        const Vec3f f{u * hx, v * hy, 0.0f};
+                        const Vec3f on_fresh = fresh_quad.position + In::Rotate(fresh_quad.orientation, f);
+                        const Vec3f q = f - pc;
+                        const Vec3f ray = In::Rotate(cam_now, Vec3f{q.x * s.gain_x, q.y * s.gain, q.z});
+                        const Vec3f in_then = In::Rotate(In::Conjugate(cam_then), ray);
+                        const Vec3f m{in_then.x / s.gain_x, in_then.y / s.gain, in_then.z};
+                        const float t = -pc.z / m.z;
+                        const float u2 = (pc.x + t * m.x) / hx, v2 = (pc.y + t * m.y) / hy;
+                        const Vec3f shown = h.pose.position +
+                                            In::Rotate(h.pose.orientation,
+                                                       Vec3f{u2 * h.width / 2, v2 * h.height / 2, 0});
+                        case_held = std::max(case_held, angle(shown - eye_now, on_fresh - eye_now));
+                        points++;
+                    }
+                }
+            }
+            INFO("case " << c << " mode " << mode << (fm ? " Field of View" : " Stretch")
+                         << " scales " << sx << ", " << sy << " margin " << o.wider << " gains "
+                         << s.gain_x << ", " << s.gain << " roll " << roll_deg);
+            held_worst[fm][mi] = std::max(held_worst[fm][mi], case_held);
+            fresh_worst[fm][mi] = std::max(fresh_worst[fm][mi], fresh);
+            if (std::abs(roll_deg) > 0.5f) {
+                held_per_deg[fm][mi] = std::max(held_per_deg[fm][mi], case_held / std::abs(roll_deg));
+            }
+            counted[fm][mi]++;
+            if (fm == 1 && fits) {
+                inside[fm][mi]++;
+                held_inside[fm][mi] = std::max(held_inside[fm][mi], case_held);
+                // Equal gains: a plain rotation, held exactly and fresh without shear.
+                REQUIRE(s.gain_x == Approx(s.gain).epsilon(1e-5));
+                REQUIRE(fresh < 0.001);
+                REQUIRE(case_held < 0.001);
+            }
+        }
+    }
+    for (int fm = 0; fm < 2; fm++) {
+        for (int m = 0; m < 2; m++) {
+            std::printf("roll sweep, %s, mode %d (%d cases, rolls up to 10 degrees, scales unequal): "
+                        "held picture worst %.5f degrees (%.5f per degree of roll), fresh picture "
+                        "shear worst %.4f degrees%s\n",
+                        fm ? "Field of View" : "Stretch", m + 2, counted[fm][m], held_worst[fm][m],
+                        held_per_deg[fm][m], fresh_worst[fm][m],
+                        fm ? (std::string("; within its limits (") + std::to_string(inside[fm][m]) +
+                              " cases) " + std::to_string(held_inside[fm][m]) + " degrees")
+                                 .c_str()
+                           : "");
+        }
+    }
+    std::printf("roll sweep: %ld points compared\n", points);
+    for (int m = 0; m < 2; m++) {
+        // The control: Stretch shears, so the check can fail.
+        REQUIRE(held_worst[0][m] > 0.1);
+        REQUIRE(fresh_worst[0][m] > 0.1);
+        REQUIRE(inside[1][m] > 100);
+    }
 }

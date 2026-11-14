@@ -74,6 +74,8 @@ private:
     QComboBox* scale_x_combo;
     QWidget* scale_y_row; ///< Vertical Scale
     QComboBox* scale_y_combo;
+    QWidget* scale_mode_row; ///< AzaharFrame fovscale: Scale Mode, Stretch or Field of View
+    QComboBox* scale_mode_combo;
     QWidget* depth_row;     ///< AzaharFrame natural: World Scale (vr_immersive_world_scale)
     QComboBox* world_scope; ///< per application only: global / this application
     QSlider* world_slider;  ///< Names::kWorldScaleStops' indexes
