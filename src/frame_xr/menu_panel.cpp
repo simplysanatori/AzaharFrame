@@ -335,6 +335,11 @@ void SetInGameMenuZip(const Menu::ZipModel& zip) { // AzaharFrame zipinstall
     g_mods.zip = zip;
 }
 
+void SetInGameMenuCtgp7(const Menu::Ctgp7Model& ctgp7) { // AzaharFrame ctgp7
+    std::scoped_lock lock{g_mods_mutex};
+    g_mods.ctgp7 = ctgp7;
+}
+
 Menu::ModsDialog g_notice; // AzaharFrame savestate, under g_mods_mutex
 // AzaharFrame autosave: Load State's card and its list, and the Undo Load snackbar's text
 std::vector<Menu::AutosaveCard> g_autosaves; // under g_mods_mutex
@@ -811,6 +816,20 @@ void MenuPanel::BuildModel(const Host& host) {
                                  std::chrono::steady_clock::now().time_since_epoch())
                                  .count() /
                              66);
+    }
+    // AzaharFrame ctgp7: the CTGP-7 segment only while it shows (Mario Kart 7 open); its bar moves
+    if (!m.mods.ctgp7.shown) {
+        if (view.mods_segment == Menu::ModsSegment::Ctgp7) {
+            view.mods_segment = Menu::ModsSegment::Cheats;
+        }
+        view.requires_ctgp7 = false;
+    }
+    if (m.mods.ctgp7.busy && m.mods.ctgp7.permille < 0 && view.tab == Menu::Tab::Mods &&
+        view.mods_segment == Menu::ModsSegment::Ctgp7) {
+        m.mods.ctgp7.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                 std::chrono::steady_clock::now().time_since_epoch())
+                                                 .count() /
+                                             66);
     }
     m.hide_bottom_screen = v.vr_hide_bottom_screen.GetValue();
     m.screen_shape = static_cast<int>(std::min<u32>(v.vr_top_aspect.GetValue(), 6)); // fixes7
@@ -1416,14 +1435,15 @@ void MenuPanel::Click(Target t, Host& host) {
     static constexpr std::array<const char*, 7> kTabNames{"Main", "Position", "Stats", "Controls",
                                                           "Mods", "Homebrew", "Settings"}; // ui3
     static_assert(kTabNames.size() == static_cast<std::size_t>(Menu::Tab::Count));
-    static constexpr std::array<const char*, 3> kSegmentNames{"Cheats", "Mods", "Textures"};
+    static constexpr std::array<const char*, 4> kSegmentNames{"Cheats", "Mods", "Textures",
+                                                              "CTGP-7"}; // AzaharFrame ctgp7
     if (t.id == Id::TabButton) {
         LOG_INFO(Frontend, "xr: in-game menu: {} tab",
                  kTabNames[static_cast<std::size_t>(
                      std::clamp(t.index, 0, static_cast<int>(kTabNames.size()) - 1))]);
     } else if (t.id == Id::ModsSegment) { // AzaharFrame cheatstab
         LOG_INFO(Frontend, "xr: in-game menu: Mods tab: {}",
-                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 2))]);
+                 kSegmentNames[static_cast<std::size_t>(std::clamp(t.index, 0, 3))]);
     } else {
         LOG_INFO(Frontend, "xr: in-game menu: {}{}", Menu::LabelFor(t.id),
                  t.index >= 0 ? fmt::format(" ({})", t.index) : std::string{});
@@ -1511,7 +1531,8 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     // AzaharFrame cheatstab: the Mods tab and its Cheats segment
     case Id::ModsSegment:
-        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Textures) &&
+        if (t.index >= 0 && t.index <= static_cast<int>(Menu::ModsSegment::Ctgp7) &&
+            (t.index != static_cast<int>(Menu::ModsSegment::Ctgp7) || model.mods.ctgp7.shown) &&
             static_cast<Menu::ModsSegment>(t.index) != view.mods_segment) {
             view.mods_segment = static_cast<Menu::ModsSegment>(t.index);
             view.scroll[static_cast<std::size_t>(Menu::Tab::Mods)] = 0.0f;
@@ -1757,6 +1778,11 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::ModInstall:
         if (t.index >= 0 && t.index < static_cast<int>(model.mods.mods.available.size())) {
             const auto& o = model.mods.mods.available[static_cast<std::size_t>(t.index)];
+            // AzaharFrame ctgp7: a mod for CTGP-7 while CTGP-7 isn't installed: "Requires CTGP-7"
+            if (o.requires_ctgp7 && !model.mods.ctgp7.installed && model.mods.ctgp7.shown) {
+                view.requires_ctgp7 = true;
+                break;
+            }
             if (o.mismatch || o.unscanned) { // AzaharFrame compat: "This May Not Work" first
                 view.confirm = {Id::ModInstall, t.index, o.id};
                 break;
@@ -1780,7 +1806,14 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::DialogExtra: // AzaharFrame memwarn: only a notice has one
         if (model.notice.kind != Menu::ModsDialogKind::None) {
             ask(MenuCommand::NoticeAnswer, 2);
+        } else if (view.mods_segment == Menu::ModsSegment::Ctgp7 && // AzaharFrame ctgp7
+                   model.mods.ctgp7.dialog.kind != Menu::ModsDialogKind::None) {
+            ask_text(MenuCommand::Ctgp7Dialog, view.dialog_check ? "checked" : "", 2);
+            view.dialog_check = false;
         }
+        break;
+    case Id::DialogCheck: // AzaharFrame ctgp7: a dialog's checkbox
+        view.dialog_check = !view.dialog_check;
         break;
     case Id::DialogConfirm:
     case Id::DialogCancel: {
@@ -1790,6 +1823,31 @@ void MenuPanel::Click(Target t, Host& host) {
         }
         if (ZipShown(model, view) && model.mods.zip.dialog.kind != Menu::ModsDialogKind::None) {
             ask(MenuCommand::ZipDialog, t.id == Id::DialogConfirm ? 1 : 0); // AzaharFrame zipinstall
+            break;
+        }
+        // AzaharFrame ctgp7: "Requires CTGP-7": Open CTGP-7 shows the segment
+        if (view.requires_ctgp7 && view.mods_segment == Menu::ModsSegment::Mods) {
+            view.requires_ctgp7 = false;
+            if (t.id == Id::DialogConfirm && model.mods.ctgp7.shown) {
+                LOG_INFO(Frontend, "xr: in-game menu: Requires CTGP-7: Open CTGP-7");
+                view.mods_segment = Menu::ModsSegment::Ctgp7;
+                view.mods_page = Menu::ModsPage::Loaded;
+                view.scroll[static_cast<std::size_t>(Menu::Tab::Mods)] = 0.0f;
+            }
+            break;
+        }
+        // AzaharFrame ctgp7: the segment's question (the Qt side's), else Official Website's link
+        if (view.mods_segment == Menu::ModsSegment::Ctgp7) {
+            const bool yes = t.id == Id::DialogConfirm;
+            if (model.mods.ctgp7.dialog.kind != Menu::ModsDialogKind::None) {
+                ask_text(MenuCommand::Ctgp7Dialog, view.dialog_check ? "checked" : "", yes ? 1 : 0);
+                view.dialog_check = false;
+            } else if (!view.open_link.empty()) {
+                const std::string url = std::exchange(view.open_link, {});
+                if (yes) {
+                    ask_text(MenuCommand::OpenUrl, url);
+                }
+            }
             break;
         }
         // AzaharFrame compat: "This May Not Work": Install Anyway, Download Anyway, Turn On Anyway
@@ -1845,6 +1903,22 @@ void MenuPanel::Click(Target t, Host& host) {
     }
     case Id::EditControls: // AzaharFrame remap
         BeginEdit();
+        break;
+    case Id::Ctgp7Install: // AzaharFrame ctgp7: the CTGP-7 segment (citra_qt/frame_ctgp7.cpp)
+        ask(MenuCommand::Ctgp7Install);
+        break;
+    case Id::Ctgp7Launch:
+        ask(MenuCommand::Ctgp7Launch);
+        break;
+    case Id::Ctgp7Cancel:
+        ask(MenuCommand::Ctgp7Cancel);
+        break;
+    case Id::Ctgp7Uninstall:
+        view.dialog_check = false;
+        ask(MenuCommand::Ctgp7Uninstall);
+        break;
+    case Id::Ctgp7Website:
+        view.open_link = Menu::kCtgp7Website; // "Open ctgp-7.github.io?" first
         break;
     case Id::RemapChip:
         remap.Choose(t.index);
@@ -2159,6 +2233,8 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
                                 view.mods_segment == Menu::ModsSegment::Mods;
         const bool textures_shown = view.tab == Menu::Tab::Mods &&
                                     view.mods_segment == Menu::ModsSegment::Textures;
+        const bool ctgp7_shown = view.tab == Menu::Tab::Mods && // AzaharFrame ctgp7
+                                 view.mods_segment == Menu::ModsSegment::Ctgp7;
         // AzaharFrame zipinstall: Install from Zip's page over the segment it came from
         const auto& zip = model.mods.zip;
         const bool zip_shown = ZipShown(model, view);
@@ -2173,6 +2249,11 @@ void MenuPanel::Frame(const FrameInfo& info, const Input::InputFrame& in, bool h
             if (!zip.working) {
                 Click({Id::ZipBack}, host);
             }
+        } else if (mods_shown && view.requires_ctgp7) { // AzaharFrame ctgp7
+            Click({Id::DialogCancel}, host);
+        } else if (ctgp7_shown && (model.mods.ctgp7.dialog.kind != Menu::ModsDialogKind::None ||
+                                   !view.open_link.empty())) {
+            Click({Id::DialogCancel}, host);
         } else if (mods_shown && (model.mods.mods.dialog.kind != Menu::ModsDialogKind::None ||
                                   !view.open_link.empty())) {
             Click({Id::DialogCancel}, host);

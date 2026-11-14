@@ -338,6 +338,8 @@ if (ENABLE_FRAME_XR) # AzaharFrame
     # AzaharFrame emerald: the Homebrew menu and the Mods tab's Homebrew segment, the Qt side.
     target_sources(citra_qt PRIVATE frame_homebrew.cpp frame_homebrew.h frame_emerald.cpp
                                     frame_emerald.h)
+    # AzaharFrame ctgp7: the Mods tab's CTGP-7 segment, the Qt side.
+    target_sources(citra_qt PRIVATE frame_ctgp7.cpp frame_ctgp7.h)
 endif()
 target_link_libraries(citra_qt PUBLIC Boost::boost Qt6::Widgets)
 target_link_libraries(citra_qt PRIVATE nihstro-headers Qt6::Multimedia Qt6::Concurrent)

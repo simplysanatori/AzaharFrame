@@ -10,6 +10,8 @@ add_library(frame_xr_menu STATIC
     ds_drawing.h
     edit_devices.cpp
     edit_devices.h
+    ctgp7_tab.cpp # AzaharFrame ctgp7
+    ctgp7_tab.h
     homebrew_tab.cpp # AzaharFrame emerald
     homebrew_tab.h
     list_scroll.cpp # AzaharFrame scroll

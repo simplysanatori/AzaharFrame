@@ -1541,3 +1541,199 @@ TEST_CASE("Mods: one retry when a download gets no reply", "[mods]") {
     REQUIRE(calls == 2); // release lookup: no reply, retried (404 = no release)
     fs::remove_all(dir);
 }
+
+// ---------------------------------------------------------------------------------------------
+// AzaharFrame ctgp7: catalog entries that need CTGP-7 ("requires": "ctgp7"), installed into CTGP-7's
+// folder on the SD card ("ctgp7_install"), and what a build before 1.2.0 does with them (nothing).
+
+namespace {
+
+constexpr u64 kMk7 = 0x0004000000030800ULL;
+
+// Two of the eight entries as the catalog will carry them (handoff/reports/34/ctgp7/catalog-changes.json):
+// "install": {"rules": []} kept, the new block beside it.
+const char* kCtgp7Catalog = R"({
+  "schema": 1,
+  "mods": [
+    {"id": "mk7-pikmin-red", "name": "Pikmin Red", "title": "Mario Kart 7",
+     "title_ids": ["0004000000030800", "0004000000030700", "0004000000030600"],
+     "author": "Yasioen", "licence": "CC BY-NC-ND 4.0", "homepage": "https://gamebanana.com/mods/477970",
+     "source": {"type": "gamebanana", "mod": 477970, "file_pattern": "pikmin_red_v1_0chpack.zip"},
+     "install": {"rules": []},
+     "ctgp7_install": {"rules": [{"from": "*.chpack", "to": "MyStuff/Characters/"}]},
+     "notes": "Requires CTGP-7.", "requires": "ctgp7"},
+    {"id": "mk7-midna", "name": "Midna", "title": "Mario Kart 7",
+     "title_ids": ["0004000000030800", "0004000000030700", "0004000000030600"],
+     "author": "TheHumanBanana", "licence": "CC BY-NC-ND 4.0", "homepage": "https://gamebanana.com/mods/734833",
+     "source": {"type": "gamebanana", "mod": 734833, "file_pattern": "midna_*.zip"},
+     "install": {"rules": []},
+     "ctgp7_install": {"rules": [{"from": "*.chpack", "to": "MyStuff/Characters/"},
+                                 {"from": "Menu3D.szs", "to": "gamefs/"}]},
+     "notes": "Requires CTGP-7.", "requires": "ctgp7"}
+  ]
+})";
+
+// The real archives' layouts (GameBanana files 1166078 and 1872028, listed 2026-11-14)
+std::string PikminRedZip() {
+    return MakeZip({{"Pikmin Red (bud) V1.0.chpack", "CHPACK-bud"},
+                    {"Pikmin Red (flower) V1.0.chpack", "CHPACK-flower"},
+                    {"Pikmin Red (leaf) V1.0.chpack", "CHPACK-leaf"}});
+}
+std::string MidnaZip() {
+    return MakeZip({{"Menu3D.szs", "SZS-garage"}, {"Midna.chpack", "CHPACK-midna"},
+                    {"README.txt", "To install the custom garage, place the Menu3D.szs file in \\CTGP-7\\gamefs"}});
+}
+
+void ServeCtgp7Mods(FakeNet& net) {
+    net.Ok("https://gamebanana.com/apiv11/Mod/477970/ProfilePage",
+           "{\"_sName\":\"Pikmin Modpack 1\",\"_sVersion\":\"V1.0\",\"_aFiles\":[" +
+               GbFile(1166078, "pikmin_red_v1_0chpack.zip", PikminRedZip().size(), 1711886984) + "]}");
+    net.Ok("https://gamebanana.com/dl/1166078", PikminRedZip());
+    net.Ok("https://gamebanana.com/apiv11/Mod/734833/ProfilePage",
+           "{\"_sName\":\"Midna\",\"_aFiles\":[" +
+               GbFile(1872028, "midna_3cfb6.zip", MidnaZip().size(), 1793493124) + "]}");
+    net.Ok("https://gamebanana.com/dl/1872028", MidnaZip());
+}
+
+void MakeCtgp7Installed(const std::string& ctgp7_dir) {
+    Write(ctgp7_dir + "resources/CTGP-7.3gx", "3GX");
+    Write(ctgp7_dir + "config/version.bin", "1.6.30");
+    Write(ctgp7_dir + "MyStuff/Characters/Miku.chpack", "CTGP-7's own");
+}
+
+} // namespace
+
+TEST_CASE("CTGP-7 mods: the catalog's new fields", "[mods][ctgp7]") {
+    std::vector<std::string> warnings;
+    const auto c = ParseCatalog(kCtgp7Catalog, nullptr, &warnings);
+    REQUIRE(c.has_value());
+    REQUIRE(warnings.empty());
+    const auto* midna = c->Find("mk7-midna");
+    REQUIRE(midna != nullptr);
+    CHECK(midna->requires_pack == "ctgp7");
+    CHECK(midna->rules.empty());
+    REQUIRE(midna->ctgp7_rules.size() == 2);
+    CHECK(midna->ctgp7_rules[1].to == "gamefs/");
+    // where each file of the real archives goes
+    CHECK(MapCtgp7Path("Pikmin Red (bud) V1.0.chpack", midna->ctgp7_rules) ==
+          "MyStuff/Characters/Pikmin Red (bud) V1.0.chpack");
+    CHECK(MapCtgp7Path("Midna.chpack", midna->ctgp7_rules) == "MyStuff/Characters/Midna.chpack");
+    CHECK(MapCtgp7Path("Menu3D.szs", midna->ctgp7_rules) == "gamefs/Menu3D.szs");
+    CHECK(MapCtgp7Path("README.txt", midna->ctgp7_rules).empty());
+    CHECK(MapCtgp7Path("sub/Midna.chpack", midna->ctgp7_rules) == "MyStuff/Characters/Midna.chpack");
+    CHECK(MapCtgp7Path("../Midna.chpack", midna->ctgp7_rules).empty());
+    // a rule that would write outside MyStuff/ and gamefs/ drops the entry
+    const auto bad = ParseCatalog(R"({"schema":1,"mods":[{"id":"x","name":"x","title_ids":["0004000000030800"],
+        "source":{"type":"gamebanana","mod":1,"file_pattern":"*.zip"},
+        "ctgp7_install":{"rules":[{"from":"*","to":"resources/"}]}}]})",
+                                  nullptr, &warnings);
+    REQUIRE(bad.has_value());
+    CHECK(bad->mods.empty());
+}
+
+TEST_CASE("CTGP-7 mods: an older build installs nothing of them", "[mods][ctgp7]") {
+    // An older build's parser ignores the keys it doesn't know: what it sees is the entry with no
+    // "requires" and no "ctgp7_install", and its "install": {"rules": []}.
+    auto parsed = ParseCatalog(kCtgp7Catalog);
+    REQUIRE(parsed.has_value());
+    for (auto& e : parsed->mods) {
+        e.requires_pack.clear();
+        e.ctgp7_rules.clear();
+    }
+    // the mapping it would use: no rules, the layout detected: nothing in either archive fits
+    for (const std::string& zip : {PikminRedZip(), MidnaZip()}) {
+        const auto files = ExtractZip(zip).files;
+        REQUIRE_FALSE(files.empty());
+        CHECK(MapArchive(files, {}, kMk7).files.empty());
+    }
+    // and an install of it fails with nothing written
+    const std::string dir = TempDir("ctgp7_old");
+    FakeNet net;
+    ServeCtgp7Mods(net);
+    Library library(dir + "load/", *parsed, net.Get());
+    library.SetCtgp7Dir(dir + "sdmc/CTGP-7/");
+    MakeCtgp7Installed(dir + "sdmc/CTGP-7/");
+    for (const char* id : {"mk7-pikmin-red", "mk7-midna"}) {
+        const auto out = library.Install(kMk7, id);
+        CHECK(out.result == InstallResult::Error);
+        CHECK(out.error == "Nothing in the download fits this game");
+    }
+    CHECK(Tree(dir + "load/mods/").empty());
+    CHECK(Tree(dir + "sdmc/CTGP-7/MyStuff/Characters/") == V{"Miku.chpack"});
+    CHECK_FALSE(fs::exists(dir + "sdmc/CTGP-7/gamefs"));
+}
+
+TEST_CASE("CTGP-7 mods: installed into CTGP-7's folder once CTGP-7 is there", "[mods][ctgp7]") {
+    const std::string dir = TempDir("ctgp7_new");
+    const std::string ct = dir + "sdmc/CTGP-7/";
+    FakeNet net;
+    ServeCtgp7Mods(net);
+    auto parsed = ParseCatalog(kCtgp7Catalog);
+    REQUIRE(parsed.has_value());
+    Library library(dir + "load/", *parsed, net.Get());
+    library.SetCtgp7Dir(ct);
+
+    // not installed yet: refused before anything is downloaded
+    auto out = library.Install(kMk7, "mk7-midna");
+    CHECK(out.result == InstallResult::NotAvailable);
+    CHECK(out.error == kNeedsCtgp7);
+    CHECK(net.log.empty());
+    const auto avail = library.ListAvailable(kMk7);
+    const auto it = std::find_if(avail.begin(), avail.end(), [](const AvailableMod& a) { return a.id == "mk7-midna"; });
+    REQUIRE(it != avail.end());
+    CHECK(it->requires_pack == "ctgp7");
+
+    MakeCtgp7Installed(ct);
+    out = library.Install(kMk7, "mk7-midna");
+    INFO(out.error);
+    REQUIRE(out.result == InstallResult::Ok);
+    REQUIRE(library.Install(kMk7, "mk7-pikmin-red").result == InstallResult::Ok);
+    CHECK(Tree(dir + "load/mods/").empty()); // nothing in the mods folder
+    CHECK(Tree(ct + "MyStuff/Characters/") ==
+          V{"Midna.chpack", "Miku.chpack", "Pikmin Red (bud) V1.0.chpack", "Pikmin Red (flower) V1.0.chpack",
+            "Pikmin Red (leaf) V1.0.chpack"});
+    CHECK(Read(ct + "gamefs/Menu3D.szs") == "SZS-garage");
+    // the manifest an older build reads: no "files" for the mods folder
+    const std::string manifest = Read(dir + "load/mod-library/0004000000030800/mk7-midna/manifest.json");
+    CHECK(manifest.find("\"files\": []") != std::string::npos);
+    CHECK(manifest.find("\"ctgp7_files\"") != std::string::npos);
+    const auto loaded = library.ListLoaded(kMk7);
+    REQUIRE(loaded.size() == 2);
+    CHECK(loaded[0].files.empty());
+
+    // off and on again, then removed: only its own files go; CTGP-7's folders stay
+    REQUIRE(library.Deactivate(kMk7, "mk7-midna").ok);
+    CHECK_FALSE(fs::exists(ct + "gamefs/Menu3D.szs"));
+    CHECK_FALSE(fs::exists(ct + "MyStuff/Characters/Midna.chpack"));
+    REQUIRE(library.Install(kMk7, "mk7-midna").result == InstallResult::Ok);
+    CHECK(fs::exists(ct + "gamefs/Menu3D.szs"));
+    REQUIRE(library.Remove(kMk7, "mk7-midna").ok);
+    REQUIRE(library.Remove(kMk7, "mk7-pikmin-red").ok);
+    CHECK(Tree(ct + "MyStuff/Characters/") == V{"Miku.chpack"});
+    CHECK(fs::is_directory(ct + "gamefs"));
+    CHECK(fs::exists(ct + "resources/CTGP-7.3gx"));
+
+    // the player's own file in the way: never replaced
+    Write(ct + "gamefs/Menu3D.szs", "the player's garage");
+    out = library.Install(kMk7, "mk7-midna");
+    CHECK(out.result == InstallResult::Conflict);
+    CHECK(out.conflict_unmanaged);
+    CHECK(out.conflict_name == "Menu3D.szs");
+    CHECK(Read(ct + "gamefs/Menu3D.szs") == "the player's garage");
+    CHECK_FALSE(fs::exists(ct + "MyStuff/Characters/Midna.chpack"));
+}
+
+TEST_CASE("CTGP-7 mods: a pack this build doesn't know is never installed", "[mods][ctgp7]") {
+    auto parsed = ParseCatalog(kCtgp7Catalog);
+    REQUIRE(parsed.has_value());
+    parsed->mods[0].requires_pack = "ctgp8";
+    const std::string dir = TempDir("ctgp7_future");
+    FakeNet net;
+    ServeCtgp7Mods(net);
+    Library library(dir + "load/", *parsed, net.Get());
+    library.SetCtgp7Dir(dir + "sdmc/CTGP-7/");
+    MakeCtgp7Installed(dir + "sdmc/CTGP-7/");
+    const auto out = library.Install(kMk7, "mk7-pikmin-red");
+    CHECK(out.result == InstallResult::NotAvailable);
+    CHECK(net.log.empty());
+}

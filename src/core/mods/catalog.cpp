@@ -348,6 +348,23 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
             throw std::string("textures block without rules");
         }
     }
+    // AzaharFrame ctgp7: the pack the mod needs, and where it goes in CTGP-7's folder
+    const auto req = j.find("requires");
+    if (req != j.end() && req->is_string()) {
+        e.requires_pack = req->get<std::string>();
+    }
+    const auto ct = j.find("ctgp7_install");
+    if (ct != j.end() && ct->is_object()) {
+        const auto rules = ct->find("rules");
+        if (rules != ct->end()) {
+            e.ctgp7_rules = ParseRules(*rules);
+        }
+        for (const Rule& r : e.ctgp7_rules) {
+            if (r.to.rfind("MyStuff/", 0) != 0 && r.to.rfind("gamefs/", 0) != 0) {
+                throw std::string("bad ctgp7_install rule");
+            }
+        }
+    }
     const auto parts = j.find("parts");
     if (parts != j.end()) {
         if (!parts->is_array() || parts->empty() || parts->size() > 40) {

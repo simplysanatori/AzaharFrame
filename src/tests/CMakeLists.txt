@@ -91,6 +91,7 @@ add_executable(tests
     core/custom_tex_optimize.cpp # AzaharFrame ui3
     core/custom_tex_convert.cpp # AzaharFrame cppconv
     frame_xr/zip_install.cpp # AzaharFrame zipinstall
+    core/ctgp7.cpp # AzaharFrame ctgp7
     core/homebrew_emerald3ds.cpp # AzaharFrame emerald
     core/homebrew_update_check.cpp # AzaharFrame ui3
     core/savestate_frame.cpp # AzaharFrame savestate

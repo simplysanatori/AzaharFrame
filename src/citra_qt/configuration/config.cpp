@@ -15,6 +15,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h" // AzaharFrame kiu
 #include "common/settings.h"
+#include "core/ctgp7/ctgp7.h" // AzaharFrame ctgp7
 #include "core/hle/service/service.h"
 #include "input_common/main.h"
 #include "input_common/udp/client.h"
@@ -1602,8 +1603,14 @@ void QtConfig::SaveSystemValues() {
         WriteBasicSetting(Settings::values.battery_charging);
         WriteBasicSetting(Settings::values.battery_level);
         WriteBasicSetting(Settings::values.steps_per_hour);
-        WriteBasicSetting(Settings::values.plugin_loader_enabled);
-        WriteBasicSetting(Settings::values.allow_plugin_loader);
+        // AzaharFrame ctgp7: during a CTGP-7 launcher run the loader is on for that run only; the
+        // player's own values are what the config keeps
+        WriteBasicSetting(Settings::values.plugin_loader_enabled,
+                          Ctgp7::RunOverride::LoaderToSave(
+                              Settings::values.plugin_loader_enabled.GetValue()));
+        WriteBasicSetting(Settings::values.allow_plugin_loader,
+                          Ctgp7::RunOverride::AllowToSave(
+                              Settings::values.allow_plugin_loader.GetValue()));
         WriteBasicSetting(Settings::values.apply_region_free_patch);
     }
 

@@ -3224,3 +3224,133 @@ TEST_CASE("Tab menu: every selected segment keeps its check", "[frame_xr][tabmen
         }
     }
 }
+
+// AzaharFrame ctgp7: the CTGP-7 segment: a fourth segment only while Mario Kart 7 is open, its
+// buttons for each state, and "Requires CTGP-7" over Install Mods.
+TEST_CASE("Tab menu: the CTGP-7 segment", "[frame_xr][tab_menu][ctgp7]") {
+    Drawn d;
+    MenuModel m = Sample();
+    MenuView v;
+    v.tab = Tab::Mods;
+    const auto has = [&d](Id id, int index) {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                return true;
+            }
+        }
+        return false;
+    };
+    // what the beam gets at the middle of an item (a dialog's scrim covers what is under it)
+    const auto reachable = [&d](Id id, int index) {
+        for (const auto& h : d.menu.Hits()) {
+            if (h.t.id == id && h.t.index == index) {
+                const Target t = d.menu.HitTest(h.r.Cx(), h.r.Cy());
+                return t.id == id && t.index == index;
+            }
+        }
+        return false;
+    };
+    // Another game: Cheats | Mods | Textures, as before
+    CHECK(ModsSegmentLabels(false) == std::vector<std::string>{"Cheats", "Mods", "Textures"});
+    CHECK(ModsSegmentLabels(true) ==
+          std::vector<std::string>{"Cheats", "Mods", "Textures", "CTGP-7"});
+    d.Draw(m, v);
+    CHECK(has(Id::ModsSegment, 2));
+    CHECK_FALSE(has(Id::ModsSegment, 3));
+    // a view left on CTGP-7 for a game without it draws Cheats
+    v.mods_segment = ModsSegment::Ctgp7;
+    d.Draw(m, v);
+    CHECK(has(Id::CheatsWindow, -1));
+    CHECK_FALSE(has(Id::Ctgp7Install, -1));
+
+    // Mario Kart 7: the fourth segment, to the right of Textures, inside the pane
+    m.mods.ctgp7.shown = true;
+    d.Draw(m, v);
+    CHECK(has(Id::ModsSegment, 3));
+    for (const auto& h : d.menu.Hits()) {
+        if (h.t.id == Id::ModsSegment) {
+            CHECK(h.r.x1 <= kPanelW);
+            CHECK(h.r.H() >= 48.0f);
+        }
+    }
+    CHECK(has(Id::Ctgp7Install, -1));
+    CHECK(has(Id::Ctgp7Website, -1));
+    CHECK_FALSE(has(Id::Ctgp7Launch, -1));
+    CHECK(Ctgp7Line(m.mods.ctgp7) == "Not Installed");
+    bool error = false;
+    m.mods.ctgp7.blocker = "Needs Mario Kart 7 Version 1.2";
+    CHECK(Ctgp7Line(m.mods.ctgp7, &error) == "Needs Mario Kart 7 Version 1.2");
+    CHECK(error);
+    // busy: Cancel only, the phase's detail
+    m.mods.ctgp7.busy = true;
+    m.mods.ctgp7.phase = "Downloading CTGP-7";
+    m.mods.ctgp7.detail = "120 MB of 767 MB";
+    m.mods.ctgp7.permille = 150;
+    d.Draw(m, v);
+    CHECK(has(Id::Ctgp7Cancel, -1));
+    CHECK_FALSE(has(Id::Ctgp7Install, -1));
+    CHECK(Ctgp7Line(m.mods.ctgp7, &error) == "120 MB of 767 MB");
+    CHECK_FALSE(error);
+    m.mods.ctgp7.can_cancel = false;
+    CHECK(Ctgp7Buttons(m.mods.ctgp7).empty());
+    // installed: Launch and the version
+    m.mods.ctgp7 = {};
+    m.mods.ctgp7.shown = true;
+    m.mods.ctgp7.installed = true;
+    m.mods.ctgp7.version = "1.6.30";
+    d.Draw(m, v);
+    CHECK(has(Id::Ctgp7Launch, -1));
+    CHECK_FALSE(has(Id::Ctgp7Install, -1));
+    CHECK(Ctgp7Line(m.mods.ctgp7) == "Version 1.6.30");
+    CHECK(has(Id::Ctgp7Uninstall, -1));
+    CHECK(LabelFor(Id::Ctgp7Uninstall) == "Uninstall");
+    CHECK(LabelFor(Id::Ctgp7Website) == "Official Website");
+    // "Uninstall CTGP-7?" with its checkbox and a third button
+    m.mods.ctgp7.dialog.kind = ModsDialogKind::Notice;
+    m.mods.ctgp7.dialog.mod = "Uninstall CTGP-7?";
+    m.mods.ctgp7.dialog.other = "This removes CTGP-7.";
+    m.mods.ctgp7.dialog.confirm = "Uninstall";
+    m.mods.ctgp7.dialog.cancel = "Cancel";
+    m.mods.ctgp7.dialog.extra = "Uninstall Both";
+    m.mods.ctgp7.dialog.check = "Also Delete CTGP-7's Progress";
+    d.Draw(m, v);
+    CHECK(reachable(Id::DialogCheck, -1));
+    CHECK(reachable(Id::DialogExtra, -1));
+    CHECK(reachable(Id::DialogConfirm, -1));
+    CHECK_FALSE(reachable(Id::Ctgp7Uninstall, -1));
+    m.mods.ctgp7.dialog = {};
+    // a copy found on the SD card without the rest: Finish Setup
+    m.mods.ctgp7.installed = false;
+    m.mods.ctgp7.setup_unfinished = true;
+    CHECK(Ctgp7Line(m.mods.ctgp7) == "Setup Not Finished");
+    CHECK(Ctgp7Buttons(m.mods.ctgp7) == std::vector<int>{static_cast<int>(Id::Ctgp7Install)});
+    m.mods.ctgp7.setup_unfinished = false;
+    m.mods.ctgp7.installed = true;
+    // the website asks first (the link dialog): only its buttons are hit
+    v.open_link = kCtgp7Website;
+    d.Draw(m, v);
+    CHECK(reachable(Id::DialogConfirm, -1));
+    CHECK_FALSE(reachable(Id::Ctgp7Launch, -1));
+    CHECK(LinkText(kCtgp7Website) == "ctgp-7.github.io");
+
+    // "Requires CTGP-7" over Install Mods
+    v = {};
+    v.tab = Tab::Mods;
+    v.mods_segment = ModsSegment::Mods;
+    v.mods_page = ModsPage::Install;
+    m.mods.ctgp7.installed = false;
+    ModOffer o;
+    o.id = "mk7-midna";
+    o.name = "Midna";
+    o.author = "TheHumanBanana";
+    o.requires_ctgp7 = true;
+    m.mods.mods.available = {o};
+    m.mods.mods.catalog = CatalogState::Ready;
+    d.Draw(m, v);
+    CHECK(has(Id::ModInstall, 0));
+    v.requires_ctgp7 = true;
+    d.Draw(m, v);
+    CHECK(reachable(Id::DialogConfirm, -1));
+    CHECK(reachable(Id::DialogCancel, -1));
+    CHECK_FALSE(reachable(Id::ModInstall, 0));
+}

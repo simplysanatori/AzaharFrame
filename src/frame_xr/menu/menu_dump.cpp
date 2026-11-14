@@ -2002,6 +2002,145 @@ int main(int argc, char** argv) {
         v.hover = {};
         ok &= shot("compat-turned-off-two", to, v);
     }
+    // AzaharFrame ctgp7: the Mods tab's CTGP-7 segment (shown while Mario Kart 7 is open), each
+    // state, and "Requires CTGP-7" over Install Mods
+    {
+        MenuModel ct = m;
+        ct.game_title = "Mario Kart 7";
+        ct.mods.ctgp7.shown = true;
+        MenuView cv;
+        cv.tab = Tab::Mods;
+        cv.mods_segment = ModsSegment::Ctgp7;
+        cv.hover = {Id::Ctgp7Install};
+        ok &= shot("ctgp7-install", ct, cv);
+        cv.hover = {Id::ModsSegment, 3};
+        ok &= shot("ctgp7-segment-hover", ct, cv);
+        cv.hover = {};
+        MenuModel blocked = ct;
+        blocked.mods.ctgp7.blocker = "Needs Mario Kart 7 Version 1.2";
+        ok &= shot("ctgp7-needs-update", blocked, cv);
+        blocked.mods.ctgp7.dialog.kind = ModsDialogKind::Notice;
+        blocked.mods.ctgp7.dialog.mod = "Update Needed";
+        blocked.mods.ctgp7.dialog.other =
+            "CTGP-7 needs Mario Kart 7 version 1.2. Dump the 1.2 update from your 3DS and install "
+            "it with File > Install CIA in Azahar's window.";
+        blocked.mods.ctgp7.dialog.confirm = "OK";
+        ok &= shot("ctgp7-update-dialog", blocked, cv);
+        MenuModel save = ct;
+        save.mods.ctgp7.blocker = "Play Mario Kart 7 Once First";
+        save.mods.ctgp7.dialog.kind = ModsDialogKind::Notice;
+        save.mods.ctgp7.dialog.mod = "Play Mario Kart 7 First";
+        save.mods.ctgp7.dialog.other =
+            "CTGP-7 needs Mario Kart 7's save data. Play until the main menu, then try again.";
+        save.mods.ctgp7.dialog.confirm = "OK";
+        ok &= shot("ctgp7-save-dialog", save, cv);
+        MenuModel choose = ct;
+        choose.mods.ctgp7.dialog.kind = ModsDialogKind::Notice;
+        choose.mods.ctgp7.dialog.mod = "Choose Your Mario Kart 7";
+        choose.mods.ctgp7.dialog.other = "This Copy Is Encrypted. CTGP-7 needs a decrypted .3ds, "
+                                         ".cci or .cia of your own Mario Kart 7.";
+        choose.mods.ctgp7.dialog.confirm = "Choose";
+        choose.mods.ctgp7.dialog.cancel = "Cancel";
+        ok &= shot("ctgp7-choose-dialog", choose, cv);
+        MenuModel busy = ct;
+        busy.mods.ctgp7.busy = true;
+        busy.mods.ctgp7.phase = "Installing Mario Kart 7";
+        busy.mods.ctgp7.detail = "620 MB of 1.1 GB";
+        busy.mods.ctgp7.permille = 320;
+        ok &= shot("ctgp7-installing-game", busy, cv);
+        busy.mods.ctgp7.phase = "Downloading CTGP-7";
+        busy.mods.ctgp7.detail = "120 MB of 767 MB";
+        busy.mods.ctgp7.permille = 156;
+        cv.hover = {Id::Ctgp7Cancel};
+        ok &= shot("ctgp7-downloading", busy, cv);
+        cv.hover = {};
+        busy.mods.ctgp7.phase = "Unpacking CTGP-7";
+        busy.mods.ctgp7.detail.clear();
+        busy.mods.ctgp7.permille = -1;
+        busy.mods.ctgp7.spin = 7;
+        ok &= shot("ctgp7-unpacking", busy, cv);
+        busy.mods.ctgp7.phase = "Installing CTGP-7";
+        busy.mods.ctgp7.detail = "This Takes About 5 Minutes";
+        busy.mods.ctgp7.permille = 430;
+        ok &= shot("ctgp7-running-installer", busy, cv);
+        MenuModel failed = ct;
+        failed.mods.ctgp7.error = "Install Failed: No Internet Connection";
+        ok &= shot("ctgp7-failed", failed, cv);
+        failed.mods.ctgp7.error = "Install Failed: Not Enough Space: Needs 3.6 GB Free";
+        ok &= shot("ctgp7-no-space", failed, cv);
+        MenuModel done = ct;
+        done.mods.ctgp7.installed = true;
+        done.mods.ctgp7.version = "1.6.30";
+        cv.hover = {Id::Ctgp7Launch};
+        ok &= shot("ctgp7-installed", done, cv);
+        cv.hover = {Id::Ctgp7Website};
+        ok &= shot("ctgp7-website-hover", done, cv);
+        cv.hover = {};
+        cv.open_link = "https://ctgp-7.github.io/";
+        ok &= shot("ctgp7-website-dialog", done, cv);
+        cv.open_link.clear();
+        cv.hover = {Id::Ctgp7Uninstall};
+        ok &= shot("ctgp7-uninstall-hover", done, cv);
+        cv.hover = {};
+        MenuModel un = done;
+        un.mods.ctgp7.dialog.kind = ModsDialogKind::Notice;
+        un.mods.ctgp7.dialog.mod = "Uninstall CTGP-7?";
+        un.mods.ctgp7.dialog.other = "This removes CTGP-7, its launcher and the mods installed for "
+                                     "it. Mario Kart 7, its save data and CTGP-7's progress stay.";
+        un.mods.ctgp7.dialog.confirm = "Uninstall";
+        un.mods.ctgp7.dialog.cancel = "Cancel";
+        un.mods.ctgp7.dialog.check = "Also Delete CTGP-7's Progress";
+        ok &= shot("ctgp7-uninstall-dialog", un, cv);
+        cv.dialog_check = true;
+        cv.hover = {Id::DialogCheck};
+        ok &= shot("ctgp7-uninstall-dialog-checked", un, cv);
+        cv.dialog_check = false;
+        cv.hover = {};
+        un.mods.ctgp7.dialog.other =
+            "This removes CTGP-7, its launcher and the mods installed for it. Uninstall Both also "
+            "removes the Mario Kart 7 it installed. Your game file, its save data and CTGP-7's "
+            "progress stay.";
+        un.mods.ctgp7.dialog.extra = "Uninstall Both";
+        ok &= shot("ctgp7-uninstall-dialog-both", un, cv);
+        MenuModel uning = ct;
+        uning.mods.ctgp7.busy = true;
+        uning.mods.ctgp7.can_cancel = false;
+        uning.mods.ctgp7.phase = "Uninstalling CTGP-7";
+        uning.mods.ctgp7.spin = 3;
+        ok &= shot("ctgp7-uninstalling", uning, cv);
+        MenuModel unfinished = ct;
+        unfinished.mods.ctgp7.setup_unfinished = true;
+        cv.hover = {Id::Ctgp7Install};
+        ok &= shot("ctgp7-setup-unfinished", unfinished, cv);
+        cv.hover = {};
+        // Not Mario Kart 7: three segments, as before
+        MenuModel other = m;
+        MenuView ov;
+        ov.tab = Tab::Mods;
+        ov.mods_segment = ModsSegment::Cheats;
+        ok &= shot("ctgp7-hidden-other-game", other, ov);
+        // "Requires CTGP-7" over Install Mods
+        MenuModel req = ct;
+        ModOffer miku;
+        miku.id = "mk7-hatsune-miku";
+        miku.name = "Hatsune Miku";
+        miku.author = "Sedral";
+        miku.url = "https://gamebanana.com/members/2124152";
+        miku.notes = "Requires CTGP-7.";
+        miku.downloads = "10K+ Downloads";
+        miku.updated = "Updated May 2024";
+        miku.requires_ctgp7 = true;
+        req.mods.mods.available = {miku};
+        req.mods.mods.catalog = CatalogState::Ready;
+        MenuView rv;
+        rv.tab = Tab::Mods;
+        rv.mods_segment = ModsSegment::Mods;
+        rv.mods_page = ModsPage::Install;
+        ok &= shot("ctgp7-requires-row", req, rv);
+        rv.requires_ctgp7 = true;
+        rv.hover = {Id::DialogConfirm};
+        ok &= shot("ctgp7-requires-dialog", req, rv);
+    }
     v = {};
     v.tab = Tab::Main;
     ok &= shot("main", m, v);

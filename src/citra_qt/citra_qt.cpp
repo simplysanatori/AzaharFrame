@@ -165,6 +165,8 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "citra_qt/frame_branding.h"
 #include "citra_qt/frame_cheats.h" // AzaharFrame cheatstab
 #include "citra_qt/frame_homebrew.h" // AzaharFrame emerald
+#include "citra_qt/frame_ctgp7.h"    // AzaharFrame ctgp7
+#include "core/hle/service/hid/hid.h" // AzaharFrame ctgp7: the installer's A
 #include "citra_qt/frame_mirror.h"
 #include "citra_qt/frame_mods.h"
 #include "citra_qt/frame_texture_pack.h"  // AzaharFrame texparts: HasPack
@@ -405,6 +407,7 @@ Mods::Compat::Game FrameGameInfoOf(Core::System& system, const std::string& game
 // AzaharFrame cheatstab: the in-game menu's Cheats segment (frame_cheats.cpp), made with the menu.
 QPointer<FrameCheats> g_frame_cheats;
 QPointer<FrameHomebrew> g_frame_homebrew; // AzaharFrame emerald
+QPointer<FrameCtgp7> g_frame_ctgp7;       // AzaharFrame ctgp7
 // Opens (pausing the game) or closes (resuming it) the in-game menu: the home panel in a game.
 std::function<void(bool open)> g_frame_xr_set_menu;
 // Quick Save / Quick Load as the Emulation menu does them, with a message (the in-game menu's
@@ -1724,6 +1727,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                                 [] { return g_frame_mirror && g_frame_mirror->MenuOpen(); }, this);
                         }
                         g_frame_cheats->Open(have_id ? title_id : 0, this->game_path.toStdString());
+                        if (g_frame_ctgp7) { // AzaharFrame ctgp7
+                            g_frame_ctgp7->Open(have_id ? title_id : 0, this->game_path);
+                        }
                     }
                     if (open && flat) {
                         g_frame_flat_menu_fullscreen |= WindowFullscreen() || g_frame_fullscreen;
@@ -2924,6 +2930,55 @@ void GMainWindow::ConnectWidgetEvents() {
             FrameXrPushGameDirs();
         }
     });
+    // AzaharFrame ctgp7: the Mods tab's CTGP-7 segment
+    {
+        FrameCtgp7::Hooks h;
+        h.boot = [this](const QString& path) { BootGame(path); };
+        h.stop = [this] { ShutdownGame(); };
+        h.close_menu = [] {
+            if (g_frame_xr_set_menu) {
+                g_frame_xr_set_menu(false);
+            }
+        };
+        h.running = [this] { return emulation_running && emu_thread && emu_thread->IsRunning(); };
+        h.press_a = [this](bool down) {
+            if (!system.IsPoweredOn()) {
+                return;
+            }
+            if (const auto hid = Service::HID::GetModule(system)) {
+                Service::HID::Module::InputOverride input;
+                input.buttons = down ? 1u : 0u; // the pad state's bit 0: A
+                hid->SetInputOverride(input);
+            }
+        };
+        h.notify = [this](const std::string& text) {
+            if (FrameXr::VrShowing()) {
+                FrameXr::ShowToastText(text, FrameXr::ToastTime::Long);
+            } else if (!message_label_used_for_movie) {
+                const QString q = QString::fromStdString(text);
+                message_label->setText(q);
+                QTimer::singleShot(6000, this, [this, q] {
+                    if (!message_label_used_for_movie && message_label->text() == q) {
+                        message_label->clear();
+                    }
+                });
+            }
+        };
+        h.refresh_list = [this] {
+            game_list->PopulateAsync(UISettings::values.game_dirs);
+            if (FrameXr::IsStarted()) {
+                FrameXrPushGameDirs();
+            }
+        };
+        h.window = [this]() -> QWidget* {
+            if (g_frame_mirror) {
+                g_frame_mirror->SetMenuWindow(true);
+            }
+            return this;
+        };
+        h.quit = [this] { QTimer::singleShot(0, this, &QWidget::close); };
+        g_frame_ctgp7 = new FrameCtgp7(std::move(h), this);
+    }
     connect(game_list, &GameList::PopulatingCompleted, this, [] {
         if (g_frame_homebrew) {
             g_frame_homebrew->CheckForUpdates();
@@ -3487,6 +3542,9 @@ void GMainWindow::BootGame(const QString& filename) {
                                     ? Mods::EnabledModsAspectHint(title_id).value_or(0.0f)
                                     : 0.0f);
     FrameHomebrew::ApplyBootSettings(filename); // AzaharFrame emerald: e.g. HLE audio
+    if (g_frame_ctgp7) { // AzaharFrame ctgp7: the launcher's plugin loader; the installer's run
+        g_frame_ctgp7->GameBooted(Loader::ResultStatus::Success == res ? title_id : 0, filename);
+    }
 #endif
 
 #ifdef ENABLE_FRAME_XR // AzaharFrame: in VR the 3D slider is always on (stereo top screen).
@@ -3840,6 +3898,12 @@ void GMainWindow::ShutdownGame() {
     // VR picker, the global settings window and the final config->Save() in closeEvent never see
     // them (the VR and window-close paths call ShutdownGame() directly).
     Settings::RestoreGlobalState(false);
+#ifdef ENABLE_FRAME_XR
+    Ctgp7::RunOverride::End(); // AzaharFrame ctgp7: the player's plugin loader setting again
+    if (g_frame_ctgp7) {
+        g_frame_ctgp7->GameStopped();
+    }
+#endif
 }
 
 #ifdef ENABLE_DEVELOPER_OPTIONS
@@ -5097,6 +5161,15 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         QTimer::singleShot(0, this, [this, path] { BootGame(path); });
         return;
     }
+    case C::Ctgp7Install: // AzaharFrame ctgp7: the Mods tab's CTGP-7 segment (frame_ctgp7.cpp)
+    case C::Ctgp7Launch:
+    case C::Ctgp7Cancel:
+    case C::Ctgp7Dialog:
+    case C::Ctgp7Uninstall:
+        if (g_frame_ctgp7) {
+            g_frame_ctgp7->Command(r);
+        }
+        return;
     case C::ToggleCheat: // AzaharFrame cheatstab: the Mods tab's Cheats segment (frame_cheats.cpp)
     case C::DownloadCheats:
     case C::AddCheat: // AzaharFrame ui2

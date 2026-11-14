@@ -268,6 +268,13 @@ enum class MenuCommand {
     // AzaharFrame autosave
     LoadAutosave, ///< `value`: the index in SetInGameMenuAutosaves' list (newest first)
     UndoLoad,     ///< back to the moment before the autosave was loaded
+    // AzaharFrame ctgp7: the Mods tab's CTGP-7 segment (citra_qt/frame_ctgp7.cpp)
+    Ctgp7Install, ///< install CTGP-7 for the open Mario Kart 7 (its questions in the segment)
+    Ctgp7Launch,  ///< close the menu and start the CTGP-7 launcher
+    Ctgp7Cancel,  ///< stop the install that runs
+    Ctgp7Dialog,  ///< the segment's question: `value` 1 its confirm, 0 cancel, 2 its third
+                  ///< button; `text` "checked" when its checkbox is ticked
+    Ctgp7Uninstall, ///< asks "Uninstall CTGP-7?" (answered with Ctgp7Dialog)
 };
 enum class MenuSetting {
     HideBottomScreen,
@@ -472,11 +479,14 @@ struct TexturesModel;
 struct ZipModel;
 struct HomebrewTabModel; // AzaharFrame emerald
 struct AutosaveCard;     // AzaharFrame autosave
+struct Ctgp7Model;       // AzaharFrame ctgp7
 } // namespace Menu
 void SetInGameMenuCheats(const Menu::CheatsModel& cheats); ///< citra_qt/frame_cheats.cpp
 void SetInGameMenuModsList(const Menu::ModsListModel& mods); ///< citra_qt/frame_mods.cpp
 void SetInGameMenuTextures(const Menu::TexturesModel& textures);
 void SetInGameMenuZip(const Menu::ZipModel& zip); ///< AzaharFrame zipinstall
+/// AzaharFrame ctgp7: the Mods tab's CTGP-7 segment (frame_xr/menu/ctgp7_tab.h). Any thread.
+void SetInGameMenuCtgp7(const Menu::Ctgp7Model& ctgp7); ///< citra_qt/frame_ctgp7.cpp
 /// AzaharFrame emerald: the Mods tab's Homebrew segment's rows (frame_xr/menu/homebrew_tab.h). Any thread.
 void SetInGameMenuHomebrew(const Menu::HomebrewTabModel& homebrew); ///< citra_qt/frame_homebrew.cpp
 /// AzaharFrame autosave: the running game's autosaves for Load State's card (newest first), and

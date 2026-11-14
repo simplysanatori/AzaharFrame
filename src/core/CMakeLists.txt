@@ -81,6 +81,10 @@ add_library(citra_core STATIC EXCLUDE_FROM_ALL
     custom_tex/download.cpp # AzaharFrame texdl
     custom_tex/download.h # AzaharFrame texdl
     custom_tex/download_default.cpp # AzaharFrame texdl
+    ctgp7/cia_build.cpp # AzaharFrame ctgp7
+    ctgp7/cia_build.h # AzaharFrame ctgp7
+    ctgp7/ctgp7.cpp # AzaharFrame ctgp7
+    ctgp7/ctgp7.h # AzaharFrame ctgp7
     homebrew/emerald3ds.cpp # AzaharFrame emerald
     homebrew/emerald3ds.h # AzaharFrame emerald
     frame_controller_models.cpp # AzaharFrame cpphelpers

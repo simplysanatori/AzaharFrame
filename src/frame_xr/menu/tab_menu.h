@@ -210,6 +210,13 @@ enum class Id : int {
     DialogExtra,    ///< AzaharFrame memwarn: a notice's third button (ModsDialog::extra), first
     Scrollbar,      ///< AzaharFrame scroll: a long list's scrollbar (MenuLayout::bar)
     CheatsOtherVersion, ///< AzaharFrame scroll: the Cheats list's "For Another Version" section
+    // AzaharFrame ctgp7: the Mods tab's CTGP-7 segment (ctgp7_tab.h)
+    Ctgp7Install,
+    Ctgp7Launch,
+    Ctgp7Cancel,
+    Ctgp7Website, ///< Official Website ("Open ctgp-7.github.io?" first)
+    Ctgp7Uninstall, ///< "Uninstall CTGP-7?" (the Qt side asks)
+    DialogCheck,    ///< a dialog's checkbox (ModsDialog::check; MenuView::dialog_check)
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -400,6 +407,10 @@ struct MenuView {
         std::string key;
         bool operator==(const Confirm&) const = default;
     } confirm;
+    /// AzaharFrame ctgp7: "Requires CTGP-7" shows (an Install Mods row of a CTGP-7 mod was pressed)
+    bool requires_ctgp7 = false;
+    /// AzaharFrame ctgp7: the open dialog's checkbox (ModsDialog::check) is ticked; off for each new one
+    bool dialog_check = false;
     bool operator==(const MenuView&) const = default;
 };
 
@@ -532,6 +543,8 @@ private:
                           const Rect& area, float bottom);
     /// AzaharFrame zipinstall: Install from Zip's page (mods_segments.cpp); the list ends at `bottom`.
     void DrawZip(Kit& kit, const ZipModel& m, const MenuView& view, const Rect& area, float bottom);
+    /// AzaharFrame ctgp7: the CTGP-7 segment (ctgp7_tab.cpp)
+    void DrawCtgp7(Kit& kit, const MenuModel& model, const MenuView& view, const Rect& area);
     void DrawHomebrew(Kit& kit, const MenuModel& model, const MenuView& view,
                       const Rect& pane); ///< AzaharFrame emerald: homebrew_tab.cpp; ui3: the Homebrew tab
     /// AzaharFrame ui2: Install from Zip at a download page's bar end.
