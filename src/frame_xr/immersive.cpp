@@ -418,6 +418,7 @@ struct State {
     L::NaturalSlider natural;
     L::EyePerFarInUse eye_k;
     L::RatioRamp full_distance{1.3862944f}; // ln 4
+    float full_distance_target = -1.0f; ///< where full_distance is going (m)
     float leaning = -1.0f; ///< game units per metre, this frame
     /// World Scale's migration from 1.2.0 this game run: 0 not looked at yet, 1 done (or not
     /// needed), 2 mode 3 waiting for the game's eyes (the saved distance and 1.2.0's scale hold).
@@ -973,6 +974,7 @@ float FullScreenDistance(u32 mode) {
                              ? p.distance
                              : L::FullDistance(WorldScaleSetting(), p.size,
                                                v.vr_immersive_follow_screen.GetValue());
+    g.full_distance_target = target;
     return g.full_distance.Update(target, VideoCore::Immersive::SteadyMs());
 }
 
@@ -1028,7 +1030,13 @@ void UpdateNatural(u32 mode) {
     const float per = VideoCore::Immersive::g_stereo_far_per_slider.load(std::memory_order_relaxed);
     if (mode == 2) {
         if (g.engaged) {
-            const float limit = L::StereoSliderLimit(g.solved, g.half_ipd, per);
+            // The screen moving farther (World Scale eased up) makes the far scenery wider
+            // apart on it before the game draws with a lower slider: the limit at the distance
+            // it is going to as well, so it never goes past parallel on the way.
+            L::HeadLocked going = g.solved;
+            going.distance = std::max(g.solved.distance, g.full_distance_target);
+            const float limit = std::min(L::StereoSliderLimit(g.solved, g.half_ipd, per),
+                                         L::StereoSliderLimit(going, g.half_ipd, per));
             const float sent = g.natural.Update(f, limit, VideoCore::Immersive::SteadyMs());
             Settings::frame_vr_natural_slider.store(sent, std::memory_order_relaxed);
         }
@@ -1122,6 +1130,7 @@ void OnFrame(const FrameInfo& info) {
             g.natural.Reset();
             g.eye_k.Reset();
             g.full_distance.Reset();
+            g.full_distance_target = -1.0f;
             g.leaning = -1.0f;
             g.world_migration = 0;
             g.k_saved = false;

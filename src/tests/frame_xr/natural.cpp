@@ -8,6 +8,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include "common/frame_vr_depth.h"
@@ -541,6 +542,57 @@ TEST_CASE("Natural: the slider over a resize sweep never diverges", "[frame_xr][
             CHECK_FALSE(st.diverges);
         }
     }
+}
+
+// Mock logs (lane natural2): World Scale eased up (the screen 0.3 to 3 m, then 0.75 to 12 m)
+// made Ocarina of Time 3D and Majora's Mask 3D diverge by up to 3 degrees for a moment: the
+// screen moved on while the game still drew with the slider of a few frames before. Immersive
+// sends the limit at the distance the screen is going to as well (min of both), so once the game
+// draws with the slider sent at the change (up to 0.3 s behind here) it never goes past parallel
+// on the way up. Within that lag the screen can have moved at most a factor 4 a second farther.
+TEST_CASE("Natural: World Scale eased up with the game behind never diverges", "[frame_xr][natural]") {
+    std::mt19937 rng(1113);
+    auto uni = [&](float a, float b) { return std::uniform_real_distribution<float>(a, b)(rng); };
+    int unguarded = 0;
+    for (int run = 0; run < 100; ++run) {
+        const float h = uni(0.0225f, 0.0425f);
+        const float per = uni(0.01f, 0.4f);
+        const float f = run % 4 == 0 ? 1.0f : uni(0.2f, 1.0f);
+        const int lag = 1 + static_cast<int>(uni(0.0f, 36.0f)); // frames at 120 Hz, to 0.3 s
+        const float from = FullDistance(uni(10.0f, 100.0f), 1.0f, true);
+        const float to = FullDistance(uni(100.0f, 400.0f), 1.0f, true);
+        for (const bool guard : {true, false}) {
+            NaturalSlider n;
+            RatioRamp ramp{1.3862944f}; // a factor 4 a second, as Immersive's
+            std::vector<float> sent;
+            int64_t t = 5000;
+            bool diverged = false;
+            for (int frame = 0; frame < 600; ++frame) {
+                const float target = frame < 60 ? from : to;
+                const float d = ramp.Update(target, t += 8);
+                const HeadLocked now = Screen(1.4f, 0.8f, 1.67f, d);
+                const HeadLocked going = Screen(1.4f, 0.8f, 1.67f, std::max(d, target));
+                const float limit = guard ? std::min(StereoSliderLimit(now, h, per),
+                                                     StereoSliderLimit(going, h, per))
+                                          : StereoSliderLimit(now, h, per);
+                sent.push_back(n.Update(f, limit, t));
+                // The game shows the slider sent `lag` frames ago.
+                const float shown = sent[sent.size() > static_cast<std::size_t>(lag)
+                                             ? sent.size() - 1 - lag
+                                             : 0];
+                if (frame > 60 + lag && StereoFarOnQuad(now, 2, h, per * shown).diverges) {
+                    diverged = true;
+                }
+            }
+            if (guard) {
+                INFO("run " << run << " lag " << lag << " " << from << " to " << to << " m");
+                CHECK_FALSE(diverged);
+            } else {
+                unguarded += diverged;
+            }
+        }
+    }
+    CHECK(unguarded > 10); // without the guard the same ramps do diverge
 }
 
 TEST_CASE("Natural: the game's K and the distance never jump", "[frame_xr][natural]") {
