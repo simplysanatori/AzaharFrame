@@ -21,6 +21,12 @@
 // changes length only when a key is first seen in a context, or when the context changes (a new
 // list then anyway). Over the runtime's layer limit, the slots absent longest go first. Pure
 // (unit-tested: src/tests/frame_xr/layer_slots.cpp).
+//
+// integ13: the HUD's quads (toast, hint chip, Autosaved label, shader badge) are reserved
+// (Reserve) from the start of each context, before they first show, so one that shows mid-context
+// fills its own slot instead of going in before the Top group (the controllers' eye quads, the
+// beams, the dots) and moving every quad of it to another overlay. Over the limit a reserved slot
+// goes only when no other absent slot is left, and stays gone for the rest of the context.
 
 #pragma once
 
@@ -68,6 +74,7 @@ public:
     void Begin(uint32_t context) {
         if (!started_ || context != context_) {
             slots_.clear();
+            unreserved_.clear(); // integ13: a new list: every key may be reserved again
             context_ = context;
             started_ = true;
             resets_++;
@@ -79,6 +86,34 @@ public:
         for (Slot& s : slots_) {
             s.present = false;
         }
+    }
+
+    /// integ13: after Begin, before the frame's Add calls: a slot for this key (as Add takes it,
+    /// ordinal 0) from now on, at the end of its group, `placeholder` (collapsed) until its quad
+    /// first shows. Nothing when the key has a slot, or when its reserved slot went over the
+    /// limit in this list.
+    void Reserve(Group group, uint64_t swapchain, int32_t width, int32_t height,
+                 const Quad& placeholder) {
+        const Key key{group, swapchain, width, height, 0};
+        for (const Slot& s : slots_) {
+            if (s.key == key) {
+                return;
+            }
+        }
+        for (const Key& k : unreserved_) {
+            if (k == key) {
+                return;
+            }
+        }
+        std::size_t at = 0;
+        while (at < slots_.size() && slots_[at].key.group <= group) {
+            at++;
+        }
+        Slot slot{key, placeholder};
+        slot.seen = frame_;
+        slot.reserved = true;
+        slots_.insert(slots_.begin() + static_cast<std::ptrdiff_t>(at), slot);
+        added_++;
     }
 
     /// The frame's quads, in the order they are drawn (groups in ascending order).
@@ -121,20 +156,30 @@ public:
 
     /// The list for this frame: every slot, absent ones collapsed. At most `max_slots` (the
     /// runtime's limit less what else the frame carries): the slots absent longest are dropped
-    /// first (for good: a key seen again gets a new slot).
+    /// first (for good: a key seen again gets a new slot); integ13: a reserved slot only when no
+    /// other absent slot is left (then it is not reserved again in this list).
     template <typename Collapse>
     void End(std::size_t max_slots, std::vector<Out>& out, Collapse&& collapse) {
         while (slots_.size() > max_slots) {
             std::size_t victim = slots_.size();
-            uint64_t oldest = frame_;
-            for (std::size_t i = 0; i < slots_.size(); i++) {
-                if (!slots_[i].present && slots_[i].seen < oldest) {
-                    oldest = slots_[i].seen;
-                    victim = i;
+            for (const bool reserved : {false, true}) {
+                uint64_t oldest = frame_ + 1;
+                for (std::size_t i = 0; i < slots_.size(); i++) {
+                    if (!slots_[i].present && slots_[i].reserved == reserved &&
+                        slots_[i].seen < oldest) {
+                        oldest = slots_[i].seen;
+                        victim = i;
+                    }
+                }
+                if (victim < slots_.size()) {
+                    break;
                 }
             }
             if (victim == slots_.size()) {
                 break; // only present quads left: the caller's limit cuts the rest
+            }
+            if (slots_[victim].reserved) {
+                unreserved_.push_back(slots_[victim].key);
             }
             slots_.erase(slots_.begin() + static_cast<std::ptrdiff_t>(victim));
             dropped_++;
@@ -169,6 +214,7 @@ private:
         Quad quad;
         bool present = false;
         uint64_t seen = 0;
+        bool reserved = false; ///< integ13: made by Reserve
     };
     uint32_t& Count(const Key& key) {
         for (auto& [k, n] : counts_) {
@@ -182,6 +228,7 @@ private:
 
     std::vector<Slot> slots_;
     std::vector<std::pair<Key, uint32_t>> counts_;
+    std::vector<Key> unreserved_; ///< integ13: reserved keys dropped over the limit, this list
     uint32_t context_ = 0;
     bool started_ = false;
     uint64_t frame_ = 0;

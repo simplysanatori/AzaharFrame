@@ -101,3 +101,99 @@ TEST_CASE("Layer slots: over the limit the slot absent longest goes", "[frame_xr
     // Present quads are never dropped here (the caller's limit cuts them).
     CHECK(Names(Frame(m, 1, {{G::Ui, "bb"}, {G::Ui, "ccc"}}, 1)) == "bb ccc");
 }
+
+// ---- integ13: the HUD's slots reserved from the start of the list ----
+
+namespace {
+
+/// A frame as app.cpp makes it: Begin, the HUD's four slots reserved (toast, hint, label, badge:
+/// one swapchain 'h', keyed by their group alone), then the quads present. A HUD quad is keyed as
+/// app.cpp keys it (the HUD's swapchain, size 0); others as Frame does.
+std::vector<LS::Map<Q>::Out> HudFrame(LS::Map<Q>& m, uint32_t context,
+                                      const std::vector<std::pair<G, std::string>>& quads,
+                                      std::size_t max = 32) {
+    m.Begin(context);
+    for (const G g : {G::Toast, G::Hint, G::Label, G::Badge}) {
+        m.Reserve(g, 'h', 0, 0, Q{"res"});
+    }
+    for (const auto& [g, name] : quads) {
+        const bool hud = g == G::Toast || g == G::Hint || g == G::Label || g == G::Badge;
+        m.Add(g, hud ? 'h' : static_cast<uint64_t>(name[0]),
+              hud ? 0 : static_cast<int32_t>(name.size()), hud ? 0 : 1, Q{name});
+    }
+    std::vector<LS::Map<Q>::Out> out;
+    m.End(max, out, [](Q& q) { q.size *= LS::kCollapse; });
+    return out;
+}
+
+/// The positions of the quads named `name` (present or not) in a frame's list.
+std::vector<std::size_t> Where(const std::vector<LS::Map<Q>::Out>& out, const std::string& name) {
+    std::vector<std::size_t> at;
+    for (std::size_t i = 0; i < out.size(); i++) {
+        if (out[i].quad.name == name) {
+            at.push_back(i);
+        }
+    }
+    return at;
+}
+
+} // namespace
+
+TEST_CASE("Layer slots: a toast, then a label, mid-game never move the controllers",
+          "[frame_xr][flash][integ13]") {
+    LS::Map<Q> m;
+    // The controllers' two eye quads (one swapchain, one rect size: ordinals 0 and 1), then a
+    // beam, all in the Top group; the stats panel in the Ui group.
+    const std::vector<std::pair<G, std::string>> play{
+        {G::Ui, "stats"}, {G::Top, "eye"}, {G::Top, "eye"}, {G::Top, "beam"}};
+    const auto first = HudFrame(m, 3, play);
+    CHECK(Names(first) == "stats res_ res_ res_ res_ eye eye beam");
+    const std::vector<std::size_t> eyes = Where(first, "eye");
+    REQUIRE(eyes.size() == 2);
+    // The reserved slots are collapsed stand-ins.
+    CHECK(first[1].quad.size == LS::kCollapse);
+    auto with = [&](std::vector<std::pair<G, std::string>> extra) {
+        auto q = play;
+        q.insert(q.begin() + 1, extra.begin(), extra.end());
+        return q;
+    };
+    for (int f = 0; f < 3; f++) {
+        CHECK(Where(HudFrame(m, 3, play), "eye") == eyes);
+    }
+    // A Quick Save toast shows, then goes; then the Autosaved label shows with a second toast.
+    auto out = HudFrame(m, 3, with({{G::Toast, "toast"}}));
+    CHECK(Names(out) == "stats toast res_ res_ res_ eye eye beam");
+    CHECK(Where(out, "eye") == eyes);
+    out = HudFrame(m, 3, play);
+    CHECK(Names(out) == "stats toast_ res_ res_ res_ eye eye beam");
+    CHECK(Where(out, "eye") == eyes);
+    out = HudFrame(m, 3, with({{G::Label, "label"}}));
+    CHECK(Names(out) == "stats toast_ res_ label res_ eye eye beam");
+    CHECK(Where(out, "eye") == eyes);
+    out = HudFrame(m, 3, with({{G::Toast, "toast"}, {G::Label, "label"}, {G::Badge, "badge"}}));
+    CHECK(Names(out) == "stats toast res_ label badge eye eye beam");
+    CHECK(Where(out, "eye") == eyes);
+    // Only the first frame made slots: the list never changed length.
+    CHECK(m.Size() == first.size());
+    CHECK(m.Added() == first.size());
+    CHECK(m.Resets() == 1);
+}
+
+TEST_CASE("Layer slots: over the limit, reserved slots go last and stay gone",
+          "[frame_xr][flash][integ13]") {
+    LS::Map<Q> m;
+    HudFrame(m, 3, {{G::Ui, "a"}, {G::Ui, "bb"}, {G::Top, "eye"}, {G::Top, "eye"}});
+    HudFrame(m, 3, {{G::Ui, "bb"}, {G::Top, "eye"}, {G::Top, "eye"}}); // "a" absent from now
+    // Two slots too many: "a" goes first (absent, not reserved), then the reserved slot absent
+    // longest (all four since the first frame: the first of them, the toast's).
+    auto out = HudFrame(m, 3, {{G::Ui, "bb"}, {G::Top, "eye"}, {G::Top, "eye"}}, 6);
+    CHECK(Names(out) == "bb res_ res_ res_ eye eye");
+    CHECK(m.Dropped() == 2);
+    // The dropped reserved slot is not made again in this list, so the eyes stay put.
+    const auto eyes = Where(out, "eye");
+    out = HudFrame(m, 3, {{G::Ui, "bb"}, {G::Top, "eye"}, {G::Top, "eye"}}, 6);
+    CHECK(Names(out) == "bb res_ res_ res_ eye eye");
+    CHECK(Where(out, "eye") == eyes);
+    // A new list reserves all four again.
+    CHECK(Names(HudFrame(m, 4, {{G::Top, "eye"}})) == "res_ res_ res_ res_ eye");
+}

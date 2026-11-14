@@ -1077,6 +1077,19 @@ void Runtime::FrameLoop() {
             const uint32_t screens_n = static_cast<uint32_t>(std::min<std::size_t>(screen_layers, 15));
             layer_slots.Begin(((ui ? ui->LayerContext() : 0) * 2 + (screens_live ? 1 : 0)) * 16 +
                               screens_n);
+            // integ13: the HUD's quads have their slots from the start of the list, in their draw
+            // order (as slot_add keys them: their group and the HUD's one swapchain), so a toast
+            // or a label that first shows mid-game fills its own slot and never moves the Top
+            // group (the controllers' eye quads, beams, dots) to other overlays.
+            Quad hud_stand_in;
+            if (hud.HudPlaceholder(hud_stand_in)) {
+                const uint64_t hud_chain = reinterpret_cast<uint64_t>(hud_stand_in.swapchain);
+                for (const LayerSlots::Group g : {LayerSlots::Group::Toast, LayerSlots::Group::Hint,
+                                                  LayerSlots::Group::Label,
+                                                  LayerSlots::Group::Badge}) {
+                    layer_slots.Reserve(g, hud_chain, 0, 0, SlotQuad{local_space, hud_stand_in});
+                }
+            }
         }
         if (fs.shouldRender) {
             std::scoped_lock lock{quads_mutex};

@@ -445,6 +445,22 @@ bool Hud::BackingImage(Quad& quad) const { // AzaharFrame flash
     return true;
 }
 
+bool Hud::HudPlaceholder(Quad& quad) const { // integ13
+    if (!toast_chain.HasImage()) {
+        return false;
+    }
+    quad = Quad{};
+    quad.swapchain = toast_chain.Handle();
+    quad.image_rect = {{0, 0},
+                       {static_cast<int32_t>(std::min<uint32_t>(toast_chain.Width(), 8)),
+                        static_cast<int32_t>(std::min<uint32_t>(toast_chain.Height(), 8))}};
+    quad.pose.orientation.w = 1.0f;
+    quad.size = {1.0f, 1.0f};
+    quad.eye = XR_EYE_VISIBILITY_BOTH;
+    quad.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+    return true;
+}
+
 void Hud::ShowToast(Toast kind) {
     toast_kind = static_cast<int>(kind);
 }

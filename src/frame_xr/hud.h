@@ -63,6 +63,11 @@ public:
     /// makes of the backing's layer never changes its texture); pose, size and eye are the
     /// caller's (the screen's). False until its image is released.
     bool BackingImage(Quad& quad) const;
+    /// integ13: a stand-in for the toast, hint chip, Autosaved label and shader badge (they share
+    /// one swapchain) before any of them shows, for their reserved layer slots (layer_slots.h
+    /// Reserve): that swapchain, a small rect of it, 1 m square at the origin, to be collapsed by
+    /// the caller. False until its image is released (a layer may not name it before then).
+    bool HudPlaceholder(Quad& quad) const;
 
     /// Any thread.
     void ShowToast(Toast kind);
