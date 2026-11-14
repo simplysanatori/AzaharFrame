@@ -83,6 +83,8 @@ private:
     float world_value = 100.0f; ///< percent: as set, or the stop the slider was moved to
     QCheckBox* follow_check; ///< AzaharFrame natural: Follow Screen Size
     ConfigurationShared::CheckState follow_state = ConfigurationShared::CheckState::Global;
+    QCheckBox* clarity_check; ///< AzaharFrame flash: Motion Clarity
+    ConfigurationShared::CheckState clarity_state = ConfigurationShared::CheckState::Global;
     QWidget* immersive_depth_row; ///< AzaharFrame natural: the Full modes' 3D Depth
     QComboBox* immersive_depth_scope; ///< per application only: global / this application
     QSpinBox* immersive_depth_spin;

@@ -140,6 +140,7 @@ enum class Id : int {
     ScaleMode,
     WorldScale, ///< AzaharFrame natural: World Scale (vr_immersive_world_scale), per game
     FollowScreen, ///< AzaharFrame natural: Follow Screen Size (vr_immersive_follow_screen), per game
+    MotionClarity, ///< AzaharFrame flash: Motion Clarity (vr_motion_clarity), per game
     MoreSettings,
     HelpHeader,    ///< AzaharFrame crashreport: General's "Help" subheader (no action)
     ReportProblem, ///< AzaharFrame crashreport: Report a Problem (a dialog in Azahar's window)
@@ -359,6 +360,7 @@ struct MenuModel {
     /// Automatic) and Follow Screen Size.
     int world_scale_stop = 20;
     bool follow_screen = true;
+    bool motion_clarity = true; ///< AzaharFrame flash: vr_motion_clarity
     // AzaharFrame autosave: the running game's values (Per-Game, else Global)
     bool autosave = false;
     int autosave_every = 2; ///< index into kAutosaveEvery

@@ -218,6 +218,9 @@ public:
     bool packed_top = true;
     /// Game frames released (ReleaseFrame), the serial of the newest (the handoff thread's).
     uint64_t release_serial = 0;
+    /// AzaharFrame flash: the game picture of the next release (ShownPicture::picture), from
+    /// WaitPresentSlot's swap count; 0 when it was not called (the handoff thread's).
+    uint64_t release_picture = 0;
     /// The head pose of the picture released last (ShownContentPose); guarded by content_mutex,
     /// written under screens_mutex too with set releases.
     mutable std::mutex content_mutex;

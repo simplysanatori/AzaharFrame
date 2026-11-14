@@ -239,15 +239,13 @@ TEST_CASE("Test switches: the file read again while running", "[frame_xr][test_s
     FakeEnv().clear();
 }
 
-TEST_CASE("Test switches: SINGLE_FLASH leaves out a picture shown once, live",
-          "[frame_xr][test_switches]") {
-    TS::SingleFlash f;
-    CHECK_FALSE(f.Hide(true, false, 0)); // no picture: nothing to hide
-    CHECK_FALSE(f.Hide(true, true, 1));  // a new one: shown
-    CHECK(f.Hide(true, true, 1));        // again: left out
-    CHECK(f.Hide(true, true, 1));
-    CHECK_FALSE(f.Hide(false, true, 1)); // off: shown again
-    CHECK_FALSE(f.Hide(false, true, 2)); // off, followed
-    CHECK(f.Hide(true, true, 2));        // on live: the picture shown while off is not new
-    CHECK_FALSE(f.Hide(true, true, 3));
+// AzaharFrame flash
+TEST_CASE("Test switches: FLASH_BACKING is on unless 0, live", "[frame_xr][test_switches]") {
+    CHECK(TS::BackingFrom(std::nullopt));
+    CHECK(TS::BackingFrom(std::string{"1"}));
+    CHECK(TS::BackingFrom(std::string{""}));
+    CHECK_FALSE(TS::BackingFrom(std::string{"0"}));
+    CHECK(TS::ApplyFor("AZAHARFRAME_XR_FLASH_BACKING") == TS::Apply::Live);
+    CHECK(TS::ApplyFor("AZAHARFRAME_XR_FLASH_SLOW") == TS::Apply::Live);
+    CHECK(TS::ApplyFor("AZAHARFRAME_XR_SINGLE_FLASH") == TS::Apply::Live);
 }

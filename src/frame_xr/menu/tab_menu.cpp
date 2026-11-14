@@ -248,6 +248,8 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         world.value = SliderText(Id::WorldScale, static_cast<float>(m.world_scale_stop));
         rows.push_back(world);
         rows.push_back(full(row(Id::FollowScreen, RowKind::Switch, 0, m.follow_screen)));
+        // AzaharFrame flash: Motion Clarity, the Full modes only (the picture follows the head)
+        rows.push_back(full(row(Id::MotionClarity, RowKind::Switch, 0, m.motion_clarity)));
     }
     return rows;
 }
@@ -273,6 +275,7 @@ SettingsSection SectionOf(Id id) {
     case Id::ScaleMode: // AzaharFrame fovscale
     case Id::WorldScale:
     case Id::FollowScreen: // AzaharFrame natural
+    case Id::MotionClarity: // AzaharFrame flash
         return SettingsSection::Immersive;
     default:
         return SettingsSection::General;
@@ -292,6 +295,7 @@ bool PerGameSetting(Id id) {
     case Id::ScaleMode: // AzaharFrame fovscale
     case Id::WorldScale:
     case Id::FollowScreen: // AzaharFrame natural
+    case Id::MotionClarity: // AzaharFrame flash
     case Id::Depth3d: // AzaharFrame depth3d
     case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
     case Id::TextureFilter:
@@ -594,6 +598,8 @@ std::string LabelFor(Id id) {
         return Immersive::Names::kWorldScale; // AzaharFrame natural
     case Id::FollowScreen:
         return Immersive::Names::kFollowScreen;
+    case Id::MotionClarity: // AzaharFrame flash
+        return Immersive::Names::kMotionClarity;
     case Id::MoreSettings:
         return "More Settings";
     case Id::SavesHeader: // AzaharFrame autosave
@@ -826,6 +832,8 @@ std::string ExplainFor(Id id) {
         return Immersive::Names::kWorldScaleTip; // AzaharFrame natural
     case Id::FollowScreen:
         return Immersive::Names::kFollowScreenTip;
+    case Id::MotionClarity: // AzaharFrame flash
+        return Immersive::Names::kMotionClarityTip;
     case Id::Autosave: // AzaharFrame autosave
         return "Saves on its own as you play, when this menu opens and when the game closes.";
     case Id::AutosaveEvery:

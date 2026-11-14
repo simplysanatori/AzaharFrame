@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
+#include "common/settings.h" // AzaharFrame flash: vr_xr_image_lag's default
 #include "frame_xr/image_lag.h"
 #include "frame_xr/immersive_layout.h"
 
@@ -79,7 +80,9 @@ void Refresh(Released& r, Compositor& c, uint64_t& sent, uint32_t app_lag, bool 
 } // namespace
 
 TEST_CASE("Image lag: the setting, the switch and what an xrEndFrame leaves", "[frame_xr][image_lag]") {
-    CHECK(IL::kDefaultLag == 1);
+    // AzaharFrame flash: 0 by default (the owner's A/B of 2026-11-14), the setting's default too.
+    CHECK(IL::kDefaultLag == 0);
+    CHECK(Settings::values.vr_xr_image_lag.GetDefault() == IL::kDefaultLag);
     CHECK(IL::OverrideFrom(std::nullopt) == std::nullopt);
     CHECK(IL::OverrideFrom(std::string("0")) == 0u);
     CHECK(IL::OverrideFrom(std::string("1")) == 1u);

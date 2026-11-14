@@ -333,6 +333,12 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     follow_check->setToolTip(tr(Names::kFollowScreenWindowTip));
     layout->addWidget(follow_check);
 
+    // AzaharFrame flash: Motion Clarity (frame_xr/motion_clarity.h)
+    clarity_check = new QCheckBox(tr(Names::kMotionClarity), this);
+    clarity_check->setObjectName(QStringLiteral("frame_vr_motion_clarity_check"));
+    clarity_check->setToolTip(tr(Names::kMotionClarityWindowTip));
+    layout->addWidget(clarity_check);
+
     immersive_depth_scope = MakeScopeCombo(this);
     immersive_depth_spin = new QSpinBox(this);
     immersive_depth_spin->setRange(0, 100);
@@ -409,6 +415,7 @@ void ConfigureFrameVr::SetupPerGameUI() {
         hint(motion_combo, Settings::values.vr_motion_controls.UsingGlobal());
         hint(world_slider, Settings::values.vr_immersive_world_scale.UsingGlobal()); // natural
         hint(follow_check, Settings::values.vr_immersive_follow_screen.UsingGlobal());
+        hint(clarity_check, Settings::values.vr_motion_clarity.UsingGlobal()); // AzaharFrame flash
         hint(immersive_depth_spin, Settings::values.vr_immersive_depth.UsingGlobal());
         return;
     }
@@ -440,6 +447,8 @@ void ConfigureFrameVr::SetupPerGameUI() {
         static_cast<int>(Settings::values.vr_motion_controls.GetValue(true)));
     ConfigurationShared::SetColoredTristate(
         follow_check, Settings::values.vr_immersive_follow_screen, follow_state);
+    ConfigurationShared::SetColoredTristate( // AzaharFrame flash
+        clarity_check, Settings::values.vr_motion_clarity, clarity_state);
     connect(world_scope, qOverload<int>(&QComboBox::activated), this, [this](int index) {
         world_slider->setEnabled(index == 1);
         ConfigurationShared::SetHighlight(depth_row, index == 1);
@@ -476,6 +485,7 @@ void ConfigureFrameVr::SetConfiguration() {
     const bool global = Settings::IsConfiguringGlobal();
     hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue(global));
     follow_check->setChecked(Settings::values.vr_immersive_follow_screen.GetValue(global));
+    clarity_check->setChecked(Settings::values.vr_motion_clarity.GetValue(global)); // flash
     SetMatchCameraTips(); // AzaharFrame fovonce
     register_spin->setValue(reg.GetValue(global));
     fov_spin->setValue(Settings::values.vr_immersive_game_fov.GetValue(global));
@@ -679,6 +689,7 @@ void ConfigureFrameVr::ApplyConfiguration() {
     as_global(Settings::values.vr_immersive_positional_game_scaler);
     as_global(Settings::values.vr_immersive_world_scale); // AzaharFrame natural
     as_global(Settings::values.vr_immersive_follow_screen);
+    as_global(Settings::values.vr_motion_clarity); // AzaharFrame flash
     as_global(Settings::values.vr_immersive_depth);
     as_global(Settings::values.vr_si_mode_register_offset);
     as_global(Settings::values.vr_immersive_eye_indicator);
@@ -712,6 +723,8 @@ void ConfigureFrameVr::ApplyConfiguration() {
                                              world_scope, [this](s32) { return world_value; });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_follow_screen,
                                              follow_check, follow_state);
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_clarity, clarity_check,
+                                             clarity_state); // AzaharFrame flash
     ConfigurationShared::ApplyPerGameSetting(
         &Settings::values.vr_immersive_depth, immersive_depth_scope,
         [this](s32) { return static_cast<u32>(immersive_depth_spin->value()); });

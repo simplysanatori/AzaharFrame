@@ -70,6 +70,10 @@ struct ScreenLayers {
     /// The bottom screen is farther away than the top one: submit it first. Quad layers are
     /// drawn in submission order, with no depth test, so the nearer one has to come last.
     bool bottom_first = false;
+    /// AzaharFrame flash: the top screen is the Full modes' screen, engaged: the game draws its
+    /// picture for the head pose (modes 2 and 3, not paused by the menu or the bottom screen).
+    /// Motion Clarity flashes it (motion_clarity.h).
+    bool head_driven = false;
 };
 
 /// XR thread, while building the layers and the pointer targets. Not in immersive mode: the

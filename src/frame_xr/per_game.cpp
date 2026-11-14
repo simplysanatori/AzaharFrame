@@ -51,6 +51,9 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::FollowScreen: // AzaharFrame natural
         f(v.vr_immersive_follow_screen);
         return true;
+    case Id::MotionClarity: // AzaharFrame flash
+        f(v.vr_motion_clarity);
+        return true;
     case Id::Depth3d: // AzaharFrame natural: the Full modes' own in them
         if (v.vr_immersive_mode.GetValue() >= 2) {
             f(v.vr_immersive_depth);

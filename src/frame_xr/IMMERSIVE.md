@@ -662,8 +662,8 @@ line all take that picture. Found by serial, not by counting refreshes, so it is
 picture never on view (two releases inside a refresh), a gap in the serials, a picture without a
 pose or one drawn before a recentre (not anchored, as before), and a frame before that had no top
 screen (hidden, another screen in focus, `shouldRender` false: the compositor has no older image,
-so the newest is on view). SINGLE_FLASH hides by the same serial. The lag is an internal setting,
-`vr_xr_image_lag` in `[VR]` (0 or 1, default 1; no menu), logged with the runtime at each session's
+so the newest is on view). Motion Clarity hides by the same serial. The lag is an internal setting,
+`vr_xr_image_lag` in `[VR]` (0 or 1, default 0 since lane/flash, was 1; no menu), logged with the runtime at each session's
 start (`xr: image lag 1 refresh ...`); the live test switch `AZAHARFRAME_XR_IMAGE_LAG=0|1` wins
 while set, for re-testing after a SteamVR update. It replaces `AZAHARFRAME_IMMERSIVE_ANCHOR_LAG`,
 which is no longer read. No latency is added: the compositor shows the image a refresh late anyway.
@@ -686,6 +686,29 @@ version is never compared and behaviour never changes by version). The runtime's
 are in the session's INFO line; only a runtime that is not SteamVR, or none known, logs a warning
 naming the one-minute check: `AZAHARFRAME_XR_IMAGE_LAG=0` must bring the doubling back. That check
 is worth doing after a SteamVR or SteamOS update that changes how the screen looks on head turns.
+
+AzaharFrame flash: Motion Clarity (`vr_motion_clarity`, per game and global, on by default;
+`frame_xr/motion_clarity.h`). The test switch `AZAHARFRAME_XR_SINGLE_FLASH=1` showed each picture on
+one refresh only and was the one clean result of the doubling A/Bs (handoff reports 51 and 54);
+every hold, rigid or warped, at lag 0 or 1, doubled or juddered. It is now a display mode. In the
+Full modes, engaged (`ScreenLayers::head_driven`), each new top screen picture is shown on the
+first refresh it is on view and an opaque black quad takes its place (each eye's pose, size and
+shape) on the refreshes after. The quad is an 8x8 rect inside a 16x16 black square of the toast
+atlas, so no swapchain is added. SteamVR's OpenXR runtime makes each quad layer the overlay of
+its index in the frame (`openxr_quadlayer_<i>`, `HideOverlay` past the count; handoff report
+55/flash/overlay-path.md). The bare switch left the screens out, so their overlays were hidden and
+shown 60 times a second with nothing of ours over the view, and the compositor's background and
+other overlays flickered through. The backing keeps the layer list's shape on every refresh. The
+scheduler measures the game's rate from the pictures it sees (the game's top screen swap count
+recorded per release, `ShownPicture::picture`, so a 30 fps game's two releases of one picture are
+one picture): it flashes at a mean of 2.5 refreshes a picture or fewer (48 fps and up at 120 Hz;
+left above 3.0) and holds a slower game (`AZAHARFRAME_XR_FLASH_SLOW=twice`: two refreshes of each,
+for an A/B). A picture still on view one refresh after the next was due is shown again and held
+until a new one comes, so the screen is never dark longer than one picture's time. The VR menu,
+the game's keyboard, a pause and the bottom screen in focus hold as before. The switch stays as an
+override: 1 on in every mode (as it always was), 0 off. `AZAHARFRAME_XR_FLASH_BACKING=0` leaves
+the layer out on dark refreshes, as the bare switch did. A per-state log line (`xr: Motion Clarity
+flashing: ...`, then every 10 s) gives the rate, the lit share and why refreshes were held.
 
 AzaharFrame oot: the tag follows the world, not the swap. A game frame's swap is not always the
 frame its world was drawn in: Ocarina of Time 3D swaps 30 times a second, and 60 with the owner's

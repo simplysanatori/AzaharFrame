@@ -103,6 +103,12 @@ public:
         float bottom_curve = 0.0f;
     };
     ScreenDraw ScreenDrawFor(const Immersive::ScreenLayers& shown) const;
+    /// AzaharFrame flash, XR thread after Frame: the game is played on view: running, no VR menu
+    /// (or the pause it holds), no game keyboard. Motion Clarity flashes only then (menus and a
+    /// paused game stay steady).
+    bool PlayOnView() const {
+        return game_running && !menu_open && !menu_shown && !swkbd_shown;
+    }
     /// AzaharFrame curve: the Screen Curve (degrees) for the screens as `shown`: 0 unless they
     /// are the normal screens (not the immersive ones) and the runtime takes cylinder layers.
     uint32_t CurveFor(const Immersive::ScreenLayers& shown) const;

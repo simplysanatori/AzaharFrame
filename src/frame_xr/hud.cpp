@@ -7,6 +7,7 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <vector> // AzaharFrame flash
 
 #include "common/logging/log.h"
 #include "common/settings.h"
@@ -55,6 +56,8 @@ constexpr XrTime kBadgeRedrawNs = 250'000'000;
 // The atlas holds the toasts and, below them, a 16x16 transparent square: the passthrough layer's
 // image (SteamVR allows 16 swapchains in a session, so they share one).
 constexpr uint32_t kPassthroughSize = 16;
+// AzaharFrame flash: Motion Clarity's backing, a swapchain of its own: 16x16 opaque black.
+constexpr uint32_t kBackingSize = 16;
 constexpr uint32_t kAtlasHeight =
     kToastHeight * kAtlasRows + kBadgePxH * kBadgeBands + kPassthroughSize;
 constexpr float kToastDistance = 0.9f;  // metres ahead of the head
@@ -367,10 +370,24 @@ void Hud::Create(Runtime& rt) {
         toast_chain.Upload(reinterpret_cast<const uint8_t*>(atlas.px.data()));
         toast_chain.Poll(); // starts the copy; released on a later frame
     }
+    // AzaharFrame flash: Motion Clarity's backing. A swapchain of its own (one of SteamVR's 16):
+    // the toast atlas, shared, showed its toasts and labels in the screen's place when SteamVR
+    // paired the atlas with the screen's bounds for a refresh (the owner's test of 1.1.1-524).
+    if (backing_chain.Create(rt.session, rt.vulkan->Device(), rt.vulkan->PhysicalDevice(),
+                             rt.vulkan->QueueFamily(), rt.queue_lock, rt.swapchain_format,
+                             kBackingSize, kBackingSize)) {
+        std::vector<uint8_t> black(kBackingSize * kBackingSize * 4, 0);
+        for (std::size_t i = 3; i < black.size(); i += 4) {
+            black[i] = 255;
+        }
+        backing_chain.Upload(black.data());
+        backing_chain.Poll();
+    }
 }
 
 void Hud::Destroy() {
     toast_chain.Destroy();
+    backing_chain.Destroy(); // AzaharFrame flash
     shown_kind = -1;
     text_row_waiting = -1;
     badge_ready = false; // AzaharFrame shaderbadge
@@ -414,6 +431,17 @@ bool Hud::PassthroughLayer(const ViewPose& pose, XrSpace space,
     layer.space = space;
     layer.viewCount = 2;
     layer.views = views;
+    return true;
+}
+
+bool Hud::BackingImage(Quad& quad) const { // AzaharFrame flash
+    if (!backing_chain.HasImage()) {
+        return false;
+    }
+    quad.swapchain = backing_chain.Handle();
+    quad.image_rect = {{0, 0},
+                       {static_cast<int32_t>(kBackingSize), static_cast<int32_t>(kBackingSize)}};
+    quad.flags = 0; // opaque (SteamVR: IgnoreTextureAlpha); its alpha is 1 anyway
     return true;
 }
 
@@ -727,6 +755,7 @@ bool Hud::BadgeQuad(const ViewPose& head, const BadgeAnchor& anchor, XrTime time
 bool Hud::ToastQuad(const ViewPose& head, XrTime time, Quad& quad,
                     const std::vector<Input::PanelQuad>* screens) {
     toast_chain.Poll();
+    backing_chain.Poll(); // AzaharFrame flash: its one copy released
     if (!toast_chain.HasImage()) {
         toast_kind = -1;
         return false;

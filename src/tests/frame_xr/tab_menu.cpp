@@ -2901,6 +2901,7 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
     for (Id id : {Id::Depth3d, Id::InternalResolution, Id::TextureFilter, Id::AsyncShaders,
                   Id::AccurateImageCopies, Id::ImmersiveMode, Id::WiderView, Id::GameFov,
                   Id::MatchCamera, Id::ScaleX, Id::ScaleY, Id::WorldScale, Id::FollowScreen,
+                  Id::MotionClarity, // AzaharFrame flash
                   Id::Autosave,
                   Id::AutosaveEvery, Id::AutosaveKeep, Id::HideBottomScreen, Id::ScreenShape,
                   Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,

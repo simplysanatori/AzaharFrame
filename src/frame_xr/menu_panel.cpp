@@ -257,6 +257,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::WorldScale;
     case Id::FollowScreen: // AzaharFrame natural
         return MenuSetting::FollowScreen;
+    case Id::MotionClarity: // AzaharFrame flash
+        return MenuSetting::MotionClarity;
     case Id::Depth3d:
         return MenuSetting::Depth3d;
     case Id::InternalResolution:
@@ -1109,6 +1111,7 @@ void MenuPanel::BuildModel(const Host& host) {
     // AzaharFrame natural: World Scale's nearest stop, Follow Screen Size.
     m.world_scale_stop = Immersive::Layout::WorldScaleStop(v.vr_immersive_world_scale.GetValue());
     m.follow_screen = v.vr_immersive_follow_screen.GetValue();
+    m.motion_clarity = v.vr_motion_clarity.GetValue(); // AzaharFrame flash
     // AzaharFrame autosave: the running game's values (its own, else the global ones)
     m.autosave = v.autosave_enabled.GetValue();
     m.autosave_every = 0;
@@ -1409,6 +1412,10 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::FollowScreen: // AzaharFrame natural
         Apply(v.vr_immersive_follow_screen, value != 0, per_game);
         r.setting = MenuSetting::FollowScreen;
+        break;
+    case Id::MotionClarity: // AzaharFrame flash: live
+        Apply(v.vr_motion_clarity, value != 0, per_game);
+        r.setting = MenuSetting::MotionClarity;
         break;
     case Id::Depth3d: // AzaharFrame depth3d: the HID's 3D slider reads it on every pad update
         // AzaharFrame natural: in the Full modes their own 3D Depth (percent of the natural 3D).
@@ -2106,6 +2113,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::FollowScreen: // AzaharFrame natural
         SetSetting(t.id, model.follow_screen ? 0 : 1, host);
+        break;
+    case Id::MotionClarity: // AzaharFrame flash
+        SetSetting(t.id, model.motion_clarity ? 0 : 1, host);
         break;
     case Id::AsyncShaders:
         SetSetting(t.id, model.async_shaders ? 0 : 1, host);

@@ -58,6 +58,12 @@ public:
     bool PassthroughLayer(const ViewPose& pose, XrSpace space, XrCompositionLayerProjection& layer,
                           XrCompositionLayerProjectionView (&views)[2]) const;
 
+    /// AzaharFrame flash: Motion Clarity's black backing (motion_clarity.h): the swapchain and
+    /// rect of `quad` (an opaque black swapchain of its own, never shared, so the overlay SteamVR
+    /// makes of the backing's layer never changes its texture); pose, size and eye are the
+    /// caller's (the screen's). False until its image is released.
+    bool BackingImage(Quad& quad) const;
+
     /// Any thread.
     void ShowToast(Toast kind);
     /// Any thread. One line of UTF-8; "°" is drawn as a small ring (the font has none).
@@ -112,6 +118,7 @@ public:
 private:
     /// The toasts and the passthrough layer's transparent square.
     Vis::AsyncOverlay toast_chain;
+    Vis::AsyncOverlay backing_chain; ///< AzaharFrame flash: kBackingSize square, opaque black
     frame_xr::ui::Canvas atlas; ///< its pixels (the text rows are redrawn)
     std::vector<ToastFit::Box> row_boxes; ///< AzaharFrame menuux: each row's box (toast_fit.h)
     bool logged_unsupported = false;

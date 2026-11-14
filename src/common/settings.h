@@ -776,7 +776,9 @@ struct Values {
     // or 1. SteamVR shows an image one refresh after the pose sent with it, so 1 (frame_xr/
     // image_lag.h); 0 for a runtime that shows them together. The test switch
     // AZAHARFRAME_XR_IMAGE_LAG wins while it is set. A new key: older versions drop it.
-    Setting<u32, true> vr_xr_image_lag{1, 0, 1, "vr_xr_image_lag"};
+    // AzaharFrame flash: default 0 (was 1): in the owner's first headset A/B of 2026-11-14 lag 0
+    // doubled less than lag 1 with the hold (frame_xr/image_lag.h kDefaultLag).
+    Setting<u32, true> vr_xr_image_lag{0, 0, 1, "vr_xr_image_lag"};
     // AzaharFrame: switchable, so the Qt window can set them per game (same keys as CitraVR).
     SwitchableSetting<u32> vr_immersive_mode{0, "vr_immersive_mode"};
     SwitchableSetting<int32_t> vr_si_mode_register_offset{-1, "vr_si_mode_register_offset"};
@@ -796,6 +798,11 @@ struct Values {
     SwitchableSetting<float, true> vr_immersive_world_scale{100.0f, 10.0f, 400.0f,
                                                             "vr_immersive_world_scale"};
     SwitchableSetting<bool> vr_immersive_follow_screen{true, "vr_immersive_follow_screen"};
+    // AzaharFrame flash: Motion Clarity (per game and global, on by default): in the Full modes
+    // each top screen picture of a game at its full rate is shown on one display refresh only,
+    // with a black backing on the rest (frame_xr/motion_clarity.h). Read every frame. A new key:
+    // older builds ignore it.
+    SwitchableSetting<bool> vr_motion_clarity{true, "vr_motion_clarity"};
     SwitchableSetting<bool> vr_immersive_world_set{false, "vr_immersive_world_set"};
     SwitchableSetting<float> vr_immersive_eye_per_far{0.0f, "vr_immersive_eye_per_far"};
     // AzaharFrame: show only the top screen in VR (the bottom one comes back with the bumper

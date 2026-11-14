@@ -133,6 +133,14 @@ inline constexpr const char* kFollowScreenTip =
 inline constexpr const char* kFollowScreenWindowTip =
     "When you resize the screen in the Full modes, the world grows or shrinks with it. Off keeps "
     "the world's size.";
+/// AzaharFrame flash: Settings::values.vr_motion_clarity (frame_xr/motion_clarity.h).
+inline constexpr const char* kMotionClarity = "Motion Clarity";
+inline constexpr const char* kMotionClarityTip =
+    "Shows each game picture once for a sharp image when you turn your head. The screen is dimmer.";
+inline constexpr const char* kMotionClarityWindowTip =
+    "In the Full modes, shows each game picture once for a sharp image when you turn your head. "
+    "The screen is dimmer. Games that run under 60 fps show as before.";
+
 /// The toast after resizing the screen with Follow Screen Size on.
 inline constexpr const char* kWorldScaleFollowsToast = "Follow Screen Size: On";
 

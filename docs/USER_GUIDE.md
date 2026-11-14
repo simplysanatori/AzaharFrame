@@ -351,7 +351,7 @@ In the Full modes the screen starts 3 m ahead and shows the game at its own scal
 
   Either way your head still turns the world as far as the screen, so the middle of the picture stays in place. In VR, squeeze both grips and press D-pad right (wider) or left (narrower), up (taller) or down (shorter). A label such as **Horizontal Scale: -10%** shows the value, and it is kept for the game. A game where you set Narrow Screen in an earlier version keeps its screen: 10% narrower is now -10%.
 
-Both Full modes have **World Scale** (how big the game world feels, 100% by default; hold the screen with a grip and push the stick up or down to change it), **Follow Screen Size** (the world grows or shrinks with the screen when you resize it) and their own **3D Depth** (at 100%, the farthest scenery is at infinity). Your head moves the game camera as far as the 3D shows. The other settings of the group are for **Full (6DoF): Other Games**: **View Matrix Register** and **Eye Indicator Register** (both found while you play when left on auto).
+Both Full modes have **World Scale** (how big the game world feels, 100% by default; hold the screen with a grip and push the stick up or down to change it), **Follow Screen Size** (the world grows or shrinks with the screen when you resize it), **Motion Clarity** (each game picture shows once, so head turns stay sharp; on by default, the screen is dimmer) and their own **3D Depth** (at 100%, the farthest scenery is at infinity). Your head moves the game camera as far as the 3D shows. The other settings of the group are for **Full (6DoF): Other Games**: **View Matrix Register** and **Eye Indicator Register** (both found while you play when left on auto).
 
 ### Hide Bottom Screen
 
