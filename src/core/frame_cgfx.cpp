@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <map>
 #include <stdexcept>
 #include "common/lz11.h"
 #include "common/string_util.h"
@@ -1004,6 +1005,162 @@ bool ReadCgfx(std::span<const u8> data, File& out, std::string& error) {
             f.textures.push_back(c.ReadTexture(name, to));
         }
         out = std::move(f);
+        return true;
+    } catch (const Bad& e) {
+        error = e.what();
+        return false;
+    }
+}
+
+namespace {
+
+/// The CGFX file's DATA header and a section's dictionary (0: models, 1: textures).
+std::size_t Section(const Reader& r, int i) {
+    if (!r.Magic(0, "CGFX") || r.U16(4) != 0xFEFF) {
+        throw Bad("not a CGFX file");
+    }
+    const u16 header = r.U16(6);
+    if (!r.Magic(header, "DATA")) {
+        throw Bad("CGFX: no DATA");
+    }
+    const std::size_t p = header + 8 + std::size_t(i) * 8;
+    return r.U32(p) ? r.RelNonNull(p + 4) : 0;
+}
+
+/// A particle set's sprite size and texture coordinate scale, from its own bytes (up to `end`):
+/// a constant attribute is tagged 0x40000000, then its id, its count twice, 4, the values; an
+/// updater starts with its type (0x00200000 sets the scale), 0x100, the attribute it drives,
+/// then its values.
+void ReadParticleSize(const Reader& r, std::size_t so, std::size_t end, ParticleSet& s) {
+    end = std::min(end, r.Size());
+    const auto sane = [](float f) { return f > 0.0f && f < 200.0f; };
+    const auto f32 = [&](std::size_t at) {
+        const u32 bits = r.U32(at);
+        float f;
+        std::memcpy(&f, &bits, 4);
+        return f;
+    };
+    bool updater = false;
+    for (std::size_t p = so; p + 40 <= end; p += 4) {
+        const u32 tag = r.U32(p);
+        if (!updater && tag == 0x00200000u && r.U32(p + 4) == 0x100u && r.U32(p + 8) == 1u) {
+            const float x = f32(p + 12), y = f32(p + 16);
+            if (sane(x) && sane(y)) {
+                s.size = {x, y};
+                updater = true;
+            }
+            continue;
+        }
+        const u32 id = r.U32(p + 4), n = r.U32(p + 8);
+        if (tag != 0x40000000u || n < 1 || n > 4 || r.U32(p + 12) != n || r.U32(p + 16) != 4u) {
+            continue;
+        }
+        const float x = f32(p + 20), y = n >= 2 ? f32(p + 24) : x;
+        if (id == 1 && !updater && s.size[0] == 0.0f && sane(x) && sane(y)) {
+            s.size = {x, y};
+        } else if (id == 6 && n == 2 && x > 0.0f && x <= 1.0f && y > 0.0f && y <= 1.0f) {
+            s.uv_scale = {x, y};
+        }
+    }
+}
+
+} // namespace
+
+bool ReadParticleModels(std::span<const u8> data, std::vector<ParticleModel>& out,
+                        std::string& error) {
+    try {
+        const Reader r(data);
+        const Cgfx c{r};
+        std::vector<ParticleModel> models;
+        const auto dict = c.Dict(Section(r, 0));
+        // Where each model and set starts: a set's bytes end at the next of them.
+        std::vector<std::size_t> starts;
+        for (const auto& [name, mo] : dict) {
+            starts.push_back(mo);
+            if ((r.U32(mo) & 0x100u) && r.Magic(mo + 4, "CMDL")) {
+                const auto sets = c.PtrList(mo + 0xE0);
+                starts.insert(starts.end(), sets.begin(), sets.end());
+            }
+        }
+        std::sort(starts.begin(), starts.end());
+        for (const auto& [name, mo] : dict) {
+            if (!(r.U32(mo) & 0x100u) || !r.Magic(mo + 4, "CMDL")) {
+                continue; // a mesh model (the bullets): not a particle model
+            }
+            ParticleModel m;
+            const std::size_t mn = r.Rel(mo + 0xC);
+            m.name = mn ? r.CString(mn) : name;
+            // The user data: string lists (type 0x10000000: count at +0x10, pointers after) and
+            // integer lists (type 0x20000000: count at +0xC, values after).
+            std::map<std::string, std::vector<std::string>> strings;
+            std::map<std::string, std::vector<u32>> ints;
+            if (r.U32(mo + 0x10)) {
+                for (const auto& [key, e] : c.Dict(r.Rel(mo + 0x14))) {
+                    const u32 type = r.U32(e);
+                    if (type == 0x10000000u) {
+                        const u32 n = r.U32(e + 0x10);
+                        CheckCount(n);
+                        auto& list = strings[key];
+                        for (u32 i = 0; i < n; i++) {
+                            const std::size_t s = r.Rel(e + 0x14 + std::size_t{i} * 4);
+                            list.push_back(s ? r.CString(s) : std::string{});
+                        }
+                    } else if (type == 0x20000000u) {
+                        const u32 n = r.U32(e + 0xC);
+                        CheckCount(n);
+                        auto& list = ints[key];
+                        for (u32 i = 0; i < n; i++) {
+                            list.push_back(r.U32(e + 0x10 + std::size_t{i} * 4));
+                        }
+                    }
+                }
+            }
+            const std::vector<std::size_t> sets = c.PtrList(mo + 0xE0);
+            const auto value = [](const auto& map, const char* key, std::size_t i, auto none) {
+                const auto it = map.find(key);
+                return it != map.end() && i < it->second.size() ? it->second[i] : none;
+            };
+            for (std::size_t i = 0; i < sets.size(); i++) {
+                const std::size_t so = sets[i];
+                ParticleSet s;
+                const std::size_t sn = r.Rel(so + 0xC);
+                s.name = sn ? r.CString(sn) : std::string{};
+                s.texture = value(strings, "Tex", i, std::string{});
+                s.colour = value(ints, "Col", i, 0u);
+                s.sampler = value(ints, "Sam", i, 0u);
+                s.type = value(ints, "Type", i, 0u);
+                // The set's bytes: up to the next model or set (they follow one another), at
+                // most 2 KB.
+                std::size_t end = so + 0x800;
+                if (const auto next = std::upper_bound(starts.begin(), starts.end(), so);
+                    next != starts.end()) {
+                    end = std::min(end, *next);
+                }
+                ReadParticleSize(r, so, end, s);
+                m.sets.push_back(std::move(s));
+            }
+            models.push_back(std::move(m));
+        }
+        out = std::move(models);
+        return true;
+    } catch (const Bad& e) {
+        error = e.what();
+        return false;
+    }
+}
+
+bool ReadTextures(std::span<const u8> data, const std::vector<std::string>& names,
+                  std::vector<Texture>& out, std::string& error) {
+    try {
+        const Reader r(data);
+        const Cgfx c{r};
+        std::vector<Texture> textures;
+        for (const auto& [name, to] : c.Dict(Section(r, 1))) {
+            if (std::find(names.begin(), names.end(), name) != names.end()) {
+                textures.push_back(c.ReadTexture(name, to));
+            }
+        }
+        out = std::move(textures);
         return true;
     } catch (const Bad& e) {
         error = e.what();

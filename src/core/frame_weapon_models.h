@@ -78,6 +78,68 @@ struct Part {
     bool replaced_flip = true;
 };
 
+// ---- AzaharFrame kiuflash: the muzzle flashes ----
+//
+// Each weapon's `character/effect.bcres` holds its own flashes as particle models
+// (frame_cgfx.h ReadParticleModels): one for rapid fire, one for the charged shot. They are made
+// into flash cards (sprites at the muzzle, drawn added to what is behind for a moment after each
+// real shot: frame_xr/vis/muzzle_flash.h), in files that join the weapon's own:
+// w<id>-f<n>.model, one per texture, its components the cards. No particle is simulated: a
+// flash is at most kFlashCardsMax cards from its model's sets (smoke left out), each with its
+// set's texture, colour mode and colour, and its size in the game's units.
+
+enum class FlashKind : u8 { Rapid, Charged };
+constexpr int kFlashCardsMax = 4;
+
+/// The effect models a weapon's flashes are, from their names only (pure): rapid fire's
+/// ("Ptc<Class><NN>RapidFlash...", claws' "RapidShot", the first orbitars' "Bullet01_Flash",
+/// the first blade's "ShotA", clubs' "Muzzle") and the charged shot's ("ShotFlash...", the
+/// orbitars' "Bullet02_Flash", "ShotB"). A kind the file lacks takes the other's; "" for none.
+struct FlashModels {
+    std::string rapid, charged;
+};
+FlashModels PickFlashModels(int id, const std::vector<std::string>& names);
+
+/// A card's values, in its MXFM component's motion floats (the component's name is its kind,
+/// "rapid" or "charged", its path its role, "face" or "fan"; its quad in the card's plane, game
+/// units: a face is centred on the muzzle and turned to the eye, a fan starts at the muzzle and
+/// lies along the ray, turned about it to the eye).
+enum FlashValue : int {
+    kFlashMode,   ///< FlashMode
+    kFlashRed,    ///< the set's colour, 0 to 1 (as the game's: not linear)
+    kFlashGreen,
+    kFlashBlue,
+    kFlashCore,   ///< a two-tone mask's white core (the colour's top byte), 0 to 1
+    kFlashOffset, ///< how far ahead of the muzzle along the ray (game units)
+    kFlashGrow,   ///< the size at the end of the flash against its start (1 to 2)
+    kFlashValues,
+};
+/// How a card's texture is coloured (the set's Type, low byte): the texture's own colour times
+/// the set's colour; its red channel as light times the colour; a two-tone mask (RGB565 sprites
+/// with masks in their channels: green the shape in the colour, red a white core).
+enum FlashMode : int { kFlashTexture, kFlashLuminance, kFlashTwoTone };
+
+struct FlashPart {
+    std::string file;    ///< in the weapon folder
+    std::string texture; ///< the game's texture name
+    u64 hash = 0;        ///< its custom texture packs' new hash
+    u32 cards = 0;
+    std::string replaced; ///< the texture pack's PNG, as Part::replaced
+    bool replaced_flip = true;
+};
+
+struct FlashInfo {
+    /// Whether the weapon was made with its flashes (a weapon made by a build before them has
+    /// none and is made again when asked for).
+    bool known = false;
+    std::string rapid, charged; ///< the effect models used ("" for none)
+    /// The weapon whose effects they are: this one, or another of its class when this one has
+    /// none (then the colours are made neutral); -1 for none.
+    int source = -1;
+    u64 pack_key = 0; ///< PackKey of the flash textures' hashes
+    std::vector<FlashPart> parts;
+};
+
 struct Weapon {
     int id = -1;
     int cls = -1;
@@ -94,6 +156,7 @@ struct Weapon {
     std::vector<u64> texture_hashes;
     u64 pack_key = 0;
     std::vector<Part> parts;
+    FlashInfo flash; ///< AzaharFrame kiuflash
 };
 
 struct Manifest {
@@ -128,10 +191,18 @@ struct Converted {
 bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string& error,
                    const TexturePack* pack = nullptr);
 
+/// AzaharFrame kiuflash: weapon `id`'s flashes from the effects of `source_zrc` (its own, or
+/// another weapon's of its class, weapon `source`, with `neutral` colours) into `out`
+/// (out.info.flash and its files). ConvertWeapon calls it with the weapon's own file. False
+/// when that file has no flash (out unchanged but for flash.known).
+bool ConvertFlash(int id, std::span<const u8> source_zrc, int source, bool neutral,
+                  Converted& out, const TexturePack* pack = nullptr);
+
 /// A texture pack's PNG (Part::replaced) for a model's colour image: RGBA8, rows in the game's
-/// memory order, alpha 255. False when it cannot be read (the model's own texture stays).
+/// memory order, alpha 255 (AzaharFrame kiuflash: or the PNG's own, `keep_alpha`, for a flash
+/// card). False when it cannot be read (the model's own texture stays).
 bool LoadPackTexture(const std::string& path, bool flip_png, std::vector<u8>& rgba, u32& width,
-                     u32& height);
+                     u32& height, bool keep_alpha = false);
 
 /// The folder of a game's files: AZAHARFRAME_MODELS or <user dir>/frame-models/, then
 /// games/<title id>/kiu-weapons/ (with the trailing '/').

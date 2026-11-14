@@ -63,6 +63,10 @@ constexpr uint32_t kModelFlagSpaceMask = 0xFF;
 /// AzaharFrame kiuguns: weapon space only: the surface image is one texel (a flat normal and one
 /// roughness for the whole model), not texWidth x texHeight.
 constexpr uint32_t kModelFlagFlatSurface = 1u << 16;
+/// AzaharFrame kiuflash: weapon space only: a muzzle flash's cards (core/frame_weapon_models.h
+/// FlashValue: each component a card, its values in the motion floats); the colour image's alpha
+/// is the texture's own, not ambient occlusion.
+constexpr uint32_t kModelFlagFlash = 1u << 17;
 constexpr uint32_t ModelWrapU(uint32_t flags) {
     return (flags >> 8) & 7u;
 }

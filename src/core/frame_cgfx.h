@@ -195,4 +195,42 @@ bool ReadCgfx(std::span<const u8> data, File& out, std::string& error);
 std::array<float, 3> BindPosition(const Model& model, const SubMesh& sub, const Vertex& v,
                                   std::array<float, 3>* normal = nullptr);
 
+// ---- Particle models (AzaharFrame kiuflash) ----
+//
+// A weapon's effect file (`character/effect.bcres`) holds its shot and flash effects as particle
+// models (CMDL with type bit 0x100): no meshes or materials of their own, a list of particle sets
+// (emitters' sprites), and the user data the game draws them with, one value per set: "Tex" the
+// texture's name, "Col" a colour (0x??RRGGBB; the top byte a mask's white core), "Sam" the
+// sampler (wrap across in bits 12-15, down in bits 8-11, PICA's modes), "Type" (low byte the
+// colour mode, byte 2 the UV mirror: 1 both ways, 2 across). Read as far as the flashes need: no
+// emitter or updater is simulated.
+
+struct ParticleSet {
+    std::string name;    ///< the set's node name
+    std::string texture; ///< "Tex"
+    u32 colour = 0;      ///< "Col"
+    u32 sampler = 0;     ///< "Sam"
+    u32 type = 0;        ///< "Type"
+    /// The sprite's size in game units (across, down): the scale its updater sets (an updater
+    /// of type 0x00200000 on attribute 1), else its scale attribute (1) when constant; 0 when
+    /// neither is found.
+    std::array<float, 2> size{};
+    /// Its texture coordinates' scale (attribute 6, constant): 0.5 across for a sheet of two
+    /// cells side by side, ...; {0, 0} when not found.
+    std::array<float, 2> uv_scale{};
+};
+
+struct ParticleModel {
+    std::string name;
+    std::vector<ParticleSet> sets;
+};
+
+/// The particle models of a CGFX file (other models skipped). False with the reason.
+bool ReadParticleModels(std::span<const u8> data, std::vector<ParticleModel>& out,
+                        std::string& error);
+/// The textures named (others skipped, so a large file is not decoded whole). False with the
+/// reason; a name the file does not hold is no error (it is just not in `out`).
+bool ReadTextures(std::span<const u8> data, const std::vector<std::string>& names,
+                  std::vector<Texture>& out, std::string& error);
+
 } // namespace FrameCgfx
