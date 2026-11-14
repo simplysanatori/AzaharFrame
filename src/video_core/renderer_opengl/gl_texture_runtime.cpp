@@ -371,6 +371,9 @@ Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceBase& surface
                  const VideoCore::Material* mat)
     : SurfaceBase{surface}, driver{&runtime_.GetDriver()}, runtime{&runtime_},
       tuple{runtime_.GetFormatTuple(mat->format)} {
+    // AzaharFrame texfilt: a replacement is sampled at its own size, from the texture
+    // UploadCustom writes, with no filter (see the Vulkan surface)
+    res_scale = 1;
     if (mat && !driver->IsCustomFormatSupported(mat->format)) {
         return;
     }
@@ -386,10 +389,6 @@ Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceBase& surface
     const u32 image_levels = mat->ImageLevels(levels);
     textures[0] =
         MakeHandle(target, mat->width, mat->height, image_levels, tuple, DebugName(false));
-    if (res_scale != 1) {
-        textures[1] = MakeHandle(target, mat->width, mat->height, image_levels, DEFAULT_TUPLE,
-                                 DebugName(true, true));
-    }
     const bool has_normal = mat->Map(MapType::Normal);
     if (has_normal) {
         textures[2] = MakeHandle(target, mat->width, mat->height, image_levels, tuple,
@@ -464,7 +463,6 @@ void Surface::UploadCustom(const VideoCore::Material* material, u32 level) {
     const u32 width = material->width;
     const u32 height = material->height;
     const auto color = material->textures[0];
-    const Common::Rectangle filter_rect{0U, height, width, 0U};
 
     glActiveTexture(TEMP_UNIT);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, width);
@@ -492,14 +490,6 @@ void Surface::UploadCustom(const VideoCore::Material* material, u32 level) {
     };
 
     upload(0, color);
-
-    const VideoCore::TextureBlit blit = {
-        .src_rect = filter_rect,
-        .dst_rect = filter_rect,
-    };
-    if (res_scale != 1 && !runtime->blit_helper.Filter(*this, blit)) {
-        BlitScale(blit, true);
-    }
     for (u32 i = 1; i < VideoCore::MAX_MAPS; i++) {
         const auto texture = material->textures[i];
         if (!texture) {
@@ -618,7 +608,8 @@ void Surface::Attach(GLenum target, u32 level, u32 layer, bool scaled) {
 void Surface::ScaleUp(u32 new_scale) {
     const DebugScope scope(*runtime, Common::Vec4f{}, "Surface::ScaleUp (NewScale:{})", new_scale);
 
-    if (res_scale == new_scale || new_scale == 1) {
+    // AzaharFrame texfilt: a replacement keeps its own texture (see the Vulkan surface)
+    if (res_scale == new_scale || new_scale == 1 || IsCustom()) {
         return;
     }
 

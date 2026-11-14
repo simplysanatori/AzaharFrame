@@ -820,6 +820,11 @@ Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceBase& surface
     : SurfaceBase{surface}, runtime{runtime_}, instance{runtime_.GetInstance()},
       scheduler{runtime_.GetScheduler()}, traits{instance.GetTraits(mat->format)},
       handles{Handle(instance), Handle(instance), Handle(instance), Handle(instance)} {
+    // AzaharFrame texfilt: a replacement is sampled at its own size, from the image UploadCustom
+    // writes. It never takes the scale a texture filter gave the guest texture: the scaled
+    // image made for that was the one sampled, and nothing ever wrote it (black or garbage)
+    res_scale = 1;
+
     if (!traits.transfer_support) {
         return;
     }
@@ -844,19 +849,13 @@ Surface::Surface(TextureRuntime& runtime_, const VideoCore::SurfaceBase& surface
                                traits.usage, flags, traits.aspect, false, debug_name);
     raw_images[num_images++] = handles[Type::Base].image;
 
-    if (res_scale != 1) {
-        handles[Type::Scaled].Create(mat->width, mat->height, image_levels, texture_type,
-                                     vk::Format::eR8G8B8A8Unorm, traits.usage, flags, traits.aspect,
-                                     false, debug_name);
-        raw_images[num_images++] = handles[Type::Scaled].image;
-    }
     if (has_normal) {
         handles[Type::Custom].Create(mat->width, mat->height, image_levels, texture_type, format,
                                      traits.usage, flags, traits.aspect, false, debug_name);
         raw_images[num_images++] = handles[Type::Custom].image;
     }
 
-    current = res_scale != 1 ? Type::Scaled : Type::Base;
+    current = Type::Base;
 
     runtime.renderpass_cache.EndRendering();
     scheduler.Record([raw_images, num_images, aspect = traits.aspect](vk::CommandBuffer cmdbuf) {
@@ -1143,7 +1142,10 @@ void Surface::Download(const VideoCore::BufferTextureCopy& download,
 }
 
 void Surface::ScaleUp(u32 new_scale) {
-    if (res_scale == new_scale || new_scale == 1) {
+    // AzaharFrame texfilt: a replacement keeps its own image (see the constructor above). A
+    // scaled copy of it would be made at the guest size in its format (maybe compressed, which
+    // cannot be blitted into) and sampled instead
+    if (res_scale == new_scale || new_scale == 1 || IsCustom()) {
         return;
     }
 
