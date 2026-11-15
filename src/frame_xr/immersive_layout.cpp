@@ -255,7 +255,9 @@ AxisSplit ScaleSplit(float factor, float k, float fov) {
     // A share below 1 (the menu rule easing in) takes that share of the scale, on a log scale,
     // so it is continuous from Stretch to Field of View.
     const float want = factor * (fov >= 1.0f ? k : std::pow(k, fov));
-    const float drawn = std::clamp(want, kFactorMin, std::max(kFovFactorMax, factor));
+    // AzaharFrame fovaxis: below the game's own frame it crops (kCropFactorMin, which no setting
+    // reaches); fovscale and fov100 stopped at kFactorMin there and stretched the rest.
+    const float drawn = std::clamp(want, kCropFactorMin, std::max(kFovFactorMax, factor));
     return {drawn, factor * k / drawn};
 }
 

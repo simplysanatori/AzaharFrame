@@ -22,9 +22,10 @@ inline constexpr const char* kRenderMarginTip =
     "Renders extra picture around the 3DS screen's edges so more of the game shows. Off shows "
     "exactly the game's own picture.";
 /// Settings::values.vr_immersive_scale_x and _y (were Narrow Screen and Narrow Height).
+/// AzaharFrame fovaxis: in Field of View a narrower screen crops; Stretch squeezes.
 inline constexpr const char* kHorizontalScale = "Horizontal Scale";
 inline constexpr const char* kHorizontalScaleTip =
-    "Makes the immersive screen wider or narrower. Narrower brings the side HUD into view.";
+    "Makes the screen wider or narrower. With Stretch, narrower brings the side HUD in.";
 inline constexpr const char* kVerticalScale = "Vertical Scale";
 inline constexpr const char* kVerticalScaleTip = "Makes the immersive screen taller or shorter.";
 /// AzaharFrame fovscale: Settings::values.vr_immersive_scale_mode (0 Stretch, 1 Field of View):
@@ -33,10 +34,10 @@ inline constexpr const char* kScaleMode = "Scale Mode";
 inline constexpr const char* kScaleModeTip = "How Horizontal and Vertical Scale change the picture.";
 inline constexpr const char* kScaleStretch = "Stretch";
 inline constexpr const char* kScaleStretchTip =
-    "Stretches the picture to the screen. The world looks wider or thinner.";
+    "Stretches the whole picture, HUD included. The world looks wider or thinner.";
 inline constexpr const char* kScaleFieldOfView = "Field of View";
 inline constexpr const char* kScaleFieldOfViewTip =
-    "Shows more or less of the game. The world keeps its shape.";
+    "Shows more or less of the game, cropping when smaller. The world keeps its shape.";
 
 // AzaharFrame natural: 3D Depth in the Full modes, World Scale and Follow Screen Size. Material 3
 // Title Case for names and choices, sentence case for tooltips.

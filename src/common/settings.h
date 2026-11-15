@@ -857,7 +857,9 @@ struct Values {
     // 0 = Stretch (the picture stretched on the larger or smaller screen, as every build before),
     // 1 = Field of View (the game draws that much more or less on that axis; the default). The
     // scales keep their meaning (the screen's size), so an older build reading the same file
-    // shows the same screen, stretched (frame_xr/immersive_layout.h ScaleSplit).
+    // shows the same screen, stretched (frame_xr/immersive_layout.h ScaleSplit). AzaharFrame
+    // fovaxis: Field of View crops below the game's own frame (fov100 and before: a squash
+    // there) and draws at most 1.6x.
     SwitchableSetting<u32, true> vr_immersive_scale_mode{1, 0, 1, "vr_immersive_scale_mode"};
     // AzaharFrame: how the Frame's A, B, X and Y map to the 3DS (global only): 0 = by position
     // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame

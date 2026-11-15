@@ -207,35 +207,38 @@ TEST_CASE("FrameXr fovscale: the split of one axis", "[frame_xr][fovscale]") {
             // Field of View: drawn x stretch is always the factor x the scale.
             const AxisSplit fv = ScaleSplit(b, k, 1.0f);
             REQUIRE(fv.drawn * fv.stretch == Approx(b * k).epsilon(1e-6));
-            REQUIRE(fv.drawn >= kFactorMin);
+            REQUIRE(fv.drawn >= kCropFactorMin);
             REQUIRE(fv.drawn <= kFovFactorMax);
-            if (b * k >= kFactorMin) {
-                // Inside the limits: all of it drawn, nothing stretched.
+            if (b * k <= kFovFactorMax) {
+                // Inside the limits: all of it drawn, nothing stretched (AzaharFrame fovaxis:
+                // below the game's own frame too, a crop).
                 REQUIRE(fv.stretch == Approx(1.0f).margin(1e-6));
                 REQUIRE(fv.drawn == Approx(b * k).epsilon(1e-6));
             } else {
-                // Below the game's own frame: the frame drawn, the rest a stretch (narrower).
-                REQUIRE(fv.drawn == kFactorMin);
-                REQUIRE(fv.stretch < 1.0f);
+                // Past 1.6x: 1.6x drawn, the rest a stretch (larger).
+                REQUIRE(fv.drawn == kFovFactorMax);
+                REQUIRE(fv.stretch > 1.0f);
             }
         }
     }
-    // Render Margin Off: a negative scale is all stretch (as Stretch), a positive one all drawn.
-    REQUIRE(ScaleSplit(1.0f, 0.7f, 1.0f).drawn == kFactorMin);
-    REQUIRE(ScaleSplit(1.0f, 0.7f, 1.0f).stretch == Approx(0.7f));
+    // Render Margin Off: a negative scale crops (AzaharFrame fovaxis; a stretch before), a
+    // positive one is all drawn up to 1.6x.
+    REQUIRE(ScaleSplit(1.0f, 0.7f, 1.0f).drawn == Approx(0.7f));
+    REQUIRE(ScaleSplit(1.0f, 0.7f, 1.0f).stretch == Approx(1.0f));
     REQUIRE(ScaleSplit(1.0f, 1.3f, 1.0f).drawn == Approx(1.3f));
     REQUIRE(ScaleSplit(1.0f, 1.3f, 1.0f).stretch == Approx(1.0f));
-    // 1.4x at -30 %: the design's "draws 1.00x, stretch 0.98".
-    REQUIRE(ScaleSplit(1.4f, 0.7f, 1.0f).drawn == kFactorMin);
-    REQUIRE(ScaleSplit(1.4f, 0.7f, 1.0f).stretch == Approx(0.98f));
-    // The upper limit: 1.4x x 2 (+100 %) is exactly kFovFactorMax (AzaharFrame fov100; 1.4x x 1.3
-    // before); past it (a hand-made scale) the rest is a stretch.
-    REQUIRE(kFovFactorMax == Approx(2.8f));
-    REQUIRE(ScaleSplit(1.4f, 1.3f, 1.0f).stretch == Approx(1.0f));
-    REQUIRE(ScaleSplit(1.4f, 1.5f, 1.0f).drawn == Approx(2.1f));
-    REQUIRE(ScaleSplit(1.4f, 1.5f, 1.0f).stretch == Approx(1.0f));
+    // 1.4x at -30 %: draws 0.98x (fovscale's "draws 1.00x, stretch 0.98" before).
+    REQUIRE(ScaleSplit(1.4f, 0.7f, 1.0f).drawn == Approx(0.98f));
+    REQUIRE(ScaleSplit(1.4f, 0.7f, 1.0f).stretch == Approx(1.0f));
+    // The upper limit: 1.6x (AzaharFrame fovaxis; fov100's 2.8x, fovscale's 1.82x); past it the
+    // rest is a stretch.
+    REQUIRE(kFovFactorMax == Approx(1.6f));
+    REQUIRE(ScaleSplit(1.4f, 1.1f, 1.0f).drawn == Approx(1.54f));
+    REQUIRE(ScaleSplit(1.4f, 1.1f, 1.0f).stretch == Approx(1.0f));
+    REQUIRE(ScaleSplit(1.4f, 1.3f, 1.0f).drawn == Approx(kFovFactorMax));
+    REQUIRE(ScaleSplit(1.4f, 1.3f, 1.0f).stretch == Approx(1.82f / kFovFactorMax));
     REQUIRE(ScaleSplit(1.4f, 2.0f, 1.0f).drawn == Approx(kFovFactorMax));
-    REQUIRE(ScaleSplit(1.4f, 2.0f, 1.0f).stretch == Approx(1.0f));
+    REQUIRE(ScaleSplit(1.4f, 2.0f, 1.0f).stretch == Approx(1.75f));
     REQUIRE(ScaleSplit(1.4f, 2.5f, 1.0f).drawn == Approx(kFovFactorMax));
     REQUIRE(ScaleSplit(1.4f, 2.5f, 1.0f).stretch == Approx(1.4f * 2.5f / kFovFactorMax));
     // Not a number or nonsense: the factor as drawn, no stretch.
@@ -382,7 +385,8 @@ TEST_CASE("FrameXr fovscale: stereo does not change with Horizontal Scale in Fie
         o0.wider = kFactorMax; // Render Margin 1.4x
         o0.scale_fov = fov_share;
         const HeadLocked z = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o0);
-        for (int scale = -25; scale <= 30; scale += 5) { // inside the limits at 1.4x
+        // Inside the limits at 1.4x (AzaharFrame fovaxis: up to +10 %, 1.54x; down to the crop)
+        for (int scale = -30; scale <= 10; scale += 5) {
             Options o = o0;
             o.squeeze = SqueezeForScale(scale);
             const HeadLocked s = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o);
@@ -430,10 +434,10 @@ TEST_CASE("FrameXr fovscale: the vertex shader's factors with unequal axes",
         }
         return V{p.x / fx, p.y / fy, p.w};
     };
-    // Field of View at Horizontal -30 %, Vertical -15 %, Render Margin 1.4x: 1.00x across, 1.19x
-    // up and down.
+    // Field of View at Horizontal -30 %, Vertical -15 %, Render Margin 1.4x: 0.98x across (a
+    // crop, AzaharFrame fovaxis; 1.00x before), 1.19x up and down.
     const AxisSplit across = ScaleSplit(1.4f, 0.7f, 1.0f), up = ScaleSplit(1.4f, 0.85f, 1.0f);
-    REQUIRE(across.drawn == 1.0f);
+    REQUIRE(across.drawn == Approx(0.98f));
     REQUIRE(up.drawn == Approx(1.19f));
     // A world vertex (w != 1): each axis by its own factor.
     const V world = vr({0.5f, 0.5f, 2.0f}, across.drawn, up.drawn);
@@ -476,6 +480,16 @@ AxisSplit OldSplit(float factor, float k, float fov) {
     const float drawn = std::clamp(want, kFactorMin, std::max(old_max, factor));
     return {drawn, factor * k / drawn};
 }
+// AzaharFrame fovaxis: where the split is still the old one: Stretch always; a Field of View
+// share where the old split drew between the game's own frame and 1.6x (below it crops now,
+// above it the rest is a stretch).
+bool FovaxisSame(float factor, float k, float fov) {
+    if (!(fov > 0.0f)) {
+        return true;
+    }
+    const float want = factor * (fov >= 1.0f ? k : std::pow(k, fov));
+    return want >= kFactorMin && want <= kFovFactorMax;
+}
 bool Finite(const HeadLocked& s) {
     for (const float f : {s.factor, s.factor_y, s.tan_half_y, s.aspect, s.pitch_rad, s.distance,
                           s.gain, s.gain_x, s.stretch_x, s.stretch_y, s.yaw_rad}) {
@@ -500,14 +514,20 @@ TEST_CASE("FrameXr fov100: the old range keeps its meaning", "[frame_xr][fov100]
         REQUIRE(ScaleFactor(v) == Approx(1.0f + OldScalePercent(v) / 100.0f).epsilon(1e-7));
     }
     // The split of each old value in both modes, at every Render Margin and menu-rule share.
+    // AzaharFrame fovaxis: the same wherever the old split drew between the game's own frame and
+    // 1.6x (FovaxisSame); below the frame it crops now, above 1.6x it stretches the rest.
     for (uint32_t level = 0; level <= kMaxWiderLevel; ++level) {
         const float b = WiderFactor(level);
         for (int p = -30; p <= 30; p += 5) {
             const float k = 1.0f - SqueezeForScale(p);
             for (const float share : {0.0f, 0.3f, 0.7f, 1.0f}) {
                 const AxisSplit now = ScaleSplit(b, k, share), old = OldSplit(b, k, share);
-                REQUIRE(now.drawn == old.drawn);
-                REQUIRE(now.stretch == old.stretch);
+                if (FovaxisSame(b, k, share)) {
+                    REQUIRE(now.drawn == old.drawn);
+                    REQUIRE(now.stretch == old.stretch);
+                } else {
+                    REQUIRE(now.drawn * now.stretch == Approx(old.drawn * old.stretch));
+                }
             }
         }
     }
@@ -536,6 +556,10 @@ TEST_CASE("FrameXr fov100: the old range keeps its meaning", "[frame_xr][fov100]
             INFO("case " << i << " scales " << sx << ", " << sy << " share " << share);
             const AxisSplit ax = OldSplit(z.factor, 1.0f - OldSqueeze(sx), share);
             const AxisSplit up = OldSplit(z.factor_y, 1.0f - OldSqueeze(sy), share);
+            if (!FovaxisSame(z.factor, 1.0f - OldSqueeze(sx), share) ||
+                !FovaxisSame(z.factor_y, 1.0f - OldSqueeze(sy), share)) {
+                continue; // AzaharFrame fovaxis: a crop or past 1.6x (the tests below)
+            }
             // The same split; up and down only to float rounding: factor_y is the factor again
             // through the screen's shape (a last-bit difference), and at 1.4x and +30 % the old
             // limit (1.4 x 1.3, rounded) could take that last bit off. 1e-6 is far below a pixel.
@@ -634,9 +658,11 @@ TEST_CASE("FrameXr fov100: -100 % and +100 % in both modes", "[frame_xr][fov100]
             REQUIRE(s.width() >= z.width() * kMinScaleFactor * 0.9999f);
             REQUIRE(s.width() <= z.width() * kMaxScaleFactor * 1.0001f);
             // The split: drawn x stretch is the factor x the size; a factor of at least the game's
-            // own frame, at most kFovFactorMax; a stretch above 0.
-            REQUIRE(s.factor >= kFactorMin);
-            REQUIRE(s.factor_y >= kFactorMin * (1.0f - 1e-6f)); // through the shape: rounding
+            // own frame in Stretch (AzaharFrame fovaxis: Field of View crops, down to
+            // kCropFactorMin), at most kFovFactorMax; a stretch above 0.
+            const float floor = share == 0.0f ? kFactorMin : kCropFactorMin;
+            REQUIRE(s.factor >= floor);
+            REQUIRE(s.factor_y >= floor * (1.0f - 1e-6f)); // through the shape: rounding
             REQUIRE(s.factor <= std::max(kFovFactorMax, z.factor) * 1.0001f);
             REQUIRE(s.stretch_x > 0.0f);
             REQUIRE(s.stretch_y > 0.0f);
@@ -656,21 +682,24 @@ TEST_CASE("FrameXr fov100: -100 % and +100 % in both modes", "[frame_xr][fov100]
             REQUIRE(across_deg < 180.0f);
             REQUIRE(up_deg < 180.0f);
             widest_deg = std::max({widest_deg, across_deg, up_deg});
-            // Field of View: +100 % draws all of it (no stretch, so both gains stay the base gain,
-            // one picture scale); -100 % draws the game's own frame and stretches the rest.
+            // Field of View (AzaharFrame fovaxis): +100 % draws up to 1.6x and stretches the rest;
+            // -100 % crops: a quarter of the frame drawn, no stretch, the HUD's place kept (the
+            // game's own frame as wide on the screen as at 0 %, so mostly past the edges).
             if (share == 1.0f && !in_menu) {
                 if (sx == 100) {
-                    REQUIRE(s.stretch_x == Approx(1.0f).margin(1e-5));
-                    REQUIRE(s.factor == Approx(z.factor * 2.0f));
+                    REQUIRE(s.factor == Approx(std::min(z.factor * 2.0f, kFovFactorMax)));
+                    REQUIRE(s.stretch_x ==
+                            Approx(z.factor * 2.0f / std::min(z.factor * 2.0f, kFovFactorMax)));
                 }
                 if (sx == -100) {
-                    REQUIRE(s.factor == kFactorMin);
-                    REQUIRE(s.stretch_x == Approx(z.factor * kMinScaleFactor).epsilon(1e-5));
+                    REQUIRE(s.factor == Approx(z.factor * kMinScaleFactor).epsilon(1e-5));
+                    REQUIRE(s.stretch_x == Approx(1.0f).epsilon(1e-5));
+                    REQUIRE(s.width() / s.factor == Approx(z.width() / z.factor).epsilon(1e-4));
                 }
             }
-            // The HUD inside the game's own frame: at -100 % its width on the screen (the quad's
-            // over the drawn factor) is at most a quarter of the default screen's, in both modes.
-            if (sx == -100 && !in_menu) {
+            // Stretch: the HUD inside the game's own frame at -100 % is on at most a quarter of
+            // the default screen's width (the "HUD in view" end).
+            if (sx == -100 && !in_menu && share == 0.0f) {
                 REQUIRE(s.width() / s.factor <= z.width() * kMinScaleFactor * 1.0001f);
             }
             // The head-driven camera and the quad's pose: finite, unit rotations.
@@ -789,4 +818,52 @@ TEST_CASE("FrameXr fov100: the setting's range and a round trip through an older
         // Whatever the older build shows is what this one shows for the same value.
         REQUIRE(ScaleFactor(older.GetValue()) == 1.0f - OldSqueeze(older.GetValue()));
     }
+}
+
+// ---- AzaharFrame fovaxis: crop by default ----
+
+// Field of View is "screen size only": below the game's own frame it crops (the world keeps its
+// shape, the gains stay the base gain), up to 1.6x it draws the world to match; Stretch is
+// fovscale's squeeze, bit for bit.
+TEST_CASE("FrameXr fovaxis: Field of View crops and keeps the true shape", "[frame_xr][fovaxis]") {
+    const ViewFov view = Symmetric(50);
+    int crops = 0;
+    for (uint32_t level = 0; level <= kMaxWiderLevel; ++level) {
+        for (int sx = -100; sx <= 100; sx += 5) {
+            for (const int sy : {-100, -45, -15, 0, 10, 60, 100}) {
+                Options o;
+                o.wider = WiderFactor(level);
+                o.squeeze = SqueezeForScale(sx);
+                o.squeeze_y = SqueezeForScale(sy);
+                o.scale_fov = 1.0f;
+                Options o0 = o;
+                o0.squeeze = o0.squeeze_y = 0.0f;
+                const HeadLocked z = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o0);
+                const HeadLocked s = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o);
+                INFO("level " << level << " scales " << sx << ", " << sy);
+                REQUIRE(Finite(s));
+                // The screen is the scale's size, whatever is drawn on it.
+                REQUIRE(s.width() == Approx(z.width() * ScaleFactor(sx)).epsilon(1e-4));
+                REQUIRE(s.height() == Approx(z.height() * ScaleFactor(sy)).epsilon(1e-4));
+                const float bx = WiderFactor(level) * ScaleFactor(sx);
+                const float by = WiderFactor(level) * ScaleFactor(sy);
+                if (bx <= kFovFactorMax && by <= kFovFactorMax) {
+                    // True shape: one scale both ways, the base gains, nothing stretched.
+                    REQUIRE(s.stretch_x == Approx(1.0f).margin(1e-5));
+                    REQUIRE(s.stretch_y == Approx(1.0f).margin(1e-5));
+                    REQUIRE(PictureShape(s, kAspect3ds) == Approx(1.0f).epsilon(1e-4));
+                    REQUIRE(s.gain_x == Approx(z.gain_x).epsilon(1e-4));
+                    REQUIRE(s.gain == Approx(z.gain).epsilon(1e-4));
+                    // The game's own frame (and the HUD in it) keeps its place on the screen:
+                    // narrower crops it, never squeezes it.
+                    REQUIRE(s.width() / s.factor == Approx(z.width() / z.factor).epsilon(1e-4));
+                    REQUIRE(s.height() / s.factor_y ==
+                            Approx(z.height() / z.factor_y).epsilon(1e-4));
+                    crops += s.factor < kFactorMin;
+                }
+            }
+        }
+    }
+    std::printf("fovaxis: %d true-shape screens drawn as a crop\n", crops);
+    REQUIRE(crops > 200);
 }

@@ -36,8 +36,8 @@
 //     same quad and has the game draw that much more (or less) on that axis instead, through the
 //     periphery factors (ScaleSplit): the picture keeps one scale both ways, both gains stay the
 //     base gain, a head roll is a plain rotation, and the HUD keeps its place. Only what the
-//     factor cannot take (below the game's own frame, above kFovFactorMax, mode 2's menu rule)
-//     stays a stretch.
+//     factor cannot take (above kFovFactorMax, mode 2's menu rule) stays a stretch.
+//     AzaharFrame fovaxis: below the game's own frame Field of View crops (kCropFactorMin).
 //
 // AzaharFrame immersive2: the default size is the world at its own scale (gain 1): the screen is
 // as many degrees across as the game draws (its camera times the Render Margin factor), so nothing is
@@ -288,12 +288,18 @@ int ScaleFromNarrow(uint32_t old_setting);
 /// that axis follows); Field of View has the game draw that much more (or less) on that axis, so
 /// the picture keeps one scale both ways and a head roll is a plain rotation (IMMERSIVE.md).
 enum class ScaleMode : uint32_t { Stretch = 0, FieldOfView = 1 };
-/// The highest factor Field of View draws: Render Margin's 1.4x times the largest scale (+100 %:
-/// 2.8x; 1.82x when the scales ended at +30 %, and no setting of the old range comes near it, so
-/// their pictures are the same). The shader has no limit of its own (it divides clip x and y by
-/// it: the tangents of the view widen by it, so the view stays under 180 degrees at any factor);
-/// what limits it is the game's scenery past its own camera.
-inline constexpr float kFovFactorMax = kFactorMax * kMaxScaleFactor;
+/// The highest factor Field of View draws on one axis, Render Margin included. AzaharFrame
+/// fovaxis: 1.6 (the owner's cap after session 590: fov100's 2.8x spread the same pixels over a
+/// 141-degree view for a 90-degree camera, edges stretched about 9 times). Past it the screen
+/// still grows with the scale and the rest is a stretch. The
+/// shader has no limit of its own (it divides clip x and y by it: the tangents of the view
+/// widen by it, so the view stays under 180 degrees at any factor).
+inline constexpr float kFovFactorMax = 1.6f;
+/// AzaharFrame fovaxis: below the game's own frame Field of View crops: it draws less than the
+/// frame (a factor under 1, the world magnified to the smaller screen, its shape kept; the HUD
+/// inside the frame goes past the edges with the world). This is the lowest it draws: under
+/// the smallest scale at Render Margin Off (kMinScaleFactor), so the settings never reach it.
+inline constexpr float kCropFactorMin = 0.25f;
 /// One axis of a scale split between what the game draws and a stretch of the picture.
 struct AxisSplit {
     float drawn = kFactorMin; ///< the periphery factor the game draws with on this axis
@@ -302,9 +308,10 @@ struct AxisSplit {
 /// AzaharFrame fovscale: the scale `k` (1 + scale / 100; the quad's size on this axis over the
 /// picture's) of an axis whose Render Margin factor is `factor`, taken as field of view by the
 /// share `fov` (0 Stretch, 1 Field of View; mode 2's menu rule eases it to 0). Field of View
-/// draws factor x k, within kFactorMin (below it the HUD inside the game's own frame would be
-/// pushed off the picture) and kFovFactorMax; what it cannot take stays a stretch, so
-/// drawn x stretch = factor x k always, with no jump at a limit. Stretch: {factor, k} exactly.
+/// draws factor x k, within kCropFactorMin (AzaharFrame fovaxis: below the game's own frame it
+/// crops; fovscale and fov100 stopped at kFactorMin and stretched the rest) and kFovFactorMax;
+/// what it cannot take stays a stretch, so drawn x stretch = factor x k always, with no jump at
+/// a limit. Stretch: {factor, k} exactly.
 AxisSplit ScaleSplit(float factor, float k, float fov);
 /// The mode's name: "Stretch", "Field of View".
 const char* ScaleModeName(ScaleMode mode);
