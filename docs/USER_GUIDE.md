@@ -32,7 +32,7 @@ Compared with CitraVR on the Quest, played on the Frame through Lepton:
 
 Compared with Azahar on a PC:
 
-- There is a stereoscopic 3D Primary Screen and a bottom touch screen, floating in front of you.
+- There is a stereoscopic 3D Primary Screen and a touch Secondary Screen, floating in front of you.
 - You aim at the screens with a controller.
 - The 3D depth starts at 50 %, where Azahar's own default is 0.
 

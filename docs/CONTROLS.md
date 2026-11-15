@@ -75,7 +75,7 @@ The Secondary Screen follows the Primary Screen, tilted back, just under its bot
 | **Both** | Moves on its own | Moves on its own |
 
 - A screen that moves on its own goes wherever you carry it with the grip, all around you, and turns to face you, like the stats panel. While you hold it, the stick of that hand moves it nearer or farther and makes it bigger or smaller (half to 3 times its size), and D-pad left or right nudges it around you.
-- After a swap the Secondary Screen is the Primary Screen.
+- The names follow the places: after a swap, the Secondary Screen is the 3DS's top screen.
 - D-pad up or down changes the Screen Curve only while you hold the Primary Screen. The hint shows under the screen you hold.
 - Touch works on the Secondary Screen wherever you put it.
 - Hold the right stick click for 1 second to put both back together in front of you, at their normal size. **Detach Screens** stays as it is. **Off**, or a new Screen Layout, puts the Secondary Screen back in its place next to the Primary Screen.
@@ -93,7 +93,7 @@ The screens have two places. The main place is where the Primary Screen starts. 
 
 - A grip moves both places together, in either focus, unless **Detach Screens** is on (see Detaching the screens).
 - Touch works on the Secondary Screen in either place. The trigger aimed at the Primary Screen is ZL or ZR in either place.
-- The screen in focus always shows. A hidden Secondary Screen shows while it is in focus, and hides again when the Primary Screen takes the focus back. A hidden Primary Screen shows again whenever it is the Primary Screen.
+- The screen in focus always shows. A hidden Secondary Screen shows while it is in focus, and hides again when the Primary Screen takes the focus back. A hidden 3DS top screen shows again whenever it is the Primary Screen.
 - In games with **Hide Secondary Screen** on, and in immersive mode, the Secondary Screen starts hidden. There the left stick click and both bumpers + **View** are one switch: either one shows it, and either one hides it again. With the Secondary Screen in focus, both bumpers + **View** hides it and puts the Primary Screen back in focus.
 - In every other game the left stick click hides and shows the Secondary Screen, and both bumpers + **View** is L, R and Select for the game.
 - Immersive mode pauses while the Secondary Screen is in focus, and picks up again when you swap back.
