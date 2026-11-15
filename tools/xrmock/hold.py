@@ -35,7 +35,8 @@ swim: 100 % of the step).
           levels per axis and the Scale Mode, for the split and the caps against warping
           (Layout::SplitScales: the scales' part of a gain within 0.6 to 1.6, Stretch's two
           axes within 1.5 of each other); stretch with 4/4 is every build before. Render
-          Margin applies with Stretch only (fov: the scales alone).
+          Margin applies with Stretch only (fov: the scales alone). A "Fill View:" line after
+          the "on" line gives the size, the scales and the mode.
   hold.py --selftest      (synthetic traces: rigid fails at gain 0.6 and passes at gain 1;
                            warp passes at both; imglag: on a compositor that shows an image a
                            refresh late, an app anchored to the picture it sends fails and one
@@ -622,6 +623,18 @@ def gains_from_log(log, size=None, scale_x=None, scale_y=None, out=print):
     if last is None:
         return None
     t, g, gx, sz = last
+    # fovaxis: Fill View sets the size and both scales once ("xr: immersive: Fill View: size
+    # 1.034, Horizontal Scale 35%, Vertical Scale 60% (Field of View), ..."): the last one after
+    # the "on" line is what the screen has, over what was given.
+    fl = re.compile(r"^\[\s*([\d.]+)\].*immersive: Fill View: size ([\d.]+), Horizontal Scale "
+                    r"(-?\d+)%, Vertical Scale (-?\d+)% \((Stretch|Field of View)\)")
+    for line in open(log, errors="replace"):
+        m = fl.search(line)
+        if m and float(m.group(1)) >= t:
+            size, scale_x, scale_y = float(m.group(2)), int(m.group(3)), int(m.group(4))
+            gains_from_log.mode = "stretch" if m.group(5) == "Stretch" else "fov"
+            out("Fill View at %.2f s: size %.3f, scales %d %%, %d %% (%s)"
+                % (float(m.group(1)), size, scale_x, scale_y, m.group(5)))
     # fovscale: the app logs its gains to 4 decimals whenever they move (Detect Game FOV, a scale,
     # Scale Mode): the last such line is the gains in use, with no rounding and no fit (the review
     # of r38: a stale gain from the "mode N on" line failed the check).
@@ -812,6 +825,23 @@ def selftest():
         print("selftest caps %+d %% / %+d %% %s: draws %.3fx %.3fx, stretch %.3f %.3f, gains %.4f %.4f -> %s"
               % (sx, sy, mode, x[0], y[0], x[1], y[1], gx, gy, "PASS" if fine else "FAIL"))
         good &= fine
+    ok &= good
+    # fovaxis: a Fill View line after the "on" line gives the size and scales the gains follow.
+    import os
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
+        f.write("[  10.00] xr: immersive mode 3 on (test), gain 0.97, yaw gain 0.97, size 1.000\n")
+        f.write("[  12.50] xr: immersive: Fill View: size 1.034, Horizontal Scale 35%, Vertical "
+                "Scale 60% (Field of View), height 2.0% over\n")
+        name = f.name
+    saved = gains_from_log.mode
+    got = gains_from_log(name, 1.0, 0, 0, out=lambda *_: None)
+    gains_from_log.mode = saved
+    os.unlink(name)
+    want = 1.0 / 1.034
+    good = got is not None and abs(got[0] - want) < 1e-6 and abs(got[1] - want) < 1e-6
+    print("selftest Fill View line: gains %s -> %s (want PASS)"
+          % ("none" if got is None else "%.5f %.5f" % got[:2], "PASS" if good else "FAIL"))
     ok &= good
     print("RESULT: %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1

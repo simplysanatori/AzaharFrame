@@ -1169,13 +1169,20 @@ int main(int argc, char** argv) {
         ax.scale_x = 70; // Field of View: the scales alone, 1.7x wanted, 1.6x drawn
         ax.scale_x_warp = true;
         ok &= shot("fa-fov-wider-may-warp", ax, v);
-        // Field of View: the margin rows say they apply with Stretch.
+        // Field of View: the margin rows say they apply with Stretch; Fill View under Scale Mode
+        // (scrolled to it, and with the beam on it).
         MenuModel fv = ax;
         fv.scale_x = 40;
         fv.scale_y = 40;
         fv.scale_x_warp = false;
         v = settings(SettingsSection::Immersive);
         ok &= shot("fa-margins-applies-with-stretch", fv, v);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        v.hover = {Id::FillView};
+        ok &= shot("fa-fill-view", fv, v);
+        v.hover = {Id::FillView, kLabelIndex};
+        v.tooltip = Id::FillView;
+        ok &= shot("fa-fill-view-tooltip", fv, v);
         v = settings(SettingsSection::Immersive);
         v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
         ax.scale_mode = 0; // Stretch at the ends: past the ratio and the gains on both axes

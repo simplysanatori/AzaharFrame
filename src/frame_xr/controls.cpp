@@ -1115,6 +1115,14 @@ void VrUi::TabMenuFrame(Runtime& rt, const FrameInfo& info, const Input::InputFr
         Vis::RecentreStats(); // AzaharFrame statspos
         ShowToastText("Position Reset");
     };
+    host.fill_view = [this] { // AzaharFrame fovaxis: once; the values are ordinary after
+        if (Immersive::FillView()) {
+            std::scoped_lock lock{hooks_mutex};
+            if (hooks.game_setting_changed) { // the scales, set for this game
+                hooks.game_setting_changed();
+            }
+        }
+    };
     // AzaharFrame kiufix: Calibrate Aim, from the Controls tab's Aiming rows
     host.aim_calibrated = aim_cal.set && aim_cal_title == GameTitleId();
     host.aim_calibration_ok =

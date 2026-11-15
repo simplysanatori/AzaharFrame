@@ -240,6 +240,8 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         scale(Id::ScaleY, m.scale_y, m.scale_y_warp);
         // AzaharFrame fovscale: Stretch | Field of View, under the scales it acts on
         rows.push_back(full(row(Id::ScaleMode, RowKind::Segmented, m.scale_mode)));
+        // AzaharFrame fovaxis: Fill View, once (a button; the values stay ordinary)
+        rows.push_back(full(row(Id::FillView, RowKind::Button)));
         // AzaharFrame natural: World Scale, a slider over its stops (10% to 400%, the default
         // 100%), and Follow Screen Size.
         Row world = full(row(Id::WorldScale, RowKind::Slider));
@@ -275,6 +277,7 @@ SettingsSection SectionOf(Id id) {
     case Id::ScaleX:
     case Id::ScaleY:
     case Id::ScaleMode: // AzaharFrame fovscale
+    case Id::FillView:  // AzaharFrame fovaxis
     case Id::WorldScale:
     case Id::FollowScreen: // AzaharFrame natural
     case Id::MotionClarity: // AzaharFrame flash
@@ -508,6 +511,8 @@ std::string LabelFor(Id id) {
         return "Azahar's Window";
     case Id::SwitchToFlat:
         return "Switch to Flat";
+    case Id::FillView: // AzaharFrame fovaxis
+        return ::FrameXr::Immersive::Names::kFillView;
     case Id::CloseGame:
         return "Close Game";
     case Id::ResetPosition:
@@ -895,6 +900,8 @@ std::string ExplainFor(Id id) {
         return ::FrameXr::Immersive::Names::kRenderMarginHorizontalTip;
     case Id::MarginY:
         return ::FrameXr::Immersive::Names::kRenderMarginVerticalTip;
+    case Id::FillView: // AzaharFrame fovaxis
+        return ::FrameXr::Immersive::Names::kFillViewTip;
     case Id::GameFov:
         return "The game camera's vertical field of view.";
     case Id::MatchCamera: // AzaharFrame fovonce
@@ -2300,7 +2307,8 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
         if (r.kind == RowKind::Button) {
             // AzaharFrame menuux: a full-width tonal button (Switch to Flat), no label.
             const Rect b{c.x0, cy - 28.0f, c.x1, cy + 28.0f};
-            kit.Button(b, ButtonStyle::Tonal, Sym::kTv, LabelFor(r.id),
+            kit.Button(b, ButtonStyle::Tonal, r.id == Id::FillView ? Sym::kFitScreen : Sym::kTv,
+                       LabelFor(r.id),
                        StateOf(view, whole, enabled), Type::Title);
             if (enabled) {
                 AddHit(b, whole, list);

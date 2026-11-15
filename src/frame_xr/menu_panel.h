@@ -54,6 +54,7 @@ public:
         std::function<void(const MenuRequest&)> request; ///< to the Qt side
         std::function<void()> reset_position;
         std::function<void()> swap_screens;
+        std::function<void()> fill_view; ///< AzaharFrame fovaxis: Fill View (Immersive::FillView)
         /// AzaharFrame kiufix: Calibrate Aim (Direct Aim): start it (the menu then closes), and
         /// its Reset (the game's calibration goes); whether the game has one, whether it can.
         std::function<void()> calibrate_aim;

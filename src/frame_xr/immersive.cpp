@@ -376,6 +376,13 @@ struct State {
     L::Options options;
     u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
     u32 wider_level_y = 0; ///< AzaharFrame fovaxis: and options.wider_y (Render Margin up and down)
+    /// AzaharFrame fovaxis: what the last head-locked solve had, for Fill View (FillView).
+    struct FillInputs {
+        bool valid = false;
+        float screen_fov = 60.0f;
+        float aspect = 5.0f / 3.0f;
+        float eye_shift = 0.0f;
+    } fill;
     int scale_x = 0;     ///< AzaharFrame kiu: the scales (percent) options.squeeze(_y) are
     int scale_y = 0;
     /// AzaharFrame fovscale: Stretch or Field of View (vr_immersive_scale_mode), per game, every
@@ -1236,6 +1243,7 @@ void OnFrame(const FrameInfo& info) {
         g.scale_mode = ScaleModeSetting(); // AzaharFrame fovaxis: before the margins
         SetMarginOptions(WiderLevel(Margin::Axis::Horizontal),
                          WiderLevel(Margin::Axis::Vertical)); // AzaharFrame fovaxis
+        g.fill.valid = false;
         g.scale_x = L::ScalePercent(Settings::values.vr_immersive_scale_x.GetValue());
         g.scale_y = L::ScalePercent(Settings::values.vr_immersive_scale_y.GetValue());
         g.options.squeeze = L::SqueezeForScale(g.scale_x);
@@ -1506,6 +1514,7 @@ void OnFrame(const FrameInfo& info) {
         }
         g.solved = L::SolveHeadLocked(g.head_place, screen_fov, cam.aspect, g.view_fov,
                                       eye_shift, options, g.offset);
+        g.fill = {true, screen_fov, cam.aspect, eye_shift}; // AzaharFrame fovaxis: Fill View
         if (info.screens_live) {
             LogScaleSplit(menu_weight);
         }
@@ -2226,6 +2235,52 @@ WiderStep StepScale(int wider_steps, int taller_steps) {
     (vertical ? g.options.squeeze_y : g.options.squeeze) = L::SqueezeForScale(after);
     LOG_INFO(Frontend, "xr: immersive: {} by the D-pad", L::ScaleToast(after, vertical));
     return WiderStep::Changed;
+}
+
+// AzaharFrame fovaxis: Fill View, once: the size and both scales from Layout::FillView, with the
+// last solve's camera, shape and eye shift, the placement's pitch and distance, the margins and
+// the mode as they are now. Per game, like the grip + stick and the D-pad. Nothing re-applies
+// it: the values are ordinary from then on.
+bool FillView() {
+    const std::string full_only = std::string(Names::kFillView) + ": Full Modes Only";
+    if (!IsViewMode(g.mode) || !g.fill.valid) {
+        ShowToastText(full_only, ToastTime::Long);
+        return false;
+    }
+    L::Options o = g.options;
+    o.scale_fov = g.scale_mode == L::ScaleMode::FieldOfView ? 1.0f : 0.0f;
+    o.caps = 1.0f;
+    o.live_fov_y_deg = 0.0f;
+    const L::Filled f = L::FillView(g.head_place, g.fill.screen_fov, g.fill.aspect, g.view_fov,
+                                    g.fill.eye_shift, o, g.offset);
+    const L::WarpAxes warp =
+        L::ScalesMayWarp(g.wider_level, g.wider_level_y, f.scale_x, f.scale_y, g.scale_mode);
+    const std::string toast = L::FillToast(f, warp.x || warp.y);
+    ShowToastText(toast);
+    g.head_place.size = f.size;
+    if (g.title_id) {
+        g.store.Set(g.title_id, false, g.head_place);
+        SaveStore();
+    }
+    for (auto* setting : {&Settings::values.vr_immersive_scale_x,
+                          &Settings::values.vr_immersive_scale_y}) {
+        if (setting->UsingGlobal()) {
+            setting->SetGlobal(false); // per game, as the D-pad
+        }
+    }
+    Settings::values.vr_immersive_scale_x.SetValue(f.scale_x);
+    Settings::values.vr_immersive_scale_y.SetValue(f.scale_y);
+    g.scale_x = f.scale_x;
+    g.scale_y = f.scale_y;
+    g.options.squeeze = L::SqueezeForScale(f.scale_x);
+    g.options.squeeze_y = L::SqueezeForScale(f.scale_y);
+    LOG_INFO(Frontend,
+             "xr: immersive: Fill View: size {:.3f}, Horizontal Scale {}%, Vertical Scale {}% "
+             "({}), height {:.1f}% over{}{}",
+             f.size, f.scale_x, f.scale_y, L::ScaleModeName(g.scale_mode), f.over_y * 100.0f,
+             f.covers ? "" : ", at the end of a range: does not cover",
+             warp.x || warp.y ? ", May Warp" : "");
+    return true;
 }
 
 std::optional<float> SavedHeadSize(uint64_t title_id) {

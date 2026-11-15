@@ -751,6 +751,30 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
                            const ViewFov& view, float eye_shift = 0.0f,
                            const Options& options = {}, const LensOffset& offset = {});
 
+/// AzaharFrame fovaxis: Fill View, set once (no mode): the placement size and both scales that
+/// make the screen cover what either eye sees (DefaultCover at the screen's own pitch, with
+/// kFillMarginDeg to spare, and mode 2's `eye_shift`), from the screen as SolveHeadLocked gives
+/// it with `options` (its scales replaced; each step solved, the mode and the caps included).
+/// Horizontal Scale is the largest 5 % step at or under what the width needs and the size makes
+/// the width exact (so at least 1, a little magnified); Vertical Scale is the smallest 5 % step
+/// that covers the height at that size, so the height is over by less than one step. `covers`
+/// is false where the ranges (size kMinSize to kMaxSize, scales +-100 %) or Stretch's caps
+/// cannot reach the view (Stretch trims Render Margin's padding at 1.6x, so a margin leaves
+/// less room up and down): then the most they give, the smallest steps that give it.
+struct Filled {
+    float size = 1.0f;
+    int scale_x = 0;
+    int scale_y = 0;
+    bool covers = true;
+    float over_y = 0.0f; ///< the height over what covers, as a share (0.03: 3 % taller)
+};
+Filled FillView(const Placement& placement, float game_fov_y_deg, float aspect,
+                const ViewFov& view, float eye_shift, const Options& options,
+                const LensOffset& offset = {});
+/// "Fill View: Horizontal +35%, Vertical +60%", with " (Partial)" when it does not cover and
+/// " (May Warp)" when `warp`.
+std::string FillToast(const Filled& filled, bool warp);
+
 /// The head-locked quad's rotation about the eye: the offset's yaw, then the pitch.
 Input::Quatf QuadRotation(const HeadLocked& solved);
 

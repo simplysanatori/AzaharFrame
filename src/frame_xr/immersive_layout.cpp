@@ -673,6 +673,123 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     return s;
 }
 
+Filled FillView(const Placement& placement, float game_fov_y_deg, float aspect,
+                const ViewFov& view, float eye_shift, const Options& options,
+                const LensOffset& offset) {
+    // The screen at size 1 for a pair of scales, as SolveHeadLocked gives it: its half width and
+    // height grow exactly with the size (the fit is taken before it), and with the scales as the
+    // mode and the caps make them (Stretch trims the margin's padding at 1.6x), so each step is
+    // solved, not assumed.
+    Placement p = Clamped(placement);
+    p.size = 1.0f;
+    struct Tans {
+        float x = 0.0f;
+        float y = 0.0f;
+        float pitch = 0.0f;
+    };
+    const auto at = [&](int sx, int sy) {
+        Options o = options;
+        o.squeeze = SqueezeForScale(sx);
+        o.squeeze_y = SqueezeForScale(sy);
+        const HeadLocked h = SolveHeadLocked(p, game_fov_y_deg, aspect, view, eye_shift, o, offset);
+        return Tans{h.tan_half_y * h.aspect, h.tan_half_y, h.pitch_rad};
+    };
+    Filled f;
+    const Tans z = at(0, 0);
+    if (!(z.x > 0.0f) || !(z.y > 0.0f) || !std::isfinite(z.x * z.y)) {
+        f.covers = false;
+        return f;
+    }
+    const Cover cover = DefaultCover(view, z.pitch, eye_shift);
+    const auto size_for = [&](float x) { return std::clamp(cover.tan_x / x, kMinSize, kMaxSize); };
+    // Up and down at a size: the smallest step that covers the height, or none.
+    const auto cover_y = [&](int sx, float size) -> std::optional<int> {
+        for (int s = -kMaxScalePercent; s <= kMaxScalePercent; s += kScaleStepPercent) {
+            if (at(sx, s).y * size >= cover.tan_y * (1.0f - 1e-6f)) {
+                return s;
+            }
+        }
+        return std::nullopt;
+    };
+    int sx = 0, sy = 0;
+    for (int pass = 0; pass < 4; ++pass) {
+        // Across: the largest step at or under the width the view needs (of steps giving the
+        // same width, the smallest); the size then makes the width exact.
+        int best = -kMaxScalePercent;
+        float best_x = at(best, sy).x;
+        for (int s = -kMaxScalePercent + kScaleStepPercent; s <= kMaxScalePercent;
+             s += kScaleStepPercent) {
+            const float x = at(s, sy).x;
+            if (x <= cover.tan_x && x > best_x * (1.0f + 1e-6f)) {
+                best = s;
+                best_x = x;
+            }
+        }
+        // Where Vertical Scale cannot reach the height at that size (a narrow camera, a tall
+        // view, Stretch's trimmed padding), a lower Horizontal Scale and so a larger size: the
+        // largest step from which the height can be covered.
+        int nx = best;
+        std::optional<int> ny = cover_y(best, size_for(at(best, sy).x));
+        for (int s = best - kScaleStepPercent; !ny && s >= -kMaxScalePercent;
+             s -= kScaleStepPercent) {
+            const float size = size_for(at(s, sy).x);
+            if (size * at(s, sy).x < cover.tan_x * (1.0f - 1e-6f)) {
+                break; // the size at its end: the width would not be exact
+            }
+            if (const auto y = cover_y(s, size)) {
+                nx = s;
+                ny = y;
+            }
+        }
+        if (!ny) {
+            // None: the most height the steps give at the first choice, the smallest step
+            // giving it.
+            const float size = size_for(at(best, sy).x);
+            float most = 0.0f;
+            int pick = -kMaxScalePercent;
+            for (int s = -kMaxScalePercent; s <= kMaxScalePercent; s += kScaleStepPercent) {
+                const float y = at(best, s).y * size;
+                if (y > most * (1.0f + 1e-6f)) {
+                    most = y;
+                    pick = s;
+                }
+            }
+            ny = pick;
+        }
+        const bool same = nx == sx && *ny == sy;
+        sx = nx;
+        sy = *ny;
+        if (same) {
+            break;
+        }
+    }
+    const Tans t = at(sx, sy);
+    const float exact = cover.tan_x / t.x;
+    f.scale_x = sx;
+    f.scale_y = sy;
+    f.size = size_for(t.x);
+    f.covers = f.size == exact && t.y * f.size >= cover.tan_y * (1.0f - 1e-6f);
+    f.over_y = t.y * f.size / cover.tan_y - 1.0f;
+    return f;
+}
+
+std::string FillToast(const Filled& filled, bool warp) {
+    const auto pct = [](int v) {
+        char b[16];
+        std::snprintf(b, sizeof(b), v > 0 ? "+%d%%" : "%d%%", v);
+        return std::string(b);
+    };
+    std::string text = std::string(Names::kFillView) + ": Horizontal " + pct(filled.scale_x) +
+                       ", Vertical " + pct(filled.scale_y);
+    if (!filled.covers) {
+        text += " (Partial)"; // the most the ranges and the caps give, short of the view
+    }
+    if (warp) {
+        text += std::string(" (") + Names::kMayWarp + ")";
+    }
+    return text;
+}
+
 Quatf PitchRotation(float pitch_rad) {
     return {std::sin(pitch_rad / 2.0f), 0.0f, 0.0f, std::cos(pitch_rad / 2.0f)};
 }

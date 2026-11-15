@@ -54,6 +54,12 @@ inline constexpr const char* kScaleStretchTip =
 inline constexpr const char* kScaleFieldOfView = "Field of View";
 inline constexpr const char* kScaleFieldOfViewTip =
     "Shows more or less of the game, cropping when smaller. The world keeps its shape.";
+/// AzaharFrame fovaxis: Fill View (VR menu, under Scale Mode): sets the screen's size and both
+/// scales once so the screen covers the view (Layout::FillView); the toast is Layout::FillToast.
+inline constexpr const char* kFillView = "Fill View";
+inline constexpr const char* kFillViewTip =
+    "Sets the screen's size and both scales once to cover your view, as far as they reach. "
+    "Adjust from there.";
 
 // AzaharFrame natural: 3D Depth in the Full modes, World Scale and Follow Screen Size. Material 3
 // Title Case for names and choices, sentence case for tooltips.

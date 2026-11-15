@@ -144,6 +144,9 @@ enum class Id : int {
     /// AzaharFrame fovscale: how the scales act, Stretch | Field of View
     /// (vr_immersive_scale_mode), per game
     ScaleMode,
+    /// AzaharFrame fovaxis: Fill View, a button under Scale Mode: the size and both scales once
+    /// so the screen covers the view (Immersive::FillView)
+    FillView,
     WorldScale, ///< AzaharFrame natural: World Scale (vr_immersive_world_scale), per game
     FollowScreen, ///< AzaharFrame natural: Follow Screen Size (vr_immersive_follow_screen), per game
     MotionClarity, ///< AzaharFrame flash: Motion Clarity (vr_motion_clarity), per game

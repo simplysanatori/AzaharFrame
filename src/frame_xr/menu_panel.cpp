@@ -2159,6 +2159,11 @@ void MenuPanel::Click(Target t, Host& host) {
             host.reset_position();
         }
         break;
+    case Id::FillView: // AzaharFrame fovaxis
+        if (host.fill_view) {
+            host.fill_view();
+        }
+        break;
     case Id::SwapScreens:
         if (host.swap_screens) {
             host.swap_screens();
