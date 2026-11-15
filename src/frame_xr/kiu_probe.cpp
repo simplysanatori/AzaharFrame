@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -80,6 +81,14 @@ struct Probe {
     int64_t turn_start_ns = 0;
     bool clamp_seen = false;   ///< the game's clamp flag seen since this turn started
     uint32_t clamp_word = 0;   ///< the reticle's +kReticleClampFlags as last read
+    // 1.2.0 RC2 (the owner's 701 run: after the C-Stick the Turn Zone never turned again until
+    // the battle was left): the mod's reticle easing block (kModEaseFromState) as last read, and
+    // how often a live test switch cleared it or the reticle's bit 2 since the last trace line.
+    uint32_t ease_on_a = 0;    ///< block +0x24
+    uint32_t ease_on_b = 0;    ///< block +0x28
+    uint32_t ease_timer = 0;   ///< block +0x4C (float bits)
+    uint32_t mod_hold = 0;     ///< the mod's state +0x2C
+    uint32_t unstick_writes = 0;
 };
 
 /// The reticle object's flags; kClampBit (value 8, MAPPING.md's "bit 8") is set by the game's clamp (0x6D2C08) when it pulls
@@ -95,6 +104,15 @@ constexpr int64_t kStretchedAfterNs = 80'000'000;
 // game's box is no longer clamped and nothing turns. Its flags (0xF35D74) are logged with it.
 constexpr uint32_t kModStickCounter = 0x48;
 constexpr uint32_t kModFlags = 0x34;
+// 1.2.0 RC2: before the game's clamp turns the camera, the mod (0xF3BA64 -> 0xF3ABF8 ->
+// 0xF3AA44) answers "do not turn" while it eases the reticle itself: its block at 0xF3E638 (the
+// state's address + kModEaseFromState) holds the reticle (+0x1C), two on flags (+0x24, +0x28) and
+// a timer (+0x4C, under 0.2 s while it eases); it also answers so while the state's +0x2C is set.
+// The owner's 701 trace: after the C-Stick the reticle's +0x84 kept bit 2 (0x43, was 0x41) and
+// the game's clamp flag never showed again. Which of these sticks is what the trace shows.
+constexpr uint32_t kModEaseFromState = 0xF3E638 - 0xF35D40;
+constexpr uint32_t kModHold = 0x2C;
+constexpr uint32_t kReticleStickBit = 0x02;
 
 Probe& TheProbe() {
     static Probe probe;
@@ -347,6 +365,36 @@ void AimPoll(int64_t ticks) {
                     memory.Write32(*process, counter_at, 0);
                     p.counter_resets++;
                 }
+                const uint32_t ease = p.addr.state + kModEaseFromState;
+                const bool ease_ok = memory.IsValidVirtualAddress(*process, ease + 0x24) &&
+                                     memory.IsValidVirtualAddress(*process, ease + 0x4C + 3);
+                if (ease_ok) {
+                    p.ease_on_a = memory.Read32(*process, ease + 0x24);
+                    p.ease_on_b = memory.Read32(*process, ease + 0x28);
+                    p.ease_timer = memory.Read32(*process, ease + 0x4C);
+                }
+                p.mod_hold = memory.Read32(*process, p.addr.state + kModHold);
+                // Live test switches, each only while the Turn Zone turns with the C-Stick let go
+                // (the mod's flag 1 off): AZAHARFRAME_KIU_UNSTICK_BIT=1 clears the reticle's bit 2;
+                // AZAHARFRAME_KIU_UNSTICK_EASE=1 clears the easing block's on flags.
+                const bool unstick_time = direct_turn && out.turning && !frame.stick &&
+                                          !frame.clutch && (p.mod_flags & 1) == 0;
+                if (unstick_time &&
+                    Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_UNSTICK_BIT").value_or("") ==
+                        "1" &&
+                    (p.clamp_word & kReticleStickBit) != 0) {
+                    memory.Write32(*process, p.object + kReticleClampFlags,
+                                   p.clamp_word & ~kReticleStickBit);
+                    p.unstick_writes++;
+                }
+                if (unstick_time && ease_ok &&
+                    Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_UNSTICK_EASE")
+                            .value_or("") == "1" &&
+                    (p.ease_on_a != 0 || p.ease_on_b != 0)) {
+                    memory.Write32(*process, ease + 0x24, 0);
+                    memory.Write32(*process, ease + 0x28, 0);
+                    p.unstick_writes++;
+                }
             }
             break;
         }
@@ -396,7 +444,7 @@ void AimPoll(int64_t ticks) {
         }
         const bool screen_edge =
             p.stretched && Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_STRETCH_EDGE")
-                                   .value_or("1") != "0";
+                                   .value_or("0") == "1";
         if (screen_edge) {
             // Past the screen's own edge sideways, the whole-screen box clamps there; the game turns
             // far more per pixel there (the owner's 699 trace: a full spin), so the overshoot is
@@ -467,12 +515,15 @@ void AimPoll(int64_t ticks) {
                                        : "",
                  // 1.2.0 RC2: the push and what the game's gyroscope was given
                  fmt::format("; {} push {:.1f} right {:.1f} down dps, gyro {:.1f} {:.1f} {:.1f} "
-                             "(scale {:.2f}, {} polls); mod flags {:02X} stick {:08X}, {} cleared, clamp {:08X}{}",
+                             "(scale {:.2f}, {} polls); mod flags {:02X} stick {:08X}, {} cleared, clamp {:08X}{}; "
+                             "ease {:X} {:X} {:.3f}, hold {:X}, {} unstuck",
                              p.direct_turn ? "direct" : "mod", out.right_dps, out.down_dps,
                              p.last_gyro.x, p.last_gyro.y,
                              p.last_gyro.z, p.last_scale, p.gyro_polls, p.mod_flags,
                              p.mod_counter, p.counter_resets, p.clamp_word,
-                             p.stretched ? ", stretched" : ""));
+                             p.stretched ? ", stretched" : "", p.ease_on_a, p.ease_on_b,
+                             std::bit_cast<float>(p.ease_timer), p.mod_hold, p.unstick_writes));
+        p.unstick_writes = 0;
         p.gyro_polls = 0;
         p.counter_resets = 0;
     }
