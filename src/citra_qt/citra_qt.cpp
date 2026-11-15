@@ -197,6 +197,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "core/mods/aspect.h"           // AzaharFrame fixes7
 #include "frame_xr/presets.h" // AzaharFrame vrqol
 #include "frame_xr/render_margin.h" // AzaharFrame fovaxis
+#include "frame_xr/per_game_keys.h" // AzaharFrame fixa
 #include "frame_xr/shader_notice.h" // AzaharFrame stall
 #include "common/stall_telemetry.h" // AzaharFrame stall
 #include "frame_xr/swkbd.h" // AzaharFrame kbd
@@ -5699,69 +5700,15 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         return;
     }
     // The game's own file: reading it (QtConfig's constructor) puts its saved values back into
-    // the settings, so the VR ones are kept across that.
-    FrameKeepSetting keep_mode{v.vr_immersive_mode};
-    FrameKeepSetting keep_scaler{v.vr_immersive_positional_game_scaler};
-    FrameKeepSetting keep_world_scale{v.vr_immersive_world_scale}; // AzaharFrame natural
-    FrameKeepSetting keep_immersive_depth{v.vr_immersive_depth};
-    FrameKeepSetting keep_follow_screen{v.vr_immersive_follow_screen};
-    FrameKeepSetting keep_motion_clarity{v.vr_motion_clarity}; // AzaharFrame flash
-    FrameKeepSetting keep_clarity_immersive{v.vr_motion_clarity_immersive}; // AzaharFrame projdef
-    FrameKeepSetting keep_in_projection{v.vr_screens_in_projection};        // AzaharFrame projdef
-    FrameKeepSetting keep_world_set{v.vr_immersive_world_set};
-    FrameKeepSetting keep_eye_per_far{v.vr_immersive_eye_per_far};
-    FrameKeepSetting keep_hide{v.vr_hide_bottom_screen};
-    FrameKeepSetting keep_shape{v.vr_top_aspect};
-    FrameKeepSetting keep_fov{v.vr_immersive_game_fov};
-    FrameKeepSetting keep_match{v.vr_immersive_match_camera_mode}; // AzaharFrame depth, fovonce
-    FrameKeepSetting keep_measured{v.vr_immersive_fov_measured};  // AzaharFrame fovonce
-    FrameKeepSetting keep_wider{v.vr_immersive_wider_view_level};
-    FrameKeepSetting keep_scale_x{v.vr_immersive_scale_x}; // AzaharFrame kiu
-    FrameKeepSetting keep_scale_y{v.vr_immersive_scale_y};
-    FrameKeepSetting keep_scale_mode{v.vr_immersive_scale_mode}; // AzaharFrame fovscale
-    FrameKeepSetting keep_depth{v.factor_3d}; // AzaharFrame depth3d
-    FrameKeepSetting keep_custom_textures{v.custom_textures}; // AzaharFrame texui
-    FrameKeepSetting keep_preload{v.preload_textures};
-    FrameKeepSetting keep_resolution{v.resolution_factor}; // AzaharFrame menuux
-    FrameKeepSetting keep_texture_filter{v.texture_filter};
-    FrameKeepSetting keep_async_shaders{v.async_shader_compilation};
-    FrameKeepSetting keep_accurate_copies{v.image_copy_accuracy}; // AzaharFrame accxfer
-    FrameKeepSetting keep_ff_audio{v.fast_forward_audio}; // AzaharFrame ffaudio
-    FrameKeepSetting keep_autosave{v.autosave_enabled}; // AzaharFrame autosave
-    FrameKeepSetting keep_autosave_every{v.autosave_every};
-    FrameKeepSetting keep_autosave_keep{v.autosave_keep};
-    FrameKeepControls keep_controls; // AzaharFrame reticle
-    QtConfig game_config(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
-    keep_mode.Restore();
-    keep_scaler.Restore();
-    keep_world_scale.Restore();
-    keep_immersive_depth.Restore();
-    keep_follow_screen.Restore();
-    keep_motion_clarity.Restore();
-    keep_world_set.Restore();
-    keep_eye_per_far.Restore();
-    keep_hide.Restore();
-    keep_shape.Restore();
-    keep_fov.Restore();
-    keep_match.Restore();
-    keep_measured.Restore();
-    keep_wider.Restore();
-    keep_scale_x.Restore();
-    keep_scale_y.Restore();
-    keep_scale_mode.Restore();
-    keep_depth.Restore();
-    keep_custom_textures.Restore();
-    keep_preload.Restore();
-    keep_resolution.Restore();
-    keep_texture_filter.Restore();
-    keep_async_shaders.Restore();
-    keep_accurate_copies.Restore();
-    keep_ff_audio.Restore();
-    keep_autosave.Restore();
-    keep_autosave_every.Restore();
-    keep_autosave_keep.Restore();
-    keep_controls.Restore();
-    game_config.Save();
+    // the settings, so the values the menu writes are kept across that. AzaharFrame fixa: one
+    // list (frame_xr/per_game_keys.h), put back when `keep` goes out of scope; two keeps made
+    // here one by one were never put back (Primary Screen as Panel, In Immersive Modes).
+    std::optional<QtConfig> game_config;
+    {
+        FrameXr::PerGame::KeepMenuKeys keep;
+        game_config.emplace(g_frame_game_config_name, QtConfig::ConfigType::PerGameConfig);
+    }
+    game_config->Save();
     LOG_INFO(Frontend, "xr: in-game menu: saved {}", g_frame_game_config_name);
 }
 #endif

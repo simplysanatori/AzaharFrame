@@ -230,4 +230,21 @@ void FillGameValues(Menu::MenuModel& model) {
     }
 }
 
+std::vector<std::string> KeysOf(Menu::Id id) {
+    std::vector<std::string> keys;
+    auto& v = Settings::values;
+    if (const auto axis = MarginAxis(id)) {
+        keys.push_back(*axis == Immersive::Margin::Axis::Horizontal
+                           ? v.vr_immersive_render_margin_x.GetLabel()
+                           : v.vr_immersive_render_margin_y.GetLabel());
+        keys.push_back(v.vr_immersive_wider_view_level.GetLabel()); // the old key it reads
+    } else if (id == Menu::Id::Depth3d) {
+        keys.push_back(v.vr_immersive_depth.GetLabel());
+        keys.push_back(v.factor_3d.GetLabel());
+    } else {
+        WithSetting(id, [&keys](auto& s) { keys.push_back(s.GetLabel()); });
+    }
+    return keys;
+}
+
 } // namespace FrameXr::PerGame
