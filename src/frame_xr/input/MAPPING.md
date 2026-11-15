@@ -138,10 +138,20 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   (the head's with Headset), along the pose's pointing direction. AzaharFrame kiuinteg (the
   owner's option A): with a blade, staff, club, bow or cannon in the hand, along the weapon's own
   axis as held instead (`AngelsAimRay`, `Vis::Visuals::WeaponAxis`, `vis/weapon_fit.h` FitAxis:
-  from Pit's fist to the muzzle for blades, staffs and clubs; the arrow's or the forearm's line
-  for bows and cannons, which is the controller's), so a blade aims where it points: measured on
-  the 108 weapons, blades 14.6 to 19.6 degrees above the controller's line, staffs 1.7 to 6.9,
-  clubs 47.7, bows and cannons 0. The tilt is fixed in the hand: rolling the wrist moves the aim
+  from Pit's fist to the muzzle for blades, staffs and clubs; the arrow's line for bows, which is
+  the controller's), so a blade aims where it points: measured on the 108 weapons, blades 14.6 to
+  19.6 degrees above the controller's line, staffs 1.7 to 6.9, clubs 47.7, bows 0. AzaharFrame
+  fixc: a cannon's is its barrel (`kCannonBarrel`, Pit's front in his aiming pose
+  ChrPit00ShotWaitLaunch taken into the forearm's space; each cannon's own barrel is within about
+  5 degrees of it there, the forearm 36 off), held as Pit holds it: 36 degrees inward of the
+  controller's line and 2.8 up, every cannon (the cannon is not turned). It starts at the mouth:
+  the game's muzzle moved out along the barrel past the cannon's own vertices within 2.5 cm of
+  the line (`BarrelPush`, at most 10 cm; 0 to 10 cm on the 12), where the laser, the muzzle flash
+  (pointing along the barrel) and the projectiles start (`AimSource::Barrel`, `ShotOriginFor`).
+  Direct Aim aims along it, so the laser shows where the game aims; with Gyro Aim a cannon's
+  projectiles fly along it to where it meets the Primary Screen. Before, the cannon's axis was
+  its forearm (the controller's line) and the laser left the muzzle, which sits 14 to 28 cm
+  inward of that line, across the cannon's side. The tilt is fixed in the hand: rolling the wrist moves the aim
   (accepted). Claws, palms, arms and orbitars are fitted along the ray and keep the controller's
   direction. Clubs (the owner's choice: Pit holds them raised, drawn so) aim with the hand: the
   controller's direction from the front of the fist (4 cm ahead of its centre on the handle),
@@ -260,7 +270,10 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   game), no grab; Check Aim confirms with the trigger, and a check keeps the aim locked (Toggle's
   presses wait). Both grips together (with the other hand holding the immersive screen: the
   D-pad shapes it) keep that meaning: in Toggle a press while the other grip is down, or joined by
-  it, toggles nothing; in Hold the aim is paused meanwhile, as before.
+  it, toggles nothing; in Hold the aim is paused meanwhile, as before. AzaharFrame fixc: both are
+  the aiming controller's alone, left or right (`TakeAimGrip`, `LockAim` in `gyro_aim.h`): the
+  other controller's grip, trigger and pointer are never taken, so it points, touches the bottom
+  screen, grabs and uses the menus with no grip held (tests for either aiming hand).
 - **Fire:** while Gyro Aim is on, a trigger that is ZL/ZR (not touching the bottom screen) also
   presses the Left Bumper's control (L in the default profile): the game fires with L, so the
   aiming controller's trigger fires, and the left trigger too. The mod also writes ir:rst's
@@ -305,6 +318,15 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   pistol palm point), claws and arms 7 to 11 cm (above and ahead, sideways by each weapon's
   muzzle), palms 6.2 cm; their muzzles now sit 4 to 9 cm off the controller's line (the aim ray
   starts at the muzzle, so the beam and the reticle still meet). Orbitars float by the hand.
+  AzaharFrame fixc: a texture pack's replacement for the weapon, its flash cards and its bullets
+  (found by the game's hash, `core/frame_weapon_models.cpp`) is read when the weapon loads from a
+  PNG, or from a KTX or DDS file in ASTC (4x4, 6x6, 8x6) or RGBA8, as a pack optimized for the
+  Frame holds (`LoadPackTexture`: its largest mip level of 1024 or less a side, decoded with
+  astcenc's LDR profile, rows turned over as the file holds them as uploaded; at most 4 MB a
+  texture, never the whole of a large one). Any other file (BC1 to BC7, another extension) is
+  logged with its format and why when the weapon is made, and one that fails to read when the
+  weapon loads, and the game's texture is used. A weapon made when KTX files were not read is
+  made again once (`PackKey` changes for them; PNG packs keep their weapons).
 - **Muzzle Flash** (`vr_light_gun_flash`, per game too, on by default; shown under Weapon in
   Hand while it is on; AzaharFrame kiuflash): a flash at the weapon's muzzle on each of the
   game's own shots (the same shots record as Recoil, read for either; `vis/muzzle_flash.h`). The
@@ -352,6 +374,13 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   at once, turning slowly about the way they fly (the bullets' own animations are not read).
   Projectiles is mirrored in `vr_controls_preset_done` bits 30 and 31; Size and Speed are plain
   new keys. Test switch (live): `AZAHARFRAME_KIU_SHOT=speed,size` (factors on top).
+  AzaharFrame fixc: a cannon's fly from its mouth along its barrel (with Gyro Aim to where the
+  barrel's ray meets the top screen). Every 5 s with shots, one log line (`vis/projectile.h`
+  ShotLog): `xr: projectiles (5 s): N shots seen, N fired, N drawn; skipped: ...` with the reasons
+  (no point on the Primary Screen, no weapon fitted, the weapon in the other hand, the weapon not
+  loaded yet, several in one refresh, or the models' pass not ready), then the last shot's flight
+  (ms, metres), its size and Projectile Opacity. A refresh the runtime does not draw keeps the
+  shots' signal (it cleared the projectiles in flight and swallowed the next shot).
   **Projectile Opacity** (`vr_light_gun_projectile_opacity`, per game too, 20 to 100 %, 100 % by
   default; the first row under Projectiles while it is on, above Projectile Size; AzaharFrame
   kiuopacity): the same see-through drawing as Weapon Opacity for the bullets in flight (solid

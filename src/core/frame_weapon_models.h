@@ -33,6 +33,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "common/common_types.h"
 #include "core/frame_cgfx.h" // AzaharFrame kiuweap2: the poses (SkeletalPose, Mat34)
@@ -332,8 +333,19 @@ bool ConvertBullets(int id, std::span<const u8> zrc, Converted& out,
 /// A texture pack's PNG (Part::replaced) for a model's colour image: RGBA8, rows in the game's
 /// memory order, alpha 255 (AzaharFrame kiuflash: or the PNG's own, `keep_alpha`, for a flash
 /// card). False when it cannot be read (the model's own texture stays).
+/// AzaharFrame fixc: or a KTX or DDS file in ASTC (4x4, 6x6, 8x6) or RGBA8, as a pack converted
+/// for the Frame holds ("Original-astc4x4"): its largest mip level of kPackDecodeMaxSide or less
+/// a side, decoded (astcenc), rows as for a PNG. `why`: the reason when it is false.
+inline constexpr unsigned kPackDecodeMaxSide = 1024;
 bool LoadPackTexture(const std::string& path, bool flip_png, std::vector<u8>& rgba, u32& width,
-                     u32& height, bool keep_alpha = false);
+                     u32& height, bool keep_alpha = false, std::string* why = nullptr);
+/// AzaharFrame fixc: a pack file's format as the hand reads it ("PNG", "KTX ASTC 4x4", "DDS
+/// RGBA8"), from its header; empty when it is not read (BC formats, another file), with why.
+std::string PackFileFormat(const std::string& path, std::string* why = nullptr);
+/// AzaharFrame fixc: whether a pack's file can replace a model's texture (PackFileFormat); a
+/// file that cannot is logged with its format and why (`what`: the models it is for, "weapon
+/// models"), and the game's texture is used. Then LoadPackTexture reads it, whatever its format.
+bool PackReplacementUsable(const std::string& path, std::string_view what);
 
 /// The folder of a game's files: AZAHARFRAME_MODELS or <user dir>/frame-models/, then
 /// games/<title id>/kiu-weapons/ (with the trailing '/').

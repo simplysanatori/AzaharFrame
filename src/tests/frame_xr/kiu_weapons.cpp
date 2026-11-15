@@ -24,6 +24,8 @@
 #include "frame_xr/input/gyro_aim.h"
 #include "frame_xr/kiu_scan.h"
 #include "frame_xr/test_switches.h"
+#include "frame_xr/vis/model_file.h"
+#include "frame_xr/vis/muzzle_flash.h"
 #include "frame_xr/vis/weapon_fit.h"
 
 using Catch::Approx;
@@ -948,4 +950,88 @@ TEST_CASE("Kid Icarus: the hand on the handle and the axis of converted weapons"
         }
     }
     CHECK(m.weapons.size() > 0);
+}
+
+// AzaharFrame fixc: AZAHARFRAME_TEST_KIU_MODELS=<a weapons folder>
+// AZAHARFRAME_TEST_KIU_MOUTHS=<out file>: for each converted cannon and hand, as the app works it
+// out (the loader's pushes, FitWeapon's start, ShotOriginFor): the game's muzzle, the barrel, the
+// push along it and the mouth, where the flash and the shots start and which way, and before
+// this lane's change: the start (the muzzle) and the flash's (FlashPush along -z). Aim space,
+// metres, the class's own fit (Game Size).
+TEST_CASE("Kid Icarus: cannons' mouths and barrels", "[.fixc_real]") {
+    const char* dir = std::getenv("AZAHARFRAME_TEST_KIU_MODELS");
+    const char* out = std::getenv("AZAHARFRAME_TEST_KIU_MOUTHS");
+    REQUIRE(dir);
+    REQUIRE(out);
+    FrameWeapons::Manifest m;
+    std::string error;
+    REQUIRE(FrameWeapons::ReadManifest(std::string{dir} + "/weapons.txt", m, error));
+    std::ofstream o(out);
+    o << "# id hand muzzle(3) barrel(3) push mouth(3) shot_from(3) shot_way(3) | before: "
+         "laser_from(3) laser_way(3) flash_push shot_from(3)\n";
+    int n = 0;
+    for (const auto& w : m.weapons) {
+        if (w.cls != FrameWeapons::kCannon) {
+            continue;
+        }
+        std::vector<Vis::FitSide> sides;
+        for (const auto& p : w.parts) {
+            for (const auto s : p.sides) {
+                const auto fs = static_cast<Vis::FitSide>(static_cast<int>(s));
+                if (std::find(sides.begin(), sides.end(), fs) == sides.end()) {
+                    sides.push_back(fs);
+                }
+            }
+        }
+        for (const bool left : {false, true}) {
+            Vis::FitWeapon fw{w.cls, w.muzzle, w.muzzle_valid, std::nullopt};
+            if (w.hold.valid) {
+                const auto& hp = Vis::HoldPickFor(w.cls, std::nullopt) == Vis::HoldPick::Shot
+                                     ? w.hold.shot
+                                     : w.hold.idle;
+                fw.hold = Vis::FitHold{hp.to_hand, hp.fist, w.hold.hand == "LHandN"};
+            }
+            // The loader's pushes (the right hand's fit, as the app's).
+            const auto fits = Vis::FitWeaponToHand(fw, false, sides);
+            const Vis::FitAimStart r = Vis::FitAim(fw, false, sides);
+            const auto mz_r = Vis::FitMuzzle(fw, false, sides);
+            REQUIRE(r.start);
+            REQUIRE(r.barrel);
+            float push = 0.0f, flash_push = 0.0f;
+            for (const auto& p : w.parts) {
+                Vis::ModelFile pf;
+                REQUIRE(Vis::LoadModelFile(std::string{dir} + "/" + p.file, pf, error,
+                                           Vis::kModelFlagWeaponSpace));
+                if (!p.glow) {
+                    push = std::max(push, Vis::BarrelPush(pf.vertices, fits[0].transform,
+                                                          *r.start, *r.axis));
+                    flash_push = std::max(flash_push,
+                                          Vis::FlashPush(pf.vertices, fits[0].transform, *mz_r));
+                }
+            }
+            // This hand's start, as FitWeapon makes it, and the shots'.
+            const Vis::FitAimStart a = Vis::FitAim(fw, left, sides);
+            const auto mouth = Vis::BarrelMouth(*a.start, *a.axis, push);
+            const Vis::ShotOrigin shot = Vis::ShotOriginFor(mouth, flash_push, a.axis);
+            const Vis::ShotOrigin was = Vis::ShotOriginFor(*a.start, flash_push, std::nullopt);
+            const auto put = [&](const std::array<float, 3>& v) {
+                o << ' ' << v[0] << ' ' << v[1] << ' ' << v[2];
+            };
+            o << w.id << ' ' << (left ? 'L' : 'R');
+            put(*a.start);
+            put(*a.axis);
+            o << ' ' << push;
+            put(mouth);
+            put(shot.from);
+            put(shot.forward);
+            o << " |";
+            put(*a.start);
+            put({0.0f, 0.0f, -1.0f});
+            o << ' ' << flash_push;
+            put(was.from);
+            o << '\n';
+            n++;
+        }
+    }
+    CHECK(n > 0);
 }

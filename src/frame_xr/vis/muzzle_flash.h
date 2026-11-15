@@ -174,6 +174,22 @@ inline constexpr float kPushMaxM = 0.10f;
 inline constexpr float kPushRadiusM = 0.025f;
 float FlashPush(const std::vector<float>& vertices, const std::array<float, 16>& fit,
                 const std::array<float, 3>& muzzle);
+/// AzaharFrame fixc: the same along a unit `axis` (aim space) in place of -z: a cannon's barrel
+/// (weapon_fit.h AimSource::Barrel). How far out along its barrel the cannon ends past the
+/// game's muzzle: BarrelMouth puts the laser's, the flash's and the shots' start there.
+float BarrelPush(const std::vector<float>& vertices, const std::array<float, 16>& fit,
+                 const std::array<float, 3>& muzzle, const std::array<float, 3>& axis);
+
+/// AzaharFrame fixc: where the flash and the shots start (aim space) and which way the flash
+/// points: for every class but cannons, `push` (FlashPush, scaled) ahead of `start` along -z and
+/// -z, as before; along a cannon's `barrel`, `start` itself (the mouth: the push is in it) and the
+/// barrel.
+struct ShotOrigin {
+    std::array<float, 3> from{};
+    std::array<float, 3> forward{0.0f, 0.0f, -1.0f};
+};
+ShotOrigin ShotOriginFor(const std::array<float, 3>& start, float push,
+                         const std::optional<std::array<float, 3>>& barrel);
 
 /// A flash card's texture is at most kTextureMaxSide on a side: a texture pack's larger PNG is
 /// halved (2x2 texel averages) as it loads until it fits. RGBA8, rows as given.

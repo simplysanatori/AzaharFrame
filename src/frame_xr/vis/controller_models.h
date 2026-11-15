@@ -68,6 +68,9 @@ public:
 
     struct Hand {
         bool shown = false;
+        /// AzaharFrame fixc: false while the controller is not tracked (its `shown` is false
+        /// then): the flicker count's "tracking lost".
+        bool tracked = true;
         Input::Posef aim; ///< LOCAL space, the display time of the frame
         float fade = 1.0f;
         ModelInputs input{};
@@ -103,6 +106,11 @@ public:
     std::optional<std::array<float, 3>> WeaponAxis(int hand) const {
         return hand == muzzle_hand ? axis : std::nullopt;
     }
+    /// AzaharFrame fixc: the weapon in `hand` aims along its barrel from its mouth (a cannon:
+    /// weapon_fit.h AimSource::Barrel; WeaponMuzzle is the mouth, WeaponAxis the barrel).
+    bool WeaponAlongBarrel(int hand) const {
+        return hand == muzzle_hand && muzzle_barrel;
+    }
     /// The layer for this frame's xrEndFrame, or null (also when the image goes out as the eye
     /// quads). Valid until the next Frame.
     const XrCompositionLayerBaseHeader* Layer() const;
@@ -120,6 +128,13 @@ public:
     ProjLayer FrameScreens(Runtime& rt, const ProjScreens& screens);
     /// XR thread, before the session ends: everything on the GPU (the files stay read).
     void DestroyXr();
+    /// AzaharFrame fixc: after Frame (and FrameScreens), the eye quads or the projection layer
+    /// had no room among this refresh's layers: counted with the refreshes without the
+    /// controllers' layer (the per-second log line, judged at the next Frame).
+    void NoteNoRoom(bool quads, bool layer) {
+        gap_quads_dropped = gap_quads_dropped || quads;
+        gap_layer_dropped = gap_layer_dropped || layer;
+    }
 
 private:
     void Setup(Runtime& rt);
@@ -136,6 +151,18 @@ private:
     bool AsEyeQuads() const;
     /// Releases the image in flight once its fence has signalled (no wait).
     void TryRelease();
+    /// AzaharFrame fixc: at the top of Frame, the refresh before: counted when it had no layer of
+    /// the controllers' (LayerGapFor), and the line logged each second there were any.
+    void NoteLayerGap(int64_t now_ns);
+    /// Then this refresh's: a controller shown, or one lost that showed just before.
+    void NoteHands(const std::array<Hand, 2>& hands, int64_t now_ns);
+    LayerGapLog gap_log;
+    bool gap_wanted = false;
+    bool gap_lost = false;
+    bool gap_rebuilt = false; ///< the pass made again at a path change, nothing shown since
+    bool gap_quads_dropped = false;
+    bool gap_layer_dropped = false;
+    std::array<int64_t, 2> gap_shown_ns{-1, -1}; ///< when each hand last showed
     /// AzaharFrame projscreen
     bool screens_mode = false;
     float screens_scale = 1.0f;
@@ -151,6 +178,9 @@ private:
     std::vector<ShotDraw> shot_draws; ///< this frame's
     uint32_t shots_seen = 0;
     bool shots_was_on = false;
+    ShotLog shot_log;            ///< AzaharFrame fixc: the 5 s summary
+    uint32_t shot_log_shots = 0; ///< AzaharFrame fixc: the shots seen at the top of Frame
+    bool shot_log_on = false;
     float weapon_clip = 0.0f;         ///< FitClipX: a palm's forearm cut (weapon space)
     bool palm_elbow = false;          ///< the palm's forearm drawn apart, turned to the elbow
     FitMat palm_turn{};               ///< that turn about the wrist (LOCAL space)
@@ -160,6 +190,7 @@ private:
     std::optional<std::array<float, 3>> muzzle;
     std::optional<std::array<float, 3>> axis; ///< AzaharFrame kiuinteg: FitAxis, with muzzle
     bool muzzle_fist = false; ///< AzaharFrame kiuinteg: `muzzle` is the fist's front (a club)
+    bool muzzle_barrel = false; ///< AzaharFrame fixc: `muzzle` is a cannon's mouth, `axis` its barrel
 
     struct Files;
     struct Gpu;

@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <cstdlib>
 #include <fstream>
 #include <random>
@@ -356,6 +357,59 @@ TEST_CASE("Muzzle Flash: out of a barrel the muzzle is deep in", "[kiuflash]") {
     CHECK(Vis::FlashPush({}, fit, {0, 0, 0}) == 0.0f);
 }
 
+// AzaharFrame fixc: a cannon's mouth: the same rule along its barrel (BarrelPush), and where the
+// flash and the shots start (ShotOriginFor): every other class as before, bit for bit.
+TEST_CASE("Muzzle Flash: a cannon's mouth along its barrel", "[kiuflash][fixc]") {
+    // The barrel above, turned 36 degrees about +y (the aim space's up): its line through the
+    // origin along (-sin 36, 0, -cos 36).
+    const float a = 36.0f * 3.14159265f / 180.0f, c = std::cos(a), sn = std::sin(a);
+    std::array<float, 16> fit{};
+    fit[0] = -0.01f * sn; // weapon x: along the barrel
+    fit[2] = -0.01f * c;
+    fit[4] = 0.01f * c; // weapon y: across it, level
+    fit[6] = -0.01f * sn;
+    fit[9] = 0.01f; // weapon z: up
+    fit[15] = 1.0f;
+    std::vector<float> v;
+    const auto put = [&](float x, float y, float z) {
+        v.insert(v.end(), {x, y, z, 0, 0, 1, 1, 0, 0, 1, 0, 0});
+    };
+    for (const float x : {0.0f, 10.0f}) {
+        put(x, 1, 0), put(x, -1, 0), put(x, 0, 1), put(x, 0, -1);
+    }
+    const std::array<float, 3> barrel{-sn, 0.0f, -c};
+    const auto on = [&](float m) { return std::array<float, 3>{-sn * m, 0.0f, -c * m}; };
+    // The muzzle 3 cm short of the barrel's end: 3 cm out along it.
+    CHECK(Vis::BarrelPush(v, fit, on(0.07f), barrel) == Approx(0.03f).margin(1e-5));
+    CHECK(Vis::BarrelPush(v, fit, on(0.10f), barrel) == Approx(0.0f).margin(1e-5));
+    CHECK(Vis::BarrelPush(v, fit, on(0.20f), barrel) == 0.0f);
+    // Deep in a long one: at most kPushMaxM; nothing: none.
+    put(100, 0, 0);
+    CHECK(Vis::BarrelPush(v, fit, on(0.05f), barrel) == Approx(Vis::kPushMaxM));
+    CHECK(Vis::BarrelPush({}, fit, {0, 0, 0}, barrel) == 0.0f);
+    // With -z as the axis it is FlashPush.
+    std::array<float, 16> straight{};
+    straight[2] = -0.01f;
+    straight[4] = 0.01f;
+    straight[9] = 0.01f;
+    straight[15] = 1.0f;
+    for (const float z : {-0.02f, -0.05f, -0.07f, -0.1f}) {
+        CHECK(Vis::BarrelPush(v, straight, {0, 0, z}, {0, 0, -1}) ==
+              Approx(Vis::FlashPush(v, straight, {0, 0, z})).margin(1e-6));
+    }
+
+    // Where the flash and the shots start: every class but a cannon, `push` ahead along -z and
+    // -z, bit for bit as before; a cannon, the mouth itself and its barrel.
+    const std::array<float, 3> start{0.013f, -0.0444f, -0.21f};
+    const Vis::ShotOrigin before = Vis::ShotOriginFor(start, 0.04f, std::nullopt);
+    const std::array<float, 3> old_from{start[0], start[1], start[2] - 0.04f};
+    CHECK(std::memcmp(before.from.data(), old_from.data(), sizeof(old_from)) == 0);
+    CHECK(before.forward == std::array<float, 3>{0.0f, 0.0f, -1.0f});
+    const Vis::ShotOrigin cannon = Vis::ShotOriginFor(start, 0.04f, barrel);
+    CHECK(cannon.from == start);
+    CHECK(cannon.forward == barrel);
+}
+
 TEST_CASE("Muzzle Flash: a pack's large texture halved to fit", "[kiuflash]") {
     // 1024 x 512: halved twice to 256 x 128, each texel the average of the four under it.
     uint32_t w = 1024, h = 512;
@@ -563,6 +617,47 @@ TEST_CASE("Projectiles: from the muzzle into the screen, several at once", "[kiu
     CHECK(d[0].size == Approx(Vis::kChargedSizeM * 1.5f));
     // A clock that went back (a load): an old shot is let go.
     CHECK(p.Current(t - 2'000 * kMs).empty());
+}
+
+// AzaharFrame fixc: the 5 s summary: seen, fired, drawn, skipped by reason; quiet without shots.
+TEST_CASE("Projectiles: the 5 s summary", "[kiuflash][fixc]") {
+    Vis::ShotLog log;
+    constexpr int64_t s = 1'000'000'000;
+    CHECK_FALSE(log.Take(0)); // starts the count
+    CHECK_FALSE(log.Take(6 * s)); // nothing happened: nothing logged
+    log.Seen(4);
+    log.Fired(140'000'000, 1.62f, 0.07f);
+    log.SetOpacity(0.6f);
+    log.Fired(150'000'000, 1.70f, 0.07f);
+    log.Skipped(Vis::ShotSkip::NoTarget);
+    log.Skipped(Vis::ShotSkip::SameFrame, 1);
+    log.Drawn(1);
+    log.Drawn(1); // the same projectile again (the other eye): once
+    log.Drawn(2);
+    CHECK_FALSE(log.Take(10 * s)); // not 5 s yet
+    const auto line = log.Take(11 * s + 1);
+    REQUIRE(line);
+    CHECK(*line == "xr: projectiles (5 s): 4 shots seen, 2 fired, 2 drawn; skipped: 1 no point "
+                   "on the Primary Screen, 1 several in one refresh; last 150 ms over 1.70 m, "
+                   "7 cm across; Projectile Opacity 60%");
+    // Cleared; the drawn serials go on (an old one is not counted again).
+    CHECK_FALSE(log.Take(17 * s));
+    log.Seen(2);
+    log.Drawn(2);
+    const auto quiet = log.Take(23 * s);
+    REQUIRE(quiet);
+    CHECK(*quiet == "xr: projectiles (6 s): 2 shots seen, 0 fired, 0 drawn; skipped: 2 while the "
+                    "models' pass was not ready");
+    log.Seen(1);
+    log.Fired(110'000'000, 1.0f, 0.12f);
+    log.Drawn(3);
+    const auto all = log.Take(29 * s);
+    REQUIRE(all);
+    CHECK(all->find("1 shots seen, 1 fired, 1 drawn; none skipped") != std::string::npos);
+    // Projectiles::Fire gives the flight it chose.
+    Vis::Projectiles p;
+    CHECK(p.Fire({0, 0, 0}, {0, 0, -1.4f}, false, 0, 1.0f, 1.0f) ==
+          Vis::ShotFlightNs(1.4f, false, 1.0f));
 }
 
 TEST_CASE("Projectiles: a bullet turned the way it flies", "[kiuflash]") {

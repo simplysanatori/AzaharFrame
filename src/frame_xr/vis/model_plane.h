@@ -39,6 +39,7 @@
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "frame_xr/input/geometry.h"
@@ -444,6 +445,126 @@ private:
     int shown_age_ = 0;  ///< refreshes in a row they went out at full size
     int pose_age_ = 0;   ///< refreshes they have carried this canvas's place
     int matched_ = 0;    ///< refreshes in a row the image released was drawn for it
+};
+
+/// AzaharFrame fixc: why a refresh that showed a controller (or had just lost one) went out
+/// without the controllers' layer: the hunt for the controllers' flicker. Counted per second
+/// (LayerGapLog), each refresh's state judged by LayerGapFor once the refresh is done.
+enum class LayerGap : uint8_t {
+    Rebuilt,      ///< the pass made again at a path change (projection screens on or off)
+    SettingUp,    ///< the files read and the pass set up (the first time)
+    Failed,       ///< the pass could not be set up
+    NoImage,      ///< no image released yet
+    Returning,    ///< the controllers came back: a new image first
+    CanvasMove,   ///< the eye quads shrunk while their canvas moves, and no projection layer
+    NoCanvas,     ///< the eye quads' canvas not found
+    NoRoom,       ///< no room among the layers (the runtime's limit)
+    NoScreens,    ///< projection screens: not drawn with the screens this refresh
+    TrackingLost, ///< no controller shown: one shown within kLayerGapLostNs lost its tracking
+    Count,
+};
+
+/// A controller that showed this long ago or less and is no longer tracked counts as lost (a
+/// longer loss, such as the SteamVR dashboard's, is not counted).
+inline constexpr int64_t kLayerGapLostNs = 1'000'000'000;
+
+/// One refresh's state, as the models left it.
+struct LayerGapState {
+    bool wanted = false;   ///< a controller shown (on a refresh the runtime draws)
+    bool lost = false;     ///< none shown: one shown within kLayerGapLostNs is not tracked
+    bool rebuilt = false;  ///< the pass was made again at a path change, nothing shown since
+    bool failed = false;
+    bool ready = false;    ///< the files read and the pass set up (and uploaded)
+    bool has_image = false;
+    bool fresh = false;    ///< an image released since the controllers last went away
+    bool screens = false;  ///< projection screens (the layer comes from FrameScreens)
+    bool screens_layer = false; ///< FrameScreens gave the layer
+    bool as_quads = false;      ///< the image goes out as the eye quads
+    bool canvas_on = false;     ///< on the quads' canvas (model_plane.h)
+    bool canvas_found = false;
+    bool quads_shown = false;   ///< the quads at full size (CanvasFrame)
+    bool projection = false;    ///< the projection layer goes too (CanvasFrame)
+    bool quads_dropped = false; ///< the quads did not fit among the layers
+    bool layer_dropped = false; ///< the projection layer did not fit
+};
+
+/// The reason the controllers were not on view that refresh; none when they were (or none was
+/// wanted).
+inline std::optional<LayerGap> LayerGapFor(const LayerGapState& s) {
+    if (!s.wanted) {
+        return s.lost ? std::optional{LayerGap::TrackingLost} : std::nullopt;
+    }
+    if (s.failed) {
+        return LayerGap::Failed;
+    }
+    if (!s.ready) {
+        return s.rebuilt ? LayerGap::Rebuilt : LayerGap::SettingUp;
+    }
+    if (!s.has_image) {
+        return s.rebuilt ? LayerGap::Rebuilt : LayerGap::NoImage;
+    }
+    if (!s.fresh) {
+        return LayerGap::Returning;
+    }
+    if (s.screens) {
+        return s.screens_layer ? std::nullopt : std::optional{LayerGap::NoScreens};
+    }
+    const bool quads = s.as_quads && (!s.canvas_on || (s.canvas_found && s.quads_shown));
+    const bool layer = !s.as_quads || (s.canvas_on && s.projection);
+    if (!quads && !layer) {
+        return s.canvas_on && !s.canvas_found ? LayerGap::NoCanvas : LayerGap::CanvasMove;
+    }
+    if ((quads && !s.quads_dropped) || (layer && !s.layer_dropped)) {
+        return std::nullopt;
+    }
+    return LayerGap::NoRoom;
+}
+
+/// The refreshes without the controllers' layer, by reason: a line each second there were any.
+class LayerGapLog {
+public:
+    static constexpr int64_t kPeriodNs = 1'000'000'000;
+
+    void Gap(LayerGap why) {
+        if (why < LayerGap::Count) {
+            gaps_[static_cast<std::size_t>(why)]++;
+        }
+    }
+    /// The line to log at `now_ns`, every kPeriodNs, when there were gaps in that time
+    /// (cleared then); none otherwise.
+    std::optional<std::string> Take(int64_t now_ns) {
+        if (start_ns_ < 0 || now_ns < start_ns_) {
+            start_ns_ = now_ns;
+        }
+        if (now_ns - start_ns_ < kPeriodNs) {
+            return std::nullopt;
+        }
+        start_ns_ = now_ns;
+        static constexpr const char* kWhy[] = {
+            "the pass made again (path change)", "the pass being set up", "the pass failed",
+            "no image yet", "a new image after they came back", "the quads' canvas moving",
+            "no canvas", "no room among the layers", "not drawn with the screens",
+            "tracking lost"};
+        static_assert(std::size(kWhy) == static_cast<std::size_t>(LayerGap::Count));
+        uint32_t total = 0;
+        std::string why;
+        for (std::size_t k = 0; k < gaps_.size(); k++) {
+            if (gaps_[k]) {
+                total += gaps_[k];
+                why += (why.empty() ? "" : ", ") + std::to_string(gaps_[k]) + " " + kWhy[k];
+            }
+        }
+        gaps_ = {};
+        if (total == 0) {
+            return std::nullopt;
+        }
+        return "xr: controllers: " + std::to_string(total) +
+               (total == 1 ? " refresh" : " refreshes") + " without their layer: " + why;
+    }
+
+private:
+    int64_t start_ns_ = -1;
+    std::array<uint32_t, static_cast<std::size_t>(LayerGap::Count)> gaps_{};
 };
 
 } // namespace FrameXr::Vis

@@ -143,6 +143,9 @@ public:
     /// AzaharFrame kiuinteg: the weapon's own axis as held, in `hand`'s aim space, with its
     /// muzzle (ControllerModels::WeaponAxis); none for a class fitted along the ray.
     std::optional<Input::Vec3f> WeaponAxis(int hand) const;
+    /// AzaharFrame fixc: the weapon in `hand` aims along its barrel from its mouth (a cannon;
+    /// ControllerModels::WeaponAlongBarrel): Gyro Aim's projectiles then fly along it too.
+    bool WeaponAlongBarrel(int hand) const;
     /// AzaharFrame kiuguns: Kid Icarus: Uprising's equipped weapon (`id`, 0 to 107) is drawn in
     /// place of `hand`'s controller this frame (ControllerModels; the controller when the weapon
     /// is not ready). Cleared by TakeInput; GameFrame sets it. AzaharFrame kiuopacity:

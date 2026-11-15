@@ -362,8 +362,9 @@ TEST_CASE("Angel's Aim along the weapon: AZAHARFRAME_ANGELS_AIM_RAY=hand is kiua
                 // No axis (a class fitted along the ray, or no weapon): the same ray either way.
                 CHECK(SameBits(AngelsAimRay(aim, muzzle, std::nullopt, AimRayFrom::Weapon), old));
                 if (axis) {
-                    // Along the weapon: the same start, its own direction (a bow's or a
-                    // cannon's held along the hand's line: the controller's here).
+                    // Along the weapon: the same start, its own direction (a bow's held along
+                    // the hand's line: the controller's here; AzaharFrame fixc: a cannon's
+                    // barrel, 36 degrees inward of it).
                     const Ray along = AngelsAimRay(aim, muzzle, axis, AimRayFrom::Weapon);
                     CHECK(std::memcmp(&along.origin, &old.origin, sizeof(old.origin)) == 0);
                     const float off = std::acos(std::clamp(-axis->z, -1.0f, 1.0f)) / kDeg;
@@ -447,9 +448,10 @@ TEST_CASE("Weapon fit: Pit's fist on the controller's handle, every class he hol
 
 TEST_CASE("Angel's Aim: the start and direction per class (AimSourceFor)", "[frame_xr][kiuinteg]") {
     using Vis::AimSource;
+    // AzaharFrame fixc: cannons from the mouth along the barrel.
     const AimSource want[9] = {AimSource::Weapon, AimSource::Weapon, AimSource::Hand,
                                AimSource::Weapon, AimSource::Hand,   AimSource::Fist,
-                               AimSource::Weapon, AimSource::Hand,   AimSource::Hand};
+                               AimSource::Barrel, AimSource::Hand,   AimSource::Hand};
     for (int cls = 0; cls < 9; cls++) {
         CHECK(Vis::AimSourceFor(cls) == want[cls]);
     }
@@ -466,7 +468,9 @@ TEST_CASE("Angel's Aim: the start and direction per class (AimSourceFor)", "[fra
             }
             CHECK(a.start == Vis::FitMuzzle(c.w, left, SidesFor(c.w.cls)));
             CHECK_FALSE(a.fist);
-            if (Vis::AimSourceFor(c.w.cls) == AimSource::Weapon) {
+            CHECK(a.barrel == (c.w.cls == 6)); // AzaharFrame fixc
+            if (Vis::AimSourceFor(c.w.cls) == AimSource::Weapon ||
+                Vis::AimSourceFor(c.w.cls) == AimSource::Barrel) {
                 CHECK(a.axis == Vis::FitAxis(c.w, left, SidesFor(c.w.cls)));
             } else {
                 CHECK_FALSE(a.axis);
@@ -522,4 +526,134 @@ TEST_CASE("Angel's Aim: a club aims with the hand, from the fist's front, at eve
             }
         }
     }
+}
+
+// AzaharFrame fixc: a cannon aims from its mouth along its barrel (vis/weapon_fit.h
+// kCannonBarrel, AimSource::Barrel), held as Pit holds it (not turned): 36 degrees inward of the
+// controller's line and 3 up, the left hand's mirrored; the ray, the reticle and the laser along it.
+TEST_CASE("Angel's Aim: a cannon from its mouth along its barrel", "[frame_xr][fixc]") {
+    const ClassCase cannon = Classes()[6];
+    REQUIRE(cannon.w.cls == 6);
+    for (const bool left : {false, true}) {
+        INFO((left ? "left" : "right"));
+        const auto axis = Vis::FitAxis(cannon.w, left, kCentre);
+        REQUIRE(axis);
+        const Vec3f a = V(*axis);
+        CHECK(Length(a) == Approx(1.0f).margin(1e-5f));
+        const float up = std::asin(a.y) / kDeg;
+        const float inward = std::atan2(left ? a.x : -a.x, -a.z) / kDeg;
+        CHECK(up == Approx(2.8f).margin(0.2f));
+        CHECK(inward == Approx(36.0f).margin(0.3f));
+        // The barrel turns with the cannon (the fit's own turn of kCannonBarrel), not the
+        // controller's line: the cannon is drawn as before (not turned).
+        const auto parts = Vis::FitWeaponToHand(cannon.w, left, kCentre);
+        REQUIRE(parts.size() == 1);
+        const auto& m = parts[0].transform;
+        const auto& b = Vis::kCannonBarrel;
+        const Vec3f held = Normalized(Vec3f{m[0] * b[0] + m[4] * b[1] + m[8] * b[2],
+                                            m[1] * b[0] + m[5] * b[1] + m[9] * b[2],
+                                            m[2] * b[0] + m[6] * b[1] + m[10] * b[2]});
+        CHECK(Length(held - a) < 1e-5f);
+        // The forearm (Pit's -x) is still along the controller's line.
+        const Vec3f forearm = Normalized(Vec3f{-m[0], -m[1], -m[2]});
+        CHECK(forearm.z < -0.9999f);
+        // FitAim: from the muzzle (the app moves it to the mouth) along the barrel.
+        const Vis::FitAimStart s = Vis::FitAim(cannon.w, left, kCentre);
+        CHECK(s.barrel);
+        CHECK_FALSE(s.fist);
+        CHECK(s.axis == axis);
+        CHECK(s.start == Vis::FitMuzzle(cannon.w, left, kCentre));
+        // The test switch: the controller's line from the muzzle, no barrel.
+        const Vis::FitAimStart by_hand = Vis::FitAim(cannon.w, left, kCentre, {}, true);
+        CHECK_FALSE(by_hand.barrel);
+        CHECK_FALSE(by_hand.axis);
+        // A live turn of the cannon (AZAHARFRAME_KIU_FIT_CANNON) turns its barrel with it.
+        Vis::FitOverride yaw;
+        yaw.yaw = 20.0f;
+        yaw.set = true;
+        const auto turned = Vis::FitAxis(cannon.w, left, kCentre, yaw);
+        REQUIRE(turned);
+        const float d = std::acos(std::clamp(Dot(V(*turned), a), -1.0f, 1.0f)) / kDeg;
+        CHECK(d == Approx(20.0f).margin(0.5f));
+    }
+    // Without the game's hold (an older weapons file): the class's own fit along the ray, no
+    // barrel, as before.
+    Vis::FitWeapon old = cannon.w;
+    old.hold.reset();
+    CHECK_FALSE(Vis::FitAxis(old, false, kCentre));
+    const Vis::FitAimStart s = Vis::FitAim(old, false, kCentre);
+    CHECK_FALSE(s.barrel);
+    CHECK_FALSE(s.axis);
+    // The mouth: out along the barrel.
+    const auto mouth = Vis::BarrelMouth({0.1f, 0.2f, -0.3f}, {0.0f, 0.6f, -0.8f}, 0.05f);
+    CHECK(mouth[0] == Approx(0.1f));
+    CHECK(mouth[1] == Approx(0.23f));
+    CHECK(mouth[2] == Approx(-0.34f));
+    CHECK(Vis::BarrelMouth({1, 2, 3}, {0, 0, -1}, -1.0f) == std::array<float, 3>{1, 2, 3});
+    CHECK(Vis::BarrelMouth({1, 2, 3}, {0, 0, -1}, std::nanf("")) == std::array<float, 3>{1, 2, 3});
+}
+
+// AzaharFrame fixc: every class but the cannon starts and aims exactly as before this lane
+// (lane/rel120 e6d56259d's FitAim for these made-up holds, printed there).
+TEST_CASE("Angel's Aim: every class but the cannon as before", "[frame_xr][fixc]") {
+    using V3 = std::array<float, 3>;
+    struct Want {
+        const char* name;
+        bool left;
+        std::optional<V3> start, axis;
+        bool fist;
+    };
+    const std::vector<Want> want{
+        {"blade", false, V3{-0.0376930572f, 0.37168321f, -0.620549262f}, V3{-0.061634887f, 0.505892575f, -0.860391676f}, false},
+        {"blade", true, V3{0.0376930572f, 0.37168321f, -0.620549262f}, V3{0.061634887f, 0.505892575f, -0.860391676f}, false},
+        {"staff", false, V3{-0.0191747099f, 0.387735575f, -0.305899471f}, V3{-0.0549995042f, 0.738693297f, -0.671793997f}, false},
+        {"staff", true, V3{0.0191747099f, 0.387735575f, -0.305899471f}, V3{0.0549995042f, 0.738693297f, -0.671793997f}, false},
+        {"claws", false, V3{0.0130000003f, -0.0363999978f, 0.0391000062f}, std::nullopt, false},
+        {"claws", true, V3{-0.0130000003f, -0.0363999978f, 0.0391000062f}, std::nullopt, false},
+        {"bow", false, V3{0.0130000003f, -0.0443999991f, 0.0870999917f}, V3{0.0f, -0.087155737f, -0.996194661f}, false},
+        {"bow", true, V3{-0.0130000003f, -0.0443999991f, 0.0870999917f}, V3{0.0f, -0.087155737f, -0.996194661f}, false},
+        {"palm", false, V3{0.0130000003f, 0.0139333308f, 0.0185636953f}, std::nullopt, false},
+        {"palm", true, V3{-0.0130000003f, 0.0139333308f, 0.0185636953f}, std::nullopt, false},
+        {"club", false, V3{0.0130000003f, -0.0443999991f, 0.0471000001f}, std::nullopt, true},
+        {"club", true, V3{-0.0130000003f, -0.0443999991f, 0.0471000001f}, std::nullopt, true},
+        {"orbitars", false, V3{0.0f, 0.0500000007f, -0.150000006f}, std::nullopt, false},
+        {"orbitars", true, V3{0.0f, 0.0500000007f, -0.150000006f}, std::nullopt, false},
+        {"arm", false, V3{0.0130000003f, -0.0443999991f, -0.0248999894f}, std::nullopt, false},
+        {"arm", true, V3{-0.0130000003f, -0.0443999991f, -0.0248999894f}, std::nullopt, false},
+    };
+    const auto near = [](const std::optional<V3>& a, const std::optional<V3>& b) {
+        if (a.has_value() != b.has_value()) {
+            return false;
+        }
+        for (int k = 0; a && k < 3; k++) {
+            if (std::fabs((*a)[k] - (*b)[k]) > 1e-6f) {
+                return false;
+            }
+        }
+        return true;
+    };
+    std::size_t seen = 0;
+    for (const ClassCase& c : Classes()) {
+        if (c.w.cls == 6) {
+            continue;
+        }
+        for (const bool left : {false, true}) {
+            INFO(c.name << (left ? " L" : " R"));
+            const auto it = std::find_if(want.begin(), want.end(), [&](const Want& w) {
+                return std::string{w.name} == c.name && w.left == left;
+            });
+            REQUIRE(it != want.end());
+            seen++;
+            const Vis::FitAimStart a = Vis::FitAim(c.w, left, SidesFor(c.w.cls));
+            CHECK(near(a.start, it->start));
+            CHECK(near(a.axis, it->axis));
+            CHECK(a.fist == it->fist);
+            CHECK_FALSE(a.barrel);
+            CHECK(near(Vis::FitAxis(c.w, left, SidesFor(c.w.cls)),
+                       Vis::AimSourceFor(c.w.cls) == Vis::AimSource::Weapon
+                           ? it->axis
+                           : Vis::FitAxis(c.w, left, SidesFor(c.w.cls))));
+        }
+    }
+    CHECK(seen == want.size());
 }

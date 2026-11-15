@@ -125,35 +125,54 @@ std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand
 
 /// AzaharFrame kiuinteg: the weapon's own axis as held, in aim space (a unit direction), for the
 /// classes that take the game's hold (HoldMapFor: blades, staffs, clubs, bows, cannons) when the
-/// weapon has one: from Pit's fist to the muzzle (the blade, the shaft, the barrel as his hand
-/// holds it), or for a weapon whose muzzle is in the fist (a bow) the class's forward (the
-/// arrow's line, kFits) as held, turned to point away from the player; none when a blade, staff
-/// or club is held pointing back toward the player. None for the others
-/// (claws, palms, arms, orbitars, a weapon without a hold): their fits are made along the ray,
-/// so the aim pose's own direction is theirs. Angel's Aim's ray runs along it from the muzzle
-/// (input/gyro_aim.h AimRay).
+/// weapon has one: from Pit's fist to the muzzle (the blade, the shaft as his hand holds it), or
+/// for a weapon whose muzzle is in the fist (a bow) the class's forward (the arrow's line, kFits)
+/// as held, turned to point away from the player; none when a blade, staff or club is held
+/// pointing back toward the player. AzaharFrame fixc: a cannon's is its barrel (kCannonBarrel as
+/// held), not its forearm. None for the others (claws, palms, arms, orbitars, a weapon without a
+/// hold): their fits are made along the ray, so the aim pose's own direction is theirs. Angel's
+/// Aim's ray runs along it from the muzzle (input/gyro_aim.h AimRay).
 std::optional<std::array<float, 3>> FitAxis(const FitWeapon& w, bool left_hand,
                                             const std::vector<FitSide>& sides,
                                             const FitOverride& tune = {});
+/// AzaharFrame fixc: a cannon's barrel in its anchor's space (RArmN, weapon space; all twelve
+/// cannons share the anchor and the game's hold of it is the bind pose): the way Pit's aiming pose
+/// (ChrPit00ShotWaitLaunch, frame 0) points it, his front (+z) taken into the forearm's space.
+/// Each cannon's own barrel (its mesh's long axis) lies within about 5 degrees of it in that pose
+/// (the Ball Cannon's round body about 17), and the forearm 36 degrees off it: the game aims a
+/// cannon along its barrel, not its forearm. Held as Pit holds it, it is 36 degrees inward of
+/// the controller's line and 3 up.
+inline constexpr std::array<float, 3> kCannonBarrel{-0.8084f, -0.5866f, 0.0492f};
 /// AzaharFrame kiuinteg: where Angel's Aim's ray (the laser, the reticle's ray) and the shots
 /// (the muzzle flash, the projectiles) start for each class, and along what, in one table
 /// (AimSourceFor) so it can be changed after a headset test:
 ///   Weapon: from the muzzle along the weapon's own axis as held (FitAxis): blades, staffs, and
-///     bows and cannons (whose axis is the controller's line anyway);
+///     bows (whose axis is the controller's line anyway);
+///   Barrel (AzaharFrame fixc): from the cannon's mouth along its barrel (FitAxis): cannons. The
+///     mouth is the game's muzzle moved out along the barrel to where the cannon ends
+///     (BarrelPush, worked out when the weapon loads; `barrel` set): the laser, Direct Aim's ray,
+///     the muzzle flash and the projectiles all leave it along the barrel, and Direct Aim aims
+///     where the barrel points (what the laser shows is where the game aims);
 ///   Hand: from the muzzle along the controller's direction: claws, palms, arms, orbitars;
 ///   Fist: from the front of Pit's fist (kFistFrontM ahead of its centre, on the handle) along
 ///     the controller's direction: clubs, which his grip holds raised about 48 degrees, drawn as
 ///     he holds them, so a beam from the club's head would leave it at that angle.
 /// AZAHARFRAME_ANGELS_AIM_RAY=hand (`hand_ray`): every class from its muzzle along the
 /// controller's direction, kiuaim2's ray.
-enum class AimSource : uint8_t { Weapon, Hand, Fist };
+enum class AimSource : uint8_t { Weapon, Hand, Fist, Barrel };
 AimSource AimSourceFor(int cls);
 inline constexpr float kFistFrontM = 0.04f;
 struct FitAimStart {
     std::optional<std::array<float, 3>> start; ///< aim space; none: no weapon fitted
     std::optional<std::array<float, 3>> axis;  ///< aim space, unit; none: the controller's -Z
     bool fist = false;                         ///< the start is the fist's front (AimSource::Fist)
+    bool barrel = false; ///< AzaharFrame fixc: AimSource::Barrel: `axis` is the barrel's, and the
+                         ///< caller moves `start` out along it to the mouth (BarrelMouth)
 };
+/// AzaharFrame fixc: the mouth: `start` moved `push_m` (BarrelPush, in the fit's metres) along the
+/// unit `axis`.
+std::array<float, 3> BarrelMouth(const std::array<float, 3>& start, const std::array<float, 3>& axis,
+                                 float push_m);
 FitAimStart FitAim(const FitWeapon& w, bool left_hand, const std::vector<FitSide>& sides,
                    const FitOverride& tune = {}, bool hand_ray = false);
 

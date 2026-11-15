@@ -885,6 +885,14 @@ Which path the top screen takes (projdef, `vis/proj_path.h`, after the owner's A
   0.1 to 0.3 s); the layer list starts anew (`LayerSlots::ContextKey` takes the path), and any
   slot of a destroyed swapchain leaves it in any case (`retired_swapchains.h`,
   `LayerSlots::Map::Forget`), so no frame carries the old pass's swapchain.
+- AzaharFrame fixc: each second with any, one log line counts the refreshes that showed a
+  controller (or lost one that showed within 1 s) and went out without the controllers' layer,
+  by reason (`model_plane.h` `LayerGapFor`, judged at the next `Frame`): `xr: controllers: N
+  refreshes without their layer: ...`, the reasons being the pass made again (path change), the
+  pass being set up, the pass failed, no image yet, a new image after they came back, the quads'
+  canvas moving, no canvas, no room among the layers (`Visuals::TopLayers`), not drawn with the
+  screens (projection path) and tracking lost (`ControllerModels::Hand::tracked`; a loss under
+  250 ms keeps the last pose and is not one). Refreshes the runtime does not draw are not counted.
 - `AZAHARFRAME_XR_SCREENS_IN_PROJECTION` (live, in the test-switch file) is now an override for an
   A/B: `1` forces the projection layer in every mode (and at home, as the test builds did), `0`
   forces the quads; unset, the settings decide.

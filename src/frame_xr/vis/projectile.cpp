@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 
 namespace FrameXr::Vis {
@@ -44,8 +45,8 @@ int64_t ShotFlightNs(float metres, bool charged, float speed) {
     return static_cast<int64_t>(std::clamp(ns, lo, hi));
 }
 
-void Projectiles::Fire(const V3& from, const V3& to, bool charged, int64_t now_ns, float speed,
-                       float size) {
+int64_t Projectiles::Fire(const V3& from, const V3& to, bool charged, int64_t now_ns, float speed,
+                          float size) {
     Shot s;
     s.from = from;
     s.to = to;
@@ -59,6 +60,7 @@ void Projectiles::Fire(const V3& from, const V3& to, bool charged, int64_t now_n
         shots_.erase(shots_.begin()); // the oldest goes
     }
     shots_.push_back(s);
+    return s.flight_ns;
 }
 
 std::vector<ShotDraw> Projectiles::Current(int64_t now_ns) {
@@ -95,6 +97,54 @@ std::vector<ShotDraw> Projectiles::Current(int64_t now_ns) {
         out.push_back(d);
     }
     return out;
+}
+
+std::optional<std::string> ShotLog::Take(int64_t now_ns) { // AzaharFrame fixc
+    if (start_ns_ < 0 || now_ns < start_ns_) {
+        start_ns_ = now_ns;
+    }
+    if (now_ns - start_ns_ < kShotLogNs) {
+        return std::nullopt;
+    }
+    const double secs = static_cast<double>(now_ns - start_ns_) * 1e-9;
+    start_ns_ = now_ns;
+    uint32_t skipped = 0;
+    for (const uint32_t n : skipped_) {
+        skipped += n;
+    }
+    if (seen_ == 0 && fired_ == 0 && drawn_ == 0 && skipped == 0) {
+        return std::nullopt;
+    }
+    static constexpr const char* kWhy[] = {"no point on the Primary Screen", "no weapon fitted",
+                                           "weapon in the other hand", "weapon not loaded yet",
+                                           "several in one refresh"};
+    std::string why;
+    for (std::size_t k = 0; k < skipped_.size(); k++) {
+        if (skipped_[k]) {
+            why += (why.empty() ? "" : ", ") + std::to_string(skipped_[k]) + " " + kWhy[k];
+        }
+    }
+    const uint32_t handled = fired_ + skipped;
+    if (seen_ > handled) {
+        why += (why.empty() ? "" : ", ") + std::to_string(seen_ - handled) +
+               " while the models' pass was not ready";
+    }
+    char tail[160];
+    std::snprintf(tail, sizeof(tail),
+                  "; last %.0f ms over %.2f m, %.0f cm across; Projectile Opacity %.0f%%",
+                  static_cast<double>(flight_ns_) * 1e-6, static_cast<double>(metres_),
+                  static_cast<double>(size_m_) * 100.0, static_cast<double>(opacity_) * 100.0);
+    char head[96];
+    std::snprintf(head, sizeof(head), "xr: projectiles (%.0f s): %u shots seen, %u fired, %u drawn",
+                  secs, seen_, fired_, drawn_);
+    std::string line = head;
+    line += why.empty() ? std::string{"; none skipped"} : "; skipped: " + why;
+    if (fired_) {
+        line += tail;
+    }
+    seen_ = fired_ = drawn_ = 0;
+    skipped_ = {};
+    return line;
 }
 
 ShotTune ParseShotTune(const std::optional<std::string>& value) {

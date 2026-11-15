@@ -404,3 +404,90 @@ TEST_CASE("Keep Reticle on Screen: a locked controller does not touch the bottom
         }
     }
 }
+
+// AzaharFrame fixc: Grip Frees Aim and Keep Reticle on Screen are the aiming controller's alone
+// (owner, 2026-11-15): the other controller points, touches the Secondary Screen, grabs and fires
+// with no grip held, whichever hand aims (Motion Controls: right, or left for the left-handed).
+TEST_CASE("Aim lock: only the aiming controller's grip is taken and only it is locked",
+          "[frame_xr][fixc]") {
+    using namespace FrameXr::Input::TestUtil;
+    for (const int aim : {0, 1}) {
+        InputFrame frame = IdleFrame();
+        frame.hand[0].grip = 0.9f;
+        frame.hand[1].grip = 0.7f;
+        const float taken = TakeAimGrip(frame, aim);
+        CHECK(taken == (aim == 0 ? 0.9f : 0.7f));
+        CHECK(frame.hand[static_cast<std::size_t>(aim)].grip == 0.0f);
+        CHECK(frame.hand[static_cast<std::size_t>(1 - aim)].grip == (aim == 0 ? 0.7f : 0.9f));
+        LockAim(frame, aim, true);
+        CHECK(frame.hand[static_cast<std::size_t>(aim)].aim_locked);
+        CHECK_FALSE(frame.hand[static_cast<std::size_t>(1 - aim)].aim_locked);
+        LockAim(frame, aim, false); // freed by its grip, or Keep Reticle on Screen off
+        CHECK_FALSE(frame.hand[0].aim_locked);
+        CHECK_FALSE(frame.hand[1].aim_locked);
+    }
+    // Headset: no controller aims, nothing is taken.
+    InputFrame frame = IdleFrame();
+    frame.hand[0].grip = frame.hand[1].grip = 0.8f;
+    CHECK(TakeAimGrip(frame, -1) == 0.0f);
+    LockAim(frame, -1, true);
+    for (const HandInput& h : frame.hand) {
+        CHECK(h.grip == 0.8f);
+        CHECK_FALSE(h.aim_locked);
+    }
+}
+
+TEST_CASE("Aim lock: the other controller points and touches while the aiming one fires",
+          "[frame_xr][fixc]") {
+    using namespace FrameXr::Input::TestUtil;
+    const PanelGeometry panels = StandardPanels();
+    const Vec3f on_bottom{0.0f, -0.8f, -1.5f};
+    const Vec3f on_top{0.0f, 0.0f, -2.0f};
+    for (const Hand aim : {Hand::Right, Hand::Left}) {
+        const Hand other = OtherHand(aim);
+        const auto ai = static_cast<std::size_t>(HandIndex(aim));
+        const auto oi = static_cast<std::size_t>(HandIndex(other));
+        Mapper mapper{MapperConfig{}};
+        int64_t t = 0;
+        InputFrame frame = IdleFrame();
+        LockAim(frame, HandIndex(aim), true);
+        // The aiming controller fires, held, at the bottom screen too (it is the hand that
+        // pulled last), and the other one hovers the bottom screen: its pointer shows.
+        Point(frame, aim, on_bottom);
+        Point(frame, other, on_bottom + Vec3f{0.1f, 0.05f, 0.0f});
+        frame.hand[ai].trigger = 1.0f;
+        frame.time_ns = t;
+        MapperOutput out = mapper.Update(frame, panels);
+        CHECK(out.touch_event_count == 0);
+        CHECK(out.controls.Get(aim == Hand::Left ? Control::TriggerL : Control::TriggerR));
+        REQUIRE(out.cursor.visible);
+        CHECK(out.cursor.hand == other);
+        // Its trigger touches, with no grip held.
+        frame.hand[oi].trigger = 1.0f;
+        frame.time_ns = t += kFrameNs;
+        out = mapper.Update(frame, panels);
+        REQUIRE(out.touch_event_count == 1);
+        CHECK(out.touch_events[0].type == TouchEventType::Pressed);
+        CHECK(out.cursor.hand == other);
+        CHECK_FALSE(out.controls.Get(other == Hand::Left ? Control::TriggerL : Control::TriggerR));
+        frame.hand[oi].trigger = 0.0f;
+        frame.time_ns = t += kFrameNs;
+        out = mapper.Update(frame, panels);
+        REQUIRE(out.touch_event_count == 1);
+        CHECK(out.touch_events[0].type == TouchEventType::Released);
+        // Over the top screen its trigger is ZL/ZR (it fires too, as before).
+        Point(frame, other, on_top);
+        frame.hand[oi].trigger = 1.0f;
+        frame.time_ns = t += kFrameNs;
+        out = mapper.Update(frame, panels);
+        CHECK(out.touch_event_count == 0);
+        CHECK(out.controls.Get(other == Hand::Left ? Control::TriggerL : Control::TriggerR));
+        frame.hand[oi].trigger = 0.0f;
+        // Its grip grabs a screen as ever (the aiming grip is taken: TakeAimGrip).
+        frame.hand[oi].grip = 1.0f;
+        frame.time_ns = t += kFrameNs;
+        out = mapper.Update(frame, panels);
+        CHECK(out.commands.top_drag_active);
+        CHECK(out.commands.drag_hand == HandIndex(other));
+    }
+}

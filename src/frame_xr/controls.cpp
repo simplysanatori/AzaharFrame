@@ -1757,7 +1757,8 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         }
         if (on && aim_source != 3) {
             gyro_aim_hand = Input::HandIndex(aim_source == 2 ? Input::Hand::Left : Input::Hand::Right);
-            Input::HandInput& hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
+            // AzaharFrame fixc: the aiming controller's grip alone (the other keeps its own).
+            const float aim_grip_value = Input::TakeAimGrip(game_in, gyro_aim_hand);
             if (gyro_aim_frame.mode == Input::GyroAimMode::LightGun) {
                 // AzaharFrame kiuaim3: Grip Frees Aim: Hold (free while held, as the pause was)
                 // or Toggle (a press frees, the next locks; a short toast each time). A press
@@ -1766,7 +1767,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                 const float other =
                     in.hand[static_cast<std::size_t>(1 - gyro_aim_hand)].grip;
                 const Input::AimGrip::Out g = aim_grip.Update(
-                    hand.grip, other > Immersive::Layout::kGripPress,
+                    aim_grip_value, other > Immersive::Layout::kGripPress,
                     Input::AimGripModeFrom(Settings::values.vr_light_gun_grip.GetValue()),
                     check_flow.active());
                 gyro_aim_frame.clutch = g.free;
@@ -1777,10 +1778,9 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                 }
                 gyro_clutch.Reset();
             } else {
-                gyro_aim_frame.clutch = gyro_clutch.Update(hand.grip);
+                gyro_aim_frame.clutch = gyro_clutch.Update(aim_grip_value);
                 aim_grip.Reset();
             }
-            hand.grip = 0.0f;
         } else {
             gyro_clutch.Reset();
             aim_grip.Reset();
@@ -1812,8 +1812,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                     aim_hit = lock ? Input::LockedTargetFor(ray, panels.top)
                                    : Input::LightGunTargetFor(ray, panels.top, &panels.bottom);
                 }
-                game_in.hand[static_cast<std::size_t>(gyro_aim_hand)].aim_locked =
-                    lock && panels.top.visible;
+                Input::LockAim(game_in, gyro_aim_hand, lock && panels.top.visible);
                 const bool resting = aim_hit.valid && aim_hit.resting;
                 if (resting != aim_rest_logged) {
                     aim_rest_logged = resting;
@@ -2200,11 +2199,20 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         // screen (the game's reticle stops at its edge too). kiuinteg: with Direct Aim, the
         // point Direct Aim writes (kiuaim2: the ray's hit through the game's Check Aim map; Keep
         // Reticle on Screen's edge point); with Gyro Aim, the aim pose's own ray, as before.
+        // AzaharFrame fixc: a cannon's with Gyro Aim, its ray from the mouth along the barrel
+        // (the way its shots leave it).
+        const Input::HandInput& shot_hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
         const Input::LightGunTarget target =
             gyro_aim_frame.mode == Input::GyroAimMode::LightGun
                 ? gyro_aim_frame.target
-                : Input::LightGunTargetFor(game_in.hand[static_cast<std::size_t>(gyro_aim_hand)],
-                                           panels.top);
+            : visuals.WeaponAlongBarrel(gyro_aim_hand) && shot_hand.active
+                ? Input::LightGunTargetFor(
+                      Input::AngelsAimRay(shot_hand.aim, visuals.WeaponMuzzle(gyro_aim_hand),
+                                          visuals.WeaponAxis(gyro_aim_hand),
+                                          Input::AimRayFromSwitch(Common::FrameTestSwitches::Value(
+                                              Input::kAimRaySwitch))),
+                      panels.top)
+                : Input::LightGunTargetFor(shot_hand, panels.top);
         if (shot_signal.on && target.valid) {
             const Input::Vec3f p = Input::PointOnQuad(panels.top, std::clamp(target.u, 0.0f, 1.0f),
                                                       std::clamp(target.v, 0.0f, 1.0f));

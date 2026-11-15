@@ -1089,6 +1089,7 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             auto& out = hands[static_cast<std::size_t>(h)];
             out.shown = m.activity[h].Tracked() && m.activity[h].Model() > 0.02f &&
                         !in.hand[static_cast<std::size_t>(h)].mouse; // AzaharFrame padsui
+            out.tracked = m.activity[h].Tracked(); // AzaharFrame fixc: the flicker count
             out.aim = m.activity[h].PoseAhead(); // AzaharFrame ctrlglitch: when it is on view
             out.fade = m.activity[h].Model();
             out.input = ModelInputsFor(in, h);
@@ -1096,6 +1097,14 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             out.weapon_opacity = h == m.weapon_hand ? m.weapon_opacity : 1.0f; // kiuopacity
             out.flash = h == m.weapon_hand ? m.flash : FlashFrame{}; // AzaharFrame kiuflash
             out.shots = h == m.shots_hand ? m.shots : ShotSignal{};
+        }
+    } else if (ControllerModelsWanted(Settings::values.vr_show_controllers.GetValue(),
+                                      passthrough_shown)) {
+        // AzaharFrame fixc: a refresh the runtime does not draw still carries the shots' signal
+        // (nothing is shown): without it the projectiles in flight were cleared and the next
+        // shot was taken as already seen.
+        for (int h = 0; h < Input::kNumHands; h++) {
+            hands[static_cast<std::size_t>(h)].shots = h == m.shots_hand ? m.shots : ShotSignal{};
         }
     }
     // AzaharFrame ctrlfront: "Controllers in Front of Screen", read every frame (model_plane.h).
@@ -1149,6 +1158,10 @@ std::optional<Input::Vec3f> Visuals::WeaponAxis(int hand) const { // AzaharFrame
     return Input::Vec3f{(*ax)[0], (*ax)[1], (*ax)[2]};
 }
 
+bool Visuals::WeaponAlongBarrel(int hand) const { // AzaharFrame fixc
+    return impl->models.WeaponAlongBarrel(hand);
+}
+
 std::optional<Input::Vec3f> Visuals::WeaponMuzzle(int hand) const {
     const auto mz = impl->models.WeaponMuzzle(hand);
     if (!mz) {
@@ -1179,6 +1192,8 @@ const XrCompositionLayerBaseHeader* Visuals::TopLayers(std::vector<Quad>& top,
     const XrCompositionLayerBaseHeader* models = room > 0 ? m.models_layer : nullptr;
     room -= models ? 1 : 0;
     const std::size_t beams = std::min(room, m.top_beams.size());
+    // AzaharFrame fixc: counted with the refreshes without the controllers' layer.
+    impl->models.NoteNoRoom(m.model_quads_ready && !model_quads, m.models_layer && !models);
     if (beams < m.top_beams.size() || dots < m.top_dots.size() || (m.models_layer && !models) ||
         (m.model_quads_ready && !model_quads)) {
         static int said = 0;
