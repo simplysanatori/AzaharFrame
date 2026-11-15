@@ -350,3 +350,38 @@ TEST_CASE("Layer slots: a forgotten reserved key may be reserved again", "[frame
     CHECK(m.Forget('h') == 4); // the HUD's chain destroyed: its four reserved slots go
     CHECK(Names(HudFrame(m, 3, {{G::Top, "eye"}})) == "res_ res_ res_ res_ eye");
 }
+
+TEST_CASE("Layer slots: every path switch starts a new list", "[frame_xr][projdef]") {
+    // 590b: Mario Kart 7 paused, Motion Clarity off: 2 screen layers before and after the flip to
+    // the projection layer (its fallback quads), so the count alone kept the list, and a slot kept
+    // the models' destroyed swapchain (XR_ERROR_LAYER_INVALID). Kid Icarus: Uprising's normal view
+    // in 590 likewise (3 -> 3). From Motion Clarity on (4: a backing and a screen per eye) to 2
+    // the count changed and nothing failed. Every case now gives a new key, and so a new list.
+    for (const std::size_t screens : {std::size_t{2}, std::size_t{3}}) {
+        CHECK(LS::ContextKey(3, true, false, screens) != LS::ContextKey(3, true, true, screens));
+    }
+    CHECK(LS::ContextKey(3, true, false, 4) != LS::ContextKey(3, true, true, 2));
+    // The other parts still count, and no two inputs share a key.
+    CHECK(LS::ContextKey(3, true, true, 2) != LS::ContextKey(3, false, true, 2));
+    CHECK(LS::ContextKey(3, true, true, 2) != LS::ContextKey(4, true, true, 2));
+    CHECK(LS::ContextKey(3, true, true, 20) == LS::ContextKey(3, true, true, 15)); // capped
+    // The sequence: the same screens' count over the flip, the eye quads of 'e' gone with it.
+    LS::Map<Q> m;
+    const std::vector<std::pair<G, std::string>> quads{
+        {G::Ui, "stats"}, {G::Top, "eye"}, {G::Top, "eye"}, {G::Top, "beam"}};
+    for (int f = 0; f < 3; f++) {
+        CHECK(Carries(HudFrame(m, LS::ContextKey(3, true, false, 2), quads), 'e'));
+    }
+    // No Forget here: the new list alone drops the dead slots.
+    for (int f = 0; f < 3; f++) {
+        const auto out =
+            HudFrame(m, LS::ContextKey(3, true, true, 2), {{G::Ui, "stats"}, {G::Top, "beam"}});
+        CHECK_FALSE(Carries(out, 'e'));
+    }
+    CHECK(m.Resets() == 2);
+    // And from Motion Clarity on (4 screen layers) to the projection layer (2).
+    LS::Map<Q> mc;
+    HudFrame(mc, LS::ContextKey(3, true, false, 4), quads);
+    CHECK_FALSE(Carries(
+        HudFrame(mc, LS::ContextKey(3, true, true, 2), {{G::Ui, "stats"}, {G::Top, "beam"}}), 'e'));
+}

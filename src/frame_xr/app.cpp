@@ -1264,12 +1264,10 @@ void Runtime::FrameLoop() {
             }
         }
         if (fs.shouldRender) {
-            // A new list when the panels' context changes or the screens' layers change in number
-            // (a game starting or stopping, Motion Clarity's backing coming or going): the slots
-            // after them would all move anyway.
-            const uint32_t screens_n = static_cast<uint32_t>(std::min<std::size_t>(screen_layers, 15));
-            layer_slots.Begin(((ui ? ui->LayerContext() : 0) * 2 + (screens_live ? 1 : 0)) * 16 +
-                              screens_n);
+            // A new list when the panels' context changes, the screens' layers change in number,
+            // or (projdef) the top screen's path changes (LayerSlots::ContextKey).
+            layer_slots.Begin(LayerSlots::ContextKey(ui ? ui->LayerContext() : 0, screens_live,
+                                                     want_proj, screen_layers));
             // integ13: the HUD's quads have their slots from the start of the list, in their draw
             // order (as slot_add keys them: their group and the HUD's one swapchain), so a toast
             // or a label that first shows mid-game fills its own slot and never moves the Top

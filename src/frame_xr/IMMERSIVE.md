@@ -778,8 +778,9 @@ Which path the top screen takes (projdef, `vis/proj_path.h`, after the owner's A
   in focus keeps the path. With no game on view (a boot, a Quick Load, the session hidden) the
   last choice holds 10 s (`kNoGameHoldNs`), then the quads. Each change is logged
   (`xr: top screen path: ...`) and makes the models' pass again (the controllers are missing for
-  0.1 to 0.3 s); every slot of the old pass's swapchain leaves the layer list first
-  (`retired_swapchains.h`, `LayerSlots::Map::Forget`).
+  0.1 to 0.3 s); the layer list starts anew (`LayerSlots::ContextKey` takes the path), and any
+  slot of a destroyed swapchain leaves it in any case (`retired_swapchains.h`,
+  `LayerSlots::Map::Forget`), so no frame carries the old pass's swapchain.
 - `AZAHARFRAME_XR_SCREENS_IN_PROJECTION` (live, in the test-switch file) is now an override for an
   A/B: `1` forces the projection layer in every mode (and at home, as the test builds did), `0`
   forces the quads; unset, the settings decide.

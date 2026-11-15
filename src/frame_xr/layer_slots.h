@@ -60,6 +60,20 @@ struct Key {
 /// A collapsed (absent) quad's size, times its own.
 inline constexpr float kCollapse = 1e-5f;
 
+/// The list's context for Map::Begin (a new one starts a new list): the panels' context, whether a
+/// game's screens are live, the top screen's path, and how many screen layers come before the
+/// slots (a game starting or stopping, Motion Clarity's backing coming or going: the slots after
+/// them would all move anyway). AzaharFrame projdef: the path too, so every switch between the
+/// quads and the projection layer starts a new list, also when the screens' layers keep their
+/// number (Motion Clarity off, or the normal view: 2 -> 2): with the count alone the old list
+/// lived on with the models' destroyed swapchain in a slot (XR_ERROR_HANDLE_INVALID in 590,
+/// XR_ERROR_LAYER_INVALID in 590b).
+inline uint32_t ContextKey(uint32_t panels, bool screens_live, bool projection,
+                           std::size_t screen_layers) {
+    const uint32_t n = static_cast<uint32_t>(std::min<std::size_t>(screen_layers, 15));
+    return ((panels * 2 + (screens_live ? 1u : 0u)) * 2 + (projection ? 1u : 0u)) * 16 + n;
+}
+
 /// `Quad` is anything copyable; `collapse(Quad&)` shrinks one in place.
 template <typename Quad>
 class Map {
