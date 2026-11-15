@@ -62,7 +62,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% (Full modes: 100%) | global and per game | at once |
 | [Dynamic Resolution](#dynamic-resolution) | on or off | off | global | at once |
-| [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10**, **Automatic** | 3DS (5:3) | global and per game | at once |
+| [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10**, **Automatic** | Automatic | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
@@ -191,7 +191,7 @@ The shape of the Primary Screen in VR, and of the screen in immersive mode. The 
 - **3DS (5:3)**: the 3DS's own shape. Right for almost every game.
 - **Widescreen (16:9)** and **Ultrawide (21:9)**: for mods that draw a widescreen picture.
 - **Standard (4:3)**, **3:2** and **16:10**: for cheats and mods that change the game's own aspect.
-- **Automatic**: follows the shape the game's camera draws with: 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9. A new shape is used once it has held for 2 seconds, and the screen eases into it. A game with a widescreen mod from the **Mods** tab starts at that mod's shape. This works with **Detect Game FOV** set to **Off** too.
+- **Automatic**, the default: follows the shape the game's camera draws with: 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9. A new shape is used once it has held for 2 seconds, and the screen eases into it. A game with a widescreen mod from the **Mods** tab starts at that mod's shape. This works with **Detect Game FOV** set to **Off** too.
 
 Match the shape the game or mod draws, or the picture stretches. A change shows at once, also from the in-game menu, so you can match a mod's setting while you play.
 

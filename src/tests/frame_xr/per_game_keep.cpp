@@ -234,3 +234,62 @@ TEST_CASE("Per-Game: KeepMenuKeys puts the values back once, at Restore or at th
     }
     CHECK(s.UsingGlobal());
 }
+
+namespace {
+
+/// QtConfig::ReadBasicSetting in the global file: a value marked "\default=true" is read as the
+/// build's own default.
+template <typename T, bool R>
+T ReadGlobalFile(QSettings& ini, const Settings::SwitchableSetting<T, R>& s) {
+    const QString name = QString::fromStdString(s.GetLabel());
+    if (ini.value(name + QStringLiteral("/default"), false).toBool()) {
+        return s.GetDefault();
+    }
+    return FromVariant<T>(ini.value(name, ToVariant(s.GetDefault())));
+}
+
+/// QtConfig::WriteBasicSetting in the global file: the value, marked "\default" when it equals the
+/// build's default.
+template <typename T, bool R>
+void WriteGlobalFile(QSettings& ini, const Settings::SwitchableSetting<T, R>& s, T value) {
+    const QString name = QString::fromStdString(s.GetLabel());
+    ini.setValue(name + QStringLiteral("/default"), value == s.GetDefault());
+    ini.setValue(name, ToVariant(value));
+}
+
+} // namespace
+
+// AzaharFrame fixa: Screen Shape starts on Automatic. The global file keeps an unchanged value as
+// "\default=true", which each build reads as its own default, so 1.1.1 (3DS 5:3, 0 to 5 only)
+// never sees Automatic from it; a game's own value is read as written, in every build.
+TEST_CASE("Defaults: Screen Shape is Automatic, rollback-safe", "[fixa]") {
+    auto& top = Settings::values.vr_top_aspect;
+    CHECK(top.GetDefault() == 6u); // Automatic, the last choice
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QSettings ini(dir.filePath(QStringLiteral("qt-config.ini")), QSettings::IniFormat);
+    // A file an older build wrote with Screen Shape never changed (its 5:3 default): Automatic.
+    ini.setValue(QStringLiteral("vr_top_aspect/default"), true);
+    ini.setValue(QStringLiteral("vr_top_aspect"), 0);
+    CHECK(ReadGlobalFile(ini, top) == 6u);
+    // Automatic saved by this build is marked as the default: an older build reads its own.
+    WriteGlobalFile(ini, top, 6u);
+    CHECK(ini.value(QStringLiteral("vr_top_aspect/default")).toBool());
+    // 3DS (5:3) picked in this build is saved as itself, and read back as itself.
+    WriteGlobalFile(ini, top, 0u);
+    CHECK_FALSE(ini.value(QStringLiteral("vr_top_aspect/default")).toBool());
+    CHECK(ReadGlobalFile(ini, top) == 0u);
+    // A game's own 5:3 (no "\default" in a game's file) stays 5:3.
+    QSettings game(dir.filePath(QStringLiteral("game.ini")), QSettings::IniFormat);
+    game.setValue(QStringLiteral("vr_top_aspect/use_global"), false);
+    game.setValue(QStringLiteral("vr_top_aspect"), 0);
+    const bool was_global = top.UsingGlobal();
+    const u32 was = top.GetValue();
+    ReadGame(game, top);
+    CHECK_FALSE(top.UsingGlobal());
+    CHECK(top.GetValue() == 0u);
+    top.SetGlobal(was_global);
+    if (!was_global) {
+        top.SetValue(was);
+    }
+}
