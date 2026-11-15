@@ -62,7 +62,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - It saves every 5 minutes, when you open the menu and when you close the game. Each game keeps its newest 3. Both can be set per game.
 - The autosave made when you open the menu has a spot of its own. It doesn't count toward the newest 3, so opening the menu never removes an older autosave.
 - **Load State** has an **Autosave** card with the newest one, and a list of the others.
-- "Autosaved" shows above the top screen, or as a short message when that corner is out of view. **Couldn't Autosave** tells you when one fails.
+- "Autosaved" shows above the Primary Screen, or as a short message when that corner is out of view. **Couldn't Autosave** tells you when one fails.
 - Autosaves wait while memory is nearly full, because writing one needs about 0.9 GB more for a moment.
 - Autosaves never replace a slot or the Quick Save.
 - In Azahar's window, autosaves are at the end of **Emulation > Load State**. The settings are in **Emulation > Configure > General** and in a game's **Properties**.
@@ -93,14 +93,14 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - **Edit Controls** shows a New 3DS XL.
 - Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
-- **Bottom Screen Reticle**: a controller or your head aims at the bottom screen, for games that aim with the touch screen. That controller shows no beam while it aims.
+- **Bottom Screen Reticle**: a controller or your head aims at the Secondary Screen, for games that aim with the touch screen. That controller shows no beam while it aims.
 - **Reticle Speed**: how far the reticle moves when you turn. At the default 2.0x your head turns half as far as before to cross the screen, about 15 degrees side to side.
 - **Aim Only While Pressed** keeps the reticle in the middle until the trigger touches. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick.
 - **Angel's Aim** (Kid Icarus: Uprising, with the C-Stick & Gyro mod): blades and staffs aim along the weapon, clubs from the fist along your hand, other weapons along your hand. Pit's fist sits on the controller's handle.
 
 ### Mouse and Pointer Controls
 
-- **Bottom Screen**: the mouse touches and drags on the bottom screen, for games that aim with the touch screen, such as Kid Icarus: Uprising.
+- **Bottom Screen**: the mouse touches and drags on the Secondary Screen, for games that aim with the touch screen, such as Kid Icarus: Uprising.
 - **Pointer**: a 3D pointer for the menu and screens, adapted from [Frametop](https://github.com/Frametop/frametop), so you can use the app outside a game.
 - Hold left and right click for 3 seconds to switch modes.
 - Middle click opens the VR menu.
@@ -108,7 +108,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 ### Screens
 
 - **Detach Screens**: Off, Secondary or Both. Detached screens keep their place per game.
-- **Touchpad**: a gamepad's touchpad works as the bottom screen.
+- **Touchpad**: a gamepad's touchpad works as the Secondary Screen.
 
 ### Game keyboard
 
@@ -121,13 +121,13 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. They are the settings I play with: resolution, texture filter, 3D Depth, Horizontal Scale, Vertical Scale, Render Margin and where the screen sits. A value you set yourself always wins.
 - The immersive screen now has the game's own shape. At 0% you see exactly the game's picture, and **Render Margin** (with **Stretch**) adds a margin around it. Before, the game drew a quarter more up and down than across, so a 5:3 game came out as 4:3 and full-screen pictures such as Ocarina of Time 3D's item screen were stretched. When a game zooms in to aim, the screen keeps its size and shape.
 - **Screen Shape** has a new **Automatic** choice. I made it follow the shape the game's camera draws with, 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9, so a mod or cheat that changes the picture's shape looks right without setting it yourself.
-- Faraway scenery no longer doubles in Ocarina of Time 3D and Majora's Mask 3D. The 3D was too deep for a screen this big: at 3D Depth 30, Ocarina of Time 3D put distant scenery further apart than your eyes. In **Full (6DoF): Ocarina of Time, Majora's Mask** I now limit the 3D to the deepest that still lines up, worked out from the screen's size and distance and your IPD, and it follows them as you change them. Your 3D Depth setting stays as you set it. When the limit applies, the 3D Depth message says so, for example **3D Depth: 30% (Limited to 8%)**.
+- Faraway scenery doubles less in Ocarina of Time 3D and Majora's Mask 3D. The 3D was too deep for a screen this big: at 3D Depth 30, Ocarina of Time 3D put distant scenery further apart than your eyes. In **Full (6DoF): Ocarina of Time, Majora's Mask** I now limit the 3D to the deepest that still lines up, worked out from the screen's size and distance and your IPD, and it follows them as you change them. Your 3D Depth setting stays as you set it. When the limit applies, the 3D Depth message says so, for example **3D Depth: 30% (Limited to 8%)**.
 - In the same mode, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without Render Margin's border of the paused world around them. The margin comes back as you return to the game.
 - Both eyes now always see the same moment of the game.
 - In the Full modes the Primary screen is drawn together with the controllers, in step with your head, which reduces doubling on fast head turns. **Primary Screen as Panel** (Experimental) brings back the separate panel.
 - New **Motion Clarity** (Experimental): each game picture shows only once, for a clearer picture when you turn your head, but it may flicker or double in demanding scenes. In the Full modes it needs **In Immersive Modes** on, under it.
 - SteamVR's recentre and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
-- Immersive mode recentres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
+- Immersive mode recentres on where you face each time it resumes after the menu or the Secondary Screen, so the character stays in the middle after you change settings such as the resolution.
 - Render Margin no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
