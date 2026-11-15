@@ -3656,8 +3656,16 @@ TEST_CASE("Tab menu: every selected segment keeps its check", "[frame_xr][tabmen
     const std::vector<std::vector<std::string>> rows{
         OptionsFor(Id::MatchCamera), {"Off", "Once", "Always"}, {"Off", "10%", "20%", "30%"},
         {"1x", "10x", "100x"}, OptionsFor(Id::MarginX)};
+    // rel120: and where the equal segments do not fit (Mouse Mode beside Reset to Default).
+    std::vector<std::pair<std::vector<std::string>, float>> sized;
     for (const auto& opts : rows) {
-        const float w = kit.SegmentedWidth(opts);
+        sized.emplace_back(opts, kit.SegmentedWidth(opts));
+    }
+    const auto& mouse = OptionsFor(Id::MouseMode);
+    const float tight = kit.SegmentedWidth(mouse) - 40.0f;
+    sized.emplace_back(mouse, kit.SegmentedWidth(mouse, tight));
+    CHECK(sized.back().second < kit.SegmentedWidth(mouse));
+    for (const auto& [opts, w] : sized) {
         for (float x1 = 300.0f; x1 < kPanelW; x1 += 1.37f) {
             const Rect r{x1 - w, 100.0f, x1, 140.0f};
             const auto e = kit.SegmentEdges(r, opts);

@@ -260,12 +260,14 @@ float Kit::SegmentedWidth(const std::vector<std::string>& options, float max_wid
     }
     const float n = static_cast<float>(options.size());
     // Material's equal segments with the check; when they do not fit, segments as wide as
-    // their labels (with the check, then without it).
+    // their labels, each with room for the check (rel120: one check's room shared out by
+    // SegmentEdges left a selected segment short of it: Mouse Mode's Secondary Screen), then
+    // as wide as there is room.
     const float equal = (widest + kSegCheck + kSegPad) * n;
     if (equal <= max_width) {
         return equal;
     }
-    return std::min(max_width, sum + kSegCheck);
+    return std::min(max_width, sum + kSegCheck * n);
 }
 
 void Kit::Segmented(const Rect& r, const std::vector<std::string>& options, int selected,
@@ -324,7 +326,8 @@ std::vector<float> Kit::SegmentEdges(const Rect& r, const std::vector<std::strin
     float widest = 0.0f, sum = 0.0f;
     std::vector<float> w(n);
     for (std::size_t i = 0; i < n; i++) {
-        w[i] = TextWidth(Type::Label, options[i]) + kSegPad;
+        // rel120: each with room for the check, as SegmentedWidth sizes them.
+        w[i] = TextWidth(Type::Label, options[i]) + kSegPad + kSegCheck;
         widest = std::max(widest, w[i]);
         sum += w[i];
     }
