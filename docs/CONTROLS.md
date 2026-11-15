@@ -9,7 +9,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | **A** (bottom), **B** (right), **X** (left), **Y** (top) on the right controller | B, A, Y, X | By position, as on the 3DS, where A is on the right and B is below it. **Face Buttons** in the VR settings changes it to by label |
 | Left bumper | L | |
 | Right bumper | R | |
-| Left trigger | ZL | Aimed at the bottom screen it is a touch instead |
+| Left trigger | ZL | Aimed at the Secondary Screen it is a touch instead |
 | Right trigger | ZR | The same |
 | Left and right grip | Move the screens | See Pointing |
 | Left stick | Circle Pad | |
@@ -36,7 +36,7 @@ A tap of **Menu** is Start and a tap of **View** is Select, sent when you let go
 
 ## Quick Save and Quick Load
 
-Hold **View**, then press the right bumper to Quick Save, or hold the left bumper for half a second to Quick Load. The half second is there so a brush of the bumper never throws away your progress. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window, and the in-game menu has both buttons too. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. Press **View** first: bumpers first, then **View**, is the bottom screen button. It works in VR and in Flat.
+Hold **View**, then press the right bumper to Quick Save, or hold the left bumper for half a second to Quick Load. The half second is there so a brush of the bumper never throws away your progress. It is the same slot as **Emulation > Quick Save** and **Quick Load** in Azahar's window, and the in-game menu has both buttons too. A short message in front of you says "Quick Saved" or "Quick Loaded", or "No Quick Save" when there is nothing to load. Press **View** first: bumpers first, then **View**, is the Secondary Screen button. It works in VR and in Flat.
 
 ## Fast Forward
 
@@ -44,17 +44,17 @@ Hold **View**, then pull and let go of the right trigger to turn Fast Forward on
 
 ## Pointing
 
-Each controller has a beam. The hand that pulled its trigger last owns the dot, which shows over the bottom screen.
+Each controller has a beam. The hand that pulled its trigger last owns the dot, which shows over the Secondary Screen.
 
 | Aim at | Trigger | Grip | Stick of that hand |
 |---|---|---|---|
-| Bottom screen | Touch. Hold and move to drag the touch | Move both screens | While you move them: farther and nearer (up, down), bigger and smaller (right, left) |
-| Top screen | ZL or ZR, as everywhere in the game | Move both screens. They keep their distance from you and turn to face you | While you move them: nearer and farther, bigger and smaller. It does not reach the game then |
+| Secondary Screen | Touch. Hold and move to drag the touch | Move both screens | While you move them: farther and nearer (up, down), bigger and smaller (right, left) |
+| Primary Screen | ZL or ZR, as everywhere in the game | Move both screens. They keep their distance from you and turn to face you | While you move them: nearer and farther, bigger and smaller. It does not reach the game then |
 | Stats panel (In Front) | ZL or ZR, nothing behind it is touched | Move the stats. They keep their distance from you and turn to face you | While you move them: nearer and farther, bigger and smaller. It does not reach the game then |
 
-The trigger is a touch only when the beam is on the bottom screen as you pull it; anywhere else it is ZL or ZR for as long as you hold it. A grip grabs the screen under the beam.
+The trigger is a touch only when the beam is on the Secondary Screen as you pull it; anywhere else it is ZL or ZR for as long as you hold it. A grip grabs the screen under the beam.
 
-The top screen starts 2 m ahead at eye height. It can be made up to 3 times bigger, which fills the whole view, and down to half size. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes.
+The Primary Screen starts 2 m ahead at eye height. It can be made up to 3 times bigger, which fills the whole view, and down to half size. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes.
 
 While a grip holds the screens, D-pad left or right nudges them 0.5 degrees per press around you. Hold it to keep going. They keep their distance and turn to face you, and a label shows **Moved Right** (or Left) for 2 seconds. Use it when a big screen's edge is just out of view. To move them up or down, move the hand that holds them.
 
@@ -62,7 +62,7 @@ D-pad up or down, while a grip holds the screens, makes the Primary Screen more 
 
 When you take hold of the screens, a small hint under them lists what the D-pad and the stick do. The D-pad does not reach the game while you hold the screens.
 
-The bottom screen follows the top one, tilted back, just under its bottom edge. Each game keeps the screens where you leave them. Hold the right stick click for 1 second to put both back. To move them apart, see Detaching the screens.
+The Secondary Screen follows the Primary Screen, tilted back, just under its bottom edge. Each game keeps the screens where you leave them. Hold the right stick click for 1 second to put both back. To move them apart, see Detaching the screens.
 
 ## Detaching the screens
 
@@ -75,28 +75,28 @@ The bottom screen follows the top one, tilted back, just under its bottom edge. 
 | **Both** | Moves on its own | Moves on its own |
 
 - A screen that moves on its own goes wherever you carry it with the grip, all around you, and turns to face you, like the stats panel. While you hold it, the stick of that hand moves it nearer or farther and makes it bigger or smaller (half to 3 times its size), and D-pad left or right nudges it around you.
-- After a swap the Secondary Screen is the top screen.
+- After a swap the Secondary Screen is the Primary Screen.
 - D-pad up or down changes the Screen Curve only while you hold the Primary Screen. The hint shows under the screen you hold.
-- Touch works on the bottom screen wherever you put it.
+- Touch works on the Secondary Screen wherever you put it.
 - Hold the right stick click for 1 second to put both back together in front of you, at their normal size. **Detach Screens** stays as it is. **Off**, or a new Screen Layout, puts the Secondary Screen back in its place next to the Primary Screen.
 - Each game keeps its own screen positions. Immersive mode is not affected.
 
 ## Swapping the screens
 
-The screens have two places. The Primary Screen is where the top screen starts. The Secondary Screen is smaller: below it, tilted back, or to its right with **Side by Side** (see Screen layouts). The screen in the Primary Screen's place is the one in focus. Every game starts with the top screen in focus.
+The screens have two places. The main place is where the Primary Screen starts. The Secondary Screen is smaller: below it, tilted back, or to its right with **Side by Side** (see Screen layouts). The screen in the main place is the one in focus. Every game starts with the Primary Screen in focus.
 
 | Control | What it does |
 |---|---|
-| Right stick click, tap | The bottom screen becomes the Primary Screen, at the top screen's height, and the top screen becomes the Secondary Screen. Tap again to swap back |
+| Right stick click, tap | The Secondary Screen becomes the Primary Screen, at the old Primary Screen's height, and the Primary Screen becomes the Secondary Screen. Tap again to swap back |
 | Left stick click, tap | Hides or shows the screen that is not in focus |
 | Right stick click, held for 1 second | Resets the screen positions, and in immersive mode recentres the view. The immersive screen keeps its size unless you hold it with a grip. The focus and what is hidden stay as they are |
 
 - A grip moves both places together, in either focus, unless **Detach Screens** is on (see Detaching the screens).
-- Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
-- The screen in focus always shows. A hidden bottom screen shows while it is in focus, and hides again when the top screen takes the focus back. A hidden top screen shows again whenever it is the Primary Screen.
-- In games with **Hide Secondary Screen** on, and in immersive mode, the bottom screen starts hidden. There the left stick click and both bumpers + **View** are one switch: either one shows it, and either one hides it again. With the bottom screen in focus, both bumpers + **View** hides it and puts the top screen back in focus.
-- In every other game the left stick click hides and shows the bottom screen, and both bumpers + **View** is L, R and Select for the game.
-- Immersive mode pauses while the bottom screen is in focus, and picks up again when you swap back.
+- Touch works on the Secondary Screen in either place. The trigger aimed at the Primary Screen is ZL or ZR in either place.
+- The screen in focus always shows. A hidden Secondary Screen shows while it is in focus, and hides again when the Primary Screen takes the focus back. A hidden Primary Screen shows again whenever it is the Primary Screen.
+- In games with **Hide Secondary Screen** on, and in immersive mode, the Secondary Screen starts hidden. There the left stick click and both bumpers + **View** are one switch: either one shows it, and either one hides it again. With the Secondary Screen in focus, both bumpers + **View** hides it and puts the Primary Screen back in focus.
+- In every other game the left stick click hides and shows the Secondary Screen, and both bumpers + **View** is L, R and Select for the game.
+- Immersive mode pauses while the Secondary Screen is in focus, and picks up again when you swap back.
 
 ## Screen layouts
 
@@ -194,16 +194,16 @@ A Bluetooth or USB gamepad plays in VR alongside the Frame controllers. Pair it 
 
 ### Touchpad
 
-A gamepad's touchpad is the bottom screen. The pad covers the whole screen, and a dot shows where your finger is. **Touchpad** on the **Controls** tab sets how it touches:
+A gamepad's touchpad is the Secondary Screen. The pad covers the whole screen, and a dot shows where your finger is. **Touchpad** on the **Controls** tab sets how it touches:
 
 - **Tap for Input** (the default): a finger on the pad touches the screen.
 - **Click for Input**: pressing the pad touches it, and holding it down drags. The finger alone only moves the dot.
 
-Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touchpad's Edit Controls page, the drawing's bottom screen shows the dot live, and **Recentre at Edge** is there too (see below). A hidden bottom screen takes no touch.
+Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touchpad's Edit Controls page, the drawing's Secondary Screen shows the dot live, and **Recentre at Edge** is there too (see below). A hidden Secondary Screen takes no touch.
 
 ### Secondary Screen Reticle
 
-**Secondary Screen Reticle** on the **Controls** tab (**Off**, **Left Controller**, **Right Controller**, **Headset**) aims at the bottom screen without pointing at it, like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. It works in a game with the menu closed.
+**Secondary Screen Reticle** on the **Controls** tab (**Off**, **Left Controller**, **Right Controller**, **Headset**) aims at the Secondary Screen without pointing at it, like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. It works in a game with the menu closed.
 
 - Where the controller points when it starts is the middle of the screen. Point further to move the dot; past an edge, the dot stays on the edge.
 - Its trigger touches, and held, it drags. Its grip recentres the middle where it points now. SteamVR's recentre and the right stick click held for 1 second do too.
@@ -219,7 +219,7 @@ Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touc
 
 A mouse works in VR. **Mouse Mode** on its Edit Controls page has two modes:
 
-- **Secondary Screen**: the mouse moves a cursor on the bottom screen. The left button touches and drags. With **Recentre at Edge** on, a drag that runs into an edge lets go and touches again in the middle.
+- **Secondary Screen**: the mouse moves a cursor on the Secondary Screen. The left button touches and drags. With **Recentre at Edge** on, a drag that runs into an edge lets go and touches again in the middle.
 - **Pointer**: the mouse moves a pointer around you that works like the right controller's beam, on the menu, Azahar's window and the screens. Moving your head leaves it where it is.
 
 | Mouse | What it does |
@@ -283,7 +283,7 @@ Two buttons, **Controls** and **Stats**, sit above the top left corner of Azahar
 - **In Front**: it appears about 1 m ahead of you, a little below eye level, and stays put, in every mode. Point at it and squeeze a grip to move it; while you hold it, the stick of that hand moves it nearer or farther (up or down) and makes it bigger or smaller (sideways). Nothing you do with it reaches the game or the screens behind it. Turning it off and on, or holding the right stick click for 1 second, brings it back in front of you.
 - **On Wrist**: it rides on the left controller like a watch and shows when you turn your wrist toward your face.
 
-Each controller shows as a Frame controller in your hand, with its buttons, triggers and sticks moving as you press them. The beam is soft and comes from its tip. On Azahar's window and the panels it ends where it points; pointing at nothing shows a short, faint stub. In a game the beam shows only on the way to the dot over the bottom screen. A controller you leave still for 4 seconds fades its beam and dot, and after 30 seconds its model fades too. Pick it up and they come back. A controller that loses tracking for more than a quarter of a second hides.
+Each controller shows as a Frame controller in your hand, with its buttons, triggers and sticks moving as you press them. The beam is soft and comes from its tip. On Azahar's window and the panels it ends where it points; pointing at nothing shows a short, faint stub. In a game the beam shows only on the way to the dot over the Secondary Screen. A controller you leave still for 4 seconds fades its beam and dot, and after 30 seconds its model fades too. Pick it up and they come back. A controller that loses tracking for more than a quarter of a second hides.
 
 The models are made from SteamVR's own Frame models when you install. If they are missing, the launcher makes them in the background and they show from the next start. Turn them off with **Show Controllers**.
 
@@ -297,16 +297,16 @@ In Flat there are two more ways back to VR: the **VR** button in the status bar 
 
 In VR, Azahar's window has a **FLAT** button in the same place, and the in-game menu has **Switch to Flat**.
 
-## Hiding the bottom screen
+## Hiding the Secondary Screen
 
-Two things hide the bottom screen: immersive mode, and a game's **Hide Secondary Screen** setting (**Properties**, **Graphics** tab, **VR** group). A hidden bottom screen cannot be touched or grabbed, and it is not drawn. The top screen can still be grabbed with a grip unless immersive mode is on.
+Two things hide the Secondary Screen: immersive mode, and a game's **Hide Secondary Screen** setting (**Properties**, **Graphics** tab, **VR** group). A hidden Secondary Screen cannot be touched or grabbed, and it is not drawn. The Primary Screen can still be grabbed with a grip unless immersive mode is on.
 
 | Control | What it does |
 |---|---|
-| Both bumpers, then **View** | Shows or hides the bottom screen |
-| Left stick click, tap | The same switch, with the top screen in focus. See Swapping the screens |
+| Both bumpers, then **View** | Shows or hides the Secondary Screen |
+| Left stick click, tap | The same switch, with the Primary Screen in focus. See Swapping the screens |
 | Right stick click, held for 1 second | In immersive mode it also recentres the view on where you look. The screen keeps its size, as with SteamVR's recentre (hold the Steam button). **Reset Position** in the menu puts the screen back |
-| Triggers | ZL and ZR everywhere while the bottom screen is hidden |
+| Triggers | ZL and ZR everywhere while the Secondary Screen is hidden |
 
 ## Moving the immersive screen
 
@@ -327,11 +327,11 @@ Taking hold shows the same kind of hint as for the normal screens, low in front 
 
 The D-pad offset is for your eyes, not for a game: it is the same in every game and every immersive mode, and it stays when you put a game's screen back. **Reset Position** in the menu puts it back to the middle. It goes up to 10 degrees each way. The world stays where it is, only the screen moves. The **Immersive Offset** setting shows it and puts it back to the middle.
 
-The screen starts 3 m ahead in the middle of your view, showing the game at its own scale: nothing is magnified, so the world keeps its shape and stays put wherever you look on it. It is as wide as the picture (**Horizontal Scale** 0%), with **Render Margin** at 1.4x both ways (with Stretch; in Field of View the scales alone decide what the game draws). With both grips down in the Full modes, D-pad left and right make the screen narrower or wider; with one grip they nudge it. It can grow to 2.5 times its size or shrink to 0.6 times. Bigger only enlarges the game's picture; it shows more around it only with **Render Margin** (see the [user guide](USER_GUIDE.md#immersive-mode)). Each game keeps the screen where you leave it. The grip, that hand's stick and the D-pad do not reach the game while you hold the screen. While immersive mode is paused (the bottom screen in focus, or in the Full modes the bottom screen shown or the in-game menu open), the grips move the normal screens. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
+The screen starts 3 m ahead in the middle of your view, showing the game at its own scale: nothing is magnified, so the world keeps its shape and stays put wherever you look on it. It is as wide as the picture (**Horizontal Scale** 0%), with **Render Margin** at 1.4x both ways (with Stretch; in Field of View the scales alone decide what the game draws). With both grips down in the Full modes, D-pad left and right make the screen narrower or wider; with one grip they nudge it. It can grow to 2.5 times its size or shrink to 0.6 times. Bigger only enlarges the game's picture; it shows more around it only with **Render Margin** (see the [user guide](USER_GUIDE.md#immersive-mode)). Each game keeps the screen where you leave it. The grip, that hand's stick and the D-pad do not reach the game while you hold the screen. While immersive mode is paused (the Secondary Screen in focus, or in the Full modes the Secondary Screen shown or the in-game menu open), the grips move the normal screens. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
 
 ## Ocarina of Time 3D with Ocarina ReFramed
 
-The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 695604) puts the whole HUD, pause menu and options on the top screen. Turn on **Hide Secondary Screen** for the game. The mod reads the 3DS buttons below. The shortcuts that need ZL and ZR need New 3DS mode, which is on by default.
+The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 695604) puts the whole HUD, pause menu and options on the Primary Screen. Turn on **Hide Secondary Screen** for the game. The mod reads the 3DS buttons below. The shortcuts that need ZL and ZR need New 3DS mode, which is on by default.
 
 | What it does | 3DS | Steam Frame |
 |---|---|---|
@@ -349,18 +349,18 @@ The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 69
 | Pause menu: move, choose, back | D-pad or Circle Pad, A, B | D-pad or left stick, **B**, **A** |
 | Options menu: columns | L and R | Left and right bumper |
 
-The mod's HUD is a Switch-style diamond of the items, so it does not name ZL or ZR. The mod does the 3DS touch buttons for you from the D-pad and View. If you ever need the real bottom screen, press both bumpers and **View**.
+The mod's HUD is a Switch-style diamond of the items, so it does not name ZL or ZR. The mod does the 3DS touch buttons for you from the D-pad and View. If you ever need the real Secondary Screen, press both bumpers and **View**.
 
 ## Ocarina of Time 3D with Single Screen Experience
 
-Single Screen Experience (by M-1, GameBanana 695893) is the mod I recommend for Ocarina of Time 3D. It puts the HUD and menus on the top screen and adds a 60 FPS option, a 16:9 option, a field of view setting, a draw distance slider and a free camera on the right stick. Turn on **Hide Secondary Screen** for the game.
+Single Screen Experience (by M-1, GameBanana 695893) is the mod I recommend for Ocarina of Time 3D. It puts the HUD and menus on the Primary Screen and adds a 60 FPS option, a 16:9 option, a field of view setting, a draw distance slider and a free camera on the right stick. Turn on **Hide Secondary Screen** for the game.
 
 - If you turn on its 16:9 option, set **Screen Shape** to **Widescreen (16:9)** in the game's properties (**Graphics** tab, **VR** group). Without it the picture looks squeezed. **Screen Shape** also has **Standard (4:3)**, **3:2** and **16:10**, which match game cheats that change the game's own aspect. It must match what the game renders, or the picture stretches.
 - Leave the mod's FOV at its default. If you change it, set **Immersive Game FOV** to the same value, so immersive mode keeps the world still when you turn your head.
 - If it stutters, turn off the mod's 60 FPS option first.
 - Keep real-time shadows off, and draw distance at 100 to 150 %.
 
-The buttons are the same as in the table above. Both bumpers and **View** bring back the bottom screen if you ever need it.
+The buttons are the same as in the table above. Both bumpers and **View** bring back the Secondary Screen if you ever need it.
 
 ## Settings
 
@@ -380,7 +380,7 @@ In Flat the Frame controllers reach Azahar as a gamepad from Steam Input, and Az
 
 The differences:
 
-- There is no beam. The mouse is the touch screen: point at the bottom screen and click. The Frame's controller pointer acts as the mouse.
+- There is no beam. The mouse is the touch screen: point at the Secondary Screen and click. The Frame's controller pointer acts as the mouse.
 - Before a game starts, the D-pad or the left stick moves through the game list, and **A** twice quickly starts the game, as in VR.
 - The triggers are always ZL and ZR. A grip held with D-pad right or left changes the layout; the D-pad does not reach the game meanwhile.
 - The stick clicks change the window's screen layout. A tap of the right stick click swaps the screens. A tap of the left one shows only the main screen (**Single Screen**), and the next tap brings the other one back. Holding the right one for 1 second goes back to **Large Screen**, not swapped. Holding the left one for 1 second goes to the next layout: **Large Screen**, **Side by Side**, **Default** (see [Screen layouts](#screen-layouts)).

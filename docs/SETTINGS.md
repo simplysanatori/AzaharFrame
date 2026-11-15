@@ -82,9 +82,9 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 
 ## Hide Secondary Screen
 
-Shows only the top screen. Use it for games that don't need the bottom screen, and for single-screen mods such as Ocarina ReFramed or Single Screen Experience for Ocarina of Time 3D.
+Shows only the Primary Screen. Use it for games that don't need the Secondary Screen, and for single-screen mods such as Ocarina ReFramed or Single Screen Experience for Ocarina of Time 3D.
 
-While you play, both bumpers + **View**, or a tap of the left stick click, shows or hides it. A hidden bottom screen can't be touched or grabbed.
+While you play, both bumpers + **View**, or a tap of the left stick click, shows or hides it. A hidden Secondary Screen can't be touched or grabbed.
 
 ## Face Buttons
 
@@ -117,7 +117,7 @@ Shows the Frame controllers in your hands, with their buttons and sticks moving.
 
 ## Controllers in Front of Screen
 
-Shows the controllers, and a weapon in your hand, in front of a screen when they are nearer to you than it, so a hand held up in front of a screen stays in front and one reaching behind it goes behind. **Primary** and **Secondary** name the screens as **Detach Screens** does (after a swap the Secondary Screen is the top screen); the screen left out covers the controllers wherever they are. **Both** does it for both screens. **Off** keeps the controllers behind every screen and menu, as before. With any choice but **Off**, the menus, the keyboard and the stats go by distance too, so a controller pointing at a menu shows in front of it; messages never cover the controllers, and neither does the immersive screen (what it shows is far away) unless the choice leaves it out. It is on the in-game menu's **Settings** tab, under **Show Controllers**, while that is on.
+Shows the controllers, and a weapon in your hand, in front of a screen when they are nearer to you than it, so a hand held up in front of a screen stays in front and one reaching behind it goes behind. **Primary** and **Secondary** name the screens as **Detach Screens** does (after a swap the Secondary Screen is the Primary Screen); the screen left out covers the controllers wherever they are. **Both** does it for both screens. **Off** keeps the controllers behind every screen and menu, as before. With any choice but **Off**, the menus, the keyboard and the stats go by distance too, so a controller pointing at a menu shows in front of it; messages never cover the controllers, and neither does the immersive screen (what it shows is far away) unless the choice leaves it out. It is on the in-game menu's **Settings** tab, under **Show Controllers**, while that is on.
 
 ## Show Stats
 
@@ -136,31 +136,31 @@ Where the Secondary Screen sits in VR. **Stacked**: below the Primary Screen, ti
 
 ## Detach Screens
 
-Lets the screens in VR move apart. **Off**: a grip moves both screens together, and the Secondary Screen follows the Primary Screen. **Secondary**: the Primary Screen moves as with **Off**, and the Secondary Screen moves on its own. **Both**: each screen moves on its own. A screen that moves on its own goes anywhere around you with the grip and turns to face you; the stick of that hand sets its distance and size. After a swap the Secondary Screen is the top screen. Holding the right stick click for 1 second puts both back together; **Off** or a new Screen Layout puts the Secondary Screen back in its place. Each game keeps its own screen positions. It is in the in-game menu's **Position** tab. See [CONTROLS.md](CONTROLS.md#detaching-the-screens).
+Lets the screens in VR move apart. **Off**: a grip moves both screens together, and the Secondary Screen follows the Primary Screen. **Secondary**: the Primary Screen moves as with **Off**, and the Secondary Screen moves on its own. **Both**: each screen moves on its own. A screen that moves on its own goes anywhere around you with the grip and turns to face you; the stick of that hand sets its distance and size. After a swap the Secondary Screen is the Primary Screen. Holding the right stick click for 1 second puts both back together; **Off** or a new Screen Layout puts the Secondary Screen back in its place. Each game keeps its own screen positions. It is in the in-game menu's **Position** tab. See [CONTROLS.md](CONTROLS.md#detaching-the-screens).
 
 ## Touchpad
 
-How a gamepad's touchpad touches the bottom screen in VR. The pad covers the whole screen, and a dot shows where your finger is. **Tap for Input**: a finger on the pad touches the screen. **Click for Input**: pressing the pad touches it, and holding it down drags. Turn Steam Input off for that controller, or Steam keeps the touchpad. It is on the in-game menu's **Controls** tab, and on a touchpad's **Edit Controls** page. See [CONTROLS.md](CONTROLS.md#touchpad).
+How a gamepad's touchpad touches the Secondary Screen in VR. The pad covers the whole screen, and a dot shows where your finger is. **Tap for Input**: a finger on the pad touches the screen. **Click for Input**: pressing the pad touches it, and holding it down drags. Turn Steam Input off for that controller, or Steam keeps the touchpad. It is on the in-game menu's **Controls** tab, and on a touchpad's **Edit Controls** page. See [CONTROLS.md](CONTROLS.md#touchpad).
 
 ## Secondary Screen Reticle
 
-A controller, or your head with **Headset**, aims at the bottom screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip recentres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself, for that game or for all games. See [CONTROLS.md](CONTROLS.md#secondary-screen-reticle).
+A controller, or your head with **Headset**, aims at the Secondary Screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip recentres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself, for that game or for all games. See [CONTROLS.md](CONTROLS.md#secondary-screen-reticle).
 
 ## Reticle Speed
 
-How far the reticle moves when you turn your head or the controller, from where aiming started or was recentred. One value for the head and the controllers. At 1.0x your head turns 30 degrees to cross the bottom screen and 22.5 degrees from top to bottom, and a controller 40 and 30. At the default 2.0x it is half that: about 15 by 11 degrees for your head. Higher is faster; past an edge the dot stays on the edge. Shown under **Secondary Screen Reticle** while it is on.
+How far the reticle moves when you turn your head or the controller, from where aiming started or was recentred. One value for the head and the controllers. At 1.0x your head turns 30 degrees to cross the Secondary Screen and 22.5 degrees from top to bottom, and a controller 40 and 30. At the default 2.0x it is half that: about 15 by 11 degrees for your head. Higher is faster; past an edge the dot stays on the edge. Shown under **Secondary Screen Reticle** while it is on.
 
 ## At Edge
 
-What the reticle does at the edge of the bottom screen. **Follow**: the dot stays on the edge. **Snap to Middle**: the touch lifts and starts again in the middle. Shown under **Secondary Screen Reticle** while it is on.
+What the reticle does at the edge of the Secondary Screen. **Follow**: the dot stays on the edge. **Snap to Middle**: the touch lifts and starts again in the middle. Shown under **Secondary Screen Reticle** while it is on.
 
 ## Aim Only While Pressed
 
-The reticle stays in the middle of the bottom screen and moves only while the trigger touches. Let go and it goes back to the middle. Shown under **Secondary Screen Reticle** while it is on.
+The reticle stays in the middle of the Secondary Screen and moves only while the trigger touches. Let go and it goes back to the middle. Shown under **Secondary Screen Reticle** while it is on.
 
 ## Right Stick Moves Touch
 
-The right stick moves the bottom screen's touch point too, together with your head or controller, and the game no longer gets it as the C-Stick. Full tilt crosses the screen in about a second. Off, the right stick is the C-Stick as usual. With **Aim Only While Pressed** on, it moves the point only while the trigger touches. Shown under **Secondary Screen Reticle** while it is on.
+The right stick moves the Secondary Screen's touch point too, together with your head or controller, and the game no longer gets it as the C-Stick. Full tilt crosses the screen in about a second. Off, the right stick is the C-Stick as usual. With **Aim Only While Pressed** on, it moves the point only while the trigger touches. Shown under **Secondary Screen Reticle** while it is on.
 
 ## Angel's Aim
 
@@ -172,19 +172,19 @@ Save states made while you play, separate from the 10 slots and Quick Save. **Ev
 
 ## Mouse Mode
 
-What a mouse does in VR. **Secondary Screen**: it moves a cursor on the bottom screen, and the left button touches. **Pointer**: it moves a pointer around you that works like the controller's beam. Hold the left and right buttons together for 3 seconds to switch. See [CONTROLS.md](CONTROLS.md#the-mouse).
+What a mouse does in VR. **Secondary Screen**: it moves a cursor on the Secondary Screen, and the left button touches. **Pointer**: it moves a pointer around you that works like the controller's beam. Hold the left and right buttons together for 3 seconds to switch. See [CONTROLS.md](CONTROLS.md#the-mouse).
 
 ## Recentre at Edge
 
-For the mouse in **Secondary Screen** mode and for touchpads. A drag that runs into an edge of the bottom screen lets go and touches again in the middle, so you can keep turning a camera that follows the touch screen.
+For the mouse in **Secondary Screen** mode and for touchpads. A drag that runs into an edge of the Secondary Screen lets go and touches again in the middle, so you can keep turning a camera that follows the touch screen.
 
 ## Screen Curve
 
-Bends the Primary Screen toward you, like a curved monitor: the top screen, or the bottom one when you swap them. The Secondary Screen stays flat. The picture keeps its size and shape. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: 45°**, and it is kept. The steps are **Off** (flat) and 15° to 90° in 15° steps: the angle the screen's width spans. In the menu's **Position** tab, pick it from the list.
+Bends the Primary Screen toward you, like a curved monitor. After a swap, that is the screen in the main place. The Secondary Screen stays flat. The picture keeps its size and shape. Immersive mode stays flat. In VR, hold the screens with a grip and press D-pad up or down. A label shows the new value, for example **Screen Curve: 45°**, and it is kept. The steps are **Off** (flat) and 15° to 90° in 15° steps: the angle the screen's width spans. In the menu's **Position** tab, pick it from the list.
 
 ## Screen Shape
 
-The shape of the top screen in VR, and of the screen in immersive mode. The screen keeps its height and its width follows the shape. The bottom screen stays as it is.
+The shape of the Primary Screen in VR, and of the screen in immersive mode. The screen keeps its height and its width follows the shape. The Secondary Screen stays as it is.
 
 - **3DS (5:3)**: the 3DS's own shape. Right for almost every game.
 - **Widescreen (16:9)** and **Ultrawide (21:9)**: for mods that draw a widescreen picture.
@@ -217,7 +217,7 @@ Puts you inside the game instead of in front of a floating screen.
 
 Many games show graphical glitches in immersive mode. Set it per game, in **Properties**. Mario Kart 7, Super Mario 3D Land and Asphalt 3D start in **Full (6DoF): Other Games** unless you set something else.
 
-The bottom screen starts hidden. Both bumpers + **View** shows it. Holding the right stick click for 1 second recentres the view, and so does SteamVR's own recentre (hold the Steam button). Moving and sizing the screen: [CONTROLS.md](CONTROLS.md#moving-the-immersive-screen). More: [user guide](USER_GUIDE.md#immersive-mode).
+The Secondary Screen starts hidden. Both bumpers + **View** shows it. Holding the right stick click for 1 second recentres the view, and so does SteamVR's own recentre (hold the Steam button). Moving and sizing the screen: [CONTROLS.md](CONTROLS.md#moving-the-immersive-screen). More: [user guide](USER_GUIDE.md#immersive-mode).
 
 ## Immersive Offset
 
