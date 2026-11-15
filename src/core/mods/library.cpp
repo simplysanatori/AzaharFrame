@@ -1720,15 +1720,8 @@ std::vector<ModInfo> Library::ListLoadedLocked(u64 title_id) const {
     for (auto& [id, info] : groups) {
         unmanaged.push_back(std::move(info));
     }
-    // AzaharFrame fixes7: the recommended ones first in each group, then by name
-    const auto by_name = [](const ModInfo& a, const ModInfo& b) {
-        if (a.recommended != b.recommended) {
-            return a.recommended;
-        }
-        return a.name < b.name;
-    };
-    std::sort(active.begin(), active.end(), by_name);
-    std::sort(inactive.begin(), inactive.end(), by_name);
+    std::sort(active.begin(), active.end(), LoadedBefore);
+    std::sort(inactive.begin(), inactive.end(), LoadedBefore);
     std::vector<ModInfo> out = std::move(active);
     for (auto& v : {&inactive, &unmanaged}) {
         for (auto& m : *v) {
@@ -1811,27 +1804,45 @@ std::vector<AvailableMod> Library::ListAvailable(u64 title_id, std::optional<u32
         }
         out.push_back(std::move(a));
     }
-    // AzaharFrame compat: those for the game's own version first (with `game`; without it the
-    // build the code matches first), then the most downloaded (unknown counts last), then by name
-    std::stable_sort(out.begin(), out.end(), [](const AvailableMod& a, const AvailableMod& b) {
-        if (a.compat.Fits() != b.compat.Fits()) {
-            return a.compat.Fits();
-        }
-        if (a.recommended != b.recommended) { // AzaharFrame fixes7: the recommended ones first
-            return a.recommended;
-        }
-        if (a.matches_game != b.matches_game) {
-            return a.matches_game;
-        }
-        if ((a.downloads > 0) != (b.downloads > 0)) { // 0: unknown
-            return a.downloads > 0;
-        }
-        if (a.downloads != b.downloads) {
-            return a.downloads > b.downloads;
-        }
-        return a.name < b.name;
-    });
+    std::stable_sort(out.begin(), out.end(), ListedBefore); // AzaharFrame fixd
     return out;
+}
+
+// AzaharFrame compat: those for the game's own version first (with `game`; without it the
+// build the code matches first), then the most downloaded (unknown counts last), then by name.
+// AzaharFrame fixd: the verified ones right after the version fit, then fixes7's recommended ones.
+bool ListedBefore(const AvailableMod& a, const AvailableMod& b) {
+    if (a.compat.Fits() != b.compat.Fits()) {
+        return a.compat.Fits();
+    }
+    if (a.verified != b.verified) { // AzaharFrame fixd
+        return a.verified;
+    }
+    if (a.recommended != b.recommended) { // AzaharFrame fixes7: the recommended ones first
+        return a.recommended;
+    }
+    if (a.matches_game != b.matches_game) {
+        return a.matches_game;
+    }
+    if ((a.downloads > 0) != (b.downloads > 0)) { // 0: unknown
+        return a.downloads > 0;
+    }
+    if (a.downloads != b.downloads) {
+        return a.downloads > b.downloads;
+    }
+    return a.name < b.name;
+}
+
+// AzaharFrame fixes7: the recommended ones first in each group, then by name. AzaharFrame fixd:
+// the verified ones before them.
+bool LoadedBefore(const ModInfo& a, const ModInfo& b) {
+    if (a.verified != b.verified) {
+        return a.verified;
+    }
+    if (a.recommended != b.recommended) {
+        return a.recommended;
+    }
+    return a.name < b.name;
 }
 
 // ---------------------------------------------------------------------------------------------

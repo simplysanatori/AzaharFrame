@@ -739,8 +739,10 @@ TEST_CASE("Mods: install, manifest, conflicts, replace, remove", "[mods]") {
         REQUIRE(loaded[0].source == "github.com/simplysanatori/3ds-game-fixes");
         const auto available = library.ListAvailable(kTid);
         REQUIRE(available.size() == 4); // owner-fix, reframed, hdhud, seven
-        // AzaharFrame compat: no download counts in this catalog: by name
-        REQUIRE(available[0].id == "hdhud");
+        // AzaharFrame fixd: the verified fix first; AzaharFrame compat: no download counts in
+        // this catalog: the rest by name
+        REQUIRE(available[0].id == "owner-fix");
+        REQUIRE(available[1].id == "hdhud");
         const auto fix = std::find_if(available.begin(), available.end(),
                                       [](const AvailableMod& a) { return a.id == "owner-fix"; });
         REQUIRE(fix != available.end());

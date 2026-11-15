@@ -29,6 +29,7 @@ add_library(frame_xr_menu STATIC
     mods_segments.h
     mods_tab.cpp
     mods_tab.h
+    name_chip.h # AzaharFrame fixd
     remap.cpp
     remap.h
     tab_menu.cpp

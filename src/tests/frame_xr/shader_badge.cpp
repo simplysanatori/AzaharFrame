@@ -5,6 +5,7 @@
 // AzaharFrame shaderbadge: the "Preparing Shaders" badge's place (inside the main screen's
 // top-right corner, or head-locked at the top right of what is in view) and its fade.
 
+#include <algorithm>
 #include <cmath>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -92,8 +93,10 @@ TEST_CASE("Shader badge: on a curved screen it sits on the curve", "[frame_xr]")
     const Placed b = OnScreen(Top(), w, h, radius, kAspect);
     const Input::ScreenRig::Cylinder c = Input::ScreenRig::CylinderFor(Top(), w, h, radius);
     // Its centre just inside the cylinder (towards its axis), its face turned to the axis.
+    // AzaharFrame fixd: inside by the flat badge's sagitta and 2 mm (CurveLift).
     const Input::Vec3f d = b.pose.position - c.pose.position;
-    REQUIRE(std::hypot(d.x, d.z) == Approx(radius).margin(0.01f));
+    REQUIRE(std::hypot(d.x, d.z) ==
+            Approx(radius - b.width * b.width / (8.0f * radius) - 0.002f).margin(1e-4f));
     REQUIRE(std::hypot(d.x, d.z) < radius);
     const Input::Vec3f n = Input::Rotate(b.pose.orientation, {0, 0, 1});
     const Input::Vec3f to_axis = Input::Normalized(Input::Vec3f{-d.x, 0.0f, -d.z});
@@ -101,6 +104,44 @@ TEST_CASE("Shader badge: on a curved screen it sits on the curve", "[frame_xr]")
     // The same arc length from the middle as the flat badge's offset.
     const Placed flat = OnScreen(Top(), w, h, 0.0f, kAspect);
     REQUIRE(std::atan2(d.x, -d.z) * radius == Approx(flat.pose.position.x).margin(0.001f));
+}
+
+// AzaharFrame fixd (session 651, item 12): the flat badge on a curved screen. Its ends stood
+// w^2/(8r) behind the cylinder (1.5 to 2.5 cm at 60 to 90 degrees), so the screen covered them.
+TEST_CASE("Shader badge: all of it in front of a curved screen", "[frame_xr][fixd]") {
+    // The lift: 3 mm flat; the sagitta and 2 mm curved.
+    CHECK(CurveLift(0.48f, 0.0f) == Approx(0.003f));
+    CHECK(CurveLift(0.48f, 1.2f) == Approx(0.48f * 0.48f / (8.0f * 1.2f) + 0.002f));
+    CHECK(CurveLift(0.48f, 1.2f) == Approx(0.026f));
+    // A bigger curve (smaller radius) lifts it more.
+    CHECK(CurveLift(0.48f, 1.0f) > CurveLift(0.48f, 2.0f));
+    for (const float w : {5.0f / 3.0f, 2.5f, 1.2f}) {
+        for (const uint32_t deg : {20u, 40u, 60u, 90u, 120u}) {
+            const float h = w * 0.6f;
+            const float radius = Input::ScreenRig::CurveRadius(w, deg);
+            REQUIRE(radius > 0.0f);
+            const Placed b = OnScreen(Top(), w, h, radius, kAspect);
+            const Input::ScreenRig::Cylinder c = Input::ScreenRig::CylinderFor(Top(), w, h, radius);
+            INFO("width " << w << ", curve " << deg << " degrees, radius " << radius);
+            // Every point along the badge, its ends too, is nearer the axis than the cylinder
+            // (in front of it, as the head sees it), by at most the lift and at least 1.4 mm up to
+            // 90 degrees (w^2/(8r) is the sagitta to first order: at 120 degrees the ends keep
+            // 0.6 mm or more).
+            float least = 1e9f, most = -1e9f;
+            for (int i = 0; i <= 20; i++) {
+                const float sx = -0.5f + static_cast<float>(i) / 20.0f;
+                const Input::Vec3f p = Corner(b, sx, 0.5f) - c.pose.position;
+                const float clear = radius - std::hypot(p.x, p.z);
+                least = std::min(least, clear);
+                most = std::max(most, clear);
+            }
+            CHECK(least >= (deg <= 90u ? 0.0014f : 0.0006f));
+            CHECK(most <= CurveLift(b.width, radius) + 1e-4f);
+            // The old 3 mm left the ends behind the curve.
+            const float half = b.width * 0.5f, r_old = radius - 0.003f;
+            CHECK(std::hypot(r_old, half) > radius);
+        }
+    }
 }
 
 TEST_CASE("Shader badge: shrunk to fit a very small screen", "[frame_xr]") {

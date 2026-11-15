@@ -156,7 +156,8 @@ Menu::ModRow ToRow(const Mods::ModInfo& info, const Mods::Catalog& catalog) {
     Menu::ModRow r;
     r.id = info.id;
     r.name = info.name;
-    r.recommended = info.recommended; // AzaharFrame fixes7: the badge
+    r.recommended = info.recommended; // AzaharFrame fixes7: listed first
+    r.verified = info.verified;       // AzaharFrame fixd: the Verified chip
     r.managed = info.managed;
     r.active = info.state == Mods::ModState::Active;
     if (info.managed) {
@@ -853,7 +854,8 @@ void FrameMods::SetAvailable(const std::vector<Mods::AvailableMod>& list) {
         o.version = a.chip;
         o.version_tip = a.chip_tip;
         o.version_match = a.matches_game;
-        o.recommended = a.recommended; // AzaharFrame fixes7: the badge
+        o.recommended = a.recommended; // AzaharFrame fixes7: listed first
+        o.verified = a.verified;       // AzaharFrame fixd: the Verified chip
         o.downloads = a.downloads > 0 ? Menu::DownloadsText(a.downloads) : std::string{}; // AzaharFrame compat
         o.unscanned = a.unscanned;
         o.mod_version = a.version; // AzaharFrame ui3
@@ -1204,6 +1206,7 @@ void FrameMods::FillPackRows() {
         const bool mine =
             p.managed && (downloaded.count(folder) != 0 || zip_packs.count(folder) != 0);
         Menu::TexturePackItem item{p.id, p.name, PackDetail(p), r.on, mine};
+        item.verified = p.managed && verified_folders.count(folder) != 0; // AzaharFrame fixd
         if (const auto it = pack_parts.find(p.id); it != pack_parts.end()) {
             // AzaharFrame texparts; ui3: a PNG or optimized pack has its page too
             item.customize = it->second.count >= 2 || it->second.optimizable;
@@ -1654,10 +1657,14 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
     std::vector<Menu::PackOffer> offers;
     bool new_folders = false;
     offer_sizes.clear();
+    std::set<std::string> verified_now; // AzaharFrame fixd: the installed packs' chip
     for (const CustomTex::Download::PackInfo& p : list) {
         offer_sizes[p.id] = p.size;
         for (const std::string& f : p.folders) {
             new_folders |= downloaded.insert(f).second;
+            if (p.verified) {
+                verified_now.insert(f);
+            }
         }
         Menu::PackOffer o;
         o.id = p.id;
@@ -1666,7 +1673,8 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
         o.url = Menu::LinkText(p.author_url).empty() ? std::string{} : p.author_url;
         o.size_text = p.size_text;
         o.updated = CustomTex::Download::UpdatedText(p.updated); // AzaharFrame zipinstall
-        o.recommended = p.recommended; // AzaharFrame fixes7: the badge
+        o.recommended = p.recommended; // AzaharFrame fixes7: listed first
+        o.verified = p.verified;       // AzaharFrame fixd: the Verified chip
         o.notes = p.notes; // AzaharFrame modcat2
         o.downloads = p.downloads > 0 ? Menu::DownloadsText(p.downloads) : std::string{}; // AzaharFrame compat
         o.unscanned = p.unscanned;
@@ -1694,6 +1702,11 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
     textures.downloading = running;
     if (running) {
         PollDownload(); // the percent at once
+    }
+    const bool verified_changed = verified_now != verified_folders;
+    verified_folders = std::move(verified_now);
+    if (verified_changed && !new_folders) {
+        FillPackRows(); // AzaharFrame fixd: the installed packs' Verified chip
     }
     PublishTextures();
     if (new_folders) {

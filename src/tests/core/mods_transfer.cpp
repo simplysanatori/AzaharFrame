@@ -456,17 +456,19 @@ TEST_CASE("fixes7: recommended and aspect in the texture catalog", "[fixes7][rec
     REQUIRE(c->packs.size() == 3);
     CHECK(c->Find("b")->recommended);
     CHECK(c->Find("b")->aspect == "21:9");
-    CHECK_FALSE(c->Find("c")->recommended); // verified alone is no longer the badge
+    CHECK_FALSE(c->Find("c")->recommended); // verified is its own flag (AzaharFrame fixd: the chip)
     CHECK(c->Find("c")->aspect.empty());
     CHECK(warnings.size() == 1); // the bad aspect
     Temp t;
     CustomTex::Download::Downloader dl(t.load(), *c);
     const auto list = dl.ListForTitle(kTid);
     REQUIRE(list.size() == 3);
-    CHECK(list[0].id == "b"); // recommended first, then by downloads as before
-    CHECK(list[0].recommended);
-    CHECK(list[1].id == "a");
-    CHECK(list[2].id == "c");
+    // AzaharFrame fixd: verified first, then recommended, then by downloads as before
+    CHECK(list[0].id == "c");
+    CHECK(list[0].verified);
+    CHECK(list[1].id == "b");
+    CHECK(list[1].recommended);
+    CHECK(list[2].id == "a");
     // the marker keeps the shape of an installed pack
     const fs::path folder = t.root / "pack";
     fs::create_directories(folder);

@@ -16,7 +16,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - New **Mods** tab in the VR menu, with **Cheats**, **Mods** and **Textures**.
 - **Cheats**: **Download** fetches the game's cheats from Sharkive and from my own repository.
-- Cheats, patches, mods and textures known to work on Azahar for Frame (or made by me) carry a verified badge.
+- Cheats, patches, mods and textures known to work on Azahar for Frame (or made by me) show a **Verified** chip after their name, and texture packs and mods that are verified are listed first, above the most downloaded.
 - Cheats made for a different version of the game show which version. The version is the one the game itself shows, so Mario Kart 7 Ver. 1.2 and Fire Emblem Echoes 1.1 are no longer mistaken for other versions. A version I don't know yet shows as **Update Installed** or the cartridge's revision.
 - I put cheats for another version of the game in a **For Another Version** section at the end of the list, closed until you open it. Its header says how many there are and how many are on.
 - Code patches are matched to the game's own code. The European Fire Emblem Echoes with its update gets the 1.1 patches, not the 1.0 Ghosting Shader Fix, which makes the picture flash there. True 60 FPS says it can't be combined with the Ghosting Shader Fix.
@@ -147,14 +147,14 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - New **Fill View** button under Scale Mode: one press sets this game's screen size and **Horizontal Scale** so the screen fills about three quarters of your view across: Horizontal Scale +50%, then the size makes the width fit. **Vertical Scale** stays as you have it. Change them from there as usual. I limited the scales so the world does not warp; a scale past the limit says **May Warp** on its row.
 - In the Full modes, hold the immersive screen with a grip and press D-pad up or down: with **Field of View** it changes **3D Depth**, one step per press (for example **3D Depth: 80%**); with **Stretch**, **Render Margin** on both axes. Both grips with the D-pad still change **Horizontal Scale** and **Vertical Scale**.
 - New **World Scale** (10% to 400%, 100% by default) for how big the game world feels, changed with a grip and the stick, and **Follow Screen Size** (on by default), which makes the world grow or shrink with the screen.
-- New **Dynamic Resolution** (**Settings** > **Graphics**, off by default): it lowers the resolution while the GPU cannot keep up and raises it again when it can, never below your **Internal Resolution** setting.
+- New **Dynamic Resolution** (**Settings** > **Graphics**, off by default): it lowers the resolution while the GPU cannot keep up and raises it again when it can, never below your **Internal Resolution** setting. It steps down only after 5 seconds the GPU cannot keep up, steps back up when what the higher level has cost in the game says it fits, and remembers the level each game settles at.
 - The game's two eyes now follow your IPD as the headset measures it, so turning the IPD dial during play takes effect at once. Before, **Full (6DoF): Other Games** always used 65 mm. The last IPD read is kept for the next start, and only if none was ever read does a message ask you to turn the IPD dial.
 - Immersive view no longer bobs up and down when the headset reports a slightly different lens view from frame to frame; I fit the screen to a steady view and only refit when it really changes.
 
 ### Smaller changes
 
 - The 3DS microphone works through the Frame's microphone, with Azahar's microphone input on **Auto**.
-- While a game waits for its shaders, a small **Preparing Shaders** badge with a progress ring shows in the top-right corner of the main screen, or at the top right of what you see in immersive view. I made it fade in and out and stay up through short gaps between stalls, so it no longer pops up in the middle of your view every few seconds when async shaders are off. In Flat it is in the status bar.
+- While a game waits for its shaders, a small **Preparing Shaders** badge with a progress ring shows in the top-right corner of the main screen, or at the top right of what you see in immersive view. I made it fade in and out and stay up through short gaps between stalls, so it no longer pops up in the middle of your view every few seconds when async shaders are off. On a curved screen it stays in front of the curve. In Flat it is in the status bar.
 - In VR, Azahar's window has a **FLAT** button on its status bar.
 - In VR and Game Mode, the game list's **Open** entries, **File** > **Open Azahar Folder** and **Open Log Folder** now open Azahar's own file dialog, where the desktop file manager never showed. It lists files with size and date, and can rename, delete and make folders.
 - Messages in the headset stay for 5 seconds.

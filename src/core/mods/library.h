@@ -110,8 +110,8 @@ struct ModInfo {
     std::string author;
     std::string licence;
     std::string source;   // "github.com/owner/repo", "" when unmanaged
-    bool verified = false; // the maintainer's own mod
-    bool recommended = false; // AzaharFrame fixes7: the catalog entry's "recommended" (the badge)
+    bool verified = false; // the maintainer's own mod (AzaharFrame fixd: the Verified chip, listed first)
+    bool recommended = false; // AzaharFrame fixes7: the catalog entry's "recommended" (listed first)
     std::string aspect;       // AzaharFrame fixes7: the shape it makes ("16:9"), "" not given
     bool managed = false;
     ModState state = ModState::Active;
@@ -153,14 +153,22 @@ struct AvailableMod {
     std::string chip;       // AzaharFrame modcat: the version chip ("1.0"), "" none
     std::string chip_tip;   // its tooltip
     bool matches_game = false; // made for the game's own code
-    bool verified = false;
-    bool recommended = false; // AzaharFrame fixes7: the badge, listed first
+    bool verified = false;    // AzaharFrame fixd: the Verified chip, listed first (after the version fit)
+    bool recommended = false; // AzaharFrame fixes7: listed first (after the verified ones)
     u64 partial_bytes = 0;    // AzaharFrame fixes7: a cancelled download's kept parts (Resume)
     bool installable = true; // false: a 7z or rar download and no bsdtar
     bool active = false;     // installed and in the mods folder
     bool in_library = false; // downloaded, not active
     Compat::Verdict compat;  // AzaharFrame compat: for another region or version of the game
 };
+
+/// AzaharFrame fixd: Install Mods' order (ListAvailable): those for the game's own version first,
+/// then the verified ones, then the recommended ones, then the build its code matches, then the
+/// most downloaded (unknown counts last), then by name.
+bool ListedBefore(const AvailableMod& a, const AvailableMod& b);
+/// AzaharFrame fixd: the order within the loaded list's active and inactive groups (ListLoaded):
+/// the verified ones first, then the recommended ones, then by name.
+bool LoadedBefore(const ModInfo& a, const ModInfo& b);
 
 enum class InstallResult { Ok, AlreadyInstalled, Conflict, NotAvailable, Error };
 

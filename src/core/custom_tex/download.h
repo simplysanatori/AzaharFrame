@@ -98,9 +98,9 @@ struct Entry {
     std::string notes;
     std::string updated;   // AzaharFrame zipinstall: "YYYY-MM-DD", the pack's last update ("" unknown);
                            // catalog3: the catalog's own value may be "YYYY-MM"
-    bool verified = false; // AzaharFrame zipinstall: known to work (internal since fixes7: no badge)
-    bool recommended = false; // AzaharFrame fixes7: "recommended": we recommend it with the game: the
-                              // menu's badge, listed first
+    bool verified = false; // AzaharFrame zipinstall: known to work (AzaharFrame fixd: the Verified chip, listed first)
+    bool recommended = false; // AzaharFrame fixes7: "recommended": listed first (after verified); no
+                              // badge, and the catalog never sets it
     std::string aspect;    // AzaharFrame fixes7: "aspect": the picture shape the pack is made for
                            // ("16:9"), "" not given
     Parts::Hints customize; // AzaharFrame texparts: "customize", written into the pack at install
@@ -217,14 +217,19 @@ struct PackInfo {
     bool partial = false;           // a kept partial download exists
     std::string updated;            // AzaharFrame zipinstall: "YYYY-MM-DD": the installed copy's
                                     // source date when it was downloaded, else the catalog's
-    bool verified = false;          // AzaharFrame zipinstall: the catalog's "verified"
-    bool recommended = false;       // AzaharFrame fixes7: the catalog's "recommended" (the badge)
+    bool verified = false;          // AzaharFrame zipinstall: the catalog's "verified" (fixd: the chip)
+    bool recommended = false;       // AzaharFrame fixes7: the catalog's "recommended" (listed first)
     u64 partial_bytes = 0;          // AzaharFrame fixes7: the kept partial download's size (Resume)
     u64 downloads = 0;              // AzaharFrame catalog3: lifetime downloads (Entry::downloads), 0 unknown
     bool unscanned = false;         // AzaharFrame catalog3: a GameBanana file of it has no scan result yet (known
                                     // after Start was refused for it, or went ahead with allow_unscanned)
     Mods::Compat::Verdict compat;   // AzaharFrame compat: made for another region or release
 };
+
+/// AzaharFrame fixd: Download Packs' order (ListForTitle): the packs for the game's own version
+/// first, then the verified ones, then the recommended ones, then the most downloaded (unknown
+/// counts last), then by name.
+bool ListedBefore(const PackInfo& a, const PackInfo& b);
 
 /// AzaharFrame fixes7: State::text while the file is being found and the host has not started
 /// sending it (the folder read, Drive's confirm page): no percent yet.
