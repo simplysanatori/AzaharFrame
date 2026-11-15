@@ -32,7 +32,7 @@ The **Mods** tab downloads, in the headset:
 - **Cheats**: from [Sharkive](https://github.com/FlagBrew/Sharkive) and my [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes)
 - **Mods** and **Textures**: from their creators' own uploads on GameBanana, GitHub, MEGA and Google Drive
 
-Nothing is hosted by this project. The app only fetches files from their original sources, and each entry links to its creator's page. A **Verified** chip marks entries known to work on Azahar for Frame. A check-mark badge marks my **Recommended** picks.
+Nothing is hosted by this project. The app only fetches files from their original sources, and each entry links to its creator's page. A **Verified** chip marks entries known to work here. A check-mark badge marks my **Recommended** picks.
 
 ## Homebrew and CTGP-7
 
