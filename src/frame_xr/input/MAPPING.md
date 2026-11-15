@@ -143,7 +143,10 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   the 108 weapons, blades 14.6 to 19.6 degrees above the controller's line, staffs 1.7 to 6.9,
   clubs 47.7, bows and cannons 0. The tilt is fixed in the hand: rolling the wrist moves the aim
   (accepted). Claws, palms, arms and orbitars are fitted along the ray and keep the controller's
-  direction. The laser, the reticle, Keep Reticle on Screen and its resting guard, the Turn Zone,
+  direction. Clubs (the owner's choice: Pit holds them raised, drawn so) aim with the hand: the
+  controller's direction from the front of the fist (4 cm ahead of its centre on the handle),
+  where the laser, the muzzle flash and the projectiles start too. One table decides per class
+  (`vis/weapon_fit.h` AimSourceFor: Weapon, Hand or Fist; FitAim). The laser, the reticle, Keep Reticle on Screen and its resting guard, the Turn Zone,
   Check Aim and the C-Stick's hand-over all take this one ray. Live test switch
   `AZAHARFRAME_ANGELS_AIM_RAY=hand`: the controller's direction (kiuaim2's ray, bit for bit).
   Where it hits the top screen

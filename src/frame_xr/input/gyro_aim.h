@@ -177,7 +177,8 @@ Ray AimRay(const Posef& aim, const std::optional<Vec3f>& muzzle);
 /// `axis` (the weapon's own axis as held, aim space: vis/weapon_fit.h FitAxis) the ray starts at
 /// the muzzle and runs along that axis, so a blade aims where it points (Pit's grip tilts it
 /// about 10 to 16 degrees up from the controller's line); rolling the wrist turns it with the
-/// hand. Without one (a class fitted along the ray, no weapon drawn, or the test switch) it is
+/// hand (vis/weapon_fit.h AimSourceFor decides per class; a club aims with the hand from the
+/// front of the fist). Without one (a class fitted along the ray, no weapon drawn, or the test switch) it is
 /// AimRay above, unchanged. The laser, Direct Aim's reticle, Keep Reticle on Screen and its
 /// resting guard, the Turn Zone, Check Aim and the C-Stick's hand-over all take this one ray.
 Ray AimRay(const Posef& aim, const std::optional<Vec3f>& muzzle,

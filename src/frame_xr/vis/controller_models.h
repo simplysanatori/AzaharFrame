@@ -159,6 +159,7 @@ private:
     int muzzle_hand = -1;
     std::optional<std::array<float, 3>> muzzle;
     std::optional<std::array<float, 3>> axis; ///< AzaharFrame kiuinteg: FitAxis, with muzzle
+    bool muzzle_fist = false; ///< AzaharFrame kiuinteg: `muzzle` is the fist's front (a club)
 
     struct Files;
     struct Gpu;
