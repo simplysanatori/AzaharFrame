@@ -71,7 +71,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
 - **Internal Resolution** starts at **4x**, as tested on the Frame. In previous versions it was **Auto**, which follows Azahar's window, so games drew at 1x in the headset (3x in the Full modes).
 - **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset** and **Motion Controls** off, or with Angel's Aim when its mod is installed.
-- **Accurate Image Copies**, in **Graphics**, has three choices. **Automatic**, the default, fixes glitches only where a game needs it. **On** makes every image copy exact but lowers performance a lot, and **Off** works the way Azahar always has. Pointing at each choice in the headset or in Azahar's window explains it.
+- **Accurate Image Copies**, in **Graphics**, has three choices. **Automatic**, the default, fixes glitches only where a game needs it. **On** fixes more, but puts substantial stress on the GPU, and **Off** is the same as previous versions. Pointing at each choice in the headset or in Azahar's window explains it.
 
 ### Crash reports
 
@@ -114,48 +114,47 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - **Detach Screens**: Off, Secondary or Both. Detached screens keep their place per game.
 - **Touchpad**: a gamepad's touchpad works as the Secondary Screen.
-- Screens are named by slot: **Hide Bottom Screen** is now **Hide Secondary Screen** and **Mouse Mode**'s **Bottom Screen** is now **Secondary Screen**. Your settings are kept.
+- Screens are named by slot: **Hide Bottom Screen** is now **Hide Secondary Screen** and **Mouse Mode**'s **Bottom Screen** is now **Secondary Screen**.
 
-### Game keyboard
+### Virtual keyboard
 
-- A keyboard opens in the headset when a game asks for text. Thanks to [NicholasDavis5](https://github.com/NicholasDavis5) for reporting it ([#1](https://github.com/simplysanatori/AzaharFrame/issues/1)).
-- When a game asks for a Mii, one is picked automatically. A future update may let you use your own Miis or create one.
+- A virtual keyboard opens in the headset when a game asks for text. Thanks to [NicholasDavis5](https://github.com/NicholasDavis5) for reporting it ([#1](https://github.com/simplysanatori/AzaharFrame/issues/1)).
+- When a game asks for a Mii, one is picked automatically.
 
 ### Immersive View upgrades
 
 - **Detect Game FOV** reads the game camera's field of view, so cutscenes, zooms and widescreen mods stay correct. I gave it three choices: **Always** follows the camera while you play, **Once** measures it once and saves it for that game, and **Off** uses the Immersive Game FOV you set. You can change it in the VR menu or in Azahar's settings.
-- New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. Mario Kart 7's also sets **World Scale** and the Full modes' **3D Depth**. They are the settings I play with: resolution, texture filter, 3D Depth, Horizontal Scale, Vertical Scale, Render Margin and where the screen sits. A value you set yourself always wins.
+- New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. Mario Kart 7's also sets **World Scale** and the Full modes' **3D Depth**. They are the settings I found most comfortable: resolution, texture filter, 3D Depth, Horizontal Scale, Vertical Scale, Render Margin and where the screen sits.
 - The immersive screen now has the game's own shape. At 0% you see exactly the game's picture, and **Render Margin** (with **Stretch**) adds a margin around it. Before, the game drew a quarter more up and down than across, so a 5:3 game came out as 4:3 and full-screen pictures such as Ocarina of Time 3D's item screen were stretched. When a game zooms in to aim, the screen keeps its size and shape.
-- **Screen Shape** has a new **Automatic** choice. I made it follow the shape the game's camera draws with, 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9, so a mod or cheat that changes the picture's shape looks right without setting it yourself. It's the default now. A shape you picked for a game stays.
-- Faraway scenery doubles less in Ocarina of Time 3D and Majora's Mask 3D. The 3D was too deep for a screen this big: at 3D Depth 30, Ocarina of Time 3D put distant scenery further apart than your eyes. In **Full (6DoF): Ocarina of Time, Majora's Mask** I now limit the 3D to the deepest that still lines up, worked out from the screen's size and distance and your IPD, and it follows them as you change them. Your 3D Depth setting stays as you set it. When the limit applies, the 3D Depth message says so, for example **3D Depth: 30% (Limited to 8%)**.
+- **Screen Shape** has a new **Automatic** choice. I made it follow the shape the game's camera draws with, 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9, so a mod or cheat that changes the picture's shape looks right without setting it yourself. It's the default now.
+- Faraway scenery doubles less in Ocarina of Time 3D and Majora's Mask 3D. At 3D Depth 30, Ocarina of Time 3D put distant scenery further apart than your eyes. In **Full (6DoF): Ocarina of Time, Majora's Mask** I now limit the 3D to the deepest that still lines up, worked out from the screen's size and distance and your IPD, and it follows them as you change them. When the limit applies, the 3D Depth message says so, for example **3D Depth: 30% (Limited to 8%)**.
 - In the same mode, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without Render Margin's border of the paused world around them. The margin comes back as you return to the game.
 - Both eyes now always see the same moment of the game.
 - In the Full modes the Primary screen is drawn together with the controllers, in step with your head, which reduces doubling on fast head turns. **Primary Screen as Panel** (Experimental) brings back the separate panel.
 - New **Black Frame Insertion** (Experimental; renamed from Motion Clarity): each game picture shows only once, for a clearer picture when you turn your head, but it may flicker or double in demanding scenes. There are two rows, both off by default: in **Settings > Immersive** for the Full modes, and in **Settings > Graphics** for the Off and Wide modes, where only the top screen flashes. **Match Bottom Screen Brightness**, under either row, dims the bottom screen to match.
-- SteamVR's recentre and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
+- SteamVR's recentre and the right stick hold keep the immersive screen's size and distance.
 - Immersive mode recentres on where you face each time it resumes after the menu or the Secondary Screen, so the character stays in the middle after you change settings such as the resolution.
 - Render Margin no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
-- I replaced **Narrow Screen** with **Horizontal Scale** and added **Vertical Scale**. Each goes from -100% to +100% in 5% steps, so the immersive screen can be larger than the picture as well as smaller, and both start at +40%, as much view as the 1.4x Render Margin gave before; a value you set yourself is kept. A game where you set Narrow Screen keeps its screen: Narrow Screen 10% becomes Horizontal Scale -10%. In VR, hold the immersive screen with both grips and press D-pad right or left for wider or narrower, up or down for taller or shorter.
-- **Wider View** is now called **Render Margin**, with **Render Margin: Horizontal** and **Render Margin: Vertical** rows. They apply only with **Scale Mode** on **Stretch** and show only there; their values are kept. **Field of View** is the default, so a game's old Wider View value no longer applies unless you pick **Stretch**.
+- I replaced **Narrow Screen** with **Horizontal Scale** and added **Vertical Scale**. Each goes from -100% to +100% in 5% steps, so the immersive screen can be larger than the picture as well as smaller, and both start at +40%, as much view as the 1.4x Render Margin gave before. In VR, hold the immersive screen with both grips and press D-pad right or left for wider or narrower, up or down for taller or shorter.
+- **Wider View** is now called **Render Margin**, with **Render Margin: Horizontal** and **Render Margin: Vertical** rows. They apply only with **Scale Mode** on **Stretch** and show only there. **Field of View** is the default, so a game's old Wider View value no longer applies unless you pick **Stretch**.
 - **Scale Mode** says how the picture fills the screen. **Field of View** (the default) crops a smaller screen's edges and keeps the world's shape; **Stretch** squeezes the whole picture, HUD included. Mario Kart 7's preset starts in **Field of View** with Horizontal Scale +55% and Vertical Scale +70%.
 - New **Fill View** button under Scale Mode: one press sets this game's screen size and **Horizontal Scale** so the screen fills about three quarters of your view across: Horizontal Scale +50%, then the size makes the width fit. **Vertical Scale** stays as you have it. Change them from there as usual. I limited the scales so the world does not warp; a scale past the limit says **May Warp** on its row.
 - In the Full modes, hold the immersive screen with a grip and press D-pad up or down: with **Field of View** it changes **3D Depth**, one step per press (for example **3D Depth: 80%**); with **Stretch**, **Render Margin** on both axes. Both grips with the D-pad still change **Horizontal Scale** and **Vertical Scale**.
 - New **World Scale** (10% to 400%, 100% by default) for how big the game world feels, changed with a grip and the stick, and **Follow Screen Size** (on by default), which makes the world grow or shrink with the screen.
-- New **Dynamic Resolution** (**Settings** > **Graphics**, off by default): it lowers the resolution while the GPU cannot keep up and raises it again when it can, never below your **Internal Resolution** setting. It steps down only after 5 seconds the GPU cannot keep up, steps back up when what the higher level has cost in the game says it fits, and remembers the level each game settles at.
+- New **Dynamic Resolution** (**Settings** > **Graphics**, off by default): when the GPU cannot keep up, it lowers the resolution one step at a time, and raises it again once the GPU can. It never goes below your **Internal Resolution**.
 - The game's two eyes now follow your IPD as the headset measures it, so turning the IPD dial during play takes effect at once. Before, **Full (6DoF): Other Games** always used 65 mm. The last IPD read is kept for the next start, and only if none was ever read does a message ask you to turn the IPD dial.
 - Immersive view no longer bobs up and down when the headset reports a slightly different lens view from frame to frame; I fit the screen to a steady view and only refit when it really changes.
 
 ### Smaller changes
 
 - The 3DS microphone works through the Frame's microphone, with Azahar's microphone input on **Auto**.
-- While a game waits for its shaders, a small **Preparing Shaders** badge with a progress ring shows in the top-right corner of the main screen, or at the top right of what you see in immersive view. I made it fade in and out and stay up through short gaps between stalls, so it no longer pops up in the middle of your view every few seconds when async shaders are off. On a curved screen it stays in front of the curve. In Flat it is in the status bar.
+- While a game waits for its shaders, a small **Preparing Shaders** badge with a progress ring shows in the top-right corner of the main screen, or at the top right of what you see in immersive view.
 - In VR, Azahar's window has a **FLAT** button on its status bar.
 - In VR and Game Mode, the game list's **Open** entries, **File** > **Open Azahar Folder** and **Open Log Folder** now open Azahar's own file dialog, where the desktop file manager never showed. It lists files with size and date, and can rename, delete and make folders.
 - Messages in the headset stay for 5 seconds.
 - I made long lists in the VR menu, like a game's cheats, much quicker to get through. The stick scrolls faster the further you push it and speeds up as you hold it, you can grab the scrollbar and drag it or click above or below it to jump a page, and you can drag the list itself with the trigger.
-- Installing needs no Python: the Steam entry and its art, the dock icon, the controller models and Emerald 3DS's build are part of the program.
 - The bundled 7-Zip is now 26.06 and LibreSSL 4.4.1. Downloads stop when they grow well past their expected size.
 
 ### Bug fixes
@@ -166,7 +165,6 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Fixed Azahar's menus no longer responding after some messages in VR.
 - Fixed a crash when loading a save state after a long pause with the microphone in use.
 - Fixed a crash when starting a game with a downloaded texture pack that has no options, such as 5X Redrawn UI HD in Pokémon X and Y.
-- **Install Mods** no longer stays on **Loading Mods**. It asks again, and after 20 seconds shows **Couldn't Load Mods** with **Retry**.
 - A game's **Properties** no longer shows a stray Turbo Speed Limit label.
 - From Azahar: a freeze when a controller connects or disconnects, signature checks for encrypted content, keyboard navigation, pop-ups on screens with a different DPI, the default hotkeys and a local wireless fix.
 
