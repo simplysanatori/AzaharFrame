@@ -71,7 +71,15 @@ struct Probe {
     uint32_t mod_counter = 0;
     uint8_t mod_flags = 0;
     uint32_t counter_resets = 0;
+    // 1.2.0 RC2 (the owner: after the C-Stick the Turn Zone stopped for good; the trace showed the
+    // game no longer pulling a pixel written past the box back to its edge): turning polls in a row
+    // that read the reticle still past the box; at kStretchedPolls the box counts as stretched
+    // (the mod's whole screen) and the pixel goes past the screen's edge instead.
+    uint32_t unclamped_polls = 0;
+    bool stretched = false;
 };
+
+constexpr uint32_t kStretchedPolls = 6;
 
 // 1.2.0 RC2 (the owner: touching the C-Stick stopped the Turn Zone for good): the mod keeps a
 // counter of its stick (MAPPING.md: 0xF35D88 with the state at 0xF35D40) and, while it is set,
@@ -325,10 +333,41 @@ void AimPoll(int64_t ticks) {
         constexpr float kTurnGainX = 4.0f;
         const float gx = gain("AZAHARFRAME_KIU_TURN_GAIN_X", kTurnGainX);
         const float gy = gain("AZAHARFRAME_KIU_TURN_GAIN_Y", 1.0f);
-        write.x += std::clamp(out.right_dps * kTurnPxPerDeg * kGameFrameS * gx, -kMaxOvershootPx,
-                              kMaxOvershootPx);
-        write.y += std::clamp(out.down_dps * kTurnPxPerDeg * kGameFrameS * gy, -kMaxOvershootPx,
-                              kMaxOvershootPx);
+        const float ox = std::clamp(out.right_dps * kTurnPxPerDeg * kGameFrameS * gx,
+                                    -kMaxOvershootPx, kMaxOvershootPx);
+        const float oy = std::clamp(out.down_dps * kTurnPxPerDeg * kGameFrameS * gy,
+                                    -kMaxOvershootPx, kMaxOvershootPx);
+        // The game left the reticle past the box (it did not clamp what was written): stretched.
+        const Input::ReticleBox box = Input::ReachableBox(reading);
+        const bool past = reading.x < box.x0 - 1.0f || reading.x > box.x1 + 1.0f ||
+                          reading.y < box.y0 - 1.0f || reading.y > box.y1 + 1.0f;
+        p.unclamped_polls = past ? p.unclamped_polls + 1 : 0;
+        if (p.unclamped_polls >= kStretchedPolls) {
+            p.stretched = true;
+        } else if (!past) {
+            p.stretched = false;
+        }
+        const bool screen_edge =
+            p.stretched && Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_STRETCH_EDGE")
+                                   .value_or("1") != "0";
+        if (screen_edge) {
+            // Past the screen's own edge by the same overshoot: the whole-screen box clamps there.
+            if (ox > 0.0f) {
+                write.x = reading.w + ox;
+            } else if (ox < 0.0f) {
+                write.x = ox;
+            }
+            if (oy > 0.0f) {
+                write.y = reading.h + oy;
+            } else if (oy < 0.0f) {
+                write.y = oy;
+            }
+        } else {
+            write.x += ox;
+            write.y += oy;
+        }
+    } else {
+        p.unclamped_polls = 0;
     }
     p.direct_turn = direct_turn;
     if (write.write && (write.x != reading.x || write.y != reading.y)) {
@@ -380,11 +419,12 @@ void AimPoll(int64_t ticks) {
                                        : "",
                  // 1.2.0 RC2: the push and what the game's gyroscope was given
                  fmt::format("; {} push {:.1f} right {:.1f} down dps, gyro {:.1f} {:.1f} {:.1f} "
-                             "(scale {:.2f}, {} polls); mod flags {:02X} stick {:08X}, {} cleared",
+                             "(scale {:.2f}, {} polls); mod flags {:02X} stick {:08X}, {} cleared{}",
                              p.direct_turn ? "direct" : "mod", out.right_dps, out.down_dps,
                              p.last_gyro.x, p.last_gyro.y,
                              p.last_gyro.z, p.last_scale, p.gyro_polls, p.mod_flags,
-                             p.mod_counter, p.counter_resets));
+                             p.mod_counter, p.counter_resets,
+                             p.stretched ? ", stretched" : ""));
         p.gyro_polls = 0;
         p.counter_resets = 0;
     }
