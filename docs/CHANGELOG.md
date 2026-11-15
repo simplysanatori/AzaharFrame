@@ -2,6 +2,8 @@
 
 ## 1.2.0 (November 2026)
 
+The biggest update yet, and maybe the biggest there will ever be.
+
 A Mods tab, controls you can edit for any controller, mouse and pointer controls, screens you can detach, a keyboard in the headset, autosave and crash protection.
 
 ### What's Different From 1.1
@@ -59,8 +61,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Autosave** makes save states while you play. It is off by default. Turn it on in **Settings** > **General**.
 - It saves every 5 minutes, when you open the menu and when you close the game. Each game keeps its newest 3. Both can be set per game.
 - **Load State** has an **Autosave** card with the newest one, and a list of the others.
-- "Autosaved" shows above the Primary Screen, or as a short message when that corner is out of view. **Couldn't Autosave** tells you when one fails.
-- Autosaves never replace a slot or the Quick Save.
+- "Autosaved" shows above the Primary Screen, or as a short message when that corner is out of view.
 - The autosave made when you open the menu has a spot of its own. It doesn't count toward the newest 3, so opening the menu never removes an older autosave.
 - An autosave pauses the game for about 0.2 to 0.5 seconds.
 - Autosaves wait while memory is nearly full, because writing one needs about 300 MB more for a moment in a big game.
@@ -71,36 +72,35 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Settings**, **Controls** and **Position** have a **Global | Per-Game** switch at the top right. The menu opens on **Per-Game** while a game runs. Choose **Global** to change every game.
 - Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game, for example "2 Per-Game Values Set".
 - **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
-- **Internal Resolution** starts at **4x**. It was **Auto**, which follows Azahar's window, so games drew at 1x in the headset (3x in the Full modes). A resolution you picked other than Auto stays.
-- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset** and **Motion Controls** off, or with Angel's Aim when its mod is installed. These are only starting values: anything you set for the game, or for all games, stays.
+- **Internal Resolution** starts at **4x**, as tested on the Frame. In previous versions it was **Auto**, which follows Azahar's window, so games drew at 1x in the headset (3x in the Full modes).
+- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset** and **Motion Controls** off, or with Angel's Aim when its mod is installed.
 
 ### Crash reports
 
-- If Azahar closed unexpectedly, the next start says so, with the reason and the game.
-- **What Were You Doing?** takes a note, typed on the VR keyboard.
-- **See What's Sent** shows the whole report. **Save Report** saves it as a zip. **Send Report** sends it to me.
+- If Azahar closed unexpectedly, the next start says so, with the reason and the game that was running.
+- A **What Were You Doing?** prompt lets you add a note, typed on the VR keyboard.
+- **See What's Sent** shows the whole report. **Save Report** saves it as a zip you can attach to a GitHub issue. **Send Report** sends it straight to me, so I'm notified and can work on it right away.
 - Nothing is sent unless you tap **Send Report**, and then only that one report. It goes through Sentry, which I've set not to store IP addresses. Your user name and home folder are removed. The log can include the names and folders of your games.
 - **Report a Problem** sends any other problem the same way. It is in **Settings** > **General** > **Help** in VR, and under **Help** in Azahar's window, next to **About Azahar for Frame**.
 
 ### Homebrew
 
-- The new **Homebrew** tab builds Pokémon Emerald 3DS from your own Pokémon Emerald ROM, and plays it.
-- **Check for Updates** looks for a new release at once.
+- The new **Homebrew** tab builds Pokémon Emerald 3DS from your own Pokémon Emerald ROM, dumped from a cartridge you own, and lets you play it.
+- **Check for Updates** looks for a new release when you ask.
 - If a newer Emerald 3DS release changes how its data is built so that Azahar for Frame can't build it itself, it asks first. **Build With Emerald 3DS's Builder** then runs the release's own builder in a protected sandbox that can only read your ROM and write its own folder. It remembers a yes for that version; Not Now asks again next time.
 
 ### Controls
 
-- **Edit Controls** shows a New 3DS XL.
-- Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
+- **Edit Controls** shows a New 3DS XL wire diagram.
+- Multiple gamepad, keyboard and mouse support. For example, use the left Frame controller and a mouse as a pointer in a game.
 - **Bottom Screen Reticle**: a controller or your head aims at the Secondary Screen, for games that aim with the touch screen. That controller shows no beam while it aims.
-- **Reticle Speed**: how far the reticle moves when you turn. At the default 2.0x your head turns half as far as before to cross the screen, about 15 degrees side to side.
-- **Aim Only While Pressed** keeps the reticle in the middle until the trigger touches. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick.
+- **Aim Only While Pressed** keeps the reticle in the middle of the screen until the trigger is pressed. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick, for more control in games with varied controls.
 
 ### Angel's Aim (Alpha)
 
-- Angel's Aim brings Kid Icarus: Uprising into VR with Darkshade's C-Stick & Gyro mod. **Aiming**, on the **Controls** tab, is **Direct Aim**, which puts the reticle where your weapon points, or **Gyro Aim**, which moves it as you turn your hand. The game starts on **Direct Aim** once the mod is installed.
-- Pit's equipped weapon is in your hand, held the way Pit holds it, with his fist on the controller's handle. **Weapon Opacity**, **Weapon Size** and **Weapon Scale** change how it looks. Blades, staffs, bows and cannons aim along the weapon as Pit holds it, so a blade aims a little above the controller's line. A cannon aims along its barrel, which Pit holds about 36° inward of the controller's line, and the laser, the muzzle flash and the projectiles leave its mouth. Clubs aim along your hand from the front of Pit's fist, and claws, palms, arms and orbitars along your hand. The weapon, its flash and its shots take a texture pack's textures, from PNG packs and from packs optimized for the Frame (KTX, ASTC).
-- Each shot shows a flash at the weapon's tip (**Muzzle Flash**, with **Muzzle Flash Size**), and your shots fly from the weapon into the screen (**Projectiles**, with their opacity, size and speed). Each real shot buzzes the controller (**Recoil**).
+- Angel's Aim brings Kid Icarus: Uprising into VR with Darkshade's [C-Stick & Gyro mod](https://gbatemp.net/threads/kid-icarus-uprising-c-stick-gyro-patch.685775/). **Aiming**, on the **Controls** tab, is **Direct Aim**, which puts the reticle where your weapon points, or **Gyro Aim**, which moves it as you turn your hand. The game starts on **Direct Aim** once the mod is installed.
+- Pit's equipped weapon is in your hand, held the way Pit holds it, with his fist on the controller's handle. **Weapon Opacity**, **Weapon Size** and **Weapon Scale** can change how it looks. Blades, staffs, bows and cannons aim along the weapon as Pit holds it, so a blade aims a little above the controller's line. A cannon aims along its barrel, which Pit holds about 36° inward of the controller's line, and the laser, the muzzle flash and the projectiles leave its mouth. (I hand-tuned these angles. Some are tricky, so please report any that feel off.) Clubs aim along your hand from the front of Pit's fist, and claws, palms, arms and orbitars along your hand. The weapon, its flash and its shots take a texture pack's textures, from PNG packs and from packs optimized for the Frame (KTX, ASTC).
+- Each shot shows a flash at the weapon's tip (**Muzzle Flash**, with **Muzzle Flash Size**), and your shots fly from the weapon (for some weapons) into the screen (**Projectiles**, with their opacity, size and speed). Each shot gives haptic feedback to the controller (**Recoil**).
 - With **Direct Aim**: **Laser Sight**, **Keep Reticle on Screen**, **Grip Frees Aim** (**Hold** or **Toggle**), **Turn Zone From**, **Turn Zone**, **Horizontal Turn Speed**, **Vertical Turn Speed**, and **Check Aim**, which shows targets one at a time so you can check your aim.
 - The first time you turn **Aiming** on, **Angel's Aim Is On** lists what is on.
 - Turning at the screen's edge keeps working after you use the C-Stick. Before, it stopped until you left the battle.
