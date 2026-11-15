@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <bit>
 #include <chrono>
@@ -93,6 +94,7 @@ struct Probe {
     // (+kModStickCounter) is set and any of these is non-zero: the state's +0x40, +0x44, +0x64.
     // The stick it reads is +0x0C, +0x10 (floats).
     uint32_t mod_40 = 0, mod_44 = 0, mod_64 = 0, mod_0c = 0, mod_10 = 0;
+    std::array<uint32_t, 32> last_dump{}; ///< the reticle's +0x80 words last logged (trace on)
 };
 
 /// The reticle object's flags; kClampBit (value 8, MAPPING.md's "bit 8") is set by the game's clamp (0x6D2C08) when it pulls
@@ -552,6 +554,35 @@ void AimPoll(int64_t ticks) {
                              p.mod_40, p.mod_44, p.mod_64));
         p.unstick_writes = 0;
         p.gyro_polls = 0;
+        // 1.2.0 RC2 (the owner's 703 run: none of the mod's values the box hook reads were set
+        // after the C-Stick): the reticle object's +0x80 to +0x100, the words the game's turn path
+        // reads, as hex, on its own line whenever a word other than the reticle's place changed.
+        Core::System& system = Core::System::GetInstance();
+        for (const std::shared_ptr<Kernel::Process>& process : system.Kernel().GetProcessList()) {
+            if (process.get() != p.process) {
+                continue;
+            }
+            Memory::MemorySystem& memory = system.Memory();
+            if (memory.IsValidVirtualAddress(*process, p.object + 0x80) &&
+                memory.IsValidVirtualAddress(*process, p.object + 0xFF)) {
+                std::array<uint32_t, 32> words{};
+                for (size_t i = 0; i < words.size(); ++i) {
+                    words[i] = memory.Read32(*process, p.object + 0x80 + static_cast<uint32_t>(i) * 4);
+                }
+                // +0xA4, +0xA8 are the reticle's place: left out of the compare.
+                std::array<uint32_t, 32> cmp = words;
+                cmp[(0xA4 - 0x80) / 4] = cmp[(0xA8 - 0x80) / 4] = 0;
+                if (cmp != p.last_dump) {
+                    p.last_dump = cmp;
+                    std::string hex;
+                    for (size_t i = 0; i < words.size(); ++i) {
+                        hex += fmt::format("{}{:08X}", i % 8 == 0 ? (i ? " | " : "") : " ", words[i]);
+                    }
+                    LOG_INFO(Frontend, "xr: Light Gun: reticle +80: {}", hex);
+                }
+            }
+            break;
+        }
         p.counter_resets = 0;
     }
 }
