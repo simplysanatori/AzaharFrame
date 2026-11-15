@@ -472,7 +472,9 @@ void AimPoll(int64_t ticks) {
         // The owner's first run: a pixel past the side edges turns the camera far less than one
         // past the top or bottom (sideways barely turned at 4.0x, up and down felt right at
         // 1.0x), so each axis has its own strength. Live test switches, for tuning in the
-        // headset: AZAHARFRAME_KIU_TURN_GAIN_X (sideways, default kTurnGainX), _Y (default 1).
+        // headset: AZAHARFRAME_KIU_TURN_GAIN_X (sideways, default kTurnGainX), _Y (default
+        // kTurnGainY). 1.2.0 RC2 (the owner): _Y=2 made turning feel right, so 2 is the default
+        // now (was 1); the switch still overrides it.
         const auto gain = [](const char* name, float fallback) {
             const auto v = Common::FrameTestSwitches::Value(name);
             if (!v) {
@@ -483,8 +485,9 @@ void AimPoll(int64_t ticks) {
             return end != v->c_str() && std::isfinite(f) && f > 0.0f && f <= 50.0f ? f : fallback;
         };
         constexpr float kTurnGainX = 4.0f;
+        constexpr float kTurnGainY = 2.0f;
         const float gx = gain("AZAHARFRAME_KIU_TURN_GAIN_X", kTurnGainX);
-        const float gy = gain("AZAHARFRAME_KIU_TURN_GAIN_Y", 1.0f);
+        const float gy = gain("AZAHARFRAME_KIU_TURN_GAIN_Y", kTurnGainY);
         const float ox = std::clamp(out.right_dps * kTurnPxPerDeg * kGameFrameS * gx,
                                     -kMaxOvershootPx, kMaxOvershootPx);
         const float oy = std::clamp(out.down_dps * kTurnPxPerDeg * kGameFrameS * gy,

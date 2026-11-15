@@ -38,6 +38,23 @@ struct ControlsPreset {
     /// AzaharFrame kiugyro: with a C-Stick mod installed, Settings::values.vr_gyro_aim (0: keep
     /// the setting).
     uint32_t gyro_aim_with_mod = 0;
+    /// 1.2.0 RC2 (the owner): with a C-Stick mod installed, Bottom Screen Reticle starts at this
+    /// instead of `bottom_screen_reticle` (-1: the same; 0 is given too: Off for the game, so an
+    /// older build, which knows the bit, does not give its own reticle).
+    int bottom_screen_reticle_with_mod = -1;
+    /// 1.2.0 RC2 (the owner): Angel's Aim's tuning, with a C-Stick mod installed, all under the
+    /// one bit kPresetAimTuning (each 0 or -1: keep the setting): Keep Reticle on Screen
+    /// (vr_light_gun_lock, -1 keep, 0 off, 1 on), Horizontal and Vertical Turn Speed, Turn Zone,
+    /// Weapon Scale, Muzzle Flash Size, and the projectiles' Size, Speed and Opacity (percent).
+    int light_gun_lock = -1;
+    float turn_speed = 0.0f;
+    float turn_speed_vertical = 0.0f;
+    int turn_zone = -1;
+    uint32_t weapon_scale = 0;
+    uint32_t muzzle_flash_size = 0;
+    uint32_t projectile_size = 0;
+    uint32_t projectile_speed = 0;
+    uint32_t projectile_opacity = 0;
 };
 
 /// AzaharFrame kiu: the bits of vr_controls_preset_done: a preset value already decided for the
@@ -47,6 +64,11 @@ enum ControlsPresetField : uint32_t {
     kPresetMotionControls = 1u << 1,
     kPresetEdgeCStick = 1u << 2,
     kPresetGyroAim = 1u << 3, ///< AzaharFrame kiugyro
+    /// 1.2.0 RC2 (the owner): Angel's Aim's tuning as one group (bits 4 to 7 are the only ones
+    /// left): set once the group was given with the mod, each value only where the game had none
+    /// and the global one was the default; a global value the player chose is then never given.
+    /// Older builds never read it.
+    kPresetAimTuning = 1u << 4,
 };
 
 /// AzaharFrame kiugyro: bits 8 and 9 of vr_controls_preset_done mirror the game's own Gyro Aim
@@ -105,13 +127,28 @@ bool RestoreAimExtras();
 /// switch of its own. Without the mod: Motion Controls Off, as before (with them on, the game's
 /// reticle moved with the head or the controller). Right Stick Moves Touch stays off. The player
 /// can change any of them, for this game or everywhere.
+/// 1.2.0 RC2 (the owner): with the mod, the owner's own settings of 2026-11-15 (their game's
+/// file): Bottom Screen Reticle Off, Keep Reticle on Screen off, Horizontal Turn Speed 1.8x,
+/// Vertical Turn Speed 1.0x, Turn Zone 30 %, Weapon Scale 70 %, Muzzle Flash Size 230 %,
+/// Projectile Size 170 %, Speed 180 % and Opacity 40 %. Laser Sight off, Projectiles on, Weapon
+/// Size Game Size and Turn Zone From Aim Box are the defaults already.
 inline constexpr ControlsPreset kKidIcarusUprisingControls{.name = "Kid Icarus: Uprising",
                                                            .bottom_screen_reticle = 3,
                                                            .motion_controls = 0,
                                                            .edge_cstick = false,
                                                            .edge_cstick_needs_mod = true,
                                                            .motion_controls_with_mod = 1,
-                                                           .gyro_aim_with_mod = 2};
+                                                           .gyro_aim_with_mod = 2,
+                                                           .bottom_screen_reticle_with_mod = 0,
+                                                           .light_gun_lock = 0,
+                                                           .turn_speed = 1.8f,
+                                                           .turn_speed_vertical = 1.0f,
+                                                           .turn_zone = 30,
+                                                           .weapon_scale = 70,
+                                                           .muzzle_flash_size = 230,
+                                                           .projectile_size = 170,
+                                                           .projectile_speed = 180,
+                                                           .projectile_opacity = 40};
 
 struct ControlsPresetTitle {
     uint64_t title_id;
@@ -164,7 +201,8 @@ bool CStickModInstalled(uint64_t title_id);
 /// `cstick_mod_installed`; without one it is left alone and not marked, so installing the mod
 /// later lets the preset give it then (still only where the player has no value of their own).
 /// AzaharFrame kiugyro: the same for Gyro Aim; Motion Controls takes `motion_controls_with_mod`
-/// when the mod is installed at the time it is given.
+/// when the mod is installed at the time it is given. 1.2.0 RC2: the same for Angel's Aim's
+/// tuning (kPresetAimTuning); Bottom Screen Reticle takes `bottom_screen_reticle_with_mod`.
 uint32_t ApplyControlsPreset(const ControlsPreset& preset, bool cstick_mod_installed);
 
 } // namespace FrameXr

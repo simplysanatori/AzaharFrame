@@ -74,6 +74,16 @@ struct ImmersivePreset {
     /// 1.2.0 fix lane B: Settings::values.vr_immersive_depth, the Full modes' 3D Depth (0 to 100;
     /// -1 = keep). Not `factor_3d`, which is the 3DS's 3D Depth (Normal and Wide).
     int32_t immersive_depth = -1;
+    /// 1.2.0 RC2 (the owner): Settings::values.async_shader_compilation (Graphics; -1 = keep).
+    int32_t async_shaders = -1;
+    /// 1.2.0 RC2 (the owner): Settings::values.vr_motion_clarity_normal, Motion Clarity in the
+    /// Off and Wide modes, and vr_motion_clarity_match_bottom, Match Bottom Screen Brightness
+    /// (-1 = keep). Plain keys: older builds ignore them.
+    int32_t motion_clarity_normal = -1;
+    int32_t motion_clarity_match_bottom = -1;
+    /// 1.2.0 RC2 (the owner): Settings::values.vr_show_controllers, per game since RC2 (-1 =
+    /// keep). Builds before RC2 read it from the global file only.
+    int32_t show_controllers = -1;
 };
 
 /// The preset for the game with this title id (any region), or null.

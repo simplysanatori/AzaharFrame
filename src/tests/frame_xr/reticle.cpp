@@ -669,6 +669,7 @@ TEST_CASE("Reticle: Kid Icarus: Uprising's Controls preset", "[frame_xr][reticle
         CHECK(p->motion_controls == 0);
         CHECK(p->motion_controls_with_mod == 1);
         CHECK(p->gyro_aim_with_mod == 2);
+        CHECK(p->bottom_screen_reticle_with_mod == 0); // 1.2.0 RC2: Off with the mod
     }
     CHECK(FrameXr::FindControlsPreset(0x0004000000033500ULL) == nullptr);
 }

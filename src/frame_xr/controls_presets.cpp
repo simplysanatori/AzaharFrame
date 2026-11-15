@@ -216,9 +216,14 @@ uint32_t ApplyControlsPreset(const ControlsPreset& preset, bool cstick_mod_insta
         given |= bit;
         LOG_INFO(Frontend, "xr: {}: {} preset {}", preset.name, what, value);
     };
-    if (preset.bottom_screen_reticle != 0) {
-        offer(v.vr_bottom_screen_reticle, preset.bottom_screen_reticle, kPresetReticle,
-              "Bottom Screen Reticle");
+    // 1.2.0 RC2: with the mod, the reticle's own start (Off is given too).
+    const bool reticle_with_mod =
+        cstick_mod_installed && preset.bottom_screen_reticle_with_mod >= 0;
+    if (reticle_with_mod || preset.bottom_screen_reticle != 0) {
+        offer(v.vr_bottom_screen_reticle,
+              reticle_with_mod ? static_cast<u32>(preset.bottom_screen_reticle_with_mod)
+                               : preset.bottom_screen_reticle,
+              kPresetReticle, "Bottom Screen Reticle");
     }
     const int motion = cstick_mod_installed && preset.motion_controls_with_mod >= 0
                            ? preset.motion_controls_with_mod
@@ -232,6 +237,53 @@ uint32_t ApplyControlsPreset(const ControlsPreset& preset, bool cstick_mod_insta
     }
     if (preset.gyro_aim_with_mod != 0 && cstick_mod_installed) { // AzaharFrame kiugyro
         offer(v.vr_gyro_aim, preset.gyro_aim_with_mod, kPresetGyroAim, "Gyro Aim");
+    }
+    // 1.2.0 RC2 (the owner): Angel's Aim's tuning, with the mod, once: each value as above (the
+    // game's own value and a global one the player chose stay), then the group's bit.
+    if (cstick_mod_installed && (done & kPresetAimTuning) == 0) {
+        bool any = false;
+        const auto tune = [&](auto& setting, auto value, const char* what) {
+            any = true;
+            if (!setting.UsingGlobal() || setting.GetValue() != setting.GetDefault()) {
+                return; // the game's own value, or a global value the player chose
+            }
+            setting.SetGlobal(false);
+            setting.SetValue(value);
+            given |= kPresetAimTuning;
+            LOG_INFO(Frontend, "xr: {}: {} preset {}", preset.name, what, value);
+        };
+        if (preset.light_gun_lock >= 0) {
+            tune(v.vr_light_gun_lock, preset.light_gun_lock != 0, "Keep Reticle on Screen");
+        }
+        if (preset.turn_speed > 0.0f) {
+            tune(v.vr_light_gun_turn_speed, preset.turn_speed, "Horizontal Turn Speed");
+        }
+        if (preset.turn_speed_vertical > 0.0f) {
+            tune(v.vr_light_gun_turn_speed_vertical, preset.turn_speed_vertical,
+                 "Vertical Turn Speed");
+        }
+        if (preset.turn_zone >= 0) {
+            tune(v.vr_light_gun_turn_zone, static_cast<u32>(preset.turn_zone), "Turn Zone");
+        }
+        if (preset.weapon_scale != 0) {
+            tune(v.vr_light_gun_weapon_scale, preset.weapon_scale, "Weapon Scale");
+        }
+        if (preset.muzzle_flash_size != 0) {
+            tune(v.vr_light_gun_muzzle_flash_size, preset.muzzle_flash_size, "Muzzle Flash Size");
+        }
+        if (preset.projectile_size != 0) {
+            tune(v.vr_light_gun_projectile_size, preset.projectile_size, "Projectile Size");
+        }
+        if (preset.projectile_speed != 0) {
+            tune(v.vr_light_gun_projectile_speed, preset.projectile_speed, "Projectile Speed");
+        }
+        if (preset.projectile_opacity != 0) {
+            tune(v.vr_light_gun_projectile_opacity, preset.projectile_opacity,
+                 "Projectile Opacity");
+        }
+        if (any) {
+            done |= kPresetAimTuning;
+        }
     }
     if (done != done_before) {
         done_setting.SetGlobal(false);

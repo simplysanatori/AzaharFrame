@@ -158,6 +158,14 @@ TEST_CASE("FrameXr presets: Kid Icarus: Uprising starts in the normal view", "[f
         // Graphics only; Immersive stays the player's to turn on.
         REQUIRE(kiu->resolution == 4);
         REQUIRE(kiu->texture_filter == 2);
+        // 1.2.0 RC2 (the owner): their own settings of 2026-11-15.
+        REQUIRE(kiu->factor_3d == 100);
+        REQUIRE(kiu->async_shaders == 1);
+        REQUIRE(kiu->motion_clarity_normal == 1);
+        REQUIRE(kiu->motion_clarity_match_bottom == 1);
+        REQUIRE(kiu->show_controllers == 1);
+        REQUIRE(kiu->top_aspect == -1);    // Automatic, the default
+        REQUIRE(kiu->world_scale == 0.0f); // measured, not preset
         REQUIRE(kiu->register_offset == -1);
         REQUIRE(kiu->eye_indicator == nullptr);
         REQUIRE(!kiu->own_placement);
@@ -201,6 +209,16 @@ void ResetPresetSettings() {
     v.factor_3d.SetValue(v.factor_3d.GetDefault());
     v.resolution_factor.SetValue(v.resolution_factor.GetDefault());
     v.texture_filter.SetValue(v.texture_filter.GetDefault());
+    // 1.2.0 RC2: Async Shader Compilation, Motion Clarity (Off and Wide), Match Bottom Screen
+    // Brightness, Show Controllers.
+    v.async_shader_compilation.SetGlobal(true);
+    v.async_shader_compilation.SetValue(v.async_shader_compilation.GetDefault());
+    v.vr_motion_clarity_normal.SetGlobal(true);
+    v.vr_motion_clarity_normal.SetValue(v.vr_motion_clarity_normal.GetDefault());
+    v.vr_motion_clarity_match_bottom.SetGlobal(true);
+    v.vr_motion_clarity_match_bottom.SetValue(v.vr_motion_clarity_match_bottom.GetDefault());
+    v.vr_show_controllers.SetGlobal(true);
+    v.vr_show_controllers.SetValue(v.vr_show_controllers.GetDefault());
 }
 } // namespace
 
@@ -295,14 +313,40 @@ TEST_CASE("FrameXr presets: Kid Icarus: Uprising (Japan, 30000) gives starting v
     CHECK(static_cast<int>(v.texture_filter.GetValue()) == 2);
     CHECK(v.vr_immersive_mode.UsingGlobal());
     CHECK(v.vr_immersive_mode.GetValue() == 0u);
+    // 1.2.0 RC2 (the owner): 3D Depth 100, Async Shader Compilation, Motion Clarity in the Off
+    // and Wide modes with Match Bottom Screen Brightness, Show Controllers: the game's own.
+    CHECK(v.factor_3d.GetValue() == 100u);
+    CHECK(!v.factor_3d.UsingGlobal());
+    CHECK(v.async_shader_compilation.GetValue());
+    CHECK(!v.async_shader_compilation.UsingGlobal());
+    CHECK(!v.async_shader_compilation.GetValue(true)); // the global value untouched
+    CHECK(v.vr_motion_clarity_normal.GetValue());
+    CHECK(!v.vr_motion_clarity_normal.UsingGlobal());
+    CHECK(v.vr_motion_clarity_match_bottom.GetValue());
+    CHECK(!v.vr_motion_clarity_match_bottom.UsingGlobal());
+    CHECK(!v.vr_motion_clarity_immersive.GetValue()); // the Full modes' row: the default, off
+    CHECK(v.vr_show_controllers.GetValue());
+    CHECK(!v.vr_show_controllers.UsingGlobal());
+    CHECK(v.vr_top_aspect.UsingGlobal()); // Screen Shape: the default, Automatic
     ResetPresetSettings();
     v.resolution_factor.SetGlobal(false); // this game's own value
     v.resolution_factor.SetValue(2);
     v.texture_filter.SetValue(Settings::TextureFilter::Anime4K); // a global value chosen
+    // 1.2.0 RC2: the game's own 3D Depth and Motion Clarity off, a global Show Controllers off.
+    v.factor_3d.SetGlobal(false);
+    v.factor_3d.SetValue(60);
+    v.vr_motion_clarity_normal.SetGlobal(false);
+    v.vr_motion_clarity_normal.SetValue(false);
+    v.vr_show_controllers.SetValue(false);
     ApplyPresetSettings(kiu);
     CHECK(v.resolution_factor.GetValue() == 2);
     CHECK(v.texture_filter.UsingGlobal());
     CHECK(static_cast<int>(v.texture_filter.GetValue()) == 1);
+    CHECK(v.factor_3d.GetValue() == 60u);
+    CHECK(!v.vr_motion_clarity_normal.GetValue());
+    CHECK(v.vr_show_controllers.UsingGlobal());
+    CHECK(!v.vr_show_controllers.GetValue());
+    CHECK(v.vr_motion_clarity_match_bottom.GetValue()); // the rest still given
     ResetPresetSettings();
 }
 
@@ -326,8 +370,46 @@ void ResetControlsSettings() {
     v.vr_gyro_aim.SetValue(0);
     v.vr_gyro_sensitivity.SetGlobal(true);
     v.vr_gyro_sensitivity.SetValue(1.0f);
+    // 1.2.0 RC2: Angel's Aim's tuning.
+    const auto reset = [](auto& setting) {
+        setting.SetGlobal(true);
+        setting.SetValue(setting.GetDefault());
+    };
+    reset(v.vr_light_gun_lock);
+    reset(v.vr_light_gun_turn_speed);
+    reset(v.vr_light_gun_turn_speed_vertical);
+    reset(v.vr_light_gun_turn_zone);
+    reset(v.vr_light_gun_weapon_scale);
+    reset(v.vr_light_gun_muzzle_flash_size);
+    reset(v.vr_light_gun_projectile_size);
+    reset(v.vr_light_gun_projectile_speed);
+    reset(v.vr_light_gun_projectile_opacity);
     v.vr_controls_preset_done.SetGlobal(true);
     v.vr_controls_preset_done.SetValue(0);
+}
+// 1.2.0 RC2 (the owner): their own Angel's Aim settings of 2026-11-15, each the game's own.
+void CheckAimTuningGiven() {
+    auto& v = Settings::values;
+    CHECK(!v.vr_light_gun_lock.GetValue());
+    CHECK(!v.vr_light_gun_lock.UsingGlobal());
+    CHECK(v.vr_light_gun_turn_speed.GetValue() == 1.8f);
+    CHECK(!v.vr_light_gun_turn_speed.UsingGlobal());
+    CHECK(v.vr_light_gun_turn_speed.GetValue(true) == 1.0f); // the global value stays
+    CHECK(v.vr_light_gun_turn_speed_vertical.GetValue() == 1.0f);
+    CHECK(!v.vr_light_gun_turn_speed_vertical.UsingGlobal());
+    CHECK(v.vr_light_gun_turn_zone.GetValue() == 30u);
+    CHECK(v.vr_light_gun_weapon_scale.GetValue() == 70u);
+    CHECK(!v.vr_light_gun_weapon_scale.UsingGlobal());
+    CHECK(v.vr_light_gun_muzzle_flash_size.GetValue() == 230u);
+    CHECK(v.vr_light_gun_projectile_size.GetValue() == 170u);
+    CHECK(v.vr_light_gun_projectile_speed.GetValue() == 180u);
+    CHECK(v.vr_light_gun_projectile_opacity.GetValue() == 40u);
+    CHECK(!v.vr_light_gun_projectile_opacity.UsingGlobal());
+    // The defaults already: not given.
+    CHECK(v.vr_light_gun_laser.UsingGlobal());
+    CHECK(v.vr_light_gun_projectile.UsingGlobal());
+    CHECK(v.vr_light_gun_weapon_size.UsingGlobal());
+    CHECK(v.vr_light_gun_turn_zone_from.UsingGlobal());
 }
 } // namespace
 
@@ -342,8 +424,11 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu][kiug
     SECTION("a fresh game with the mod: Light Gun from the right controller") {
         ResetControlsSettings();
         CHECK(ApplyControlsPreset(kiu, true) ==
-              (kPresetReticle | kPresetMotionControls | kPresetGyroAim));
-        CHECK(v.vr_bottom_screen_reticle.GetValue() == 3);
+              (kPresetReticle | kPresetMotionControls | kPresetGyroAim | kPresetAimTuning));
+        // 1.2.0 RC2 (the owner): Bottom Screen Reticle Off, given as the game's own.
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 0);
+        CHECK(!v.vr_bottom_screen_reticle.UsingGlobal());
+        CheckAimTuningGiven();
         CHECK(v.vr_motion_controls.GetValue() == 1);
         CHECK(!v.vr_motion_controls.UsingGlobal());
         CHECK(v.vr_gyro_aim.GetValue() == 2);
@@ -354,20 +439,25 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu][kiug
         CHECK(v.vr_reticle_edge_cstick.UsingGlobal());
         CHECK(!v.vr_reticle_stick_moves.GetValue());
         CHECK(v.vr_controls_preset_done.GetValue() ==
-              (kPresetReticle | kPresetMotionControls | kPresetGyroAim));
+              (kPresetReticle | kPresetMotionControls | kPresetGyroAim | kPresetAimTuning));
         // Booting again changes nothing.
         CHECK(ApplyControlsPreset(kiu, true) == 0u);
     }
     SECTION("a fresh game without the mod: as before (Motion Controls Off, no Gyro Aim)") {
         ResetControlsSettings();
         CHECK(ApplyControlsPreset(kiu, false) == (kPresetReticle | kPresetMotionControls));
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 3); // Headset, as before
         CHECK(v.vr_motion_controls.GetValue() == 0);
         CHECK(v.vr_gyro_aim.UsingGlobal());
         CHECK(v.vr_gyro_aim.GetValue() == 0);
+        CHECK(v.vr_light_gun_turn_speed.UsingGlobal()); // 1.2.0 RC2: no tuning without the mod
         CHECK(v.vr_controls_preset_done.GetValue() == 3u);
         // The mod installed later: Gyro Aim given then; Motion Controls, decided, stays Off,
-        // and Gyro Aim takes the right controller (GyroAimSource).
-        CHECK(ApplyControlsPreset(kiu, true) == kPresetGyroAim);
+        // and Gyro Aim takes the right controller (GyroAimSource). 1.2.0 RC2: the tuning too;
+        // the reticle, decided, stays Headset.
+        CHECK(ApplyControlsPreset(kiu, true) == (kPresetGyroAim | kPresetAimTuning));
+        CHECK(v.vr_bottom_screen_reticle.GetValue() == 3);
+        CheckAimTuningGiven();
         CHECK(v.vr_gyro_aim.GetValue() == 2);
         CHECK(v.vr_motion_controls.GetValue() == 0);
         CHECK(Input::GyroAimSource(v.vr_motion_controls.GetValue()) == 1u);
@@ -383,8 +473,8 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu][kiug
         v.vr_controls_preset_done.SetGlobal(false);
         v.vr_controls_preset_done.SetValue(kPresetReticle | kPresetMotionControls |
                                            kPresetEdgeCStick);
-        // Only the new value: none of the game's values is overwritten.
-        CHECK(ApplyControlsPreset(kiu, true) == kPresetGyroAim);
+        // Only the new values: none of the game's values is overwritten.
+        CHECK(ApplyControlsPreset(kiu, true) == (kPresetGyroAim | kPresetAimTuning));
         CHECK(v.vr_gyro_aim.GetValue() == 2);
         CHECK(v.vr_motion_controls.GetValue() == 0);
         CHECK(v.vr_reticle_edge_cstick.GetValue());
@@ -398,26 +488,47 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu][kiug
         v.vr_motion_controls.SetValue(3);
         v.vr_gyro_aim.SetGlobal(false);
         v.vr_gyro_aim.SetValue(0); // Gyro Aim Off for this game
-        CHECK(ApplyControlsPreset(kiu, true) == 0u);
+        // 1.2.0 RC2: the owner's own tuning in their game's file (the values they tuned before
+        // the preset had them), and a Turn Speed and Projectile Size of the game's own.
+        v.vr_light_gun_turn_speed.SetGlobal(false);
+        v.vr_light_gun_turn_speed.SetValue(2.5f);
+        v.vr_light_gun_projectile_size.SetGlobal(false);
+        v.vr_light_gun_projectile_size.SetValue(100);
+        v.vr_light_gun_lock.SetGlobal(false);
+        v.vr_light_gun_lock.SetValue(true);
+        CHECK(ApplyControlsPreset(kiu, true) == kPresetAimTuning); // the rest of the tuning
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
         CHECK(v.vr_motion_controls.GetValue() == 3);
         CHECK(v.vr_gyro_aim.GetValue() == 0);
+        CHECK(v.vr_light_gun_turn_speed.GetValue() == 2.5f);
+        CHECK(v.vr_light_gun_projectile_size.GetValue() == 100u);
+        CHECK(v.vr_light_gun_lock.GetValue());
+        CHECK(v.vr_light_gun_turn_zone.GetValue() == 30u);
         // Marked: a later Use Global Value for them stays too.
         CHECK(v.vr_controls_preset_done.GetValue() ==
-              (kPresetReticle | kPresetMotionControls | kPresetGyroAim));
+              (kPresetReticle | kPresetMotionControls | kPresetGyroAim | kPresetAimTuning));
+        CHECK(ApplyControlsPreset(kiu, true) == 0u);
     }
     SECTION("a global value the player chose is left alone, and not marked") {
         ResetControlsSettings();
         v.vr_motion_controls.SetValue(3);     // global Headset
         v.vr_bottom_screen_reticle.SetValue(1); // global Left Controller
         v.vr_gyro_aim.SetValue(1);            // global Gyro
-        CHECK(ApplyControlsPreset(kiu, true) == 0u);
+        v.vr_light_gun_turn_zone.SetValue(20);                     // 1.2.0 RC2: a global Turn Zone
+        CHECK(ApplyControlsPreset(kiu, true) == kPresetAimTuning); // the rest of the tuning
         CHECK(v.vr_motion_controls.UsingGlobal());
         CHECK(v.vr_motion_controls.GetValue() == 3);
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 1);
         CHECK(v.vr_gyro_aim.UsingGlobal());
         CHECK(v.vr_gyro_aim.GetValue() == 1);
-        CHECK(v.vr_controls_preset_done.GetValue() == 0u);
+        CHECK(v.vr_light_gun_turn_zone.UsingGlobal());
+        CHECK(v.vr_light_gun_turn_zone.GetValue() == 20u);
+        CHECK(v.vr_light_gun_turn_speed.GetValue() == 1.8f);
+        // The tuning is one group: decided now, its global Turn Zone stays even at the default.
+        CHECK(v.vr_controls_preset_done.GetValue() == kPresetAimTuning);
+        v.vr_light_gun_turn_zone.SetValue(10);
+        CHECK(ApplyControlsPreset(kiu, true) == 0u);
+        CHECK(v.vr_light_gun_turn_zone.UsingGlobal());
     }
     SECTION("after the preset, the player's choice stays: a new value, or Use Global Value") {
         ResetControlsSettings();
@@ -425,17 +536,23 @@ TEST_CASE("FrameXr Controls preset: starting values only", "[frame_xr][kiu][kiug
         v.vr_motion_controls.SetGlobal(true);
         v.vr_gyro_aim.SetGlobal(true);
         v.vr_bottom_screen_reticle.SetValue(2);
+        v.vr_light_gun_turn_speed.SetGlobal(true); // 1.2.0 RC2
+        v.vr_light_gun_projectile_opacity.SetValue(90);
         CHECK(ApplyControlsPreset(kiu, true) == 0u);
         CHECK(v.vr_motion_controls.UsingGlobal());
         CHECK(v.vr_gyro_aim.UsingGlobal());
         CHECK(v.vr_gyro_aim.GetValue() == 0);
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 2);
+        CHECK(v.vr_light_gun_turn_speed.UsingGlobal());
+        CHECK(v.vr_light_gun_turn_speed.GetValue() == 1.0f);
+        CHECK(v.vr_light_gun_projectile_opacity.GetValue() == 90u);
     }
     SECTION("a value added to the preset later is given once, the old ones stay decided") {
         ResetControlsSettings();
         v.vr_controls_preset_done.SetGlobal(false);
         v.vr_controls_preset_done.SetValue(kPresetReticle); // an earlier build gave the reticle
-        CHECK(ApplyControlsPreset(kiu, true) == (kPresetMotionControls | kPresetGyroAim));
+        CHECK(ApplyControlsPreset(kiu, true) ==
+              (kPresetMotionControls | kPresetGyroAim | kPresetAimTuning));
         CHECK(v.vr_bottom_screen_reticle.UsingGlobal()); // Use Global Value chosen back then
         CHECK(v.vr_bottom_screen_reticle.GetValue() == 0);
         CHECK(v.vr_gyro_aim.GetValue() == 2);

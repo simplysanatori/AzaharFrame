@@ -120,11 +120,23 @@ constexpr ImmersivePreset kAsphalt3D{
 // reticle stays on the screen: they come apart whenever the head turns. Wide (mode 1) keeps
 // them together but adds little. So it starts in the normal view (mode 0: Immersive Mode stays
 // Off); the player can still turn it on from the VR menu or its properties.
+// 1.2.0 RC2 (the owner): the owner's own settings of 2026-11-15, from the game's file
+// (config/custom/0004000000030200.ini), as starting values: 3D Depth 100, Internal Resolution
+// 4x, Texture Filter 2, Async Shader Compilation on, Motion Clarity in the Off and Wide modes on
+// with Match Bottom Screen Brightness, and Show Controllers on for the game (the weapon in hand
+// needs them; a global Off the player chose stays). Screen Shape Automatic and the Full modes'
+// Motion Clarity off are the defaults; World Scale is measured, not preset. The Controls values
+// are the Controls preset's (controls_presets.h).
 constexpr ImmersivePreset kKidIcarusUprising{.name = "Kid Icarus: Uprising",
                                              .mode = 0,
                                              .register_offset = -1,
+                                             .factor_3d = 100,
                                              .resolution = 4,
-                                             .texture_filter = 2};
+                                             .texture_filter = 2,
+                                             .async_shaders = 1,
+                                             .motion_clarity_normal = 1,
+                                             .motion_clarity_match_bottom = 1,
+                                             .show_controllers = 1};
 
 // Title ids: Azahar's compatibility list (every release of the game it knows) and, for Super
 // Mario 3D Land, src/common/hacks/hack_list.cpp. Other regions of Asphalt 3D are not confirmed.
@@ -254,6 +266,22 @@ void ApplyPresetSettings(const ImmersivePreset& preset) {
     if (preset.texture_filter >= 0) {
         fill(v.texture_filter, static_cast<Settings::TextureFilter>(preset.texture_filter),
              "Texture Filter");
+    }
+    // 1.2.0 RC2 (the owner): Async Shader Compilation, Motion Clarity in the Off and Wide modes,
+    // Match Bottom Screen Brightness and Show Controllers, filled the same way.
+    if (preset.async_shaders >= 0) {
+        fill(v.async_shader_compilation, preset.async_shaders != 0, "Async Shader Compilation");
+    }
+    if (preset.motion_clarity_normal >= 0) {
+        fill(v.vr_motion_clarity_normal, preset.motion_clarity_normal != 0,
+             "Motion Clarity (Off and Wide)");
+    }
+    if (preset.motion_clarity_match_bottom >= 0) {
+        fill(v.vr_motion_clarity_match_bottom, preset.motion_clarity_match_bottom != 0,
+             "Match Bottom Screen Brightness");
+    }
+    if (preset.show_controllers >= 0) {
+        fill(v.vr_show_controllers, preset.show_controllers != 0, "Show Controllers");
     }
     // 1.2.0 fix lane B: World Scale and the Full modes' 3D Depth. World Scale filled marks the
     // game as having its own (vr_immersive_world_set, as the grip and the migration write it),
