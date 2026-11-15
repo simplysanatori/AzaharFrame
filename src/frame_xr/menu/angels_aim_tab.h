@@ -81,8 +81,8 @@ inline constexpr const char* kAngelsAimSent = "Report Sent";
 /// (tab_menu.h AngelsIntroDialog; PROPOSED strings, for the owner).
 inline constexpr const char* kAngelsIntroTitle = "Angel's Aim Is On";
 inline constexpr const char* kAngelsIntroBody =
-    "These are set up for you. Change any of them on the Controls page.";
-inline constexpr const char* kAngelsIntroControls = "Controls";
+    "Here's what's on. Change any of it under Aiming.";
+inline constexpr const char* kAngelsIntroControls = "Show Aiming";
 inline constexpr const char* kAngelsIntroOk = "OK";
 inline constexpr const char* kAngelsAimNotSent = "Couldn't Send Report";
 inline constexpr const char* kAngelsAimNotSentHint = "Try Again, or Use Report an Issue.";

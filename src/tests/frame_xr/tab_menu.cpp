@@ -3121,7 +3121,7 @@ TEST_CASE("Tab menu: Aiming's names and order", "[frame_xr][tabmenu][kiugyro]") 
     CHECK(OptionsFor(Id::GyroAim) == std::vector<std::string>{"Off", "Direct Aim", "Gyro Aim"});
     CHECK(ExplainFor(Id::GyroAim) ==
           "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Direct Aim puts the "
-          "reticle where you point. The grip pauses it.");
+          "reticle where you aim. The grip frees it.");
     CHECK(AimingIndexOf(0) == 0);
     CHECK(AimingIndexOf(2) == 1); // Direct Aim is stored Light Gun
     CHECK(AimingIndexOf(1) == 2); // Gyro Aim is stored Gyro
@@ -3271,8 +3271,8 @@ TEST_CASE("Tab menu: Projectiles and their size and speed", "[frame_xr][tabmenu]
     CHECK(LabelFor(Id::ProjectileSize) == "Projectile Size");
     CHECK(LabelFor(Id::ProjectileSpeed) == "Projectile Speed");
     CHECK(ExplainFor(Id::Projectiles) == "Your shots fly from your weapon into the screen.");
-    CHECK(ExplainFor(Id::ProjectileSize) == "How big your shots are.");
-    CHECK(ExplainFor(Id::ProjectileSpeed) == "How fast your shots fly.");
+    CHECK(ExplainFor(Id::ProjectileSize) == "How big your shots look.");
+    CHECK(ExplainFor(Id::ProjectileSpeed) == "How fast your shots look as they fly.");
     for (const Id id : {Id::Projectiles, Id::ProjectileSize, Id::ProjectileSpeed}) {
         CHECK(PerGameSetting(id));
     }
@@ -3505,9 +3505,9 @@ TEST_CASE("Tab menu: the Angel's Aim prompt", "[frame_xr][tabmenu][kiuweap2]") {
     ModsDialog dlg = AngelsIntroDialog(m);
     CHECK(dlg.kind == ModsDialogKind::Notice);
     CHECK(dlg.mod == "Angel's Aim Is On");
-    CHECK(dlg.other == "These are set up for you. Change any of them on the Controls page.");
+    CHECK(dlg.other == "Here's what's on. Change any of it under Aiming.");
     CHECK(dlg.confirm == "OK");
-    CHECK(dlg.extra == "Controls");
+    CHECK(dlg.extra == "Show Aiming");
     REQUIRE(dlg.rows.size() == 5);
     CHECK(dlg.rows[0] == std::pair<std::string, std::string>{"Weapon in Hand", "On"});
     CHECK(dlg.rows[1] == std::pair<std::string, std::string>{"Muzzle Flash", "On"});
@@ -3541,7 +3541,7 @@ TEST_CASE("Tab menu: the Angel's Aim prompt", "[frame_xr][tabmenu][kiuweap2]") {
         // menu dump's to look at.)
         Audit a;
         a.Draw(m, v);
-        for (const char* s : {"Angel's Aim Is On", "Weapon in Hand", "Laser Sight", "OK", "Controls"}) {
+        for (const char* s : {"Angel's Aim Is On", "Weapon in Hand", "Laser Sight", "OK", "Show Aiming"}) {
             INFO(s);
             CHECK(a.Drew(s));
         }
@@ -4195,18 +4195,18 @@ TEST_CASE("Tab menu: Motion Clarity's Experimental chip and In Immersive Modes",
     CHECK(LabelFor(Id::MotionClarity) == "Motion Clarity"); // unchanged
     CHECK(LabelFor(Id::MotionClarityImmersive) == "In Immersive Modes");
     CHECK(ExplainFor(Id::MotionClarity) ==
-          "Experimental. A clearer, more solid picture, but it may flicker or double in demanding "
-          "scenes.");
+          "Experimental. Shows each picture once for a clearer view on head turns, in the Full "
+          "modes with In Immersive Modes on. May flicker.");
     CHECK(ExplainFor(Id::MotionClarityImmersive) ==
-          "Experimental. May flicker, mostly in demanding games.");
+          "Experimental. Uses Primary Screen as Panel. May flicker, mostly in demanding games.");
     CHECK(std::string{Names::kExperimental} == "Experimental");
     CHECK_FALSE(MenuModel{}.motion_clarity_immersive); // off, the default
     CHECK(MenuModel{}.motion_clarity);                 // Motion Clarity keeps its default
     {
         Kit kit{1.0f};
-        // In Immersive Modes' on one line; Motion Clarity's wraps to two (DrawTooltip).
+        // rel120: both wrap to at most two lines (DrawTooltip).
         CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::MotionClarityImmersive)) + 28.0f <=
-              kPanelW * 0.7f);
+              2.0f * kPanelW * 0.7f);
         CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::MotionClarity)) + 28.0f <=
               2.0f * kPanelW * 0.7f);
     }

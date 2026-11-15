@@ -24,12 +24,12 @@ inline constexpr const char* kRenderMargin = "Render Margin";
 /// hides them; Layout::MarginFactor).
 inline constexpr const char* kRenderMarginHorizontal = "Render Margin: Horizontal";
 inline constexpr const char* kRenderMarginHorizontalTip =
-    "Draws more of the game left and right of the 3DS screen, and the screen grows with it. Off "
-    "adds nothing.";
+    "Draws more of the game left and right of the 3DS screen, up to 1.6 times its view, and the "
+    "screen grows with it. Off adds nothing.";
 inline constexpr const char* kRenderMarginVertical = "Render Margin: Vertical";
 inline constexpr const char* kRenderMarginVerticalTip =
-    "Draws more of the game above and below the 3DS screen, and the screen grows with it. Off "
-    "adds nothing.";
+    "Draws more of the game above and below the 3DS screen, up to 1.6 times its view, and the "
+    "screen grows with it. Off adds nothing.";
 /// Settings::values.vr_immersive_scale_x and _y (were Narrow Screen and Narrow Height).
 /// AzaharFrame fovaxis: in Field of View a narrower screen crops; Stretch squeezes.
 inline constexpr const char* kHorizontalScale = "Horizontal Scale";
@@ -50,7 +50,7 @@ inline constexpr const char* kScaleStretchTip =
     "Stretches the whole picture, HUD included. The world looks wider or thinner.";
 inline constexpr const char* kScaleFieldOfView = "Field of View";
 inline constexpr const char* kScaleFieldOfViewTip =
-    "Shows more or less of the game, cropping when smaller. The world keeps its shape.";
+    "Shows more or less of the game, cropping when smaller. The world keeps its shape up to +60%.";
 /// AzaharFrame fovaxis: Fill View (VR menu, under Scale Mode): sets the screen's size and both
 /// scales once so the screen covers the view (Layout::FillView); the toast is Layout::FillToast.
 inline constexpr const char* kFillView = "Fill View";
@@ -157,15 +157,19 @@ inline constexpr const char* kFollowScreenWindowTip =
 inline constexpr const char* kMotionClarity = "Motion Clarity";
 /// AzaharFrame projdef: experimental (the owner's A/B, 1.1.1-590); its tooltip says so.
 inline constexpr const char* kMotionClarityTip =
-    "Experimental. A clearer, more solid picture, but it may flicker or double in demanding scenes.";
-inline constexpr const char* kMotionClarityWindowTip = kMotionClarityTip;
+    "Experimental. Shows each picture once for a clearer view on head turns, in the Full modes "
+    "with In Immersive Modes on. May flicker.";
+/// rel120: Azahar's window keeps the still true line about slower games.
+inline constexpr const char* kMotionClarityWindowTip =
+    "Experimental. Shows each picture once for a clearer view on head turns, in the Full modes "
+    "with In Immersive Modes on. May flicker. Games that run under 60 fps show as before.";
 /// AzaharFrame projdef: the chip beside Motion Clarity's label in the VR menu.
 inline constexpr const char* kExperimental = "Experimental";
 /// AzaharFrame projdef: Settings::values.vr_motion_clarity_immersive, the row under Motion Clarity
 /// (VR menu), its Configure box, its toast each time it is turned on.
 inline constexpr const char* kMotionClarityImmersive = "In Immersive Modes";
 inline constexpr const char* kMotionClarityImmersiveTip =
-    "Experimental. May flicker, mostly in demanding games.";
+    "Experimental. Uses Primary Screen as Panel. May flicker, mostly in demanding games.";
 inline constexpr const char* kMotionClarityImmersiveWindow = "Motion Clarity in Immersive Modes";
 inline constexpr const char* kMotionClarityImmersiveToast =
     "Motion Clarity: Experimental \u00b7 May Flicker";

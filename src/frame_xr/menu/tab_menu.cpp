@@ -930,11 +930,11 @@ std::string ExplainFor(Id id) {
     case Id::MotionControls:
         return "The controller or headset that acts as the 3DS gyroscope.";
     case Id::GyroAim: // AzaharFrame kiugyro
-        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Direct Aim puts the reticle where you point. The grip pauses it.";
+        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Direct Aim puts the reticle where you aim. The grip frees it.";
     case Id::GyroSensitivity:
         return "Scales the gyroscope in every game.";
     case Id::TurnZone:
-        return "How far past Turn Zone From's edge you point to turn the camera at full speed.";
+        return "How wide the band is where the camera turns, up to full speed.";
     case Id::TurnSpeed:
         return "How fast the camera turns in the Turn Zone.";
     case Id::Recoil:
@@ -948,9 +948,9 @@ std::string ExplainFor(Id id) {
     case Id::Projectiles:
         return "Your shots fly from your weapon into the screen.";
     case Id::ProjectileSize:
-        return "How big your shots are.";
+        return "How big your shots look.";
     case Id::ProjectileSpeed:
-        return "How fast your shots fly.";
+        return "How fast your shots look as they fly.";
     case Id::RecoilCharged: // AzaharFrame kiufix
         return "How strong the buzz is for a charged shot.";
     case Id::RecoilRapid:
@@ -966,11 +966,11 @@ std::string ExplainFor(Id id) {
     case Id::MuzzleFlashSize: // AzaharFrame kiuweap2
         return "How big the flash at your weapon's tip is.";
     case Id::CalibrateAim:
-        return "Optional. Shows targets on the Primary Screen one at a time: put the reticle on each and pull the trigger. In the air they reach its corners.";
+        return "Optional. Fine-tunes Direct Aim: put the reticle on each target on the Primary Screen and pull the trigger.";
     case Id::KeepOnScreen: // AzaharFrame kiuaim3
-        return "Point off the Primary Screen and the reticle waits at its edge while the camera turns. Lower your arm to rest it.";
+        return "Point off the Primary Screen and the reticle stays at its edge; on the ground the camera turns. Point far off to rest.";
     case Id::GripFreesAim:
-        return "The aiming controller's grip frees your aim, to point at the Secondary Screen or a menu. Toggle: press once to free, again to lock.";
+        return "Hold: free while held. Toggle: press to free, press again to lock.";
     case Id::TurnZoneFrom:
         return "Where turning starts: the Aim Box, where the C-Stick turns the camera, or the Primary Screen's edge.";
     case Id::ShowControllers:

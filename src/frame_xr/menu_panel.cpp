@@ -1598,7 +1598,12 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         break;
     case Id::ScreenAsPanel: { // AzaharFrame projdef: live (the path follows it); `value` 1 = panel
         const bool in_projection = value == 0;
-        if (in_projection != v.vr_screens_in_projection.GetValue()) {
+        // rel120: the toast only where the change shows: a Full mode, without Motion Clarity in
+        // Immersive Modes (which takes the panel whatever this says; vis/proj_path.h).
+        const bool shows = v.vr_immersive_mode.GetValue() >= 2 &&
+                           !(v.vr_motion_clarity.GetValue() &&
+                             v.vr_motion_clarity_immersive.GetValue());
+        if (shows && in_projection != v.vr_screens_in_projection.GetValue()) {
             ShowToastText(in_projection ? Immersive::Names::kScreenAsPanelOffToast
                                         : Immersive::Names::kScreenAsPanelOnToast,
                           ToastTime::Long);

@@ -341,11 +341,14 @@ TEST_CASE("VR group: Motion Clarity in Immersive Modes", "[frame_xr][projdef]") 
         REQUIRE(mc);
         REQUIRE(box);
         CHECK(mc->text() == QStringLiteral("Motion Clarity"));
-        CHECK(mc->toolTip() == QStringLiteral("Experimental. A clearer, more solid picture, but it "
-                                              "may flicker or double in demanding scenes."));
+        CHECK(mc->toolTip() ==
+              QStringLiteral("Experimental. Shows each picture once for a clearer view on head "
+                             "turns, in the Full modes with In Immersive Modes on. May flicker. "
+                             "Games that run under 60 fps show as before."));
         CHECK(box->text() == QStringLiteral("Motion Clarity in Immersive Modes"));
         CHECK(box->toolTip() ==
-              QStringLiteral("Experimental. May flicker, mostly in demanding games."));
+              QStringLiteral("Experimental. Uses Primary Screen as Panel. May flicker, mostly in "
+                             "demanding games."));
         auto* layout = w.layout();
         REQUIRE(layout);
         CHECK(layout->indexOf(box) == layout->indexOf(mc) + 1);
