@@ -646,6 +646,14 @@ std::optional<std::array<float, 3>> FitAxis(const FitWeapon& w, bool left_hand,
     }
     const FitMat& m = parts.front().transform;
     V3 axis{};
+    if (w.cls == 6) {
+        // AzaharFrame fixc: a cannon: its barrel as held (kCannonBarrel), not its forearm.
+        axis = TransformDir(m, kCannonBarrel);
+        if (!(Length(axis) > 1e-6f)) {
+            return std::nullopt;
+        }
+        return Normal(axis);
+    }
     if (HoldMapFor(w.cls) == HoldMap::Grip && w.muzzle_valid) {
         // A hilt or a shaft in the fist: from the fist to the muzzle (the blade, the staff, the
         // club as his hand holds it).
@@ -673,9 +681,10 @@ std::optional<std::array<float, 3>> FitAxis(const FitWeapon& w, bool left_hand,
 AimSource AimSourceFor(int cls) {
     // AzaharFrame kiuinteg: the owner's table (weapon_fit.h AimSource).
     //                                   blade   staff   claws  bow     palm  club  cannon  orbit arm
+    // AzaharFrame fixc: cannons from the mouth along the barrel.
     static constexpr AimSource kSource[9] = {
         AimSource::Weapon, AimSource::Weapon, AimSource::Hand, AimSource::Weapon, AimSource::Hand,
-        AimSource::Fist,   AimSource::Weapon, AimSource::Hand, AimSource::Hand};
+        AimSource::Fist,   AimSource::Barrel, AimSource::Hand, AimSource::Hand};
     return cls >= 0 && cls < 9 ? kSource[cls] : AimSource::Hand;
 }
 
@@ -690,6 +699,10 @@ FitAimStart FitAim(const FitWeapon& w, bool left_hand, const std::vector<FitSide
     case AimSource::Weapon:
         out.axis = FitAxis(w, left_hand, sides, tune);
         break;
+    case AimSource::Barrel: // AzaharFrame fixc
+        out.axis = FitAxis(w, left_hand, sides, tune);
+        out.barrel = out.axis.has_value();
+        break;
     case AimSource::Hand:
         break;
     case AimSource::Fist:
@@ -700,6 +713,12 @@ FitAimStart FitAim(const FitWeapon& w, bool left_hand, const std::vector<FitSide
         break;
     }
     return out;
+}
+
+std::array<float, 3> BarrelMouth(const std::array<float, 3>& start, const std::array<float, 3>& axis,
+                                 float push_m) { // AzaharFrame fixc
+    const float p = std::isfinite(push_m) ? std::max(push_m, 0.0f) : 0.0f;
+    return {start[0] + axis[0] * p, start[1] + axis[1] * p, start[2] + axis[2] * p};
 }
 
 } // namespace FrameXr::Vis

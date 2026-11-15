@@ -227,6 +227,35 @@ float FlashPush(const std::vector<float>& vertices, const std::array<float, 16>&
     return std::min(push, kPushMaxM);
 }
 
+float BarrelPush(const std::vector<float>& vertices, const std::array<float, 16>& fit,
+                 const V3& muzzle, const V3& axis) { // AzaharFrame fixc
+    float push = 0.0f;
+    for (std::size_t at = 0; at + 2 < vertices.size(); at += 12) {
+        const float x = vertices[at], y = vertices[at + 1], z = vertices[at + 2];
+        const V3 d{fit[0] * x + fit[4] * y + fit[8] * z + fit[12] - muzzle[0],
+                   fit[1] * x + fit[5] * y + fit[9] * z + fit[13] - muzzle[1],
+                   fit[2] * x + fit[6] * y + fit[10] * z + fit[14] - muzzle[2]};
+        const float along = d[0] * axis[0] + d[1] * axis[1] + d[2] * axis[2];
+        const float across2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2] - along * along;
+        if (across2 <= kPushRadiusM * kPushRadiusM && std::isfinite(along)) {
+            push = std::max(push, along);
+        }
+    }
+    return std::min(push, kPushMaxM);
+}
+
+ShotOrigin ShotOriginFor(const V3& start, float push,
+                         const std::optional<V3>& barrel) { // AzaharFrame fixc
+    ShotOrigin o;
+    if (barrel) {
+        o.from = start;
+        o.forward = *barrel;
+    } else {
+        o.from = {start[0], start[1], start[2] - push};
+    }
+    return o;
+}
+
 void FlashTextureFit(std::vector<uint8_t>& rgba, uint32_t& width, uint32_t& height) {
     while ((width > kTextureMaxSide || height > kTextureMaxSide) && width >= 2 && height >= 2 &&
            rgba.size() == std::size_t{width} * height * 4) {

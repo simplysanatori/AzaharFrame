@@ -507,6 +507,7 @@ struct ControllerModels::Gpu {
         uint64_t bullet_bytes = 0; ///< AzaharFrame kiuflash: the bullets'
         float flash_push = 0.0f;  ///< AzaharFrame kiuflash: FlashPush, the class's own fit
         float flash_push_fist = 0.0f; ///< AzaharFrame kiuinteg: FlashPush from the fist's front
+        float barrel_push = 0.0f; ///< AzaharFrame fixc: BarrelPush, a cannon's (the class's fit)
         int pack_textures = 0;
     };
     std::unique_ptr<Weapon> weapon_live, weapon_uploading;
@@ -551,6 +552,7 @@ struct ControllerModels::WeaponLoad { // AzaharFrame kiuguns
     std::size_t flash_end = 0;  ///< AzaharFrame kiuflash: then the bullets' files, to the end
     float flash_push = 0.0f;    ///< AzaharFrame kiuflash: FlashPush (metres, the class's fit)
     float flash_push_fist = 0.0f; ///< AzaharFrame kiuinteg: from the fist's front (AimSource::Fist)
+    float barrel_push = 0.0f; ///< AzaharFrame fixc: BarrelPush along a cannon's barrel (metres)
     int pack_textures = 0; ///< colour images taken from the texture pack
 };
 
@@ -919,8 +921,10 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                                                     : g.weapon_live->flash_push) *
                                        weapon_scale /
                                        std::max(FitClassScale(g.weapon_live->info.cls), 1e-6f);
-                    const auto from =
-                        Apply(aim_m, (*muzzle)[0], (*muzzle)[1], (*muzzle)[2] - push, 1.0f);
+                    // AzaharFrame fixc: a cannon's from its mouth (ShotOriginFor).
+                    const ShotOrigin o =
+                        ShotOriginFor(*muzzle, push, muzzle_barrel ? axis : std::nullopt);
+                    const auto from = Apply(aim_m, o.from[0], o.from[1], o.from[2], 1.0f);
                     projectiles.Fire({from[0], from[1], from[2]}, sig.target, sig.charged, now,
                                      sig.speed, sig.size);
                 }
@@ -1975,11 +1979,13 @@ template <typename GpuT, typename WeaponT>
 void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& view_proj,
                  const XrPosef& head_pose, const Input::Posef& hand_aim, float fade,
                  const std::array<float, 3>& muzzle, float fit_scale, const FlashFrame& flash,
-                 float tune_size, Pipe pipe_kind = Pipe::Added) {
+                 float tune_size, Pipe pipe_kind = Pipe::Added,
+                 const std::array<float, 3>& way = {0.0f, 0.0f, -1.0f}) {
     const XrPosef aim = ToXr(hand_aim);
     const Mat aim_m = FromPose(aim.orientation, aim.position);
     const auto o = Apply(aim_m, muzzle[0], muzzle[1], muzzle[2], 1.0f);
-    const auto f = Apply(aim_m, 0.0f, 0.0f, -1.0f, 0.0f);
+    // AzaharFrame fixc: `way`, aim space: -z, or a cannon's barrel.
+    const auto f = Apply(aim_m, way[0], way[1], way[2], 0.0f);
     const Mat head = FromPose(head_pose.orientation, head_pose.position);
     const auto up = Apply(head, 0.0f, 1.0f, 0.0f, 0.0f);
     const std::array<float, 3> origin{o[0], o[1], o[2]}, forward{f[0], f[1], f[2]},
@@ -2217,6 +2223,7 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
     muzzle.reset();
     axis.reset();
     muzzle_fist = false;
+    muzzle_barrel = false;
     weapon_clip = 0.0f;
     palm_elbow = false;
     if (!gpu) {
@@ -2267,6 +2274,14 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
             muzzle = aim_start.start;
             axis = aim_start.axis;
             muzzle_fist = aim_start.fist;
+            // AzaharFrame fixc: a cannon's start is its mouth, out along the barrel (the push at
+            // the class's scale, scaled as the fit is).
+            muzzle_barrel = aim_start.barrel && muzzle && axis;
+            if (muzzle_barrel) {
+                muzzle = BarrelMouth(*muzzle, *axis,
+                                     g.weapon_live->barrel_push * weapon_scale /
+                                         std::max(FitClassScale(info.cls), 1e-6f));
+            }
 
             const auto forearm = Common::FrameTestSwitches::Value(kPalmForearmSwitch);
             const PalmMode mode =
@@ -2557,17 +2572,18 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
                              palm_elbow ? &palm_turn : nullptr);
                 // AzaharFrame kiuflash: its muzzle flash after a real shot.
                 if (hand.flash.shown && muzzle && muzzle_hand == h) {
-                    const std::array<float, 3> from{
-                        (*muzzle)[0], (*muzzle)[1],
-                        (*muzzle)[2] - (muzzle_fist ? g.weapon_live->flash_push_fist
-                                                    : g.weapon_live->flash_push) *
-                                           weapon_scale /
-                                           std::max(FitClassScale(g.weapon_live->info.cls), 1e-6f)};
+                    // AzaharFrame fixc: a cannon's from its mouth along its barrel
+                    // (ShotOriginFor); the others as before.
+                    const ShotOrigin o = ShotOriginFor(
+                        *muzzle,
+                        (muzzle_fist ? g.weapon_live->flash_push_fist : g.weapon_live->flash_push) *
+                            weapon_scale / std::max(FitClassScale(g.weapon_live->info.cls), 1e-6f),
+                        muzzle_barrel ? axis : std::nullopt);
                     // AzaharFrame kiuopacity: its light and coverage times Weapon Opacity.
                     RecordFlash(c, g, *g.weapon_live, view_proj, views.head, hand.aim,
-                                hand.fade * std::clamp(hand.weapon_opacity, 0.0f, 1.0f), from,
+                                hand.fade * std::clamp(hand.weapon_opacity, 0.0f, 1.0f), o.from,
                                 weapon_scale, hand.flash, flash_size,
-                                FlashPipe(hand.weapon_opacity));
+                                FlashPipe(hand.weapon_opacity), o.forward);
                 }
                 // AzaharFrame kiuflash: its projectiles in flight.
                 if (!shot_draws.empty() && hand.shots.on) {
@@ -2715,10 +2731,16 @@ void ControllerModels::UpdateWeapon(int id) {
         for (const auto& part : g.weapon_live->parts) {
             cards += part.flash && !part.bullet ? part.components.size() : 0;
         }
+        // AzaharFrame fixc: a cannon's: from its mouth, along its barrel.
         LOG_INFO(Frontend,
-                 "xr: muzzle flash: {} cards ({} KB on the GPU), {:.0f} cm out of the muzzle: "
+                 "xr: muzzle flash: {} cards ({} KB on the GPU), {:.0f} cm out of the muzzle{}: "
                  "rapid {}, charged {}{}",
-                 cards, g.weapon_live->flash_bytes >> 10, g.weapon_live->flash_push * 100.0f,
+                 cards, g.weapon_live->flash_bytes >> 10,
+                 (g.weapon_live->info.cls == FrameWeapons::kCannon ? g.weapon_live->barrel_push
+                                                                   : g.weapon_live->flash_push) *
+                     100.0f,
+                 g.weapon_live->info.cls == FrameWeapons::kCannon ? " along the barrel (the mouth)"
+                                                                  : "",
                  fl.rapid.empty() ? "none" : fl.rapid, fl.charged.empty() ? "none" : fl.charged,
                  fl.source >= 0 && fl.source != g.weapon_live->id
                      ? fmt::format(" (weapon {}'s, neutral)", fl.source)
@@ -2841,6 +2863,12 @@ void ControllerModels::UpdateWeapon(int id) {
                                 l.flash_push_fist,
                                 FlashPush(l.files[i].vertices, fits[0].transform, *fist.start));
                         }
+                        // AzaharFrame fixc: a cannon's mouth, out along its barrel.
+                        if (fist.barrel && fist.start && fist.axis) {
+                            l.barrel_push = std::max(
+                                l.barrel_push, BarrelPush(l.files[i].vertices, fits[0].transform,
+                                                          *fist.start, *fist.axis));
+                        }
                     }
                 }
             }
@@ -2917,6 +2945,7 @@ void ControllerModels::UploadWeapon() {
     w->pack_textures = l.pack_textures;
     w->flash_push = l.flash_push; // AzaharFrame kiuflash
     w->flash_push_fist = l.flash_push_fist; // AzaharFrame kiuinteg
+    w->barrel_push = l.barrel_push;         // AzaharFrame fixc
     vk::DeviceSize total = 0;
     for (const ModelFile& m : l.files) {
         total += m.vertices.size() * 4 + m.indices.size() * 4 + m.colour.size() + m.surface.size();

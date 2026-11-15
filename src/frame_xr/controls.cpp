@@ -2192,11 +2192,20 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         // screen (the game's reticle stops at its edge too). kiuinteg: with Direct Aim, the
         // point Direct Aim writes (kiuaim2: the ray's hit through the game's Check Aim map; Keep
         // Reticle on Screen's edge point); with Gyro Aim, the aim pose's own ray, as before.
+        // AzaharFrame fixc: a cannon's with Gyro Aim, its ray from the mouth along the barrel
+        // (the way its shots leave it).
+        const Input::HandInput& shot_hand = game_in.hand[static_cast<std::size_t>(gyro_aim_hand)];
         const Input::LightGunTarget target =
             gyro_aim_frame.mode == Input::GyroAimMode::LightGun
                 ? gyro_aim_frame.target
-                : Input::LightGunTargetFor(game_in.hand[static_cast<std::size_t>(gyro_aim_hand)],
-                                           panels.top);
+            : visuals.WeaponAlongBarrel(gyro_aim_hand) && shot_hand.active
+                ? Input::LightGunTargetFor(
+                      Input::AngelsAimRay(shot_hand.aim, visuals.WeaponMuzzle(gyro_aim_hand),
+                                          visuals.WeaponAxis(gyro_aim_hand),
+                                          Input::AimRayFromSwitch(Common::FrameTestSwitches::Value(
+                                              Input::kAimRaySwitch))),
+                      panels.top)
+                : Input::LightGunTargetFor(shot_hand, panels.top);
         if (shot_signal.on && target.valid) {
             const Input::Vec3f p = Input::PointOnQuad(panels.top, std::clamp(target.u, 0.0f, 1.0f),
                                                       std::clamp(target.v, 0.0f, 1.0f));

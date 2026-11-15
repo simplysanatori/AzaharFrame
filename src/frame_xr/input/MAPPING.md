@@ -138,10 +138,20 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   (the head's with Headset), along the pose's pointing direction. AzaharFrame kiuinteg (the
   owner's option A): with a blade, staff, club, bow or cannon in the hand, along the weapon's own
   axis as held instead (`AngelsAimRay`, `Vis::Visuals::WeaponAxis`, `vis/weapon_fit.h` FitAxis:
-  from Pit's fist to the muzzle for blades, staffs and clubs; the arrow's or the forearm's line
-  for bows and cannons, which is the controller's), so a blade aims where it points: measured on
-  the 108 weapons, blades 14.6 to 19.6 degrees above the controller's line, staffs 1.7 to 6.9,
-  clubs 47.7, bows and cannons 0. The tilt is fixed in the hand: rolling the wrist moves the aim
+  from Pit's fist to the muzzle for blades, staffs and clubs; the arrow's line for bows, which is
+  the controller's), so a blade aims where it points: measured on the 108 weapons, blades 14.6 to
+  19.6 degrees above the controller's line, staffs 1.7 to 6.9, clubs 47.7, bows 0. AzaharFrame
+  fixc: a cannon's is its barrel (`kCannonBarrel`, Pit's front in his aiming pose
+  ChrPit00ShotWaitLaunch taken into the forearm's space; each cannon's own barrel is within about
+  5 degrees of it there, the forearm 36 off), held as Pit holds it: 36 degrees inward of the
+  controller's line and 2.8 up, every cannon (the cannon is not turned). It starts at the mouth:
+  the game's muzzle moved out along the barrel past the cannon's own vertices within 2.5 cm of
+  the line (`BarrelPush`, at most 10 cm; 0 to 10 cm on the 12), where the laser, the muzzle flash
+  (pointing along the barrel) and the projectiles start (`AimSource::Barrel`, `ShotOriginFor`).
+  Direct Aim aims along it, so the laser shows where the game aims; with Gyro Aim a cannon's
+  projectiles fly along it to where it meets the Primary Screen. Before, the cannon's axis was
+  its forearm (the controller's line) and the laser left the muzzle, which sits 14 to 28 cm
+  inward of that line, across the cannon's side. The tilt is fixed in the hand: rolling the wrist moves the aim
   (accepted). Claws, palms, arms and orbitars are fitted along the ray and keep the controller's
   direction. Clubs (the owner's choice: Pit holds them raised, drawn so) aim with the hand: the
   controller's direction from the front of the fist (4 cm ahead of its centre on the handle),

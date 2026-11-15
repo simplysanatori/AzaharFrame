@@ -1149,6 +1149,10 @@ std::optional<Input::Vec3f> Visuals::WeaponAxis(int hand) const { // AzaharFrame
     return Input::Vec3f{(*ax)[0], (*ax)[1], (*ax)[2]};
 }
 
+bool Visuals::WeaponAlongBarrel(int hand) const { // AzaharFrame fixc
+    return impl->models.WeaponAlongBarrel(hand);
+}
+
 std::optional<Input::Vec3f> Visuals::WeaponMuzzle(int hand) const {
     const auto mz = impl->models.WeaponMuzzle(hand);
     if (!mz) {

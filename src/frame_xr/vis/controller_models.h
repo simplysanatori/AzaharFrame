@@ -103,6 +103,11 @@ public:
     std::optional<std::array<float, 3>> WeaponAxis(int hand) const {
         return hand == muzzle_hand ? axis : std::nullopt;
     }
+    /// AzaharFrame fixc: the weapon in `hand` aims along its barrel from its mouth (a cannon:
+    /// weapon_fit.h AimSource::Barrel; WeaponMuzzle is the mouth, WeaponAxis the barrel).
+    bool WeaponAlongBarrel(int hand) const {
+        return hand == muzzle_hand && muzzle_barrel;
+    }
     /// The layer for this frame's xrEndFrame, or null (also when the image goes out as the eye
     /// quads). Valid until the next Frame.
     const XrCompositionLayerBaseHeader* Layer() const;
@@ -160,6 +165,7 @@ private:
     std::optional<std::array<float, 3>> muzzle;
     std::optional<std::array<float, 3>> axis; ///< AzaharFrame kiuinteg: FitAxis, with muzzle
     bool muzzle_fist = false; ///< AzaharFrame kiuinteg: `muzzle` is the fist's front (a club)
+    bool muzzle_barrel = false; ///< AzaharFrame fixc: `muzzle` is a cannon's mouth, `axis` its barrel
 
     struct Files;
     struct Gpu;
