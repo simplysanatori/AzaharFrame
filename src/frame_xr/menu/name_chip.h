@@ -15,13 +15,16 @@
 #include <string>
 
 #include "frame_xr/menu/md3.h"
+#include "frame_xr/menu/md3_fonts.h"
 
 namespace FrameXr::Menu {
 
 inline constexpr const char* kVerifiedChip = "Verified";
-/// The catalog's "recommended" (the owner's picks, set only by the owner): this chip instead of
-/// Verified, in the primary container colour.
+/// The catalog's "recommended" (the owner's picks, set only by the owner): instead of the Verified
+/// chip, Material's filled verified badge (the check-mark seal) in the primary colour, as before
+/// the Verified chip (the owner, 1.2.0 RC2: the badge is what Recommended should be).
 inline constexpr const char* kRecommendedChip = "Recommended";
+inline constexpr float kRecommendedBadge = 20.0f, kRecommendedBadgeGap = 6.0f;
 inline constexpr float kNameChipH = 32.0f, kNameChipPad = 12.0f, kNameChipGap = 12.0f;
 /// A name keeps at least this much room; under it the chip is left out.
 inline constexpr float kNameChipMinName = 40.0f;
@@ -39,6 +42,9 @@ inline const char* ChipText(NameChip chip) {
 
 /// The room the chip takes after a name (its gap and itself).
 inline float NameChipRoom(const Kit& kit, NameChip chip = NameChip::Verified) {
+    if (chip == NameChip::Recommended) {
+        return kRecommendedBadgeGap + kRecommendedBadge;
+    }
     return kNameChipGap + kit.TextWidth(Type::Label, ChipText(chip)) + kNameChipPad * 2.0f;
 }
 
@@ -68,13 +74,19 @@ inline Rect NameWithChip(Kit& kit, float x, float right, float cy, const std::st
     if (!shown) {
         return {};
     }
+    if (chip == NameChip::Recommended) {
+        const float x0 = x + drawn + kRecommendedBadgeGap;
+        kit.Icon(x0 + kRecommendedBadge * 0.5f, cy, kRecommendedBadge, Icon::kVerified, true,
+                 Tok::kPrimary, op);
+        return {x0, cy - kRecommendedBadge * 0.5f, x0 + kRecommendedBadge,
+                cy + kRecommendedBadge * 0.5f};
+    }
     const char* text = ChipText(chip);
-    const bool rec = chip == NameChip::Recommended;
     const float x0 = x + drawn + kNameChipGap;
     const float w = kit.TextWidth(Type::Label, text) + kNameChipPad * 2.0f;
     const Rect r{x0, cy - kNameChipH * 0.5f, x0 + w, cy + kNameChipH * 0.5f};
-    kit.Fill(r, 8.0f, rec ? Tok::kPrimaryContainer : Tok::kSecondaryContainer, op);
-    kit.TextMid(r.Cx(), r.Cy(), Type::Label, rec ? Tok::kOnPrimaryContainer : Tok::kOnSecondaryContainer,
+    kit.Fill(r, 8.0f, Tok::kSecondaryContainer, op);
+    kit.TextMid(r.Cx(), r.Cy(), Type::Label, Tok::kOnSecondaryContainer,
                 text, 1, op);
     return r;
 }
