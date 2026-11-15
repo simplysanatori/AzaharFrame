@@ -9,9 +9,11 @@ This file holds the technical detail moved out of the README: how the port is bu
 | How the port works (one process, Vulkan device, screens into SteamVR, threads, controls, controller models and VR panels, immersive mode, launcher) | [docs/TECHNICAL.md](docs/TECHNICAL.md) |
 | Files changed upstream, merging new versions, building, packaging, installer, Frametanium, environment variables, mocks | [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md) |
 | Controller mapping, developer version | [src/frame_xr/input/MAPPING.md](src/frame_xr/input/MAPPING.md) |
-| Immersive mode, tuning variables | [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) |
+| Immersive mode, Natural 3D and World Scale, tuning variables | [src/frame_xr/IMMERSIVE.md](src/frame_xr/IMMERSIVE.md) |
+| The in-game menu (tabs, rows, Verified and Recommended chips) | `src/frame_xr/menu/` |
+| Downloads: cheats (Sharkive, 3ds-game-fixes), mods catalogue, texture packs, CTGP-7, Emerald 3DS | `src/core/cheats/`, `src/core/mods/`, `src/core/custom_tex/`, `src/core/ctgp7/`, `src/core/homebrew/`; the catalogues are copies of `catalog/` in [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes) |
 | What the logs hold, release checks | [docs/PRIVACY_AUDIT.md](docs/PRIVACY_AUDIT.md) |
-| Player documentation | [docs/USER_GUIDE.md](docs/USER_GUIDE.md), [docs/CONTROLS.md](docs/CONTROLS.md) |
+| Player documentation | [docs/USER_GUIDE.md](docs/USER_GUIDE.md), [docs/CONTROLS.md](docs/CONTROLS.md), [docs/SETTINGS.md](docs/SETTINGS.md) |
 | Changes | [docs/CHANGELOG.md](docs/CHANGELOG.md), [docs/RELEASE_NOTES_v1.2.0.md](docs/RELEASE_NOTES_v1.2.0.md), [v1.1.1](docs/RELEASE_NOTES_v1.1.1.md), [v1.1.0](docs/RELEASE_NOTES_v1.1.0.md), [v1.0.0](docs/RELEASE_NOTES_v1.0.0.md) |
 | Third-party licences and art sources | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [steam-frame/art/CREDITS.md](steam-frame/art/CREDITS.md) |
 
