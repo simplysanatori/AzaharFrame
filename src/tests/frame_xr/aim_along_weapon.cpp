@@ -301,7 +301,7 @@ TEST_CASE("Angel's Aim along the weapon: Keep Reticle on Screen's resting guard 
         const Posef p{Pointing(Rotate(AxisAngle(side, beta), to_edge), 0.0f), hand};
         const LightGunTarget h = LockedTargetFor(AngelsAimRay(p, muzzle, axis, AimRayFrom::Hand), top);
         const LightGunTarget w = LockedTargetFor(AngelsAimRay(p, muzzle, axis, AimRayFrom::Weapon), top);
-        if (h.valid && w.valid && !h.resting && w.resting) {
+        if (h.valid && w.valid && h.past_deg <= kRestingPastDeg && w.past_deg > kRestingPastDeg) {
             found = p;
         }
     }
@@ -316,13 +316,14 @@ TEST_CASE("Angel's Aim along the weapon: Keep Reticle on Screen's resting guard 
             std::acos(std::clamp(Dot(ray.direction, Normalized(t.point - ray.origin)), -1.0f, 1.0f)) /
             kDeg;
         CHECK(t.past_deg == Approx(measured).margin(0.05f));
-        CHECK(t.resting == (t.past_deg > kRestingPastDeg));
+        // Past the top edge: never resting (1.2.0 RC2: only below, or pointing away).
+        CHECK_FALSE(t.resting);
         return t;
     };
     const LightGunTarget by_hand = check(AngelsAimRay(aim, muzzle, axis, AimRayFrom::Hand));
     const LightGunTarget by_weapon = check(AngelsAimRay(aim, muzzle, axis, AimRayFrom::Weapon));
-    CHECK_FALSE(by_hand.resting);
-    CHECK(by_weapon.resting);
+    CHECK(by_hand.past_deg <= kRestingPastDeg);
+    CHECK(by_weapon.past_deg > kRestingPastDeg);
     CHECK(by_weapon.past_deg > by_hand.past_deg + 0.25f * tilt);
 }
 

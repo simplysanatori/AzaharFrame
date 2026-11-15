@@ -232,8 +232,10 @@ LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top);
 /// does not reach the plane from the front (pointing away, or along it) gets the edge point in
 /// its direction from the screen's centre. On the ground that point is past the aim box, so the
 /// Turn Zone turns at full depth (DirectAim), as the C-Stick held all the way does. Resting
-/// guard: a ray more than kRestingPastDeg past the edge (the arm lowered to rest, say) keeps the
-/// reticle at the edge and turns nothing. Not valid only when the screen is not shown.
+/// guard: a ray more than kRestingPastDeg past the bottom edge (the arm lowered to rest), or one
+/// that does not reach the plane from the front, keeps the reticle at the edge and turns nothing;
+/// past a side or the top edge it always turns (1.2.0 RC2, the owner: the reticle at an edge is a
+/// turn). Not valid only when the screen is not shown.
 inline constexpr float kRestingPastDeg = 25.0f;
 LightGunTarget LockedTargetFor(const Ray& ray, const PanelQuad& top);
 

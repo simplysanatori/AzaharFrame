@@ -256,7 +256,13 @@ LightGunTarget LockedTargetFor(const Ray& ray, const PanelQuad& top) {
         const float c = std::clamp(Dot(to_edge, ray.direction) / (len * dlen), -1.0f, 1.0f);
         t.past_deg = std::acos(c) * 57.29578f;
     }
-    t.resting = t.past_deg > kRestingPastDeg;
+    // 1.2.0 RC2 (the owner): the reticle held at an edge is a turn, however far past it the ray
+    // points (a cannon aims along its barrel, about 36 degrees in from the controller's line, so
+    // its ray passes a side edge by far more than the controller does). Only a ray past the
+    // bottom edge (the arm lowered to rest), or one that does not reach the screen's plane from
+    // the front, rests past kRestingPastDeg.
+    const bool reaches = hit.on_plane && finite;
+    t.resting = t.past_deg > kRestingPastDeg && (!reaches || t.past_v > 0);
     return t;
 }
 

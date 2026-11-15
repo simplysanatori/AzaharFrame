@@ -228,8 +228,10 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   shows no pointer (`HandInput::aim_locked`; its trigger is ZL/ZR and fires). On the ground the
   edge point is past the aim box, so the Turn Zone turns at full depth on the sides the ray is
   past, as the C-Stick held to its rim does. **Resting guard:** a ray more than 25 degrees past
-  the edge (`kRestingPastDeg`: the angle between the ray and the edge point, from the ray's start;
-  the arm lowered to rest, say) keeps the reticle at the edge and turns nothing; the log says
+  the bottom edge, or one that doesn't reach the screen's plane from the front (`kRestingPastDeg`:
+  the angle between the ray and the edge point, from the ray's start; the arm lowered to rest)
+  keeps the reticle at the edge and turns nothing; past a side or the top edge it always turns
+  (1.2.0 RC2: a cannon's barrel ray passes a side edge far more than the controller does); the log says
   `xr: Direct Aim: resting at the edge (N deg past ...)` and `aiming again`. The laser is not drawn
   to an edge point. Off: as before (no target off the top screen's surroundings or on the bottom
   screen, which that controller touches).

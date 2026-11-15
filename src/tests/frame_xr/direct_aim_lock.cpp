@@ -255,18 +255,23 @@ TEST_CASE("Keep Reticle on Screen: off the screen it turns all the way, resting 
         CHECK(past.turning);
         CHECK(past.right_dps == Approx(DirectAim::kTurnPushDps));
         CHECK_FALSE(past.resting);
-        // 30 degrees past: resting. The reticle stays at the edge, nothing turns.
-        const DirectAim::Out rest = run(edge_yaw + 30.0f, 0.0f, from);
-        CHECK(rest.write);
-        CHECK(rest.x == Approx(259.5f));
-        CHECK_FALSE(rest.turning);
-        CHECK(rest.right_dps == 0.0f);
-        CHECK(rest.resting);
+        // 50 degrees past a side edge: still a turn (1.2.0 RC2: the reticle at an edge turns,
+        // however far past; a cannon's barrel points far past the side).
+        const DirectAim::Out far = run(edge_yaw + 50.0f, 0.0f, from);
+        CHECK(far.write);
+        CHECK(far.x == Approx(259.5f));
+        CHECK(far.turning);
+        CHECK(far.right_dps == Approx(DirectAim::kTurnPushDps));
+        CHECK_FALSE(far.resting);
     }
     // The threshold.
     CHECK(kRestingPastDeg == 25.0f);
-    CHECK_FALSE(LockedTargetFor(RayAt(edge_yaw + 24.5f, 0.0f), top).resting);
-    CHECK(LockedTargetFor(RayAt(edge_yaw + 25.5f, 0.0f), top).resting);
+    // Past the bottom edge (the arm lowered) only.
+    const float bottom_pitch = -std::atan(0.3f) / kDeg; // the bottom edge's middle, from the eye
+    CHECK_FALSE(LockedTargetFor(RayAt(0.0f, bottom_pitch - 24.5f), top).resting);
+    CHECK(LockedTargetFor(RayAt(0.0f, bottom_pitch - 25.5f), top).resting);
+    CHECK_FALSE(LockedTargetFor(RayAt(edge_yaw + 25.5f, 0.0f), top).resting);
+    CHECK_FALSE(LockedTargetFor(RayAt(-edge_yaw - 60.0f, 0.0f), top).resting);
     CHECK(LockedTargetFor(RayAt(edge_yaw + 20.0f, 0.0f), top).past_deg ==
           Approx(20.0f).margin(0.05f));
     // The arm lowered to the side: resting, the reticle at the bottom of the box.
