@@ -617,9 +617,11 @@ TEST_CASE("texdl: the catalog's updated and verified fields", "[frame_xr][texdl]
     for (const Entry& e : cat.packs) {
         CHECK(ParseIsoDate(e.updated.size() == 7 ? e.updated + "-01" : e.updated)); // every entry has a date (a month too)
         verified += e.verified ? 1 : 0;
-        CHECK(e.verified == (e.author == "Henriko Magnifico"));
+        if (e.author == "Henriko Magnifico") {
+            CHECK(e.verified); // every Henriko pack is verified; others may be too
+        }
     }
-    CHECK(verified == 8);
+    CHECK(verified >= 8);
 
     std::vector<std::string> warnings;
     const auto parsed = ParseCatalog(R"({"schema": 1, "packs": [

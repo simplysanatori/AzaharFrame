@@ -399,7 +399,12 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/250777",
       "notes": "Several looks for Link as textures for the USA version, each shown as its own pack. Base is the main set and the others replace part of it, and the Legacy textures pack mixes several older styles. It was made for Citra and has not been tested here.",
-      "verified": false
+      "verified": false,
+      "customize": {
+        "off": [
+          "Legacy textures"
+        ]
+      }
     },
     {
       "id": "oot3d-touchless-layout-vanilla",
@@ -426,7 +431,13 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/567711",
       "notes": "Redraws the button prompts for Xbox, DualShock, Nintendo or SNES-colour controllers so the touch screen is not needed, for the original UI. Each layout is its own pack, and the one named Unedited textures is the stock reference set, not a layout. It needs the controller remapping and the sensor map described on the mod page.",
-      "verified": false
+      "verified": false,
+      "customize": {
+        "choose_one": "Controller",
+        "off": [
+          "Unedited textures*"
+        ]
+      }
     },
     {
       "id": "oot3d-touchless-layout-sse",
@@ -452,7 +463,13 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/567711",
       "notes": "The same controller layouts for Single Screen Experience, which must be installed first, for the USA and Europe versions. Each layout is its own pack, and the one named Unedited textures is the stock reference set. The author calls this version severely outdated.",
-      "verified": false
+      "verified": false,
+      "customize": {
+        "choose_one": "Controller",
+        "off": [
+          "Unedited textures*"
+        ]
+      }
     },
     {
       "id": "oot3d-1998-npc-overhaul",
@@ -580,7 +597,17 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/569317",
       "notes": "Controller prompts for Project Restoration in Xbox, DualShock, Nintendo or SNES-colour styles, for the USA and Europe versions. It needs Project Restoration and the controller remapping in the ReadMe, and each style is its own pack. Ignore the Unedited textures pack, and the N64 Patch pack only holds changed files for the Xbox or DualShock style.",
-      "verified": false
+      "verified": false,
+      "customize": {
+        "choose_one": "Style",
+        "keep": [
+          "N64 Patch"
+        ],
+        "off": [
+          "N64 Patch",
+          "Unedited textures*"
+        ]
+      }
     },
     {
       "id": "mm3d-non-intrusive-bottom-screen-hud",

@@ -369,7 +369,7 @@ TEST_CASE("Compat: Echoes True 60 FPS and the Ghosting Shader Fix conflict", "[m
     for (const char* region : {"us", "eu", "jp"}) {
         const auto* fps = parsed->Find(std::string("echoes-60fps-") + region);
         REQUIRE(fps != nullptr);
-        CHECK(fps->notes.find("Can't be combined with the Ghosting Shader Fix") != std::string::npos);
+        CHECK(fps->notes.find("Can't be used with the Ghosting Shader Fix") != std::string::npos);
         for (const char* v : {"v10", "v11"}) {
             const auto* fix = parsed->Find(std::string("echoes-ghosting-shader-fix-") + region + "-" + v);
             REQUIRE(fix != nullptr);
