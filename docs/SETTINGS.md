@@ -13,7 +13,7 @@ While a game with its own value runs, **Configure** still changes that row's glo
 
 The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**. The **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right, which opens on **Per-Game** while a game runs. **Global** changes every game. Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game (on **Settings**, in this section), and **Use Global Values for All**, in the **⋮** menu next to it, puts them back on the global values.
 
-**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **C-Stick at Edge**, **Aim Only While Pressed** and **Right Stick Moves Touch** are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **C-Stick at Edge**, **Aim Only While Pressed**, **Right Stick Moves Touch** and [Angel's Aim](#angels-aim)'s rows are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
 
 ## At a glance
 
@@ -37,6 +37,23 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [C-Stick at Edge](#c-stick-at-edge) | on or off | off (Kid Icarus: Uprising with the C-Stick mod: on) | global and per game | at once |
 | [Aim Only While Pressed](#aim-only-while-pressed) | on or off | off | global and per game | at once |
 | [Right Stick Moves Touch](#right-stick-moves-touch) | on or off | off | global and per game | at once |
+| [Aiming](#angels-aim) | **Off**, **Direct Aim**, **Gyro Aim** | Off (Kid Icarus: Uprising with the C-Stick & Gyro mod: Direct Aim) | global and per game | at once |
+| [Gyro Sensitivity](#angels-aim) | 0.2x to 4.0x, in 0.1x steps | 1.0x | global and per game | at once |
+| [Recoil](#angels-aim), **Charged Shot**, **Rapid Fire** | on or off; 0% to 100% | on; 100%; 50% | global and per game | at once |
+| [Weapon in Hand](#angels-aim) | on or off | on | global and per game | at once |
+| [Weapon Opacity](#angels-aim), [Projectile Opacity](#angels-aim) | 20% to 100% | 100% | global and per game | at once |
+| [Weapon Size](#angels-aim) | **Game Size**, **Hand Size** | Game Size | global and per game | at once |
+| [Weapon Scale](#angels-aim) | 50% to 150% | 100% | global and per game | at once |
+| [Muzzle Flash](#angels-aim) | on or off | on | global and per game | at once |
+| [Muzzle Flash Size](#angels-aim) | 50% to 300% | 100% | global and per game | at once |
+| [Projectiles](#angels-aim) | on or off | on | global and per game | at once |
+| [Projectile Size](#angels-aim), [Projectile Speed](#angels-aim) | 50% to 200% | 100% | global and per game | at once |
+| [Laser Sight](#angels-aim) | on or off | off | global and per game | at once |
+| [Keep Reticle on Screen](#angels-aim) | on or off | on | global and per game | at once |
+| [Grip Frees Aim](#angels-aim) | **Hold**, **Toggle** | Hold | global and per game | at once |
+| [Turn Zone From](#angels-aim) | **Screen Edge**, **Aim Box** | Aim Box | global and per game | at once |
+| [Turn Zone](#angels-aim) | 0% to 30% | 10% | global and per game | at once |
+| [Turn Speed](#angels-aim) | 0.2x to 4.0x | 1.0x | global and per game | at once |
 | [Mouse Mode](#mouse-mode) | **Bottom Screen**, **Pointer** | Bottom Screen | the mouse | at once |
 | [Recentre at Edge](#recentre-at-edge) | on or off | on | the mouse, each touchpad | at once |
 | [Autosave](#autosave) | on or off | off | global and per game | at once |
@@ -148,6 +165,10 @@ The reticle stays in the middle of the bottom screen and moves only while the tr
 ## Right Stick Moves Touch
 
 The right stick moves the bottom screen's touch point too, together with your head or controller, and the game no longer gets it as the C-Stick. Full tilt crosses the screen in about a second. Off, the right stick is the C-Stick as usual. With **Aim Only While Pressed** on, it moves the point only while the trigger touches. Shown under **Bottom Screen Reticle** while it is on.
+
+## Angel's Aim
+
+Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, on the in-game menu's **Controls** tab under **Aiming**. An alpha. **Direct Aim** puts the reticle where your weapon points on the Primary Screen; **Gyro Aim** moves it as you turn your hand. **Gyro Sensitivity** scales the gyroscope, for **Motion Controls** too. With **Aiming** on, **Recoil** (with **Charged Shot** and **Rapid Fire** while it is on) and **Weapon in Hand** show. **Weapon in Hand** shows the weapon Pit holds in place of the aiming controller, and under it **Weapon Opacity**, **Weapon Size**, **Weapon Scale**, **Muzzle Flash** (with **Muzzle Flash Size**) and **Projectiles** (with **Projectile Opacity**, **Projectile Size** and **Projectile Speed**). **Direct Aim** adds **Laser Sight**, **Keep Reticle on Screen**, **Grip Frees Aim**, **Turn Zone From**, **Turn Zone**, **Turn Speed** and **Check Aim**. The [user guide](USER_GUIDE.md#angels-aim-kid-icarus-uprising) explains each one.
 
 ## Autosave
 

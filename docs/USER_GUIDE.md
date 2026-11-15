@@ -264,11 +264,24 @@ Global settings, not per game:
 - **Face Buttons**: **By Position (Nintendo)** (default) makes the Frame's A, B, X and Y do what the 3DS button in the same place does. **By Label (Xbox)** makes A, B, X and Y the 3DS's A, B, X and Y.
 - **Motion Controls**: **Off**, **Right Controller** (default), **Left Controller** or **Headset**. The controller, or your head, becomes the 3DS's gyroscope and accelerometer, for games like Ocarina of Time 3D that aim the first-person items by moving the 3DS. It can be set per game, and Kid Icarus: Uprising starts with it off.
 
-### Direct Aim (Kid Icarus: Uprising)
+### Angel's Aim (Kid Icarus: Uprising)
 
-With Darkshade's C-Stick & Gyro mod installed, **Aiming** on the in-game menu's **Controls** tab can be **Direct Aim**: the game's reticle goes where your controller points on the Primary Screen. These rows show with it, and each can be set per game:
+Angel's Aim is an alpha. It aims Kid Icarus: Uprising with your controller and puts Pit's weapon in your hand. It needs Darkshade's C-Stick & Gyro mod; the **Angel's Aim** segment on the **Mods** tab shows whether it is installed, suggests the weapon and effect texture packs, and has **Report an Issue** and **Send Report**.
 
-- **Keep Reticle on Screen** (on by default): point off the Primary Screen and the reticle waits at its nearest edge while the camera turns at full speed, as with the C-Stick held all the way. Point more than 25 degrees past the edge, as when you lower your arm to rest, and the reticle stays at the edge without turning. While it is on, the aiming controller does not touch the Secondary Screen.
+**Aiming**, on the in-game menu's **Controls** tab, is **Off**, **Direct Aim** or **Gyro Aim**. Kid Icarus: Uprising starts on **Direct Aim** once the mod is installed. **Direct Aim** puts the game's reticle where your weapon points on the Primary Screen. **Gyro Aim** moves the reticle as you turn your hand. The first time you turn Aiming on, **Angel's Aim Is On** lists what is on, with a button to the Aiming rows. Every row below can be set per game.
+
+- **Gyro Sensitivity**: scales the gyroscope, so the reticle moves more or less as you turn your hand. It scales **Motion Controls** too.
+- **Recoil** (on by default): a short buzz in the aiming controller on each shot. **Charged Shot** (100%) and **Rapid Fire** (50%) set how strong it is.
+- **Weapon in Hand** (on by default): the weapon Pit holds, in place of the aiming controller. Under it:
+  - **Weapon Opacity** (20% to 100%), to see through the weapon.
+  - **Weapon Size**: **Game Size** (default) or **Hand Size**, which shrinks big weapons to fit your hand. **Weapon Scale** (50% to 150%) makes it bigger or smaller.
+  - **Muzzle Flash** (on by default): a flash at the weapon's tip on each shot. **Muzzle Flash Size** (50% to 300%) sets how big it is.
+  - **Projectiles** (on by default): your shots fly from the weapon into the screen. **Projectile Opacity** (20% to 100%), **Projectile Size** and **Projectile Speed** (50% to 200%) set how they look.
+
+With **Direct Aim**, more rows show:
+
+- **Laser Sight** (off by default): a red beam from your weapon to where you aim. The aim follows the weapon as Pit holds it, so a blade aims a little above the controller's line.
+- **Keep Reticle on Screen** (on by default): point off the Primary Screen and the reticle waits at its nearest edge. On the ground the camera turns at full speed, as with the C-Stick held all the way. Point more than 25 degrees past the edge, as when you lower your arm to rest, and the reticle stays at the edge without turning. While it is on, the aiming controller does not touch the Secondary Screen.
 - **Grip Frees Aim**: the aiming controller's grip frees your aim, so you can point at the Secondary Screen or a menu while the reticle stays put. **Hold** (default): free while you hold it. **Toggle**: press once to free your aim, again to lock it; a short message says which.
 - **Turn Zone From**: where turning starts on the ground. **Aim Box** (default) is the box the reticle stays in, where the C-Stick turns the camera too: point past it and the camera turns, faster the farther you point. **Screen Edge** turns only near the Primary Screen's edges.
 - **Turn Zone** and **Turn Speed**: how far past that edge you point for full speed, and how fast that is.
