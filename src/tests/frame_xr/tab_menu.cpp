@@ -2922,7 +2922,7 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
     CHECK(GameValueCount(2) == "2 Per-Game Values Set");
     // Global-only rows are never per game
     // (AzaharFrame kiu: Motion Controls is per game now.)
-    for (Id id : {Id::Background, Id::WindowScale, Id::FaceButtons, Id::ShowControllers,
+    for (Id id : {Id::Background, Id::WindowScale, Id::FaceButtons,
                   Id::FastForwardSpeed, Id::DynamicResolution, Id::ScreenLayout, Id::MoveScreens,
                   Id::ScreenCurve, Id::CursorSpeed}) {
         CHECK(!PerGameSetting(id));
@@ -4117,7 +4117,9 @@ TEST_CASE("Tab menu: mods for CTGP-7 are listed in its segment", "[frame_xr][tab
 // Detach Screens (Off, Secondary, Both) with Primary added, directly under Show Controllers and
 // only while it is on; each choice with its own tooltip.
 TEST_CASE("Tab menu: Controllers in Front of Screen", "[frame_xr][tabmenu]") {
-    CHECK(!PerGameSetting(Id::ControllersInFront));
+    // per game since 1.2.0, with Show Controllers
+    CHECK(PerGameSetting(Id::ControllersInFront));
+    CHECK(PerGameSetting(Id::ShowControllers));
     CHECK(SectionOf(Id::ControllersInFront) == SettingsSection::General);
     CHECK(LabelFor(Id::ControllersInFront) == "Controllers in Front of Screen");
     CHECK(OptionsFor(Id::ControllersInFront) ==
