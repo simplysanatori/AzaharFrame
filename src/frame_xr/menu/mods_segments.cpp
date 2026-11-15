@@ -175,12 +175,12 @@ float ButtonWidth(const Kit& kit, const std::string& label, bool icon, float sid
 
 /// A row's headline (with the Verified chip after it) and its supporting line; one line when
 /// `detail` is empty. `right` is where the text must end.
-void RowText(Kit& kit, float x, float right, float cy, const std::string& name, bool verified,
+void RowText(Kit& kit, float x, float right, float cy, const std::string& name, NameChip chip,
              const std::string& detail, bool detail_error, float op, bool two_line = false) {
     const float ny = detail.empty() && !two_line ? cy : cy - 11.0f;
     // AzaharFrame fixd: the catalog's "verified": the Verified chip after the name, the name
     // fitted to the width left (name_chip.h; it was a badge for "recommended" alone)
-    NameWithChip(kit, x, right, ny, name, verified, op);
+    NameWithChip(kit, x, right, ny, name, chip, op);
     if (!detail.empty()) {
         kit.TextSized(x, cy + 13.0f + kit.CapHeightSized(kSmall, false) * 0.5f, kSmall, false,
                       detail_error ? Tok::kError : Tok::kOnSurfaceVariant,
@@ -402,13 +402,13 @@ Rect LinkTarget(const Rect& link, const Rect& row) {
 /// when it runs out of width (at a " · ", the author kept on the first); `parts` "" ones left
 /// out, the one at `error_part` in the error colour (a failure; npos none).
 Rect CatalogRowText(Kit& kit, float x, float right, const Rect& row, const std::string& name,
-                    bool verified, const std::string& author, bool link, State link_state,
+                    NameChip chip, const std::string& author, bool link, State link_state,
                     const std::vector<std::string>& parts, std::size_t error_part) {
     const BylineFit f = FitByline(kit, right - x, author, true, parts);
     const bool wraps = f.Wraps();
     const float name_y = row.y0 + (wraps ? kCatalogNameY : kCatalog1NameY);
     const float by_y = row.y0 + (wraps ? kCatalogByY : kCatalog1ByY);
-    RowText(kit, x, right, name_y, name, verified, "", false, 1.0f);
+    RowText(kit, x, right, name_y, name, chip, "", false, 1.0f);
     const Rect l = DrawByline(kit, x, right, by_y, row.y0 + kCatalogWrapY, f, link, link_state,
                               error_part, 1.0f);
     Rect target{};
@@ -1490,7 +1490,7 @@ void TabMenu::DrawOfferList(Kit& kit, const MenuModel& model, const MenuView& vi
         // " · v172 · Matches Your Game · 10K+ Downloads · Updated Sep 2026" (the phase or the
         // failure while it installs or when it failed): OfferParts
         const bool link = !LinkText(o.url).empty();
-        const Rect l = CatalogRowText(kit, c.x0, name_right, row, o.name, o.verified, o.author,
+        const Rect l = CatalogRowText(kit, c.x0, name_right, row, o.name, ChipFor(o.verified, o.recommended), o.author,
                                       link, StateOf(view, {Id::ModLink, idx}), OfferParts(o),
                                       !o.note.empty() && o.error ? 1 : std::string::npos);
         if (l.W() > 0.0f) {
@@ -1647,7 +1647,7 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
         const float op = enabled ? 1.0f : kDisabledContent;
         const float text_right = b.x0 + 12.0f - kNameGap;
         if (r.author.empty()) {
-            RowText(kit, c.x0, text_right, cy, r.name, r.verified, r.detail, false, op);
+            RowText(kit, c.x0, text_right, cy, r.name, ChipFor(r.verified, r.recommended), r.detail, false, op);
         } else {
             const bool link = !LinkText(r.url).empty(); // AzaharFrame modcat: GameBanana pages too
             // AzaharFrame ui3: "Created by <author> · v1.5.9", going on to a second line when it
@@ -1656,9 +1656,9 @@ void TabMenu::DrawModsList(Kit& kit, const MenuModel& model, const MenuView& vie
             const bool wraps = f.Wraps();
             const float by_y = wraps ? row.y0 + kCatalogByY : cy + kLinkLineDy + 13.0f;
             if (wraps) {
-                RowText(kit, c.x0, text_right, row.y0 + kCatalogNameY, r.name, r.verified, "", false, op);
+                RowText(kit, c.x0, text_right, row.y0 + kCatalogNameY, r.name, ChipFor(r.verified, r.recommended), "", false, op);
             } else {
-                RowText(kit, c.x0, text_right, cy + kLinkNameDy, r.name, r.verified, "", false, op, true);
+                RowText(kit, c.x0, text_right, cy + kLinkNameDy, r.name, ChipFor(r.verified, r.recommended), "", false, op, true);
             }
             const Rect l = DrawByline(kit, c.x0, text_right, by_y, row.y0 + kCatalogWrapY, f, link,
                                       StateOf(view, {Id::ModLink, idx}, enabled), std::string::npos, op);
@@ -1849,7 +1849,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                            !first};
                 }
             }
-            RowText(kit, c.x0 + kLeading, up_cx - kBtn * 0.5f - 8.0f, cy, r.name, false, r.detail,
+            RowText(kit, c.x0 + kLeading, up_cx - kBtn * 0.5f - 8.0f, cy, r.name, NameChip::None, r.detail,
                     false, op);
             continue;
         }
@@ -1896,7 +1896,7 @@ void TabMenu::DrawTextures(Kit& kit, const MenuModel& model, const MenuView& vie
                 }
                 right = b.x0 + 12.0f - kNameGap;
             }
-            RowText(kit, tx, right, cy, p.name, p.verified, p.detail, false, op); // AzaharFrame fixd
+            RowText(kit, tx, right, cy, p.name, ChipFor(p.verified, p.recommended), p.detail, false, op); // AzaharFrame fixd
         }
     }
     kit.ClearClip();
@@ -2021,7 +2021,7 @@ void TabMenu::DrawPackDownloads(Kit& kit, const TexturesModel& m, const MenuView
         // Updated Sep 2026" (the phase while it downloads, the error when it failed)
         const bool failed = o.state == PackOfferState::Failed;
         const bool link = !LinkText(o.url).empty();
-        const Rect l = CatalogRowText(kit, c.x0, text_right, row, o.name, o.verified, o.author, link,
+        const Rect l = CatalogRowText(kit, c.x0, text_right, row, o.name, ChipFor(o.verified, o.recommended), o.author, link,
                                       StateOf(view, {Id::PackLink, idx}), PackOfferParts(o),
                                       failed ? 0 : std::string::npos);
         if (l.W() > 0.0f) {
@@ -2399,7 +2399,7 @@ void TabMenu::DrawTextureParts(Kit& kit, const TexturePartsModel& m, const MenuV
             right = up_cx - kIconBtn * 0.5f - 8.0f;
         }
         if (!title) {
-            RowText(kit, tx, right, cy, r.name, false, r.detail, false, 1.0f);
+            RowText(kit, tx, right, cy, r.name, NameChip::None, r.detail, false, 1.0f);
         }
     }
     kit.ClearClip();

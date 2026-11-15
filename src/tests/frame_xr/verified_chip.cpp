@@ -274,3 +274,15 @@ TEST_CASE("fixd: the loaded mods, Download Packs, the packs and the cheats", "[f
     }
     d.CheckNoOverlap("cheats");
 }
+
+// The catalog's "recommended" shows the Recommended chip instead of Verified; Angel's Aim's
+// Suggested row is one pack, found by its catalogue id.
+TEST_CASE("Recommended chip over Verified", "[frame_xr][verified_chip]") {
+    using namespace FrameXr::Menu;
+    CHECK(ChipFor(false) == NameChip::None);
+    CHECK(ChipFor(true) == NameChip::Verified);
+    CHECK(ChipFor(true, true) == NameChip::Recommended);
+    CHECK(ChipFor(false, true) == NameChip::Recommended);
+    CHECK(std::string(ChipText(NameChip::Recommended)) == "Recommended");
+    CHECK(std::string(ChipText(NameChip::Verified)) == "Verified");
+}

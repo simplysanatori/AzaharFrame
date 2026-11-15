@@ -275,6 +275,7 @@ private:
     std::set<std::string> downloaded;   ///< folder names Download Packs installed (for Delete)
     /// AzaharFrame fixd: folder names of installed packs whose catalog entry is verified (the chip)
     std::set<std::string> verified_folders;
+    std::set<std::string> recommended_folders; ///< the installed packs' Recommended chip
     std::map<std::string, u64> offer_sizes; ///< the offers' sizes in bytes (0 unknown)
     std::string pack_failed, pack_error; ///< the pack whose last download failed, and why
     u64 download_title = 0;             ///< the title the running download is for

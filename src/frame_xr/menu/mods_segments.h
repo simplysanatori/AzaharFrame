@@ -195,6 +195,7 @@ struct TexturePackItem {
     bool downloaded = false; ///< from Download Packs: it has Delete
     bool customize = false;  ///< AzaharFrame texparts: two or more parts: the Customize button
     bool verified = false;   ///< AzaharFrame fixd: from a verified catalog entry: the Verified chip
+    bool recommended = false; ///< from a recommended catalog entry: the Recommended chip
     bool operator==(const TexturePackItem&) const = default;
 };
 

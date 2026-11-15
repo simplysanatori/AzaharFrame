@@ -99,8 +99,8 @@ struct Entry {
     std::string updated;   // AzaharFrame zipinstall: "YYYY-MM-DD", the pack's last update ("" unknown);
                            // catalog3: the catalog's own value may be "YYYY-MM"
     bool verified = false; // AzaharFrame zipinstall: known to work (AzaharFrame fixd: the Verified chip, listed first)
-    bool recommended = false; // AzaharFrame fixes7: "recommended": listed first (after verified); no
-                              // badge, and the catalog never sets it
+    bool recommended = false; // AzaharFrame fixes7: "recommended": listed first (after verified), with
+                              // the Recommended chip instead of Verified; only the owner sets it
     std::string aspect;    // AzaharFrame fixes7: "aspect": the picture shape the pack is made for
                            // ("16:9"), "" not given
     Parts::Hints customize; // AzaharFrame texparts: "customize", written into the pack at install
