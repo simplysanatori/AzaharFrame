@@ -387,24 +387,28 @@ void AimPoll(int64_t ticks) {
         if ((p.clamp_word & kClampBit) != 0) {
             p.clamp_seen = true;
         }
-        if (!p.clamp_seen && host_now - p.turn_start_ns > kStretchedAfterNs) {
+        // Only a sideways push tells: the game's flag shows for its sideways clamp, never for the
+        // top or bottom (the owner's 699 trace), so a vertical turn never counts as stretched.
+        if (ox == 0.0f) {
+            p.turn_start_ns = host_now;
+        } else if (!p.clamp_seen && host_now - p.turn_start_ns > kStretchedAfterNs) {
             p.stretched = true;
         }
         const bool screen_edge =
             p.stretched && Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_STRETCH_EDGE")
                                    .value_or("1") != "0";
         if (screen_edge) {
-            // Past the screen's own edge by the same overshoot: the whole-screen box clamps there.
+            // Past the screen's own edge sideways, the whole-screen box clamps there; the game turns
+            // far more per pixel there (the owner's 699 trace: a full spin), so the overshoot is
+            // scaled: live test switch AZAHARFRAME_KIU_STRETCH_GAIN (default 0.25). Up and down as
+            // usual.
+            const float sg = gain("AZAHARFRAME_KIU_STRETCH_GAIN", 0.25f);
             if (ox > 0.0f) {
-                write.x = reading.w + ox;
+                write.x = reading.w + ox * sg;
             } else if (ox < 0.0f) {
-                write.x = ox;
+                write.x = ox * sg;
             }
-            if (oy > 0.0f) {
-                write.y = reading.h + oy;
-            } else if (oy < 0.0f) {
-                write.y = oy;
-            }
+            write.y += oy;
         } else {
             write.x += ox;
             write.y += oy;
