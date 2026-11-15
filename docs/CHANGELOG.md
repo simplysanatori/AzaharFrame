@@ -75,7 +75,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Settings**, **Controls** and **Position** have a **Global | Per-Game** switch at the top right. The menu opens on **Per-Game** while a game runs. Choose **Global** to change every game.
 - Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game, for example "2 Per-Game Values Set".
 - **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
-- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset** and **Motion Controls** off. These are only starting values: anything you set for the game, or for all games, stays.
+- **Secondary Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Secondary Screen Reticle** on **Headset** and **Motion Controls** off. These are only starting values: anything you set for the game, or for all games, stays.
 
 ### Crash reports
 
@@ -95,7 +95,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - **Edit Controls** shows a New 3DS XL.
 - Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
-- **Bottom Screen Reticle**: a controller or your head aims at the Secondary Screen, for games that aim with the touch screen. That controller shows no beam while it aims.
+- **Secondary Screen Reticle**: a controller or your head aims at the Secondary Screen, for games that aim with the touch screen. That controller shows no beam while it aims.
 - **Reticle Speed**: how far the reticle moves when you turn. At the default 2.0x your head turns half as far as before to cross the screen, about 15 degrees side to side.
 - **Aim Only While Pressed** keeps the reticle in the middle until the trigger touches. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick.
 
@@ -110,7 +110,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Mouse and Pointer Controls
 
-- **Bottom Screen**: the mouse touches and drags on the Secondary Screen, for games that aim with the touch screen, such as Kid Icarus: Uprising.
+- **Secondary Screen**: the mouse touches and drags on the Secondary Screen, for games that aim with the touch screen, such as Kid Icarus: Uprising.
 - **Pointer**: a 3D pointer for the menu and screens, adapted from [Frametop](https://github.com/Frametop/frametop), so you can use the app outside a game.
 - Hold left and right click for 3 seconds to switch modes.
 - Middle click opens the VR menu.
@@ -119,6 +119,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - **Detach Screens**: Off, Secondary or Both. Detached screens keep their place per game.
 - **Touchpad**: a gamepad's touchpad works as the Secondary Screen.
+- Screens are named by slot: **Hide Bottom Screen** is now **Hide Secondary Screen**, **Bottom Screen Reticle** is now **Secondary Screen Reticle**, and **Mouse Mode**'s **Bottom Screen** is now **Secondary Screen**. Your settings are kept.
 
 ### Game keyboard
 
@@ -135,7 +136,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - In the same mode, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without Render Margin's border of the paused world around them. The margin comes back as you return to the game.
 - Both eyes now always see the same moment of the game.
 - In the Full modes the Primary screen is now drawn together with the controllers, in step with your head, which reduces doubling on fast head turns. The normal and wide views keep the screen as it was. **Primary Screen as Panel** (Experimental) brings back the separate panel, for one game or for all.
-- New **Motion Clarity** (Experimental): each game picture shows only once, for a clearer, more solid picture when you turn your head, but it may flicker or double in demanding scenes. The screen is dimmer. Games that run under 60 fps, a game's pause and the VR menu show as before. In the Full modes it works only when you turn on **In Immersive Modes** under it (off by default). You can set both for one game or for all, in the VR menu (**Settings > Immersive**) or in Azahar's settings.
+- New **Motion Clarity** (Experimental): each game picture shows only once, for a clearer, more solid picture when you turn your head, but it may flicker or double in demanding scenes. The screen is dimmer. Games that run under 60 fps, a game's pause and the VR menu show as before. It works only in the Full modes, and only when you turn on **In Immersive Modes** under it (off by default). With both on, the Primary screen is a panel there. You can set both for one game or for all, in the VR menu (**Settings > Immersive**) or in Azahar's settings.
 - SteamVR's recentre and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
 - Immersive mode recentres on where you face each time it resumes after the menu or the Secondary Screen, so the character stays in the middle after you change settings such as the resolution.
 - Render Margin no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.

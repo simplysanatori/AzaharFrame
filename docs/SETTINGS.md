@@ -13,13 +13,13 @@ While a game with its own value runs, **Configure** still changes that row's glo
 
 The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**. The **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right, which opens on **Per-Game** while a game runs. **Global** changes every game. Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game (on **Settings**, in this section), and **Use Global Values for All**, in the **⋮** menu next to it, puts them back on the global values.
 
-**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Aim Only While Pressed**, **Right Stick Moves Touch** and [Angel's Aim](#angels-aim)'s rows are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+**Detach Screens**, **Touchpad**, **Secondary Screen Reticle**, **Reticle Speed**, **At Edge**, **Aim Only While Pressed**, **Right Stick Moves Touch** and [Angel's Aim](#angels-aim)'s rows are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
 
 ## At a glance
 
 | Setting | Choices | Default | Scope | Takes effect |
 |---|---|---|---|---|
-| [Hide Bottom Screen](#hide-bottom-screen) | on or off | off | global and per game | when the game starts |
+| [Hide Secondary Screen](#hide-secondary-screen) | on or off | off | global and per game | when the game starts |
 | [Face Buttons](#face-buttons) | **By Position (Nintendo)**, **By Label (Xbox)** | By Position (Nintendo) | global | at once |
 | [Background](#background) | **Black**, **Passthrough** | Black | global | at once |
 | [Window Scale](#window-scale) | **100%**, **150%**, **200%** | 150% | global | when you press **OK** |
@@ -31,7 +31,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
 | [Detach Screens](#detach-screens) | **Off**, **Secondary**, **Both** | Off | global | at once |
 | [Touchpad](#touchpad) | **Tap for Input**, **Click for Input** | Tap for Input | global and per game | at once |
-| [Bottom Screen Reticle](#bottom-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off (Kid Icarus: Uprising: Headset) | global and per game | at once |
+| [Secondary Screen Reticle](#secondary-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off (Kid Icarus: Uprising: Headset) | global and per game | at once |
 | [Reticle Speed](#reticle-speed) | 0.5x to 4.0x, in 0.1x steps | 2.0x | global and per game | at once |
 | [At Edge](#at-edge) | **Follow**, **Snap to Middle** | Follow | global and per game | at once |
 | [Aim Only While Pressed](#aim-only-while-pressed) | on or off | off | global and per game | at once |
@@ -53,7 +53,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Turn Zone From](#angels-aim) | **Screen Edge**, **Aim Box** | Aim Box | global and per game | at once |
 | [Turn Zone](#angels-aim) | 0% to 30% | 10% | global and per game | at once |
 | [Turn Speed](#angels-aim) | 0.2x to 4.0x | 1.0x | global and per game | at once |
-| [Mouse Mode](#mouse-mode) | **Bottom Screen**, **Pointer** | Bottom Screen | the mouse | at once |
+| [Mouse Mode](#mouse-mode) | **Secondary Screen**, **Pointer** | Secondary Screen | the mouse | at once |
 | [Recentre at Edge](#recentre-at-edge) | on or off | on | the mouse, each touchpad | at once |
 | [Autosave](#autosave) | on or off | off | global and per game | at once |
 | [Every](#autosave) | **1**, **2**, **5**, **10**, **15** minutes | 5 | global and per game | at once |
@@ -80,7 +80,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
 
-## Hide Bottom Screen
+## Hide Secondary Screen
 
 Shows only the top screen. Use it for games that don't need the bottom screen, and for single-screen mods such as Ocarina ReFramed or Single Screen Experience for Ocarina of Time 3D.
 
@@ -142,25 +142,25 @@ Lets the screens in VR move apart. **Off**: a grip moves both screens together, 
 
 How a gamepad's touchpad touches the bottom screen in VR. The pad covers the whole screen, and a dot shows where your finger is. **Tap for Input**: a finger on the pad touches the screen. **Click for Input**: pressing the pad touches it, and holding it down drags. Turn Steam Input off for that controller, or Steam keeps the touchpad. It is on the in-game menu's **Controls** tab, and on a touchpad's **Edit Controls** page. See [CONTROLS.md](CONTROLS.md#touchpad).
 
-## Bottom Screen Reticle
+## Secondary Screen Reticle
 
-A controller, or your head with **Headset**, aims at the bottom screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip recentres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself, for that game or for all games. See [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
+A controller, or your head with **Headset**, aims at the bottom screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip recentres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself, for that game or for all games. See [CONTROLS.md](CONTROLS.md#secondary-screen-reticle).
 
 ## Reticle Speed
 
-How far the reticle moves when you turn your head or the controller, from where aiming started or was recentred. One value for the head and the controllers. At 1.0x your head turns 30 degrees to cross the bottom screen and 22.5 degrees from top to bottom, and a controller 40 and 30. At the default 2.0x it is half that: about 15 by 11 degrees for your head. Higher is faster; past an edge the dot stays on the edge. Shown under **Bottom Screen Reticle** while it is on.
+How far the reticle moves when you turn your head or the controller, from where aiming started or was recentred. One value for the head and the controllers. At 1.0x your head turns 30 degrees to cross the bottom screen and 22.5 degrees from top to bottom, and a controller 40 and 30. At the default 2.0x it is half that: about 15 by 11 degrees for your head. Higher is faster; past an edge the dot stays on the edge. Shown under **Secondary Screen Reticle** while it is on.
 
 ## At Edge
 
-What the reticle does at the edge of the bottom screen. **Follow**: the dot stays on the edge. **Snap to Middle**: the touch lifts and starts again in the middle. Shown under **Bottom Screen Reticle** while it is on.
+What the reticle does at the edge of the bottom screen. **Follow**: the dot stays on the edge. **Snap to Middle**: the touch lifts and starts again in the middle. Shown under **Secondary Screen Reticle** while it is on.
 
 ## Aim Only While Pressed
 
-The reticle stays in the middle of the bottom screen and moves only while the trigger touches. Let go and it goes back to the middle. Shown under **Bottom Screen Reticle** while it is on.
+The reticle stays in the middle of the bottom screen and moves only while the trigger touches. Let go and it goes back to the middle. Shown under **Secondary Screen Reticle** while it is on.
 
 ## Right Stick Moves Touch
 
-The right stick moves the bottom screen's touch point too, together with your head or controller, and the game no longer gets it as the C-Stick. Full tilt crosses the screen in about a second. Off, the right stick is the C-Stick as usual. With **Aim Only While Pressed** on, it moves the point only while the trigger touches. Shown under **Bottom Screen Reticle** while it is on.
+The right stick moves the bottom screen's touch point too, together with your head or controller, and the game no longer gets it as the C-Stick. Full tilt crosses the screen in about a second. Off, the right stick is the C-Stick as usual. With **Aim Only While Pressed** on, it moves the point only while the trigger touches. Shown under **Secondary Screen Reticle** while it is on.
 
 ## Angel's Aim
 
@@ -172,11 +172,11 @@ Save states made while you play, separate from the 10 slots and Quick Save. **Ev
 
 ## Mouse Mode
 
-What a mouse does in VR. **Bottom Screen**: it moves a cursor on the bottom screen, and the left button touches. **Pointer**: it moves a pointer around you that works like the controller's beam. Hold the left and right buttons together for 3 seconds to switch. See [CONTROLS.md](CONTROLS.md#the-mouse).
+What a mouse does in VR. **Secondary Screen**: it moves a cursor on the bottom screen, and the left button touches. **Pointer**: it moves a pointer around you that works like the controller's beam. Hold the left and right buttons together for 3 seconds to switch. See [CONTROLS.md](CONTROLS.md#the-mouse).
 
 ## Recentre at Edge
 
-For the mouse in **Bottom Screen** mode and for touchpads. A drag that runs into an edge of the bottom screen lets go and touches again in the middle, so you can keep turning a camera that follows the touch screen.
+For the mouse in **Secondary Screen** mode and for touchpads. A drag that runs into an edge of the bottom screen lets go and touches again in the middle, so you can keep turning a camera that follows the touch screen.
 
 ## Screen Curve
 
@@ -266,7 +266,7 @@ Full modes only. When you resize the immersive screen (grip and stick left or ri
 
 ## Primary Screen as Panel
 
-Experimental. Full modes only. Off by default: the Primary screen is drawn in step with your head, together with the controllers, which reduces doubling on fast head turns. On, it's a separate panel, as in earlier versions. It's a little lighter on the headset's graphics power, but it may double on fast head turns. A message says so each time you change it.
+Experimental. Full modes only. Off by default: the Primary screen is drawn in step with your head, together with the controllers, which reduces doubling on fast head turns. On, it's a separate panel, as in earlier versions. It's a little lighter on the headset's graphics power, but it may double on fast head turns. In the Full modes, a message says what changed, unless Motion Clarity is using the panel (below).
 
 **Motion Clarity** with **In Immersive Modes** needs the panel, so while both are on the Primary screen is a panel in the Full modes whatever this says, and there the row reads **Used by Motion Clarity**. The normal and wide views always show the screen as a panel.
 

@@ -57,10 +57,10 @@ While immersive mode is paused (modes 2 and 3 with the bottom screen shown or th
 any mode while the bottom screen is in focus),
 the grips move the normal screens as usual.
 
-## Hide Bottom Screen (without immersive mode)
+## Hide Secondary Screen (without immersive mode)
 
 Setting `vr_hide_bottom_screen` (section `VR`, per game in the Qt window: Properties, **Graphics**
-tab, **VR** group, **Hide Bottom Screen**) draws only the top screen in the normal placement.
+tab, **VR** group, **Hide Secondary Screen**) draws only the top screen in the normal placement.
 It is read when a game starts, and the game starts with the bottom screen hidden. The bumper chord
 above brings it back (and hides it again); nothing else changes: the top screen can be grabbed
 with a grip, the right stick click (held for 1 s) resets the placement, the triggers are ZL/ZR.

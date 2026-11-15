@@ -22,7 +22,7 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left stick click, held for 1 second | Screen Layout | See Screen layouts |
 | Right stick click, tap | Swap Screens | The Secondary Screen becomes the Primary Screen. Tap again to swap back |
 | Right stick click, held for 1 second | Reset Screens and View | |
-| Both bumpers, then **View** | Show or Hide Bottom Screen | Only in immersive mode and in games that hide it, see below |
+| Both bumpers, then **View** | Show or Hide Secondary Screen | Only in immersive mode and in games that hide it, see below |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat | |
 | Hold **View**, then the right bumper | Quick Save | When you let go of the bumper |
 | Hold **View**, then hold the left bumper for half a second | Quick Load | |
@@ -94,7 +94,7 @@ The screens have two places. The Primary Screen is where the top screen starts. 
 - A grip moves both places together, in either focus, unless **Detach Screens** is on (see Detaching the screens).
 - Touch works on the bottom screen in either place. The trigger aimed at the top screen is ZL or ZR in either place.
 - The screen in focus always shows. A hidden bottom screen shows while it is in focus, and hides again when the top screen takes the focus back. A hidden top screen shows again whenever it is the Primary Screen.
-- In games with **Hide Bottom Screen** on, and in immersive mode, the bottom screen starts hidden. There the left stick click and both bumpers + **View** are one switch: either one shows it, and either one hides it again. With the bottom screen in focus, both bumpers + **View** hides it and puts the top screen back in focus.
+- In games with **Hide Secondary Screen** on, and in immersive mode, the bottom screen starts hidden. There the left stick click and both bumpers + **View** are one switch: either one shows it, and either one hides it again. With the bottom screen in focus, both bumpers + **View** hides it and puts the top screen back in focus.
 - In every other game the left stick click hides and shows the bottom screen, and both bumpers + **View** is L, R and Select for the game.
 - Immersive mode pauses while the bottom screen is in focus, and picks up again when you swap back.
 
@@ -148,14 +148,14 @@ The keyboard is the one from my Moonlight XR. It hangs under the window and type
 Hold **Menu** for 1 second in a game. The game pauses, its screens dim, and the menu shows in front of them, with seven tabs down its left side:
 
 - **Main**: **Continue**, **Quick Save**, **Quick Load**, **Screenshot**, **Save State** and **Load State** (10 slots each, with the time each was saved; a state from another version shows **From** and its version, dimmed, and asks before it loads), **Restart**, **Azahar's Window**, **Switch to Flat** and **Close Game**. **Load State** also has the **Autosave** card above the slots: tap it to load the newest autosave, or, when the game keeps more than one, to pick one from the list. After a slot or an autosave loads, **Undo Load** at the bottom goes back to the moment before. With Autosave off, the card's **Settings** goes to the Saves rows.
-- **Position**: **Reset Position**, **Swap Screens**, **Hide Bottom Screen**, **Screen Layout**, **Detach Screens**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
+- **Position**: **Reset Position**, **Swap Screens**, **Hide Secondary Screen**, **Screen Layout**, **Detach Screens**, **Screen Shape**, **Screen Curve** and the **Immersive Offset**.
 - **Stats**: the numbers of the last second before the pause, and the **Show Stats** switch.
-- **Controls**: the drawings of both controllers, in a game and on Azahar's window, **Edit Controls**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed** and **At Edge** (see Editing the controls). **Touchpad** and the reticle's rows can be set per game; the button layouts in **Edit Controls** are the same in every game.
+- **Controls**: the drawings of both controllers, in a game and on Azahar's window, **Edit Controls**, **Touchpad**, **Secondary Screen Reticle**, **Reticle Speed** and **At Edge** (see Editing the controls). **Touchpad** and the reticle's rows can be set per game; the button layouts in **Edit Controls** are the same in every game.
 - **Mods**: **Cheats**, **Mods** and **Textures** for the running game (see Cheats, mods and textures).
 - **Homebrew**: Pokémon Emerald 3DS. **Install** asks for your Pokémon Emerald ROM in Azahar's window and builds the game from it. Once it is installed, **Play** starts it, and **Update** shows when a newer release is out. Otherwise **Check for Updates** asks GitHub at once, and **Reinstall** builds the game again. The progress shows on the row.
 - **Settings**: the VR settings, in three sections: **General** (Background, Window Scale, Face Buttons, Motion Controls, Show Controllers, Controllers in Front of Screen, Fast Forward Speed, Fast Forward Audio, the **Saves** group with **Autosave**, **Every** and **Keep**, **More Settings** and **Switch to Flat**), **Graphics** (3D Depth, Internal Resolution, Dynamic Resolution, Texture Filter, Async Shader Compilation) and **Immersive** (Immersive Mode, Render Margin: Horizontal, Render Margin: Vertical, Immersive Game FOV, Detect Game FOV, Horizontal Scale, Vertical Scale, Scale Mode, Fill View, World Scale, Follow Screen Size, Motion Clarity). The **Global | Per-Game** switch at the top right (on **Controls** and **Position** too) picks this game only or every game. The menu opens on **Per-Game** each time while a game runs, so a change is for that game unless you pick **Global**; the first change makes the game's own settings. Settings that are the same in every game, such as **Background** and **Dynamic Resolution**, always change for every game. Pointing at **Per-Game** while it is picked shows how many values on the tab (on **Settings**, the section) are set for this game. **Use Global Values for All**, in the **⋮** menu next to the switch, puts them back on the global values. A greyed-out row tells you why when you point at it. The menu remembers the last section until the app closes. **More Settings** opens **Emulation > Configure...**.
 
-Point and pull the trigger or press **A**. Either stick scrolls a long list, faster the further you push it and the longer you hold it; a quick tap moves one row. You can also hold the trigger on a list and drag it, or grab the scrollbar on the right and drag it, or click above or below it to jump a page. Rest the beam on a setting for a moment to see what it does. **Hide Bottom Screen** applies the next time the game starts; the rest apply at once.
+Point and pull the trigger or press **A**. Either stick scrolls a long list, faster the further you push it and the longer you hold it; a quick tap moves one row. You can also hold the trigger on a list and drag it, or grab the scrollbar on the right and drag it, or click above or below it to jump a page. Rest the beam on a setting for a moment to see what it does. **Hide Secondary Screen** applies the next time the game starts; the rest apply at once.
 
 **Azahar's Window** shows the window itself, with the same controls as above, for everything else: the game's **Properties**, the **Emulation** menu and any dialog, which also brings the window up by itself. Press **B** with nothing open there to go back to the menu.
 
@@ -201,16 +201,16 @@ A gamepad's touchpad is the bottom screen. The pad covers the whole screen, and 
 
 Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touchpad's Edit Controls page, the drawing's bottom screen shows the dot live, and **Recentre at Edge** is there too (see below). A hidden bottom screen takes no touch.
 
-### Bottom Screen Reticle
+### Secondary Screen Reticle
 
-**Bottom Screen Reticle** on the **Controls** tab (**Off**, **Left Controller**, **Right Controller**, **Headset**) aims at the bottom screen without pointing at it, like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. It works in a game with the menu closed.
+**Secondary Screen Reticle** on the **Controls** tab (**Off**, **Left Controller**, **Right Controller**, **Headset**) aims at the bottom screen without pointing at it, like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. It works in a game with the menu closed.
 
 - Where the controller points when it starts is the middle of the screen. Point further to move the dot; past an edge, the dot stays on the edge.
 - Its trigger touches, and held, it drags. Its grip recentres the middle where it points now. SteamVR's recentre and the right stick click held for 1 second do too.
 - While it aims, that controller draws no beam. In the in-game menu, Azahar's window and the keyboard it is a normal pointer.
 - **Headset**: your head aims, and the trigger of either controller touches.
 - **Reticle Speed**, under it, sets how far the dot moves for a turn of your head or the controller: 0.5x to 4.0x, one value for both. At the default 2.0x your head turns about 15 degrees from edge to edge and 11 from top to bottom (30 and 22.5 at 1.0x); a controller turns 20 and 15.
-- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge** and the switches below can be set per game with the **Global | Per-Game** switch at the top of the tab. Kid Icarus: Uprising starts with **Headset**, unless you set it yourself.
+- **Secondary Screen Reticle**, **Reticle Speed**, **At Edge** and the switches below can be set per game with the **Global | Per-Game** switch at the top of the tab. Kid Icarus: Uprising starts with **Headset**, unless you set it yourself.
 - **At Edge**, under it: **Follow** (the default) keeps the dot on the edge. **Snap to Middle** lifts the touch at the edge and touches again in the middle, like a stylus swipe.
 - **Aim Only While Pressed**: the dot stays in the middle until the trigger touches, and goes back when you let go.
 - **Right Stick Moves Touch**: the right stick moves the touch point too, and is not the C-Stick while the reticle aims. Off, the right stick stays the C-Stick.
@@ -219,12 +219,12 @@ Turn Steam Input off for that controller, or Steam keeps the touchpad. On a touc
 
 A mouse works in VR. **Mouse Mode** on its Edit Controls page has two modes:
 
-- **Bottom Screen**: the mouse moves a cursor on the bottom screen. The left button touches and drags. With **Recentre at Edge** on, a drag that runs into an edge lets go and touches again in the middle.
+- **Secondary Screen**: the mouse moves a cursor on the bottom screen. The left button touches and drags. With **Recentre at Edge** on, a drag that runs into an edge lets go and touches again in the middle.
 - **Pointer**: the mouse moves a pointer around you that works like the right controller's beam, on the menu, Azahar's window and the screens. Moving your head leaves it where it is.
 
 | Mouse | What it does |
 |---|---|
-| Left and right button, held together for 3 seconds | Switches **Mouse Mode**. **Mouse: Pointer** or **Mouse: Bottom Screen** shows |
+| Left and right button, held together for 3 seconds | Switches **Mouse Mode**. **Mouse: Pointer** or **Mouse: Secondary Screen** shows |
 | Left button | Touch |
 | Right button | A |
 | Back, Forward | L, R |
@@ -299,7 +299,7 @@ In VR, Azahar's window has a **FLAT** button in the same place, and the in-game 
 
 ## Hiding the bottom screen
 
-Two things hide the bottom screen: immersive mode, and a game's **Hide Bottom Screen** setting (**Properties**, **Graphics** tab, **VR** group). A hidden bottom screen cannot be touched or grabbed, and it is not drawn. The top screen can still be grabbed with a grip unless immersive mode is on.
+Two things hide the bottom screen: immersive mode, and a game's **Hide Secondary Screen** setting (**Properties**, **Graphics** tab, **VR** group). A hidden bottom screen cannot be touched or grabbed, and it is not drawn. The top screen can still be grabbed with a grip unless immersive mode is on.
 
 | Control | What it does |
 |---|---|
@@ -331,7 +331,7 @@ The screen starts 3 m ahead in the middle of your view, showing the game at its 
 
 ## Ocarina of Time 3D with Ocarina ReFramed
 
-The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 695604) puts the whole HUD, pause menu and options on the top screen. Turn on **Hide Bottom Screen** for the game. The mod reads the 3DS buttons below. The shortcuts that need ZL and ZR need New 3DS mode, which is on by default.
+The Single Screen edition of Ocarina ReFramed (by Hyrule Hysteria, GameBanana 695604) puts the whole HUD, pause menu and options on the top screen. Turn on **Hide Secondary Screen** for the game. The mod reads the 3DS buttons below. The shortcuts that need ZL and ZR need New 3DS mode, which is on by default.
 
 | What it does | 3DS | Steam Frame |
 |---|---|---|
@@ -353,7 +353,7 @@ The mod's HUD is a Switch-style diamond of the items, so it does not name ZL or 
 
 ## Ocarina of Time 3D with Single Screen Experience
 
-Single Screen Experience (by M-1, GameBanana 695893) is the mod I recommend for Ocarina of Time 3D. It puts the HUD and menus on the top screen and adds a 60 FPS option, a 16:9 option, a field of view setting, a draw distance slider and a free camera on the right stick. Turn on **Hide Bottom Screen** for the game.
+Single Screen Experience (by M-1, GameBanana 695893) is the mod I recommend for Ocarina of Time 3D. It puts the HUD and menus on the top screen and adds a 60 FPS option, a 16:9 option, a field of view setting, a draw distance slider and a free camera on the right stick. Turn on **Hide Secondary Screen** for the game.
 
 - If you turn on its 16:9 option, set **Screen Shape** to **Widescreen (16:9)** in the game's properties (**Graphics** tab, **VR** group). Without it the picture looks squeezed. **Screen Shape** also has **Standard (4:3)**, **3:2** and **16:10**, which match game cheats that change the game's own aspect. It must match what the game renders, or the picture stretches.
 - Leave the mod's FOV at its default. If you change it, set **Immersive Game FOV** to the same value, so immersive mode keeps the world still when you turn your head.
