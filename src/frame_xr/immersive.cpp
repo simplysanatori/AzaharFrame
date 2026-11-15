@@ -2210,11 +2210,19 @@ WiderStep StepWiderView(int dir) {
 }
 
 WiderStep StepScale(int wider_steps, int taller_steps) {
-    if (!g.adjuster.Active() || !g.engaged || (wider_steps == 0 && taller_steps == 0)) {
+    if (wider_steps == 0 && taller_steps == 0) {
         return WiderStep::None;
     }
-    const bool vertical = wider_steps == 0;
+    // 1.2.0 fix lane B (triage item 6): never a silent drop. The chord is latched until both
+    // grips are up (Layout::ScaleChord), so a press can come while no grip holds the screen.
+    if (!g.adjuster.Active() || !g.engaged) {
+        ShowToastText(Names::kHoldScreenFirst);
+        LOG_INFO(Frontend, "xr: immersive: both grips + D-pad while no grip holds the screen ({})",
+                 g.engaged ? "let go" : "the screen paused");
+        return WiderStep::None;
+    }
     if (!IsViewMode(g.mode)) {
+        const bool vertical = wider_steps == 0;
         ShowToastText(std::string(vertical ? Names::kVerticalScale : Names::kHorizontalScale) +
                           ": Full Modes Only",
                       ToastTime::Long);
@@ -2222,24 +2230,40 @@ WiderStep StepScale(int wider_steps, int taller_steps) {
     }
     // AzaharFrame kiu: both grips + D-pad: right wider, left narrower (Horizontal Scale); up
     // taller, down shorter (Vertical Scale). Per game, live (OnFrame reads them every frame).
-    auto& setting =
-        vertical ? Settings::values.vr_immersive_scale_y : Settings::values.vr_immersive_scale_x;
-    const int before = L::ScalePercent(setting.GetValue());
-    const int after = L::SteppedScale(before, vertical ? taller_steps : wider_steps);
-    ShowToastText(L::ScaleToast(after, vertical)); // also at the ends, so the press shows
-    if (after == before && setting.GetValue() == after) {
-        LOG_INFO(Frontend, "xr: immersive: {} by the D-pad, at its limit", // AzaharFrame kiu2
-                 L::ScaleToast(after, vertical));
-        return WiderStep::None;
+    // 1.2.0 fix lane B: a diagonal steps both in one call and one toast shows both (toasts are
+    // one a frame, the last wins, so two calls showed only Vertical Scale).
+    bool changed = false;
+    int shown[2]{L::ScalePercent(Settings::values.vr_immersive_scale_x.GetValue()),
+                 L::ScalePercent(Settings::values.vr_immersive_scale_y.GetValue())};
+    for (const bool vertical : {false, true}) {
+        const int steps = vertical ? taller_steps : wider_steps;
+        if (steps == 0) {
+            continue;
+        }
+        auto& setting = vertical ? Settings::values.vr_immersive_scale_y
+                                 : Settings::values.vr_immersive_scale_x;
+        const int before = L::ScalePercent(setting.GetValue());
+        const int after = L::SteppedScale(before, steps);
+        shown[vertical ? 1 : 0] = after;
+        if (after == before && setting.GetValue() == after) {
+            LOG_INFO(Frontend, "xr: immersive: {} by the D-pad, at its limit", // AzaharFrame kiu2
+                     L::ScaleToast(after, vertical));
+            continue;
+        }
+        if (setting.UsingGlobal()) {
+            setting.SetGlobal(false); // per game, as in the game's Properties
+        }
+        setting.SetValue(after);
+        (vertical ? g.scale_y : g.scale_x) = after;
+        (vertical ? g.options.squeeze_y : g.options.squeeze) = L::SqueezeForScale(after);
+        LOG_INFO(Frontend, "xr: immersive: {} by the D-pad", L::ScaleToast(after, vertical));
+        changed = true;
     }
-    if (setting.UsingGlobal()) {
-        setting.SetGlobal(false); // per game, as in the game's Properties
-    }
-    setting.SetValue(after);
-    (vertical ? g.scale_y : g.scale_x) = after;
-    (vertical ? g.options.squeeze_y : g.options.squeeze) = L::SqueezeForScale(after);
-    LOG_INFO(Frontend, "xr: immersive: {} by the D-pad", L::ScaleToast(after, vertical));
-    return WiderStep::Changed;
+    // Also at the ends ("(Max)", "(Min)"), so the press shows.
+    ShowToastText(wider_steps != 0 && taller_steps != 0
+                      ? L::ScaleToasts(shown[0], shown[1])
+                      : L::ScaleToast(shown[taller_steps != 0 ? 1 : 0], taller_steps != 0));
+    return changed ? WiderStep::Changed : WiderStep::None;
 }
 
 bool GripUpDownSteps3dDepth() {

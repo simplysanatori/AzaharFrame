@@ -428,7 +428,16 @@ std::string ScaleToast(int percent, bool vertical) {
     percent = ScalePercent(percent);
     char buf[48];
     std::snprintf(buf, sizeof(buf), percent > 0 ? "%s: +%d%%" : "%s: %d%%", what, percent);
-    return buf;
+    std::string text = buf;
+    if (percent == kMaxScalePercent || percent == -kMaxScalePercent) {
+        text += std::string(" (") + (percent > 0 ? Names::kAtMax : Names::kAtMin) + ")";
+    }
+    return text;
+}
+
+std::string ScaleToasts(int percent_x, int percent_y) {
+    return ScaleToast(percent_x, false) + Names::kToastPartSeparator +
+           ScaleToast(percent_y, true);
 }
 
 int ScaleFromNarrow(uint32_t old_setting) {

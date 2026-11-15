@@ -126,6 +126,31 @@ inline constexpr float kSizeRate = 0.5f;
 inline constexpr float kGripPress = 0.60f;
 inline constexpr float kGripRelease = 0.40f;
 
+/// 1.2.0 fix lane B (session 651, triage item 6): both grips + D-pad steps the scales, latched.
+/// Each raw grip is down past kGripPress and up only under kGripRelease (AzaharFrame kiu2's
+/// hysteresis); once both are down while a grip holds the immersive screen, the chord holds
+/// until BOTH are up, so a second grip that arrives late, or one that eases off, no longer drops
+/// the D-pad to the single-grip chord (3D Depth or Render Margin, and the offset), which showed
+/// "3D Depth: 100%" three times in the owner's session.
+struct ScaleChord {
+    bool down[2]{};
+    bool latched = false;
+    /// This frame's raw grips (left, right) and whether a grip holds the immersive screen: true
+    /// while the D-pad steps the scales.
+    bool Update(float grip_left, float grip_right, bool holding) {
+        const float grips[2]{grip_left, grip_right};
+        for (int h = 0; h < 2; ++h) {
+            down[h] = down[h] ? grips[h] > kGripRelease : grips[h] > kGripPress;
+        }
+        if (holding && down[0] && down[1]) {
+            latched = true;
+        } else if (!down[0] && !down[1]) {
+            latched = false;
+        }
+        return latched;
+    }
+};
+
 inline constexpr float kDegToRad = 3.14159265f / 180.0f;
 inline constexpr float kRadToDeg = 180.0f / 3.14159265f; ///< AzaharFrame stereo
 
@@ -298,8 +323,12 @@ float ScaleFactor(int setting);
 float SqueezeForScale(int setting);
 /// The setting after `steps` presses (positive = larger), clamped.
 int SteppedScale(int setting, int steps);
-/// "Horizontal Scale: -10%", "Horizontal Scale: 0%", "Vertical Scale: +5%".
+/// "Horizontal Scale: -10%", "Horizontal Scale: 0%", "Vertical Scale: +5%"; 1.2.0 fix lane B: at
+/// an end "Vertical Scale: +100% (Max)", "Horizontal Scale: -100% (Min)".
 std::string ScaleToast(int percent, bool vertical);
+/// 1.2.0 fix lane B: both axes in one toast (a diagonal on the D-pad; one toast a frame, the
+/// last wins): "Horizontal Scale: +45% \u00b7 Vertical Scale: +100% (Max)".
+std::string ScaleToasts(int percent_x, int percent_y);
 /// The old Narrow Screen or Narrow Height value as a scale: -NarrowPercent (the legacy 1 to 3 =
 /// 10 % steps rule kept), so a game keeps exactly its screen.
 int ScaleFromNarrow(uint32_t old_setting);

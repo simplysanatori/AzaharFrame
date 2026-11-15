@@ -158,6 +158,13 @@ inline std::string WorldScaleToast(float percent) {
 /// camera, so the picture seems to follow the head).
 inline constexpr const char* kScreenSize = "Screen Size";
 inline constexpr const char* kMayFeelLocked = "May Feel Locked";
+/// 1.2.0 fix lane B (triage item 6), unapproved: both grips + D-pad. A scale at its end says so
+/// ("Vertical Scale: +100% (Max)", Layout::ScaleToast), and a press while no grip holds the
+/// screen (the chord latched after the holding grip let go, or the screen paused) says what to
+/// do instead of nothing.
+inline constexpr const char* kAtMax = "Max";
+inline constexpr const char* kAtMin = "Min";
+inline constexpr const char* kHoldScreenFirst = "Hold the Screen First";
 /// The separator of a toast's parts (as "Motion Clarity: Experimental \u00b7 May Flicker").
 inline constexpr const char* kToastPartSeparator = " \u00b7 ";
 /// The whole percent ScreenSizeToast shows for a size.

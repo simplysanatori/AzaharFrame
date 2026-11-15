@@ -90,8 +90,11 @@ TEST_CASE("FrameXr immersive scale: D-pad steps and toasts", "[frame_xr][kiu]") 
     REQUIRE(ScaleToast(30, true) == "Vertical Scale: +30%");
     REQUIRE(ScaleToast(-15, true) == "Vertical Scale: -15%");
     REQUIRE(ScaleToast(0, true) == "Vertical Scale: 0%");
-    REQUIRE(ScaleToast(99, true) == "Vertical Scale: +100%");
-    REQUIRE(ScaleToast(-100, false) == "Horizontal Scale: -100%");
+    // 1.2.0 fix lane B (triage item 6): the ends say so.
+    REQUIRE(ScaleToast(99, true) == "Vertical Scale: +100% (Max)");
+    REQUIRE(ScaleToast(100, false) == "Horizontal Scale: +100% (Max)");
+    REQUIRE(ScaleToast(-100, false) == "Horizontal Scale: -100% (Min)");
+    REQUIRE(ScaleToast(95, true) == "Vertical Scale: +95%");
     REQUIRE(ScaleToast(-35, false) == "Horizontal Scale: -35%");
     REQUIRE(WiderToast(0) == "Render Margin: Off");
     REQUIRE(WiderToast(2) == "Render Margin: 1.2x");
@@ -1691,4 +1694,52 @@ TEST_CASE("FrameXr fovaxis: grip + D-pad up and down by Scale Mode", "[frame_xr]
     // The toast is 3D Depth's own: "3D Depth: 80%".
     CHECK(FrameXr::Immersive::Names::DepthToast(80) == "3D Depth: 80%");
     CHECK(FrameXr::Immersive::Names::DepthToast(0) == "3D Depth: 0%");
+}
+
+// 1.2.0 fix lane B (session 651, triage item 6): both grips + D-pad. A diagonal shows both axes
+// in one toast (toasts are last-wins a frame), the ends say "(Max)" or "(Min)".
+TEST_CASE("FrameXr fixb: both grips' toast", "[frame_xr][kiu][fixb]") {
+    REQUIRE(ScaleToasts(45, 100) == "Horizontal Scale: +45% \u00b7 Vertical Scale: +100% (Max)");
+    REQUIRE(ScaleToasts(-100, 0) == "Horizontal Scale: -100% (Min) \u00b7 Vertical Scale: 0%");
+    REQUIRE(ScaleToasts(SteppedScale(40, 1), SteppedScale(95, 1)) ==
+            "Horizontal Scale: +45% \u00b7 Vertical Scale: +100% (Max)");
+    // Pushing past an end keeps the value and says so again.
+    REQUIRE(SteppedScale(100, 1) == 100);
+    REQUIRE(ScaleToast(SteppedScale(100, 1), true) == "Vertical Scale: +100% (Max)");
+    REQUIRE(std::string(FrameXr::Immersive::Names::kHoldScreenFirst) == "Hold the Screen First");
+}
+
+// 1.2.0 fix lane B (triage item 6), the controls' routing: once both grips are down while one
+// holds the immersive screen, the D-pad stays on the scales until BOTH are up. Session 651: the
+// second grip arriving late, or one easing off, dropped to the single-grip chord (3D Depth).
+TEST_CASE("FrameXr fixb: both grips latched", "[frame_xr][controls][fixb]") {
+    constexpr float kDown = 0.9f, kHalf = 0.5f, kUp = 0.1f;
+    SECTION("one grip alone, or both without holding the screen, is not the chord") {
+        ScaleChord c;
+        REQUIRE(!c.Update(kDown, kUp, true));
+        REQUIRE(!c.Update(kDown, kDown, false)); // nothing holds the screen
+        REQUIRE(!c.Update(kUp, kDown, true));
+    }
+    SECTION("the second grip late: the chord from when it arrives") {
+        ScaleChord c;
+        REQUIRE(!c.Update(kDown, kUp, true));
+        REQUIRE(!c.Update(kDown, kHalf, true)); // not past kGripPress yet
+        REQUIRE(c.Update(kDown, kDown, true));
+    }
+    SECTION("latched: one grip eases off or lets go, the chord holds") {
+        ScaleChord c;
+        REQUIRE(c.Update(kDown, kDown, true));
+        REQUIRE(c.Update(kDown, kHalf, true)); // eased (hysteresis alone kept this)
+        REQUIRE(c.Update(kDown, kUp, true));   // let go: latched (it dropped before)
+        REQUIRE(c.Update(kHalf, kUp, false));  // the holding hand eases, the hold lost: latched
+        REQUIRE(c.Update(kUp, kDown, false));  // one hand up, the other down again: latched
+        REQUIRE(!c.Update(kUp, kUp, false));   // both up: released
+        REQUIRE(!c.Update(kDown, kUp, true));  // a new hold starts from one grip again
+    }
+    SECTION("both released, then both again") {
+        ScaleChord c;
+        REQUIRE(c.Update(kDown, kDown, true));
+        REQUIRE(!c.Update(kUp, kUp, true));
+        REQUIRE(c.Update(kDown, kDown, true));
+    }
 }
