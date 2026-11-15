@@ -37,7 +37,7 @@ const char* DefaultCatalogJson() {
       "layout": "variants",
       "folder": "MM3D HD",
       "licence": "Not stated; fan-made, credit the author",
-      "notes": "Several variants (fonts, Link styles); pick them under Customize. Partial pack.",
+      "notes": "Several variants (fonts, Link styles); each shows up as its own pack. Partial pack.",
       "verified": false
     },
     {
@@ -123,7 +123,8 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated; free for emulators, credit the author",
       "notes": "Textures only; the pack's ReShade files are not used. Version 5.0a. Size not confirmed (Google Drive was over its download limit when checked).",
       "updated": "2026-09-04",
-      "verified": true
+      "verified": true,
+      "recommended": true
     },
     {
       "id": "oot3d-1080p-henriko",
@@ -155,7 +156,8 @@ const char* DefaultCatalogJson() {
       "licence": "Not stated; free for emulators, credit the author",
       "notes": "Textures only; the pack's ReShade files are not used. Version 5.0a, for 1080p screens.",
       "updated": "2026-09-04",
-      "verified": true
+      "verified": true,
+      "recommended": true
     },
     {
       "id": "mm3d-4k-henriko",
@@ -393,11 +395,10 @@ const char* DefaultCatalogJson() {
       "size": 25592398,
       "format": "rar",
       "layout": "variants",
-      "customize": {"off": ["Legacy textures"]},
       "folder": "Link Skin Pack",
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/250777",
-      "notes": "Several looks for Link as textures for the USA version, in one pack. Base is the main set and the others replace part of it; turn them on under Customize, where Legacy textures, a mix of older styles, starts off. It was made for Citra and has not been tested here.",
+      "notes": "Several looks for Link as textures for the USA version, each shown as its own pack. Base is the main set and the others replace part of it, and the Legacy textures pack mixes several older styles. It was made for Citra and has not been tested here.",
       "verified": false
     },
     {
@@ -421,11 +422,10 @@ const char* DefaultCatalogJson() {
       "size": 69845512,
       "format": "rar",
       "layout": "variants",
-      "customize": {"choose_one": "Controller", "off": ["Unedited textures*"]},
       "folder": "Touchless Layout UI",
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/567711",
-      "notes": "Redraws the button prompts for Xbox, DualShock, Nintendo or SNES-colour controllers so the touch screen is not needed, for the original UI. Pick the controller under Customize; Unedited textures is the stock reference set, not a layout, and starts off. It needs the controller remapping and the sensor map described on the mod page.",
+      "notes": "Redraws the button prompts for Xbox, DualShock, Nintendo or SNES-colour controllers so the touch screen is not needed, for the original UI. Each layout is its own pack, and the one named Unedited textures is the stock reference set, not a layout. It needs the controller remapping and the sensor map described on the mod page.",
       "verified": false
     },
     {
@@ -448,11 +448,10 @@ const char* DefaultCatalogJson() {
       "size": 29348467,
       "format": "rar",
       "layout": "variants",
-      "customize": {"choose_one": "Controller", "off": ["Unedited textures*"]},
       "folder": "Touchless Layout UI SSE",
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/567711",
-      "notes": "The same controller layouts for Single Screen Experience, which must be installed first, for the USA and Europe versions. Pick the controller under Customize; Unedited textures is the stock reference set and starts off. The author calls this version severely outdated.",
+      "notes": "The same controller layouts for Single Screen Experience, which must be installed first, for the USA and Europe versions. Each layout is its own pack, and the one named Unedited textures is the stock reference set. The author calls this version severely outdated.",
       "verified": false
     },
     {
@@ -577,11 +576,10 @@ const char* DefaultCatalogJson() {
       "size": 26451594,
       "format": "rar",
       "layout": "variants",
-      "customize": {"choose_one": "Style", "keep": ["N64 Patch"], "off": ["N64 Patch", "Unedited textures*"]},
       "folder": "Omni UI for Project Restoration",
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/569317",
-      "notes": "Controller prompts for Project Restoration in Xbox, DualShock, Nintendo or SNES-colour styles, for the USA and Europe versions. It needs Project Restoration and the controller remapping in the ReadMe. Pick the style under Customize. Unedited textures starts off, and so does N64 Patch, which only holds changed files for the Xbox or DualShock style.",
+      "notes": "Controller prompts for Project Restoration in Xbox, DualShock, Nintendo or SNES-colour styles, for the USA and Europe versions. It needs Project Restoration and the controller remapping in the ReadMe, and each style is its own pack. Ignore the Unedited textures pack, and the N64 Patch pack only holds changed files for the Xbox or DualShock style.",
       "verified": false
     },
     {
@@ -609,6 +607,56 @@ const char* DefaultCatalogJson() {
       "homepage": "https://gamebanana.com/mods/688429",
       "notes": "Removes most of the bottom screen's graphics so both screens can be laid over one display, with the lower one set to about 20% transparency. It was made for the Europe version, and the author has not tested the others. Non-paused maps are not removed.",
       "verified": false
+    },
+    {
+      "id": "dq8-hd-4x-full",
+      "name": "DQ8 HD Texture Pack (4x Full)",
+      "title": "Dragon Quest VIII: Journey of the Cursed King",
+      "title_ids": [
+        "000400000018F100",
+        "000400000018F200"
+      ],
+      "author": "Magic Banana",
+      "author_url": "https://gamebanana.com/members/2971173",
+      "downloads": 11655,
+      "updated": "2024-01",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1iEubG2V-k030pa9GJ0pWWBZiccHtsMJK"
+      },
+      "size": 6870700825,
+      "format": "zip",
+      "layout": "single",
+      "folder": "DQ8 HD 4x Full",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/489556",
+      "notes": "The full 4x pack, version 1.1.0, with every texture and the UI, hosted by the author on Google Drive. It is large, about 6.4 GB, and preloading it takes around 20 GB of RAM, so on the Frame it streams in instead of preloading. It was made on the Europe version and works on the USA one.",
+      "verified": true
+    },
+    {
+      "id": "dq8-hd-2x-full",
+      "name": "DQ8 HD Texture Pack (2x Full)",
+      "title": "Dragon Quest VIII: Journey of the Cursed King",
+      "title_ids": [
+        "000400000018F100",
+        "000400000018F200"
+      ],
+      "author": "Magic Banana",
+      "author_url": "https://gamebanana.com/members/2971173",
+      "downloads": 11655,
+      "updated": "2024-01",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1jKdyFb-pNoN_di6MB4X8GBVowpEyv9A7"
+      },
+      "size": 1944626274,
+      "format": "zip",
+      "layout": "single",
+      "folder": "DQ8 HD 2x Full",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/489556",
+      "notes": "The full 2x pack, version 1.1.0, with every texture and the UI, hosted by the author on Google Drive. About 1.8 GB, and preloading it takes around 5 GB of RAM. The 4x UI pack on top keeps the menus sharp. It was made on the Europe version and works on the USA one.",
+      "verified": true
     },
     {
       "id": "dq8-hd-4x-ui-only",
@@ -1958,6 +2006,1351 @@ const char* DefaultCatalogJson() {
       "homepage": "https://gamebanana.com/mods/34054",
       "notes": "Makes the on-screen button prompts semi-transparent so they are less intrusive without being removed, with 30 small textures at 80% transparency. It is a tiny download, and the author made it for Citra.",
       "verified": false
+    },
+    {
+      "id": "fates-hd-combined-ui",
+      "name": "Combined HD Pack: UI",
+      "title": "Fire Emblem Fates (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "Zoran501",
+      "author_url": "https://gamebanana.com/members/1735224",
+      "downloads": 20833,
+      "updated": "2022-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1ApmQDEIT89Yzui-PA0SqFMG5vA3ktU7H"
+      },
+      "size": 110079817,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fates HD UI",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/351105",
+      "notes": "Redrawn menus, text boxes, skill icons and the like. One part of the Combined HD Pack, made for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "fates-hd-combined-fonts",
+      "name": "Combined HD Pack: Fonts",
+      "title": "Fire Emblem Fates (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "Zoran501",
+      "author_url": "https://gamebanana.com/members/1735224",
+      "downloads": 20833,
+      "updated": "2022-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "11PQmu6kA9HIhLuHH5z6AS3kCx8BVJnLf"
+      },
+      "size": 2714035,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fates HD Fonts",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/351105",
+      "notes": "Redrawn fonts. One part of the Combined HD Pack, made for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "fates-hd-combined-character-artwork",
+      "name": "Combined HD Pack: Character Artwork",
+      "title": "Fire Emblem Fates (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "Zoran501",
+      "author_url": "https://gamebanana.com/members/1735224",
+      "downloads": 20833,
+      "updated": "2022-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1ny1XiVV0UKa_RyY4hvC_jICi6BxaxBjD"
+      },
+      "size": 1026237488,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fates HD Character Artwork",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/351105",
+      "notes": "HD character artwork, including the amiibo characters. One part of the Combined HD Pack, made for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "fates-hd-combined-face-alpha",
+      "name": "Combined HD Pack: Face and Alpha Textures",
+      "title": "Fire Emblem Fates (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "Zoran501",
+      "author_url": "https://gamebanana.com/members/1735224",
+      "downloads": 20833,
+      "updated": "2022-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1Wrfr1YDPmZQWtPQwkli1Z_bCWacZPL7K"
+      },
+      "size": 583635161,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fates HD Face and Alpha Textures",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/351105",
+      "notes": "HD faces and alpha textures. One part of the Combined HD Pack, made for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "fates-hd-combined-map-floors",
+      "name": "Combined HD Pack: Map Floors",
+      "title": "Fire Emblem Fates (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "Zoran501",
+      "author_url": "https://gamebanana.com/members/1735224",
+      "downloads": 20833,
+      "updated": "2022-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1BkmhoO1m8ymBFQ0n0ZIkZAU5sAcAxjZe"
+      },
+      "size": 2509938054,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fates HD Map Floors",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/351105",
+      "notes": "HD map floor textures. One part of the Combined HD Pack, made for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "fates-hd-combined-my-room",
+      "name": "Combined HD Pack: My Room Characters",
+      "title": "Fire Emblem Fates (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "Zoran501",
+      "author_url": "https://gamebanana.com/members/1735224",
+      "downloads": 20833,
+      "updated": "2022-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1r3lF_tv4ypfeEnRjoWJAD3gQsxB-fcvI"
+      },
+      "size": 114364027,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fates HD My Room Characters",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/351105",
+      "notes": "HD My Room character textures. One part of the Combined HD Pack, made for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "fates-hd-combined-other",
+      "name": "Combined HD Pack: Other",
+      "title": "Fire Emblem Fates (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "Zoran501",
+      "author_url": "https://gamebanana.com/members/1735224",
+      "downloads": 20833,
+      "updated": "2022-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1ONVqDdUUZOk80N2Z8OzDmG9b_oSXc7pZ"
+      },
+      "size": 757255405,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fates HD Other",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/351105",
+      "notes": "The remaining HD textures. One part of the Combined HD Pack, made for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "fates-hd-combined-outfits",
+      "name": "Combined HD Pack: Outfits",
+      "title": "Fire Emblem Fates (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "Zoran501",
+      "author_url": "https://gamebanana.com/members/1735224",
+      "downloads": 20833,
+      "updated": "2022-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "14_ftEnfA-ACG5QO3z_zAAD-BrKoSKt49"
+      },
+      "size": 299304378,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fates HD Outfits",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/351105",
+      "notes": "HD outfit textures. One part of the Combined HD Pack, made for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "fates-hd-additions",
+      "name": "Fates HD Additions",
+      "title": "Fire Emblem Fates (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "L498",
+      "author_url": "https://gamebanana.com/members/2091373",
+      "downloads": 4721,
+      "updated": "2024-07",
+      "source": {
+        "type": "gamebanana",
+        "mod": 403826,
+        "file_pattern": "fates_hd_additions_*.zip"
+      },
+      "size": 243516186,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fates HD Additions",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/403826",
+      "notes": "HD UI, icons and font that go on top of the Combined HD Pack, for the USA version.",
+      "verified": false
+    },
+    {
+      "id": "awakening-aahd-effects",
+      "name": "Amateur Awakening HD: Effects and Cutscenes",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500"
+      ],
+      "author": "L498",
+      "author_url": "https://gamebanana.com/members/2091373",
+      "downloads": 26582,
+      "updated": "2025-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1UYdPOB-Ztpv6aSY83djEoATMFYGHxw74"
+      },
+      "size": 855877470,
+      "format": "zip",
+      "layout": "single",
+      "folder": "AAHD Effects and Cutscenes",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/400809",
+      "notes": "Blush, confession, critical hit, cutscene and DLC textures. One part of Amateur Awakening HD, for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "awakening-aahd-characters-ui",
+      "name": "Amateur Awakening HD: Characters and UI",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500"
+      ],
+      "author": "L498",
+      "author_url": "https://gamebanana.com/members/2091373",
+      "downloads": 26582,
+      "updated": "2025-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1bRfDWoryYf9Wl4Dk6hxLgO2xDmNk5IWB"
+      },
+      "size": 725807104,
+      "format": "zip",
+      "layout": "single",
+      "folder": "AAHD Characters and UI",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/400809",
+      "notes": "Redrawn character textures and UI. One part of Amateur Awakening HD, for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "awakening-aahd-maps",
+      "name": "Amateur Awakening HD: Map Textures",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500"
+      ],
+      "author": "L498",
+      "author_url": "https://gamebanana.com/members/2091373",
+      "downloads": 26582,
+      "updated": "2025-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "17ExQwGA8FEK8BAsc-aLNjmto3wNW1A7x"
+      },
+      "size": 3032430618,
+      "format": "zip",
+      "layout": "single",
+      "folder": "AAHD Map Textures",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/400809",
+      "notes": "The large map textures. One part of Amateur Awakening HD, for the USA version.",
+      "verified": true
+    },
+    {
+      "id": "awakening-aa3d",
+      "name": "Amateur Awakening 3D",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500"
+      ],
+      "author": "L498",
+      "author_url": "https://gamebanana.com/members/2091373",
+      "downloads": 4557,
+      "updated": "2026-01",
+      "source": {
+        "type": "gamebanana",
+        "mod": 548234,
+        "file_pattern": "aa3d_*.zip"
+      },
+      "size": 116283084,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Amateur Awakening 3D",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/548234",
+      "notes": "3D model textures in the same style, for the USA version; works with Amateur Awakening HD.",
+      "verified": false
+    },
+    {
+      "id": "awakening-project-reawakening-eur",
+      "name": "Project reAwakening v0.3",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "000400000009F100"
+      ],
+      "author": "rdnc",
+      "downloads": 5672,
+      "updated": "2020-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 9944,
+        "file_pattern": "project_reawakening_v03_*.rar"
+      },
+      "size": 37972156,
+      "format": "rar",
+      "layout": "single",
+      "folder": "Project reAwakening v0.3",
+      "homepage": "https://gamebanana.com/mods/9944",
+      "notes": "The HD texture pack for the Europe and Australia versions, last updated in 2020.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-blood-in-the-well",
+      "name": "Blood in the Well",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "HugAMuffin",
+      "author_url": "https://gamebanana.com/members/1608504",
+      "downloads": 3940,
+      "updated": "2026-02",
+      "source": {
+        "type": "gamebanana",
+        "mod": 150246,
+        "file_pattern": "blood_in_the_well.rar"
+      },
+      "size": 415825,
+      "format": "rar",
+      "layout": "single",
+      "folder": "Blood in the Well",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/150246",
+      "notes": "Brings back some of the blood cut from the 3DS version, mostly in the Well.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-original-dead-hand",
+      "name": "Original Dead Hand",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "LochNessHamster",
+      "author_url": "https://gamebanana.com/members/1082848",
+      "downloads": 3734,
+      "updated": "2021-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 297645,
+        "file_pattern": "original_dead_hand_-_oot3d.zip"
+      },
+      "size": 740312,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Original Dead Hand",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/297645",
+      "notes": "Recreates the Dead Hand's original, more horrific design.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-expressive-face-young-link",
+      "name": "Expressive Face Textures for Young Link",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "LochNessHamster",
+      "author_url": "https://gamebanana.com/members/1082848",
+      "downloads": 3441,
+      "updated": "2021-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250773,
+        "file_pattern": "oot3d_-_expressive_face_textures_v2_*.zip"
+      },
+      "size": 2557644,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Expressive Face Textures for Young Link",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250773",
+      "notes": "Higher-resolution face textures that make Young Link more expressive.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-art-accurate-link",
+      "name": "Art-Accurate Link",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "LochNessHamster",
+      "author_url": "https://gamebanana.com/members/1082848",
+      "downloads": 2377,
+      "updated": "2021-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250774,
+        "file_pattern": "oot3d_-_art_accurate_link_v20.zip"
+      },
+      "size": 8324662,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Art-Accurate Link",
+      "layer_on": "oot3d-link-skin-pack",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250774",
+      "notes": "Redraws Link to match the official art; the author says to install it after the Link Skin Pack.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-enhanced-hd-link",
+      "name": "Enhanced HD Link",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500"
+      ],
+      "author": "Darky57",
+      "author_url": "https://gamebanana.com/members/2745839",
+      "downloads": 2320,
+      "updated": "2023-12",
+      "source": {
+        "type": "gamebanana",
+        "mod": 482884,
+        "file_pattern": "definitive_3ds_link_*.zip"
+      },
+      "size": 30912428,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Enhanced HD Link",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/482884",
+      "notes": "A hand-made HD Link for the USA version, meant to go over the Henriko HD pack.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-vanilla-brightness-tweaks",
+      "name": "Vanilla Brightness Tweaks",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "lmfaoman1217",
+      "author_url": "https://gamebanana.com/members/2812638",
+      "downloads": 1890,
+      "updated": "2026-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 657902,
+        "file_pattern": "oot3d_vanilla_tweaks_*.zip"
+      },
+      "size": 19276452,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Vanilla Brightness Tweaks",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/657902",
+      "notes": "Darkens the overbright areas, with one folder per area so each can be turned off.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-redrawn-hd-minimaps",
+      "name": "Redrawn HD Minimaps",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "MistSonata",
+      "author_url": "https://gamebanana.com/members/3405660",
+      "downloads": 1886,
+      "updated": "2024-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 515850,
+        "file_pattern": "oot3ds_minimaps_1-1.rar"
+      },
+      "size": 1739198,
+      "format": "rar",
+      "layout": "single",
+      "folder": "Redrawn HD Minimaps",
+      "licence": "CC BY 4.0",
+      "homepage": "https://gamebanana.com/mods/515850",
+      "notes": "Hand-drawn minimaps made for 4K, without the dungeon maps.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-hylian-shield-triforce-fix",
+      "name": "Hylian Shield Triforce Fix",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "LochNessHamster",
+      "author_url": "https://gamebanana.com/members/1082848",
+      "downloads": 1837,
+      "updated": "2020-04",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250771,
+        "file_pattern": "ocarina_of_time_3d_-_hylian_shield_*.zip"
+      },
+      "size": 211944,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Hylian Shield Triforce Fix",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250771",
+      "notes": "Reshapes the Triforce on the Hylian Shield to match the original.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-og-ganon-fight",
+      "name": "OG Ganon Fight Texture Pack",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "YaBoiMikey",
+      "author_url": "https://gamebanana.com/members/1757292",
+      "downloads": 1806,
+      "updated": "2020-11",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250778,
+        "file_pattern": "423_classic_ganon.rar"
+      },
+      "size": 8971865,
+      "format": "rar",
+      "layout": "single",
+      "folder": "OG Ganon Fight Texture Pack",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250778",
+      "notes": "Textures that bring the Ganon fight closer to the original.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-hd-master-sword",
+      "name": "HD Hand-Drawn Master Sword",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "LochNessHamster",
+      "author_url": "https://gamebanana.com/members/1082848",
+      "downloads": 1780,
+      "updated": "2021-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250769,
+        "file_pattern": "hd_master_sword_textures_-_oot3d_-_.zip"
+      },
+      "size": 469247,
+      "format": "zip",
+      "layout": "single",
+      "folder": "HD Hand-Drawn Master Sword",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250769",
+      "notes": "A hand-drawn HD Master Sword and scabbard.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-original-fierce-deity",
+      "name": "Original Fierce Deity Coloring",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500"
+      ],
+      "author": "LochNessHamster",
+      "author_url": "https://gamebanana.com/members/1082848",
+      "downloads": 1269,
+      "updated": "2021-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250764,
+        "file_pattern": "original_fierce_deity_v21_-_mm3d.zip"
+      },
+      "size": 2954889,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Original Fierce Deity Coloring",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250764",
+      "notes": "Returns the Fierce Deity's colours to the original N64 look.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-classic-zora-link",
+      "name": "Classic Zora Link",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500"
+      ],
+      "author": "LochNessHamster",
+      "author_url": "https://gamebanana.com/members/1082848",
+      "downloads": 1118,
+      "updated": "2021-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250765,
+        "file_pattern": "mm3d_-_classic_zora_link_21.zip"
+      },
+      "size": 4929899,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Classic Zora Link",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250765",
+      "notes": "Gives Zora Link the classic N64 look.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-classic-deku-link",
+      "name": "Classic Deku Link",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500"
+      ],
+      "author": "LochNessHamster",
+      "author_url": "https://gamebanana.com/members/1082848",
+      "downloads": 1032,
+      "updated": "2021-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250760,
+        "file_pattern": "mm3d_-_classic_deku_link_v11.zip"
+      },
+      "size": 1194900,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Classic Deku Link",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250760",
+      "notes": "Gives Deku Link the classic N64 look.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-link-skin-pack",
+      "name": "Link Skin Pack",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500"
+      ],
+      "author": "Art-Does-Not-Compute",
+      "author_url": "https://gamebanana.com/members/1716642",
+      "downloads": 1600,
+      "updated": "2020-08",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250763,
+        "file_pattern": "mm_textures_*.rar"
+      },
+      "size": 3427341,
+      "format": "rar",
+      "layout": "variants",
+      "folder": "Link Skin Pack",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250763",
+      "notes": "Several looks for Link; each shows as its own pack.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-adult-link-gloves",
+      "name": "Gloves for Young Link",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "Darky57",
+      "author_url": "https://gamebanana.com/members/2745839",
+      "downloads": 1408,
+      "updated": "2023-08",
+      "source": {
+        "type": "gamebanana",
+        "mod": 462941,
+        "file_pattern": "adult_link_style_gloves_for_young_link.zip"
+      },
+      "size": 2341451,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Gloves for Young Link",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/462941",
+      "notes": "Gives Young Link gloves, with an adult-style outfit as a second option.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-fierce-deity-all-forms",
+      "name": "Fierce Deity All Forms",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "Darky57",
+      "author_url": "https://gamebanana.com/members/2745839",
+      "downloads": 1052,
+      "updated": "2023-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 468401,
+        "file_pattern": "fierce_deity_all_forms_*.zip"
+      },
+      "size": 3264174,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Fierce Deity All Forms",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/468401",
+      "notes": "Gives every transformation a Fierce Deity look.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-art-accurate-fairies",
+      "name": "Art-Accurate Fairies",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "Takeshre",
+      "author_url": "https://gamebanana.com/members/2184805",
+      "downloads": 1296,
+      "updated": "2023-01",
+      "source": {
+        "type": "gamebanana",
+        "mod": 391777,
+        "file_pattern": "art-accurate_fairies.zip"
+      },
+      "size": 61256,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Art-Accurate Fairies",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/391777",
+      "notes": "Redraws Tatl, Tael and the recovery fairies to match the official art.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-heros-clothes",
+      "name": "Hero's Clothes",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "ByTheEightDivines",
+      "author_url": "https://gamebanana.com/members/1722968",
+      "downloads": 1369,
+      "updated": "2020-04",
+      "source": {
+        "type": "gamebanana",
+        "mod": 250762,
+        "file_pattern": "heros_clothes_v2.rar"
+      },
+      "size": 3696917,
+      "format": "rar",
+      "layout": "single",
+      "folder": "Hero's Clothes",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/250762",
+      "notes": "A Kokiri-style outfit for Link with chainmail and gauntlets.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-mirror-shield-alternatives",
+      "name": "Mirror Shield Alternatives",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "Rikster",
+      "author_url": "https://gamebanana.com/members/1918817",
+      "downloads": 1106,
+      "updated": "2023-02",
+      "source": {
+        "type": "gamebanana",
+        "mod": 384697,
+        "file_pattern": "alternative_mirror_shields_v11.zip"
+      },
+      "size": 2454918,
+      "format": "zip",
+      "layout": "variants",
+      "folder": "Mirror Shield Alternatives",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/384697",
+      "notes": "Alternative looks for the Mirror Shield, including the Hero's Shield.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-mirror-shield-alternatives-lowres",
+      "name": "Mirror Shield Alternatives (Low-Res)",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "Rikster",
+      "author_url": "https://gamebanana.com/members/1918817",
+      "downloads": 1106,
+      "updated": "2023-02",
+      "source": {
+        "type": "gamebanana",
+        "mod": 384697,
+        "file_pattern": "alternative_mirror_shields_lowres_v11.zip"
+      },
+      "size": 61667,
+      "format": "zip",
+      "layout": "variants",
+      "folder": "Mirror Shield Alternatives (Low-Res)",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/384697",
+      "notes": "The same alternative Mirror Shield looks at low resolution.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-vanilla-brightness-tweaks",
+      "name": "Vanilla Brightness Tweaks",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "lmfaoman1217",
+      "author_url": "https://gamebanana.com/members/2812638",
+      "downloads": 954,
+      "updated": "2026-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 666038,
+        "file_pattern": "mm3d_vanilla_tweaks_*.zip"
+      },
+      "size": 41763490,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Vanilla Brightness Tweaks",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/666038",
+      "notes": "Darkens the overbright areas, with one folder per area so each can be turned off.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-prg-gui-3ds",
+      "name": "PRG GUI for Project Restoration (3DS)",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "PRG",
+      "author_url": "https://gamebanana.com/members/1317176",
+      "downloads": 872,
+      "updated": "2026-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 569069,
+        "file_pattern": "hud_3ds.zip"
+      },
+      "size": 2536852,
+      "format": "zip",
+      "layout": "single",
+      "folder": "PRG GUI for Project Restoration (3DS)",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/569069",
+      "notes": "Button prompts in the 3DS style for Project Restoration, which must be installed.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-prg-gui-switch",
+      "name": "PRG GUI for Project Restoration (Switch)",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "PRG",
+      "author_url": "https://gamebanana.com/members/1317176",
+      "downloads": 872,
+      "updated": "2026-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 569069,
+        "file_pattern": "hud_switch.zip"
+      },
+      "size": 2525301,
+      "format": "zip",
+      "layout": "single",
+      "folder": "PRG GUI for Project Restoration (Switch)",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/569069",
+      "notes": "Button prompts in the Switch style for Project Restoration, which must be installed.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-prg-gui-switch-color",
+      "name": "PRG GUI for Project Restoration (Switch (Color))",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "PRG",
+      "author_url": "https://gamebanana.com/members/1317176",
+      "downloads": 872,
+      "updated": "2026-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 569069,
+        "file_pattern": "hud_switch_color.zip"
+      },
+      "size": 2532998,
+      "format": "zip",
+      "layout": "single",
+      "folder": "PRG GUI for Project Restoration (Switch (Color))",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/569069",
+      "notes": "Button prompts in the Switch (Color) style for Project Restoration, which must be installed.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-prg-gui-xbox-default",
+      "name": "PRG GUI for Project Restoration (Xbox)",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "PRG",
+      "author_url": "https://gamebanana.com/members/1317176",
+      "downloads": 872,
+      "updated": "2026-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 569069,
+        "file_pattern": "hud_xbox_default.zip"
+      },
+      "size": 2632149,
+      "format": "zip",
+      "layout": "single",
+      "folder": "PRG GUI for Project Restoration (Xbox)",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/569069",
+      "notes": "Button prompts in the Xbox style for Project Restoration, which must be installed.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-prg-gui-xbox-color",
+      "name": "PRG GUI for Project Restoration (Xbox (Color))",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "PRG",
+      "author_url": "https://gamebanana.com/members/1317176",
+      "downloads": 872,
+      "updated": "2026-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 569069,
+        "file_pattern": "hud_xbox_color.zip"
+      },
+      "size": 2637935,
+      "format": "zip",
+      "layout": "single",
+      "folder": "PRG GUI for Project Restoration (Xbox (Color))",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/569069",
+      "notes": "Button prompts in the Xbox (Color) style for Project Restoration, which must be installed.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-prg-gui-deck",
+      "name": "PRG GUI for Project Restoration (Steam Deck)",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "PRG",
+      "author_url": "https://gamebanana.com/members/1317176",
+      "downloads": 872,
+      "updated": "2026-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 569069,
+        "file_pattern": "hud_deck.zip"
+      },
+      "size": 2632123,
+      "format": "zip",
+      "layout": "single",
+      "folder": "PRG GUI for Project Restoration (Steam Deck)",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/569069",
+      "notes": "Button prompts in the Steam Deck style for Project Restoration, which must be installed.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-prg-gui-ps",
+      "name": "PRG GUI for Project Restoration (PlayStation)",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "PRG",
+      "author_url": "https://gamebanana.com/members/1317176",
+      "downloads": 872,
+      "updated": "2026-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 569069,
+        "file_pattern": "hud_ps.zip"
+      },
+      "size": 2639713,
+      "format": "zip",
+      "layout": "single",
+      "folder": "PRG GUI for Project Restoration (PlayStation)",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/569069",
+      "notes": "Button prompts in the PlayStation style for Project Restoration, which must be installed.",
+      "verified": false
+    },
+    {
+      "id": "mm3d-hd-texture-pack-darmani",
+      "name": "HD Texture Pack (Deprecated)",
+      "title": "The Legend of Zelda: Majora's Mask 3D",
+      "title_ids": [
+        "0004000000125500",
+        "0004000000125600"
+      ],
+      "author": "Darmani",
+      "author_url": "https://gamebanana.com/members/2435860",
+      "downloads": 2755,
+      "updated": "2024-08",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1uz3R9wCP5hHXvvdA35V-1nw1lV7EFwDE"
+      },
+      "size": 4233221775,
+      "format": "zip",
+      "layout": "single",
+      "folder": "MM3D HD Darmani",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/422313",
+      "notes": "The author has deprecated this full HD pack and calls it glitchy.",
+      "verified": true
+    },
+    {
+      "id": "pokemon-xy-faithful-hd-types",
+      "name": "Faithful HD Pokemon Types",
+      "title": "Pokemon X / Pokemon Y",
+      "title_ids": [
+        "0004000000055D00",
+        "0004000000055E00"
+      ],
+      "author": "MetalTxus",
+      "author_url": "https://gamebanana.com/members/2566769",
+      "downloads": 879,
+      "updated": "2025-11",
+      "source": {
+        "type": "gamebanana",
+        "mod": 633609,
+        "file_pattern": "pokemon_types_xy_*.zip"
+      },
+      "size": 157869,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Faithful HD Pokemon Types",
+      "layer_on": "pokemon-xy-5x-redrawn-ui",
+      "licence": "CC BY-NC 4.0",
+      "homepage": "https://gamebanana.com/mods/633609",
+      "notes": "Redraws the type and status icons at 5x on a 5-pixel grid; it goes on top of the 5X Redrawn UI.",
+      "verified": false
+    },
+    {
+      "id": "pokemon-xy-modern-items-sprites",
+      "name": "Modern Items Sprites",
+      "title": "Pokemon X / Pokemon Y",
+      "title_ids": [
+        "0004000000055D00",
+        "0004000000055E00"
+      ],
+      "author": "stingflyer",
+      "author_url": "https://gamebanana.com/members/2457337",
+      "downloads": 606,
+      "updated": "2025-11",
+      "source": {
+        "type": "gamebanana",
+        "mod": 634399,
+        "file_pattern": "items_sprites_*.zip"
+      },
+      "size": 10633075,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Modern Items Sprites",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/634399",
+      "notes": "Replaces the item sprites in the bag with the modern Gen 9 art, plus the Global Link sprites for items not redrawn.",
+      "verified": false
+    },
+    {
+      "id": "pokemon-xy-shadow-ho-oh",
+      "name": "Shadow Ho-Oh",
+      "title": "Pokemon X / Pokemon Y",
+      "title_ids": [
+        "0004000000055D00",
+        "0004000000055E00"
+      ],
+      "author": "Lewtwo",
+      "author_url": "https://gamebanana.com/members/1750133",
+      "downloads": 406,
+      "updated": "2020-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 251638,
+        "file_pattern": "004_-_shadow_ho-oh_*.zip"
+      },
+      "size": 6069938,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Shadow Ho-Oh",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/251638",
+      "notes": "A Shadow Lugia-style palette swap for Ho-Oh, made for all the 3DS Pokemon games.",
+      "verified": false
+    },
+    {
+      "id": "pokemon-xy-better-chingling-chimecho-shiny",
+      "name": "Better Chingling and Chimecho Shiny",
+      "title": "Pokemon X / Pokemon Y",
+      "title_ids": [
+        "0004000000055D00",
+        "0004000000055E00"
+      ],
+      "author": "eeveelover64",
+      "author_url": "https://gamebanana.com/members/2078266",
+      "downloads": 94,
+      "updated": "2025-08",
+      "source": {
+        "type": "gamebanana",
+        "mod": 610984,
+        "file_pattern": "better_chingling_chimecho_shiny_citra_edition_.zip"
+      },
+      "size": 47317,
+      "format": "zip",
+      "layout": "single",
+      "folder": "Better Chingling and Chimecho Shiny",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/610984",
+      "notes": "Gives the shiny Chingling and Chimecho a palette that is easier to spot; this is the emulator build.",
+      "verified": false
+    },
+    {
+      "id": "oot3d-4k-ui-translated-ps5-layout",
+      "name": "4K UI (Translated, PS5 Layout)",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "Yozzui",
+      "author_url": "https://gamebanana.com/members/3474050",
+      "downloads": 1730,
+      "updated": "2026-10",
+      "source": {
+        "type": "gamebanana",
+        "mod": 725250,
+        "file_pattern": "ui_ocarina_of_time_3d.zip"
+      },
+      "size": 453218817,
+      "format": "zip",
+      "layout": "variants",
+      "folder": "4K UI (Translated, PS5 Layout)",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/725250",
+      "notes": "A 4K interface in German, Italian, Japanese and Spanish with PS5 button prompts; each language is a part.",
+      "verified": false
+    },
+    {
+      "id": "pokemon-xy-crimson-shiny-greninja",
+      "name": "Crimson Shiny Greninja",
+      "title": "Pokemon X / Pokemon Y",
+      "title_ids": [
+        "0004000000055D00",
+        "0004000000055E00"
+      ],
+      "author": "DuoForce",
+      "author_url": "https://gamebanana.com/members/1557349",
+      "downloads": 254,
+      "updated": "2023-11",
+      "source": {
+        "type": "gamebanana",
+        "mod": 479095,
+        "file_pattern": "crimson_shiny_greninja.7z"
+      },
+      "size": 37907,
+      "format": "7z",
+      "layout": "single",
+      "folder": "Crimson Shiny Greninja",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/479095",
+      "notes": "Gives the shiny Greninja a crimson palette.",
+      "verified": false
+    },
+    {
+      "id": "dq8-modular-hd-texture-replacements",
+      "name": "Modular HD Texture Replacements",
+      "title": "Dragon Quest VIII: Journey of the Cursed King",
+      "title_ids": [
+        "000400000018F100",
+        "000400000018F200"
+      ],
+      "author": "MetalTxus",
+      "author_url": "https://gamebanana.com/members/2566769",
+      "downloads": 554,
+      "updated": "2026-08",
+      "source": {
+        "type": "gamebanana",
+        "mod": 480972,
+        "file_pattern": "dq8_3ds_modular_hd_texture_replacements_v1_2_6c.zip"
+      },
+      "size": 1510854,
+      "format": "zip",
+      "layout": "variants",
+      "folder": "Modular HD Texture Replacements",
+      "licence": "CC BY-NC 4.0",
+      "homepage": "https://gamebanana.com/mods/480972",
+      "notes": "Small HD replacements in separate folders, so you can turn the parts on and off.",
+      "verified": false
+    },
+    {
+      "id": "stella-glow-hd-4x",
+      "name": "Stella Glow HD",
+      "title": "Stella Glow",
+      "title_ids": [
+        "0004000000173700"
+      ],
+      "author": "simplysanatori",
+      "author_url": "https://github.com/simplysanatori",
+      "updated": "2026-11",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1XSi6l-QUmFrzYL4flQe6wZu1NGR859w_"
+      },
+      "size": 5003167526,
+      "sha256": "6105f4517bc5e4a8cb3e97c14654cd2bd0e8ec6abe1e93a4728b23bd8312576f",
+      "format": "zip",
+      "layout": "single",
+      "folder": "Stella Glow HD",
+      "licence": "Free for emulators; credit the author",
+      "notes": "Every texture upscaled 4x with AI, with the UI text, logos and turn-order portraits redrawn by hand. Version 0.9.0. It is large, about 4.7 GB, so on the Frame it streams in instead of preloading. Made on the USA version.",
+      "verified": true,
+      "recommended": true
+    },
+    {
+      "id": "kiu-weapons-hd-4x",
+      "name": "Kid Icarus Uprising Weapons HD",
+      "title": "Kid Icarus: Uprising",
+      "title_ids": [
+        "0004000000030200"
+      ],
+      "author": "simplysanatori",
+      "author_url": "https://github.com/simplysanatori",
+      "updated": "2026-11",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1VJmYZdP38-lo_e6wGDj_XfCVIuQD6wLg"
+      },
+      "size": 84613857,
+      "sha256": "290cb743f7c3e969b180911cadc209af026d4e821032665fbc813d50ef48bc4c",
+      "format": "zip",
+      "layout": "single",
+      "folder": "Kid Icarus Uprising Weapons HD",
+      "licence": "Free for emulators; credit the author",
+      "notes": "The weapon textures upscaled 4x: decompressed with DXTDecompressor, then upscaled with the 4x-UltraSharp model by Kim2091. Version 0.1.0, an early release. Made on the USA version.",
+      "verified": true,
+      "recommended": true
     }
   ]
 })JSON";

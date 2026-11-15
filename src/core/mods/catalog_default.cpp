@@ -59,6 +59,7 @@ const char* DefaultCatalogJson() {
       "licence": "CC BY-NC-ND 4.0",
       "homepage": "https://gamebanana.com/mods/695893",
       "verified": true,
+      "recommended": true,
       "downloads": 53068,
       "updated": "2026-11",
       "source": {
@@ -1020,7 +1021,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Lifts the same-sex marriage restriction on paralogues, for the Special Edition, Birthright and Conquest in all three regions. It is a code patch, so it replaces any other code patch for the game. Unofficial Gay Fates already includes this on the North America and Europe Special Edition."
+      "notes": "Lifts the same-sex marriage restriction on paralogues, for the Special Edition, Birthright and Conquest in all three regions. It is a code patch, so it replaces any other code patch for the game."
     },
     {
       "id": "fates-icon-project",
@@ -1057,7 +1058,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives every item its own hand-made icon, over 200 in all. This is the plain version; the page does not name a region. It replaces GameData.bin.lz, so it clashes with Unofficial Gay Fates, whose own icon packs on the page are not installed."
+      "notes": "Gives every item its own hand-made icon, over 200 in all. This is the plain version; the page does not name a region. It replaces GameData.bin.lz, so it clashes with other mods that replace that file."
     },
     {
       "id": "fates-icon-project-weapon-triangle",
@@ -1094,44 +1095,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "The Fates Icon Project with a weapon triangle background behind each icon. The page does not name a region. It replaces GameData.bin.lz, so it clashes with Unofficial Gay Fates and with the plain icon version."
-    },
-    {
-      "id": "fates-unofficial-gay-fates",
-      "name": "Unofficial Gay Fates",
-      "title": "Fire Emblem Fates",
-      "title_ids": [
-        "0004000000179800",
-        "000400000017A800",
-        "000400000012DE00",
-        "0004000000179400",
-        "0004000000179600",
-        "0004000000179500",
-        "0004000000179700",
-        "000400000012DC00",
-        "000400000012DD00"
-      ],
-      "author": "Milfnuggy",
-      "author_url": "https://gamebanana.com/members/1683519",
-      "licence": "CC BY-NC-ND 4.0",
-      "homepage": "https://gamebanana.com/mods/51420",
-      "verified": false,
-      "downloads": 57852,
-      "updated": "2026-07",
-      "source": {
-        "type": "gamebanana",
-        "mod": 51420,
-        "file_pattern": "unofficial_gay_fates_*.7z"
-      },
-      "install": {
-        "rules": [
-          {
-            "from": "*/Unofficial Gay Fates/{tid}/",
-            "to": ""
-          }
-        ]
-      },
-      "notes": "A standalone fan expansion with about a thousand same-sex and platonic supports and custom endings, for every Fates edition. On the Special Edition in North America and Europe it ships its own code patch, so it replaces other code patches; the other editions need the Paralogue Unlocker. On a Europe copy in another language than English, rename romfs/m/@U to your language letter. The optional add-ons are not installed."
+      "notes": "The Fates Icon Project with a weapon triangle background behind each icon. The page does not name a region. It replaces GameData.bin.lz, so it clashes with other mods that replace that file and with the plain icon version."
     },
     {
       "id": "echoes-60fps-us",
@@ -1164,7 +1128,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Runs the game at 60 FPS without speeding up the game itself (North America). It needs game update 1.1. Can't be combined with the Ghosting Shader Fix (both change the game's code), so the ghosting and blown-out brightness emulators show at higher resolutions come back."
+      "notes": "Runs the game at 60 FPS without speeding up the game itself (North America). Needs game update 1.1. Can't be used with the Ghosting Shader Fix, so the ghosting and blown-out brightness come back at higher resolutions."
     },
     {
       "id": "echoes-60fps-eu",
@@ -1200,7 +1164,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Runs the game at 60 FPS without speeding up the game itself (Europe). It needs game update 1.1. Can't be combined with the Ghosting Shader Fix (both change the game's code), so the ghosting and blown-out brightness emulators show at higher resolutions come back."
+      "notes": "Runs the game at 60 FPS without speeding up the game itself (Europe). Needs game update 1.1. Can't be used with the Ghosting Shader Fix, so the ghosting and blown-out brightness come back at higher resolutions."
     },
     {
       "id": "echoes-60fps-jp",
@@ -1233,7 +1197,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Runs the game at 60 FPS without speeding up the game itself (Japan). It needs game update 1.1. Can't be combined with the Ghosting Shader Fix (both change the game's code), so the ghosting and blown-out brightness emulators show at higher resolutions come back."
+      "notes": "Runs the game at 60 FPS without speeding up the game itself (Japan). Needs game update 1.1. Can't be used with the Ghosting Shader Fix, so the ghosting and blown-out brightness come back at higher resolutions."
     },
     {
       "id": "echoes-ghosting-shader-fix-us-v10",
@@ -1732,7 +1696,7 @@ const char* DefaultCatalogJson() {
           }
         ]
       },
-      "notes": "Gives more characters and classes their own textures, and adds a few custom models. It shares bs/ComboTbl.bin.lz with Unofficial Gay Awakening, so the app will ask before replacing one with the other."
+      "notes": "Gives more characters and classes their own textures, and adds a few custom models. It replaces bs/ComboTbl.bin.lz, so the app will ask before replacing it with another mod's copy."
     },
     {
       "id": "awakening-spotpass-paralogues-na",
@@ -1791,136 +1755,6 @@ const char* DefaultCatalogJson() {
         ]
       },
       "notes": "Unlocks the Side Stories that normally need SpotPass: Side Story 18 opens at Chapter 25 and the rest once you reach the endgame (Europe). Made for a vanilla playthrough."
-    },
-    {
-      "id": "awakening-unofficial-gay-awakening-na",
-      "name": "Unofficial Gay Awakening",
-      "title": "Fire Emblem Awakening",
-      "title_ids": [
-        "00040000000A0500"
-      ],
-      "author": "Manakete_Smoocher",
-      "author_url": "https://gamebanana.com/members/1828619",
-      "licence": "CC BY-NC-ND 4.0",
-      "homepage": "https://gamebanana.com/mods/424187",
-      "verified": false,
-      "downloads": 35526,
-      "updated": "2026-03",
-      "source": {
-        "type": "gamebanana",
-        "mod": 424187,
-        "file_pattern": "uga_full_*.7z"
-      },
-      "version_chip": {
-        "label": "1.0",
-        "tip": "For the game as released (1.0), without an update.",
-        "code_crc32": [
-          "31dad06e"
-        ]
-      },
-      "install": {
-        "rules": [
-          {
-            "from": "*/romfs/m/E/",
-            "to": "romfs/m/E/"
-          },
-          {
-            "from": "*/romfs/",
-            "to": "romfs/"
-          },
-          {
-            "from": "*/code patches/NA.ips",
-            "to": "code.ips"
-          },
-          {
-            "from": "*/citra only/RelianceList.bin.lz",
-            "to": "romfs/data/RelianceList.bin.lz"
-          }
-        ]
-      },
-      "notes": "Adds 500+ supports, romance options and new story scenes, and includes the emulator-only support log file (North America). It uses a code patch, so it replaces other code patches such as the 60 FPS patch. The optional add-ons are not installed."
-    },
-    {
-      "id": "awakening-unofficial-gay-awakening-eu",
-      "name": "Unofficial Gay Awakening",
-      "title": "Fire Emblem Awakening",
-      "title_ids": [
-        "000400000009F100"
-      ],
-      "author": "Manakete_Smoocher",
-      "author_url": "https://gamebanana.com/members/1828619",
-      "licence": "CC BY-NC-ND 4.0",
-      "homepage": "https://gamebanana.com/mods/424187",
-      "verified": false,
-      "downloads": 35526,
-      "updated": "2026-03",
-      "source": {
-        "type": "gamebanana",
-        "mod": 424187,
-        "file_pattern": "uga_full_*.7z"
-      },
-      "install": {
-        "rules": [
-          {
-            "from": "*/romfs/m/E/",
-            "to": "romfs/m/U/"
-          },
-          {
-            "from": "*/romfs/",
-            "to": "romfs/"
-          },
-          {
-            "from": "*/code patches/EU.ips",
-            "to": "code.ips"
-          },
-          {
-            "from": "*/citra only/RelianceList.bin.lz",
-            "to": "romfs/data/RelianceList.bin.lz"
-          }
-        ]
-      },
-      "notes": "Adds 500+ supports, romance options and new story scenes, and includes the emulator-only support log file (Europe). The new text is English only, so set the game to English. It uses a code patch, so it replaces other code patches. The optional add-ons are not installed."
-    },
-    {
-      "id": "awakening-unofficial-gay-awakening-jp",
-      "name": "Unofficial Gay Awakening",
-      "title": "Fire Emblem Awakening",
-      "title_ids": [
-        "0004000000072000"
-      ],
-      "author": "Manakete_Smoocher",
-      "author_url": "https://gamebanana.com/members/1828619",
-      "licence": "CC BY-NC-ND 4.0",
-      "homepage": "https://gamebanana.com/mods/424187",
-      "verified": false,
-      "downloads": 35526,
-      "updated": "2026-03",
-      "source": {
-        "type": "gamebanana",
-        "mod": 424187,
-        "file_pattern": "uga_full_*.7z"
-      },
-      "install": {
-        "rules": [
-          {
-            "from": "*/romfs/m/E/",
-            "to": "romfs/m/"
-          },
-          {
-            "from": "*/romfs/",
-            "to": "romfs/"
-          },
-          {
-            "from": "*/code patches/JP.ips",
-            "to": "code.ips"
-          },
-          {
-            "from": "*/citra only/RelianceList.bin.lz",
-            "to": "romfs/data/RelianceList.bin.lz"
-          }
-        ]
-      },
-      "notes": "Adds 500+ supports, romance options and new story scenes, and includes the emulator-only support log file (Japan). All added text is in English. It uses a code patch, so it replaces other code patches. The optional add-ons are not installed."
     },
     {
       "id": "awakening-remove-avatar-creation",
@@ -2000,6 +1834,7 @@ const char* DefaultCatalogJson() {
     {
       "id": "kiu-cstick-gyro-widescreen-16-9",
       "name": "Widescreen 16:9",
+      "aspect": "16:9",
       "title": "Kid Icarus: Uprising",
       "title_ids": [
         "0004000000030100",
@@ -2039,6 +1874,7 @@ const char* DefaultCatalogJson() {
     {
       "id": "kiu-cstick-gyro-ultrawide-21-9",
       "name": "Ultrawide 21:9",
+      "aspect": "21:9",
       "title": "Kid Icarus: Uprising",
       "title_ids": [
         "0004000000030100",
@@ -9002,10 +8838,2224 @@ const char* DefaultCatalogJson() {
         ]
       },
       "notes": "A Turkish translation for the European 3DS release, ported from the Switch patch by Reqrefusion. It replaces the game's code, so it clashes with other code patches, and its 132 MB data file makes the download about 113 MB. It is for the Europe version only."
+    },
+    {
+      "id": "fates-voice-select-redux-us-se",
+      "name": "Voice Select Redux",
+      "title": "Fire Emblem Fates Special Edition (USA)",
+      "title_ids": [
+        "0004000000179800"
+      ],
+      "author": "Moonling",
+      "author_url": "https://gamebanana.com/members/1698465",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/376430",
+      "verified": false,
+      "downloads": 5729,
+      "updated": "2022-05",
+      "source": {
+        "type": "github_release",
+        "repo": "VelouriasMoon/Fire-Emblem-Fates-Voice-Select-Redux",
+        "tag": "latest",
+        "asset_pattern": "FEF.Voice.Select.Redux.USSE.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "code.bps",
+            "to": "code.bps"
+          },
+          {
+            "from": "exheader.bin",
+            "to": "exheader.bin"
+          },
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Adds a setting for when voice select lines play, and replaces the game code, so it clashes with other code patches."
+    },
+    {
+      "id": "pokemon-x-shiny-lock-removal-v15",
+      "name": "Shiny Lock Removal (Update 1.5)",
+      "title": "Pokemon X",
+      "title_ids": [
+        "0004000000055D00"
+      ],
+      "author": "itsskinnymems",
+      "author_url": "https://gamebanana.com/members/2669985",
+      "licence": "CC BY-NC",
+      "homepage": "https://gamebanana.com/mods/513460",
+      "verified": false,
+      "downloads": 1332,
+      "updated": "2025-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 513460,
+        "file_pattern": "pok_mon_x_15_-_citra_*.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "exefs/",
+            "to": "exefs/"
+          },
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Removes the shiny lock from the static and gift Pokemon, only for game update 1.5; other versions crash, and it replaces other code patches."
+    },
+    {
+      "id": "pokemon-y-shiny-lock-removal-v15",
+      "name": "Shiny Lock Removal (Update 1.5)",
+      "title": "Pokemon Y",
+      "title_ids": [
+        "0004000000055E00"
+      ],
+      "author": "itsskinnymems",
+      "author_url": "https://gamebanana.com/members/2669985",
+      "licence": "CC BY-NC",
+      "homepage": "https://gamebanana.com/mods/513460",
+      "verified": false,
+      "downloads": 1332,
+      "updated": "2025-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 513460,
+        "file_pattern": "pok_mon_y_15_-_citra_*.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "exefs/",
+            "to": "exefs/"
+          },
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Removes the shiny lock from the static and gift Pokemon, only for game update 1.5; other versions crash, and it replaces other code patches."
+    },
+    {
+      "id": "pokemon-xy-clothing-mod",
+      "name": "Clothing Mod",
+      "title": "Pokemon X / Pokemon Y",
+      "title_ids": [
+        "0004000000055D00",
+        "0004000000055E00"
+      ],
+      "author": "Ebi_tempura",
+      "author_url": "https://gamebanana.com/members/3736196",
+      "licence": "CC BY-NC-SA 4.0",
+      "homepage": "https://gamebanana.com/mods/610374",
+      "verified": false,
+      "downloads": 307,
+      "updated": "2025-08",
+      "source": {
+        "type": "gamebanana",
+        "mod": 610374,
+        "file_pattern": "mod_*.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "*/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Replaces the female protagonist's short parka with a hoodie and her scarf tops with shirts."
+    },
+    {
+      "id": "pokemon-x-pumpkaboo-dress",
+      "name": "Pumpkaboo Dress",
+      "title": "Pokemon X",
+      "title_ids": [
+        "0004000000055D00"
+      ],
+      "author": "momoslime",
+      "author_url": "https://gamebanana.com/members/2376191",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/549873",
+      "verified": false,
+      "downloads": 387,
+      "updated": "2024-10",
+      "source": {
+        "type": "gamebanana",
+        "mod": 549873,
+        "file_pattern": "pumpkaboo_dress_*.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "*/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Dresses Pumpkaboo up in a new outfit."
+    },
+    {
+      "id": "mk7-ultra-kart-7-beta",
+      "name": "Ultra Kart 7 (Beta)",
+      "title": "Mario Kart 7",
+      "title_ids": [
+        "0004000000030800",
+        "0004000000030700",
+        "0004000000030600"
+      ],
+      "author": "Cats4Life",
+      "author_url": "https://gamebanana.com/members/1706586",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/362204",
+      "verified": false,
+      "downloads": 1824,
+      "updated": "2022-10",
+      "source": {
+        "type": "gdrive",
+        "file_id": "1yaeuC5rSaEvGRE_BMi8TH7mfHPv4j7mI"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "A beta set of 32 custom tracks and 16 custom characters, installed as replacement game files.",
+      "size": 351092755
+    },
+    {
+      "id": "echoes-farmable-pitchforks-20",
+      "name": "Farmable Pitchforks (20%)",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "Nicole Beans",
+      "author_url": "https://gamebanana.com/members/2102923",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/423605",
+      "verified": false,
+      "downloads": 1459,
+      "updated": "2023-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 423605,
+        "file_pattern": "region-fix_farmable_pitchfork_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "region-fix_farmable_pitchfork/Farmable_Pitchfork_20%/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Makes the pitchfork farmable, the 20% version. The 5% version is a separate entry."
+    },
+    {
+      "id": "echoes-farmable-pitchforks-5",
+      "name": "Farmable Pitchforks (5%)",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "Nicole Beans",
+      "author_url": "https://gamebanana.com/members/2102923",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/423605",
+      "verified": false,
+      "downloads": 1459,
+      "updated": "2023-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 423605,
+        "file_pattern": "region-fix_farmable_pitchfork_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "region-fix_farmable_pitchfork/Farmable_Pitchfork_5%/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Makes the pitchfork farmable, the 5% version. The 20% version is a separate entry."
+    },
+    {
+      "id": "echoes-thieves-shrine-items",
+      "name": "All Useful Items in Thieves Shrine",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "Oersted",
+      "author_url": "https://gamebanana.com/members/1705581",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/485015",
+      "verified": false,
+      "downloads": 1234,
+      "updated": "2024-02",
+      "source": {
+        "type": "gamebanana",
+        "mod": 485015,
+        "file_pattern": "romfs_*.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Makes every item in Thieves Shrine useful. The author supports only the USA and Europe versions."
+    },
+    {
+      "id": "echoes-7-eleven-collab-enabler",
+      "name": "7-Eleven Collab Enabler",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100",
+        "00040000001A2B00"
+      ],
+      "author": "delvier",
+      "author_url": "https://gamebanana.com/members/2229521",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/450908",
+      "verified": false,
+      "downloads": 824,
+      "updated": "2023-07",
+      "source": {
+        "type": "gamebanana",
+        "mod": 450908,
+        "file_pattern": "7-eleven_enabler_0.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Turns on the 7-Eleven collaboration content."
+    },
+    {
+      "id": "echoes-lunatic-mode-hack",
+      "name": "Lunatic Mode Hack",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "blobfish209",
+      "author_url": "https://gamebanana.com/members/3678841",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/534372",
+      "verified": false,
+      "downloads": 734,
+      "updated": "2026-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 534372,
+        "file_pattern": "151.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "151/1.5.1/v1.5.1/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "A harder difficulty, version 1.5.1."
+    },
+    {
+      "id": "echoes-less-rare-regalia",
+      "name": "Less Rare Regalia Weapons",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "LJ_Reflet",
+      "author_url": "https://gamebanana.com/members/1976044",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/439820",
+      "verified": false,
+      "downloads": 727,
+      "updated": "2023-04",
+      "source": {
+        "type": "gamebanana",
+        "mod": 439820,
+        "file_pattern": "echoes_regalia.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Echoes Relic Mod/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Makes the regalia weapons less rare. Use the version for the Gender Lock Removal mod if that is installed."
+    },
+    {
+      "id": "echoes-less-rare-regalia-glr",
+      "name": "Less Rare Regalia Weapons (with Gender Lock Removal)",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "LJ_Reflet",
+      "author_url": "https://gamebanana.com/members/1976044",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/439820",
+      "verified": false,
+      "downloads": 727,
+      "updated": "2023-04",
+      "source": {
+        "type": "gamebanana",
+        "mod": 439820,
+        "file_pattern": "echoes_regalia_glr.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Echoes Relic Mod (GLR)/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "The version for use with the Gender Lock Removal mod."
+    },
+    {
+      "id": "echoes-fan-retranslation",
+      "name": "Fan Retranslation",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "silvertail76",
+      "author_url": "https://gamebanana.com/members/3099456",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/487299",
+      "verified": false,
+      "downloads": 678,
+      "updated": "2024-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 487299,
+        "file_pattern": "fire_emblem_echoes_retranslation_v14.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "public_patch/fe15_retranslation_eng_names/main_game/*/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "A more accurate retranslation of the story, with English names (USA and Europe). The author recommends the undub patch with it."
+    },
+    {
+      "id": "echoes-spell-lists-for-everyone",
+      "name": "Spell Lists For Everyone",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "AquaWine",
+      "author_url": "https://gamebanana.com/members/2111673",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/376969",
+      "verified": false,
+      "downloads": 664,
+      "updated": "2022-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 376969,
+        "file_pattern": "spell_list_mod.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Spell List Mod/Data/",
+            "to": "romfs/Data/"
+          }
+        ]
+      },
+      "notes": "Lets every class use full spell lists."
+    },
+    {
+      "id": "echoes-unique-clothing",
+      "name": "Unique Clothing",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "Flannoit",
+      "author_url": "https://gamebanana.com/members/2091443",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/425751",
+      "verified": false,
+      "downloads": 458,
+      "updated": "2023-02",
+      "source": {
+        "type": "gamebanana",
+        "mod": 425751,
+        "file_pattern": "sov_unique_clothing_v11.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "All Uniques/RomFS/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Gives characters unique clothing; this is the All Uniques version."
+    },
+    {
+      "id": "echoes-deen-and-sonya-pretend-to-be-dead",
+      "name": "Deen and Sonya Pretend to Be Dead",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000"
+      ],
+      "author": "Nicole Beans",
+      "author_url": "https://gamebanana.com/members/2102923",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/427581",
+      "verified": false,
+      "downloads": 1727,
+      "updated": "2024-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 427581,
+        "file_pattern": "both_deen-sonya_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Mod Files/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Changes the Deen and Sonya event (North America)."
+    },
+    {
+      "id": "echoes-more-playable-classes",
+      "name": "More Playable Classes",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "GrandmasterMorgan",
+      "author_url": "https://gamebanana.com/members/1775406",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/431543",
+      "verified": false,
+      "downloads": 1018,
+      "updated": "2023-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 431543,
+        "file_pattern": "echoes_more_classes_v1_3.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Release/Main/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Lets more characters change into more classes."
+    },
+    {
+      "id": "echoes-rg-edition",
+      "name": "RG Edition",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "RavenSWFS",
+      "author_url": "https://gamebanana.com/members/3029803",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/532837",
+      "verified": false,
+      "downloads": 1156,
+      "updated": "2025-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 532837,
+        "file_pattern": "endgamepart2.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "An overhaul of the end game, part 2.",
+      "size": 119056560
+    },
+    {
+      "id": "echoes-playable-nuibaba-rinea-berkut-fernand",
+      "name": "Playable Nuibaba, Rinea, Berkut and Fernand",
+      "title": "Fire Emblem Echoes: Shadows of Valentia",
+      "title_ids": [
+        "00040000001B4000",
+        "00040000001B4100"
+      ],
+      "author": "CLTurtle",
+      "author_url": "https://gamebanana.com/members/3354266",
+      "licence": "Free to use and modify, with credit to the author",
+      "homepage": "https://gamebanana.com/mods/511453",
+      "verified": false,
+      "downloads": 585,
+      "updated": "2026-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 511453,
+        "file_pattern": "separate_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Adds the four as playable characters; this is the separate version.",
+      "size": 124062998
+    },
+    {
+      "id": "fates-body-accessories-always-visible",
+      "name": "Body Accessories Always Visible",
+      "title": "Fire Emblem Fates",
+      "title_ids": [
+        "0004000000179800",
+        "000400000017A800",
+        "000400000012DE00",
+        "0004000000179400",
+        "0004000000179600",
+        "0004000000179500",
+        "0004000000179700",
+        "000400000012DC00",
+        "000400000012DD00"
+      ],
+      "author": "Accel Sword",
+      "author_url": "https://gamebanana.com/members/1719774",
+      "licence": "Free for personal use only; not for sale or reposting",
+      "homepage": "https://gamebanana.com/mods/74922",
+      "verified": false,
+      "downloads": 5612,
+      "updated": "2021-10",
+      "source": {
+        "type": "gamebanana",
+        "mod": 74922,
+        "file_pattern": "alwaysbodyaccessoriesmod_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "AlwaysBodyAccessoriesMod/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Body accessories stay visible when equipped."
+    },
+    {
+      "id": "fates-weapon-model-fix",
+      "name": "Weapon Model Fix",
+      "title": "Fire Emblem Fates",
+      "title_ids": [
+        "0004000000179800",
+        "000400000017A800",
+        "000400000012DE00",
+        "0004000000179400",
+        "0004000000179600",
+        "0004000000179500",
+        "0004000000179700",
+        "000400000012DC00",
+        "000400000012DD00"
+      ],
+      "author": "Moonling",
+      "author_url": "https://gamebanana.com/members/1698465",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/51431",
+      "verified": false,
+      "downloads": 4903,
+      "updated": "2020-08",
+      "source": {
+        "type": "gamebanana",
+        "mod": 51431,
+        "file_pattern": "weaponfix.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Fixes weapon models."
+    },
+    {
+      "id": "fates-nyx-veil-fix",
+      "name": "Nyx Veil Fix",
+      "title": "Fire Emblem Fates",
+      "title_ids": [
+        "0004000000179800",
+        "000400000017A800",
+        "000400000012DE00",
+        "0004000000179400",
+        "0004000000179600",
+        "0004000000179500",
+        "0004000000179700",
+        "000400000012DC00",
+        "000400000012DD00"
+      ],
+      "author": "Moonling",
+      "author_url": "https://gamebanana.com/members/1698465",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/251469",
+      "verified": false,
+      "downloads": 4750,
+      "updated": "2020-01",
+      "source": {
+        "type": "gamebanana",
+        "mod": 251469,
+        "file_pattern": "justicefornyx.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "bu/",
+            "to": "romfs/bu/"
+          },
+          {
+            "from": "bx/",
+            "to": "romfs/bx/"
+          }
+        ]
+      },
+      "notes": "Fixes the veil on Nyx."
+    },
+    {
+      "id": "fates-weapon-nerfs-removal",
+      "name": "Weapon Nerfs Removal",
+      "title": "Fire Emblem Fates",
+      "title_ids": [
+        "0004000000179800",
+        "000400000017A800",
+        "000400000012DE00",
+        "0004000000179400",
+        "0004000000179600",
+        "0004000000179500",
+        "0004000000179700",
+        "000400000012DC00",
+        "000400000012DD00"
+      ],
+      "author": "Excadrill1201",
+      "author_url": "https://gamebanana.com/members/1753334",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/51432",
+      "verified": false,
+      "downloads": 3056,
+      "updated": "2020-10",
+      "source": {
+        "type": "gamebanana",
+        "mod": 51432,
+        "file_pattern": "fates_weapon_nerfs_removal.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "item changes/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Removes the weapon nerfs."
+    },
+    {
+      "id": "fates-sexualization-removal",
+      "name": "Sexualization Removal",
+      "title": "Fire Emblem Fates",
+      "title_ids": [
+        "0004000000179800",
+        "000400000017A800",
+        "000400000012DE00",
+        "0004000000179400",
+        "0004000000179600",
+        "0004000000179500",
+        "0004000000179700",
+        "000400000012DC00",
+        "000400000012DD00"
+      ],
+      "author": "NeverUsed776",
+      "author_url": "https://gamebanana.com/members/3863769",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/562305",
+      "verified": false,
+      "downloads": 1215,
+      "updated": "2024-12",
+      "source": {
+        "type": "gamebanana",
+        "mod": 562305,
+        "file_pattern": "sexualization_removal_v2.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Sexualization Removal v2/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Replaces the more revealing outfits with covered ones."
+    },
+    {
+      "id": "fates-60fps-us",
+      "name": "True 60 FPS (No Speedup)",
+      "title": "Fire Emblem Fates Special Edition (USA)",
+      "title_ids": [
+        "0004000000179800"
+      ],
+      "author": "Phenceon",
+      "author_url": "https://gamebanana.com/members/2483164",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/720761",
+      "verified": false,
+      "downloads": 497,
+      "updated": "2026-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 720761,
+        "file_pattern": "fire_emblem_fates_60_fps_patches.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Fire Emblem Fates Special Edition USA v1.0/code.ips",
+            "to": "code.ips"
+          }
+        ]
+      },
+      "notes": "Runs the game at 60 FPS without speeding up the game itself (Special Edition, USA)."
+    },
+    {
+      "id": "fates-60fps-eu",
+      "name": "True 60 FPS (No Speedup)",
+      "title": "Fire Emblem Fates Special Edition (Europe)",
+      "title_ids": [
+        "000400000017A800"
+      ],
+      "author": "Phenceon",
+      "author_url": "https://gamebanana.com/members/2483164",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/720761",
+      "verified": false,
+      "downloads": 497,
+      "updated": "2026-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 720761,
+        "file_pattern": "fire_emblem_fates_60_fps_patches.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Fire Emblem Fates Limited Edition EUR v1.0/code.ips",
+            "to": "code.ips"
+          }
+        ]
+      },
+      "notes": "Runs the game at 60 FPS without speeding up the game itself (Special Edition, Europe)."
+    },
+    {
+      "id": "fates-better-amiibo-us",
+      "name": "Better Amiibo",
+      "title": "Fire Emblem Fates Birthright / Conquest (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "DroppedShip",
+      "author_url": "https://gamebanana.com/members/1968064",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/318671",
+      "verified": false,
+      "downloads": 7196,
+      "updated": "2022-12",
+      "source": {
+        "type": "gamebanana",
+        "mod": 318671,
+        "file_pattern": "better_amiibo_usa_*.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Full package/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Improves the amiibo content (North America)."
+    },
+    {
+      "id": "fates-better-amiibo-eu",
+      "name": "Better Amiibo",
+      "title": "Fire Emblem Fates Birthright / Conquest (Europe)",
+      "title_ids": [
+        "000400000017A800",
+        "0004000000179500",
+        "0004000000179700"
+      ],
+      "author": "DroppedShip",
+      "author_url": "https://gamebanana.com/members/1968064",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/318671",
+      "verified": false,
+      "downloads": 7196,
+      "updated": "2022-12",
+      "source": {
+        "type": "gamebanana",
+        "mod": 318671,
+        "file_pattern": "better_amiibo_eur_*.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Full package/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Improves the amiibo content (Europe)."
+    },
+    {
+      "id": "awakening-unit-select-voice-us",
+      "name": "Unit Select Voice",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500"
+      ],
+      "author": "Moonling",
+      "author_url": "https://gamebanana.com/members/1698465",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/53962",
+      "verified": false,
+      "downloads": 5620,
+      "updated": "2022-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 53962,
+        "file_pattern": "awk_voiceselect_us.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "AWK_VoiceSelect_US/code.ips",
+            "to": "code.ips"
+          },
+          {
+            "from": "AWK_VoiceSelect_US/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Lets you pick which unit speaks on the unit select screen. Replaces other code patches for the game."
+    },
+    {
+      "id": "awakening-dlc-fix-us",
+      "name": "DLC Fix",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500"
+      ],
+      "author": "Moonling",
+      "author_url": "https://gamebanana.com/members/1698465",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/53961",
+      "verified": false,
+      "downloads": 1657,
+      "updated": "2020-11",
+      "source": {
+        "type": "gamebanana",
+        "mod": 53961,
+        "file_pattern": "awk_dlc_patch_us.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "code.ips",
+            "to": "code.ips"
+          }
+        ]
+      },
+      "notes": "A code patch for the downloadable content. Replaces other code patches for the game."
+    },
+    {
+      "id": "awakening-unit-select-voice-eu",
+      "name": "Unit Select Voice",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "000400000009F100"
+      ],
+      "author": "Moonling",
+      "author_url": "https://gamebanana.com/members/1698465",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/53962",
+      "verified": false,
+      "downloads": 5620,
+      "updated": "2022-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 53962,
+        "file_pattern": "awk_voiceselect_eu.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "AWK_VoiceSelect_EU/code.ips",
+            "to": "code.ips"
+          },
+          {
+            "from": "AWK_VoiceSelect_EU/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Lets you pick which unit speaks on the unit select screen. Replaces other code patches for the game."
+    },
+    {
+      "id": "awakening-dlc-fix-eu",
+      "name": "DLC Fix",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "000400000009F100"
+      ],
+      "author": "Moonling",
+      "author_url": "https://gamebanana.com/members/1698465",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/53961",
+      "verified": false,
+      "downloads": 1657,
+      "updated": "2020-11",
+      "source": {
+        "type": "gamebanana",
+        "mod": 53961,
+        "file_pattern": "awk_dlc_patch_eu.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "code.ips",
+            "to": "code.ips"
+          }
+        ]
+      },
+      "notes": "A code patch for the downloadable content. Replaces other code patches for the game."
+    },
+    {
+      "id": "awakening-unit-select-voice-jp",
+      "name": "Unit Select Voice",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "0004000000072000"
+      ],
+      "author": "Moonling",
+      "author_url": "https://gamebanana.com/members/1698465",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/53962",
+      "verified": false,
+      "downloads": 5620,
+      "updated": "2022-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 53962,
+        "file_pattern": "awk_voiceselect_jp.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "AWK_VoiceSelect_JP/code.ips",
+            "to": "code.ips"
+          },
+          {
+            "from": "AWK_VoiceSelect_JP/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Lets you pick which unit speaks on the unit select screen. Replaces other code patches for the game."
+    },
+    {
+      "id": "awakening-dlc-fix-jp",
+      "name": "DLC Fix",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "0004000000072000"
+      ],
+      "author": "Moonling",
+      "author_url": "https://gamebanana.com/members/1698465",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/53961",
+      "verified": false,
+      "downloads": 1657,
+      "updated": "2020-11",
+      "source": {
+        "type": "gamebanana",
+        "mod": 53961,
+        "file_pattern": "awk_dlc_patch_jp.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "code.ips",
+            "to": "code.ips"
+          }
+        ]
+      },
+      "notes": "A code patch for the downloadable content. Replaces other code patches for the game."
+    },
+    {
+      "id": "awakening-faithful-voice-select",
+      "name": "Faithful Voice Select",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500",
+        "000400000009F100",
+        "0004000000072000"
+      ],
+      "author": "BooLean1",
+      "author_url": "https://gamebanana.com/members/2066676",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/367250",
+      "verified": false,
+      "downloads": 5579,
+      "updated": "2022-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 367250,
+        "file_pattern": "awakeningvoiceselect.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "AwakeningVoiceSelect/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "A voice select setup that stays close to the original game."
+    },
+    {
+      "id": "awakening-tikis-map-fix",
+      "name": "Tiki's Map Fix",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500",
+        "000400000009F100",
+        "0004000000072000"
+      ],
+      "author": "brain_alien",
+      "author_url": "https://gamebanana.com/members/1718863",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/490913",
+      "verified": false,
+      "downloads": 4316,
+      "updated": "2024-01",
+      "source": {
+        "type": "gamebanana",
+        "mod": 490913,
+        "file_pattern": "tiki_s_map_fix.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Fixes the map graphics on emulators."
+    },
+    {
+      "id": "awakening-lucina-recruitment-us",
+      "name": "Lucina Recruitment",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500"
+      ],
+      "author": "varNotFound",
+      "author_url": "https://gamebanana.com/members/2140111",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/399460",
+      "verified": false,
+      "downloads": 2495,
+      "updated": "2022-10",
+      "source": {
+        "type": "gamebanana",
+        "mod": 399460,
+        "file_pattern": "na_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "NA/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Changes how Lucina is recruited (North America)."
+    },
+    {
+      "id": "awakening-lucina-recruitment-eu",
+      "name": "Lucina Recruitment",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "000400000009F100"
+      ],
+      "author": "varNotFound",
+      "author_url": "https://gamebanana.com/members/2140111",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/399460",
+      "verified": false,
+      "downloads": 2495,
+      "updated": "2022-10",
+      "source": {
+        "type": "gamebanana",
+        "mod": 399460,
+        "file_pattern": "eu_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "EU/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Changes how Lucina is recruited (Europe)."
+    },
+    {
+      "id": "awakening-unlimited-weapons",
+      "name": "Unlimited Weapons",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500",
+        "000400000009F100",
+        "0004000000072000"
+      ],
+      "author": "Venus_Pisces",
+      "author_url": "https://gamebanana.com/members/4210267",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/578537",
+      "verified": false,
+      "downloads": 1474,
+      "updated": "2025-10",
+      "source": {
+        "type": "gamebanana",
+        "mod": 578537,
+        "file_pattern": "unlimited_weapons_d4393.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Infinite Weapons/data/",
+            "to": "romfs/data/"
+          }
+        ]
+      },
+      "notes": "Weapons no longer break."
+    },
+    {
+      "id": "awakening-gender-lock-removal-a",
+      "name": "Gender-Lock Removal v2.0 (Version A)",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500",
+        "000400000009F100",
+        "0004000000072000"
+      ],
+      "author": "LJ_Reflet",
+      "author_url": "https://gamebanana.com/members/1976044",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/365214",
+      "verified": false,
+      "downloads": 3628,
+      "updated": "2022-11",
+      "source": {
+        "type": "gamebanana",
+        "mod": 365214,
+        "file_pattern": "awakening_glf_v20_version_a__*.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Awakening GLF v2.0 (Version A)/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Removes the gender locks on classes, version A."
+    },
+    {
+      "id": "awakening-gender-lock-removal-b",
+      "name": "Gender-Lock Removal v2.0 (Version B)",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500",
+        "000400000009F100",
+        "0004000000072000"
+      ],
+      "author": "LJ_Reflet",
+      "author_url": "https://gamebanana.com/members/1976044",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/365214",
+      "verified": false,
+      "downloads": 3628,
+      "updated": "2022-11",
+      "source": {
+        "type": "gamebanana",
+        "mod": 365214,
+        "file_pattern": "awakening_glf_v20_version_b__*.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Awakening GLF v2.0 (Version B)/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Removes the gender locks on classes, version B."
+    },
+    {
+      "id": "awakening-twin-morgans",
+      "name": "Twin Morgans",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500",
+        "000400000009F100",
+        "0004000000072000"
+      ],
+      "author": "Heritor",
+      "author_url": "https://gamebanana.com/members/2026221",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/425548",
+      "verified": false,
+      "downloads": 1581,
+      "updated": "2023-10",
+      "source": {
+        "type": "gamebanana",
+        "mod": 425548,
+        "file_pattern": "twin_morgans_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Twin Morgans/Twin Morgans romfs/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Adds a second Morgan."
+    },
+    {
+      "id": "awakening-thabes-overwritten-us",
+      "name": "Thabes Overwritten",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "00040000000A0500"
+      ],
+      "author": "Heritor",
+      "author_url": "https://gamebanana.com/members/2026221",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/555858",
+      "verified": false,
+      "downloads": 11743,
+      "updated": "2026-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 555858,
+        "file_pattern": "thabes_overwritten_v013.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Thabes Overwritten v0.1.3/Thabes Overwritten romfs/romfs/",
+            "to": "romfs/"
+          },
+          {
+            "from": "Thabes Overwritten v0.1.3/Thabes Overwritten romfs/code.ips",
+            "to": "code.ips"
+          }
+        ]
+      },
+      "notes": "A content overhaul of the Thabes chapters (North America). Replaces other code patches for the game.",
+      "size": 143073456
+    },
+    {
+      "id": "awakening-thabes-overwritten-eu",
+      "name": "Thabes Overwritten",
+      "title": "Fire Emblem Awakening",
+      "title_ids": [
+        "000400000009F100"
+      ],
+      "author": "Heritor",
+      "author_url": "https://gamebanana.com/members/2026221",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/555858",
+      "verified": false,
+      "downloads": 11743,
+      "updated": "2026-06",
+      "source": {
+        "type": "gamebanana",
+        "mod": 555858,
+        "file_pattern": "thabes_overwritten_v013.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Thabes Overwritten v0.1.3/Thabes Overwritten romfs/romfs/",
+            "to": "romfs/"
+          },
+          {
+            "from": "Thabes Overwritten v0.1.3/Thabes Overwritten romfs/EU .ips/code.ips",
+            "to": "code.ips"
+          }
+        ]
+      },
+      "notes": "A content overhaul of the Thabes chapters (Europe). Replaces other code patches for the game.",
+      "size": 143073456
+    },
+    {
+      "id": "sm3dl-steve-3d-land-v2",
+      "name": "Steve 3D Land V2",
+      "title": "Super Mario 3D Land",
+      "title_ids": [
+        "0004000000054000",
+        "0004000000053F00",
+        "0004000000054100"
+      ],
+      "author": "Blurro",
+      "author_url": "https://gamebanana.com/members/1672097",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/403943",
+      "verified": false,
+      "downloads": 4444,
+      "updated": "2025-12",
+      "source": {
+        "type": "gamebanana",
+        "mod": 403943,
+        "file_pattern": "steve_3d_land_mod_v2_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "*/LayoutData/",
+            "to": "romfs/LayoutData/"
+          },
+          {
+            "from": "*/LocalizedData/",
+            "to": "romfs/LocalizedData/"
+          },
+          {
+            "from": "*/ObjectData/",
+            "to": "romfs/ObjectData/"
+          },
+          {
+            "from": "*/SoundData/",
+            "to": "romfs/SoundData/"
+          }
+        ]
+      },
+      "notes": "Replaces Mario with Steve."
+    },
+    {
+      "id": "sm3dl-super-mario-3d-land-1-5",
+      "name": "Super Mario 3D Land 1.5",
+      "title": "Super Mario 3D Land",
+      "title_ids": [
+        "0004000000054000",
+        "0004000000053F00",
+        "0004000000054100"
+      ],
+      "author": "Nick64 Mods",
+      "author_url": "https://gamebanana.com/members/2394426",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/435994",
+      "verified": false,
+      "downloads": 662,
+      "updated": "2023-07",
+      "source": {
+        "type": "gamebanana",
+        "mod": 435994,
+        "file_pattern": "super_mario_3d_land_1_5.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "-TITLE ID-/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "A custom level pack."
+    },
+    {
+      "id": "sm3dl-sm64-mario",
+      "name": "SM64 Mario",
+      "title": "Super Mario 3D Land",
+      "title_ids": [
+        "0004000000054000",
+        "0004000000053F00",
+        "0004000000054100"
+      ],
+      "author": "NintendoGameTuber",
+      "author_url": "https://gamebanana.com/members/1672096",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/331412",
+      "verified": false,
+      "downloads": 3718,
+      "updated": "2026-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 331412,
+        "file_pattern": "sm64_mario_in_sm3dl.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "SM64 Mario in SM3DL/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Replaces Mario with his Super Mario 64 look."
+    },
+    {
+      "id": "sm3dl-classic-tanooki-suits",
+      "name": "Raccoon and Fox Forms",
+      "title": "Super Mario 3D Land",
+      "title_ids": [
+        "0004000000054000",
+        "0004000000053F00",
+        "0004000000054100"
+      ],
+      "author": "NintendoGameTuber",
+      "author_url": "https://gamebanana.com/members/1672096",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/359326",
+      "verified": false,
+      "downloads": 2061,
+      "updated": "2026-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 359326,
+        "file_pattern": "classic_tanooki_suits_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Brings back the Raccoon and Fox forms from New Super Mario Bros. 2."
+    },
+    {
+      "id": "mk7-sm64-mario",
+      "name": "SM64 Mario",
+      "title": "Mario Kart 7",
+      "title_ids": [
+        "0004000000030800",
+        "0004000000030700",
+        "0004000000030600"
+      ],
+      "author": "NintendoGameTuber",
+      "author_url": "https://gamebanana.com/members/1672096",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/249440",
+      "verified": false,
+      "downloads": 3222,
+      "updated": "2026-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 249440,
+        "file_pattern": "sm64-mario_mariokart7_3ds.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Mario with his Super Mario 64 look."
+    },
+    {
+      "id": "mk7-sm64-luigi",
+      "name": "SM64 Luigi",
+      "title": "Mario Kart 7",
+      "title_ids": [
+        "0004000000030800",
+        "0004000000030700",
+        "0004000000030600"
+      ],
+      "author": "NintendoGameTuber",
+      "author_url": "https://gamebanana.com/members/1672096",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/249435",
+      "verified": false,
+      "downloads": 1580,
+      "updated": "2026-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 249435,
+        "file_pattern": "sm64-luigi_mariokart7_3ds.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Luigi with his Super Mario 64 look."
+    },
+    {
+      "id": "mk7-rob",
+      "name": "R.O.B.",
+      "title": "Mario Kart 7",
+      "title_ids": [
+        "0004000000030800",
+        "0004000000030700",
+        "0004000000030600"
+      ],
+      "author": "NintendoGameTuber",
+      "author_url": "https://gamebanana.com/members/1672096",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/249442",
+      "verified": false,
+      "downloads": 1713,
+      "updated": "2026-05",
+      "source": {
+        "type": "gamebanana",
+        "mod": 249442,
+        "file_pattern": "rob_mariokart7_3ds.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "R.O.B. as a driver."
+    },
+    {
+      "id": "oot3d-n64-dialogue-font-us",
+      "name": "N64 Dialogue Font",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500"
+      ],
+      "author": "Takeshre",
+      "author_url": "https://gamebanana.com/members/2184805",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/502283",
+      "verified": false,
+      "downloads": 2004,
+      "updated": "2024-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 502283,
+        "file_pattern": "n64_dialogue_font_na_.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Uses the Nintendo 64 dialogue font (North America)."
+    },
+    {
+      "id": "oot3d-n64-dialogue-font-eu",
+      "name": "N64 Dialogue Font",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033600"
+      ],
+      "author": "Takeshre",
+      "author_url": "https://gamebanana.com/members/2184805",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/502283",
+      "verified": false,
+      "downloads": 2004,
+      "updated": "2024-03",
+      "source": {
+        "type": "gamebanana",
+        "mod": 502283,
+        "file_pattern": "n64_dialogue_font_pal_.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Uses the Nintendo 64 dialogue font (Europe)."
+    },
+    {
+      "id": "oot3d-legend-of-shaggy",
+      "name": "The Legend of Shaggy",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500",
+        "0004000000033600",
+        "0004000000033400"
+      ],
+      "author": "SariaOfTheKokiri",
+      "author_url": "https://gamebanana.com/members/1701022",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/399573",
+      "verified": false,
+      "downloads": 1807,
+      "updated": "2022-10",
+      "source": {
+        "type": "gamebanana",
+        "mod": 399573,
+        "file_pattern": "the_legend_of_shaggy_ocarina_of_time_3d_v11.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Replaces adult Link with Shaggy."
+    },
+    {
+      "id": "oot3d-heros-shade-adult-link",
+      "name": "Hero's Shade as Adult Link",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500"
+      ],
+      "author": "Rikster",
+      "author_url": "https://gamebanana.com/members/1918817",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/486751",
+      "verified": false,
+      "downloads": 2190,
+      "updated": "2023-12",
+      "source": {
+        "type": "gamebanana",
+        "mod": 486751,
+        "file_pattern": "hero_s_shade_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Hero's Shade/mods/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Replaces adult Link with the Hero's Shade."
+    },
+    {
+      "id": "oot3d-majoras-mask-link-deity",
+      "name": "Play as Majora's Mask Link",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500"
+      ],
+      "author": "skilarbabcock",
+      "author_url": "https://gamebanana.com/members/1672388",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/485964",
+      "verified": false,
+      "downloads": 3525,
+      "updated": "2023-12",
+      "source": {
+        "type": "gamebanana",
+        "mod": 485964,
+        "file_pattern": "deityog.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "DeityOG/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Fierce Deity Link as the adult Link model."
+    },
+    {
+      "id": "oot3d-majoras-mask-link-deity-back-weapons",
+      "name": "Play as Majora's Mask Link (Back Weapons)",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500"
+      ],
+      "author": "skilarbabcock",
+      "author_url": "https://gamebanana.com/members/1672388",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/485964",
+      "verified": false,
+      "downloads": 3525,
+      "updated": "2023-12",
+      "source": {
+        "type": "gamebanana",
+        "mod": 485964,
+        "file_pattern": "deitywithbackweapons.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "DeityWithBackWeapons/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Fierce Deity Link with weapons on his back."
+    },
+    {
+      "id": "oot3d-majoras-mask-link-deity-adult-alt",
+      "name": "Play as Majora's Mask Link (Adult Alt)",
+      "title": "The Legend of Zelda: Ocarina of Time 3D",
+      "title_ids": [
+        "0004000000033500"
+      ],
+      "author": "skilarbabcock",
+      "author_url": "https://gamebanana.com/members/1672388",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/485964",
+      "verified": false,
+      "downloads": 3525,
+      "updated": "2023-12",
+      "source": {
+        "type": "gamebanana",
+        "mod": 485964,
+        "file_pattern": "deityadultlinkalt.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "DeityAdultLinkAlt/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Fierce Deity Link, adult alternative."
+    },
+    {
+      "id": "kiu-turkish-translation",
+      "name": "Turkish Translation",
+      "title": "Kid Icarus: Uprising",
+      "title_ids": [
+        "0004000000030200"
+      ],
+      "author": "Reqrefusion",
+      "author_url": "https://gamebanana.com/members/5134648",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/648202",
+      "verified": false,
+      "downloads": 15,
+      "updated": "2026-01",
+      "source": {
+        "type": "gamebanana",
+        "mod": 648202,
+        "file_pattern": "kid_icarus_uprising_t_rk_e_yama.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "*/{tid}/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "A Turkish translation for the European version. Needs patches enabled.",
+      "size": 247986346
+    },
+    {
+      "id": "kiu-cstick-aim-usa",
+      "name": "C-Stick Aim",
+      "title": "Kid Icarus: Uprising",
+      "title_ids": [
+        "0004000000030100"
+      ],
+      "author": "hosiniku",
+      "author_url": "https://github.com/hosiniku",
+      "licence": "MIT",
+      "homepage": "https://github.com/hosiniku/kiu-cstick-aim",
+      "verified": false,
+      "version": "v0.2.0",
+      "updated": "2026-10",
+      "source": {
+        "type": "github_release",
+        "repo": "hosiniku/kiu-cstick-aim",
+        "tag": "v0.2.0",
+        "asset_pattern": "kiu-cstick-aim-v0.2.0-USA.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Azahar/load/mods/{tid}/exefs/",
+            "to": "exefs/"
+          }
+        ]
+      },
+      "notes": "Aim with the right stick (C-Stick) while moving with the Circle Pad; touch still wins while touched. Replaces the game's code, so it clashes with other code patches, including the other C-Stick patch. The author has not tested the USA version."
+    },
+    {
+      "id": "kiu-cstick-aim-eur",
+      "name": "C-Stick Aim",
+      "title": "Kid Icarus: Uprising",
+      "title_ids": [
+        "0004000000030200"
+      ],
+      "author": "hosiniku",
+      "author_url": "https://github.com/hosiniku",
+      "licence": "MIT",
+      "homepage": "https://github.com/hosiniku/kiu-cstick-aim",
+      "verified": false,
+      "version": "v0.2.0",
+      "updated": "2026-10",
+      "source": {
+        "type": "github_release",
+        "repo": "hosiniku/kiu-cstick-aim",
+        "tag": "v0.2.0",
+        "asset_pattern": "kiu-cstick-aim-v0.2.0-EUR.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Azahar/load/mods/{tid}/exefs/",
+            "to": "exefs/"
+          }
+        ]
+      },
+      "notes": "Aim with the right stick (C-Stick) while moving with the Circle Pad; touch still wins while touched. Replaces the game's code, so it clashes with other code patches, including the other C-Stick patch."
+    },
+    {
+      "id": "kiu-cstick-aim-jpn",
+      "name": "C-Stick Aim",
+      "title": "Kid Icarus: Uprising",
+      "title_ids": [
+        "0004000000030000"
+      ],
+      "author": "hosiniku",
+      "author_url": "https://github.com/hosiniku",
+      "licence": "MIT",
+      "homepage": "https://github.com/hosiniku/kiu-cstick-aim",
+      "verified": false,
+      "version": "v0.2.0",
+      "updated": "2026-10",
+      "source": {
+        "type": "github_release",
+        "repo": "hosiniku/kiu-cstick-aim",
+        "tag": "v0.2.0",
+        "asset_pattern": "kiu-cstick-aim-v0.2.0-JPN.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Azahar/load/mods/{tid}/exefs/",
+            "to": "exefs/"
+          }
+        ]
+      },
+      "notes": "Aim with the right stick (C-Stick) while moving with the Circle Pad; touch still wins while touched. Replaces the game's code, so it clashes with other code patches, including the other C-Stick patch."
+    },
+    {
+      "id": "pokemon-xy-za-sound-pack-x",
+      "name": "ZA Sound Pack",
+      "title": "Pokemon X",
+      "title_ids": [
+        "0004000000055D00"
+      ],
+      "author": "PokeSimo13",
+      "author_url": "https://gamebanana.com/members/5786538",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/92265",
+      "verified": false,
+      "downloads": 119,
+      "updated": "2026-08",
+      "source": {
+        "type": "gamebanana",
+        "mod": 92265,
+        "file_pattern": "pokemon_za_sound_pack_*.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "000400000055D00/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Replaces the sound effects with ones from Legends: Z-A."
+    },
+    {
+      "id": "pokemon-xy-za-sound-pack-y",
+      "name": "ZA Sound Pack",
+      "title": "Pokemon Y",
+      "title_ids": [
+        "0004000000055E00"
+      ],
+      "author": "PokeSimo13",
+      "author_url": "https://gamebanana.com/members/5786538",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/92265",
+      "verified": false,
+      "downloads": 119,
+      "updated": "2026-08",
+      "source": {
+        "type": "gamebanana",
+        "mod": 92265,
+        "file_pattern": "pokemon_za_sound_pack_*.rar"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "000400000055E00/romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Replaces the sound effects with ones from Legends: Z-A."
+    },
+    {
+      "id": "pokemon-y-lysandre-theme-usum",
+      "name": "Lysandre's Theme (USUM)",
+      "title": "Pokemon Y",
+      "title_ids": [
+        "0004000000055E00"
+      ],
+      "author": "DeepWeeb",
+      "author_url": "https://gamebanana.com/members/1773435",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/51173",
+      "verified": false,
+      "downloads": 266,
+      "updated": "2021-01",
+      "source": {
+        "type": "gamebanana",
+        "mod": 51173,
+        "file_pattern": "lysmusmod_*.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "LysandreMusicMod/{tid}/romFS/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Uses the Ultra Sun and Moon version of Lysandre's theme."
+    },
+    {
+      "id": "pokemon-y-feminine-mega-mewtwo-y",
+      "name": "Feminine Mega Mewtwo Y",
+      "title": "Pokemon Y",
+      "title_ids": [
+        "0004000000055E00"
+      ],
+      "author": "Ghost1971185",
+      "author_url": "https://gamebanana.com/members/1971185",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/426774",
+      "verified": false,
+      "downloads": 1043,
+      "updated": "2023-02",
+      "source": {
+        "type": "gamebanana",
+        "mod": 426774,
+        "file_pattern": "feminine_mewtwo_y.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Gives Mega Mewtwo Y a feminine look. The download is about 900 MB. It replaces the game's whole Pokemon model archive, so use only one of the two feminine skins and no other Pokemon model mod.",
+      "size": 895998752
+    },
+    {
+      "id": "pokemon-xy-feminine-fennekin-braixen",
+      "name": "Feminine Fennekin and Braixen",
+      "title": "Pokemon X / Pokemon Y",
+      "title_ids": [
+        "0004000000055D00",
+        "0004000000055E00"
+      ],
+      "author": "Ghost1971185",
+      "author_url": "https://gamebanana.com/members/1971185",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/421459",
+      "verified": false,
+      "downloads": 942,
+      "updated": "2023-01",
+      "source": {
+        "type": "gamebanana",
+        "mod": 421459,
+        "file_pattern": "fem_shiny_fennekin_braixen.zip"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "romfs/",
+            "to": "romfs/"
+          }
+        ]
+      },
+      "notes": "Gives Fennekin and Braixen a feminine look. The download is about 900 MB. It replaces the game's whole Pokemon model archive, so use only one of the two feminine skins and no other Pokemon model mod.",
+      "size": 895996604
+    },
+    {
+      "id": "fates-soleil-romance-restoration",
+      "name": "Soleil Romance Restoration",
+      "title": "Fire Emblem Fates Birthright / Conquest / Special Edition (USA)",
+      "title_ids": [
+        "0004000000179800",
+        "0004000000179400",
+        "0004000000179600"
+      ],
+      "author": "Montblanc",
+      "author_url": "https://gamebanana.com/members/1875783",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/323411",
+      "verified": false,
+      "downloads": 1111,
+      "updated": "2021-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 323411,
+        "file_pattern": "soleil_no_friendzoning.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Soleil No Friendzoning/",
+            "to": "romfs/m/@E/"
+          }
+        ]
+      },
+      "notes": "Restores Soleil's romantic S-supports with the male characters from the Japanese release (North America)."
+    },
+    {
+      "id": "fates-soleil-romance-restoration-eu",
+      "name": "Soleil Romance Restoration",
+      "title": "Fire Emblem Fates Birthright / Conquest / Special Edition (Europe)",
+      "title_ids": [
+        "000400000017A800",
+        "0004000000179500",
+        "0004000000179700"
+      ],
+      "author": "Montblanc",
+      "author_url": "https://gamebanana.com/members/1875783",
+      "licence": "CC BY-NC-ND 4.0",
+      "homepage": "https://gamebanana.com/mods/323411",
+      "verified": false,
+      "downloads": 1111,
+      "updated": "2021-09",
+      "source": {
+        "type": "gamebanana",
+        "mod": 323411,
+        "file_pattern": "soleil_no_friendzoning.7z"
+      },
+      "install": {
+        "rules": [
+          {
+            "from": "Soleil No Friendzoning/",
+            "to": "romfs/m/@U/"
+          }
+        ]
+      },
+      "notes": "Restores Soleil's romantic S-supports with the male characters from the Japanese release (Europe; the game's language must be English)."
+    }
+  ],
+  "versions": [
+    {
+      "title_ids": [
+        "001B4100"
+      ],
+      "raw": 1024,
+      "shown": "1.1",
+      "source": "Fire Emblem Echoes (Europe) with its update installed: the title screen shows ver 1.1 (checked in a run of the emulator)"
+    },
+    {
+      "title_ids": [
+        "00030800",
+        "00030700",
+        "00030600"
+      ],
+      "raw": 1040,
+      "shown": "1.1",
+      "source": "3dbrew Title list/Patches: Mario Kart 7 [Update Data] v1.1 (v1040), USA, Europe and Japan"
+    },
+    {
+      "title_ids": [
+        "00030800"
+      ],
+      "raw": 3072,
+      "shown": "1.2",
+      "source": "Mario Kart 7 (USA): the installed update's SMDH large icon reads Ver. 1.2 (Nintendo's Dec 2022 update, the only one after 1.1 = v1040)"
     }
   ]
-}
-)AZCAT";
+})AZCAT";
 }
 
 } // namespace Mods
