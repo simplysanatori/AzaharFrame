@@ -2,7 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// AzaharFrame kiufix: Angel's Aim's fixes of 2026-11-14: Calibrate Aim, Recoil's strengths, the
+// AzaharFrame kiufix: Angel's Aim's fixes of 2026-11-14: Check Aim's targets, Recoil's strengths, the
 // new keys' rollback mirror, "in a battle" for Weapon in Hand (the menu's part:
 // angels_aim_menu.cpp, in frame_xr_picker_tests).
 
@@ -27,86 +27,9 @@ Posef Facing() {
 }
 } // namespace
 
-TEST_CASE("Calibrate Aim: an offset from the centre, a scale from the corners", "[kiufix]") {
-    SECTION("the centre alone: an offset") {
-        const auto c = FitCalibration({{0.56f, 0.45f}}, {{0.5f, 0.5f}});
-        REQUIRE(c.has_value());
-        CHECK_FALSE(c->scaled);
-        const LightGunTarget t = ApplyCalibration(*c, {true, 0.56f, 0.45f});
-        CHECK(t.u == Approx(0.5f));
-        CHECK(t.v == Approx(0.5f));
-        CHECK(ApplyCalibration(*c, {true, 0.16f, 0.95f}).u == Approx(0.1f));
-    }
-    SECTION("centre and corners: offset and scale, each axis") {
-        // The player's pointing reads the screen 20 % too wide and 0.05 to the right.
-        const auto raw = [](float u, float v) { return Vec2f{0.05f + 0.5f + (u - 0.5f) * 1.2f, v}; };
-        const auto c = FitCalibration({raw(0.5f, 0.5f), raw(0.0f, 0.0f), raw(1.0f, 1.0f)},
-                                      {{0.5f, 0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f}});
-        REQUIRE(c.has_value());
-        CHECK(c->scaled);
-        for (const float u : {0.0f, 0.3f, 0.5f, 0.9f, 1.0f}) {
-            const Vec2f r = raw(u, 0.25f);
-            const LightGunTarget t = ApplyCalibration(*c, {true, r.x, r.y});
-            CHECK(t.u == Approx(u).margin(1e-4));
-            CHECK(t.v == Approx(0.25f).margin(1e-4));
-        }
-    }
-    SECTION("a slip of the hand is not kept") {
-        CHECK_FALSE(FitCalibration({{1.2f, 0.5f}}, {{0.5f, 0.5f}}).has_value());
-        CHECK_FALSE(FitCalibration({{0.5f, 0.5f}, {0.49f, 0.0f}, {0.51f, 1.0f}},
-                                   {{0.5f, 0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f}})
-                        .has_value()); // the corners where the centre is: scale 25x
-    }
-    SECTION("none: the target as it is") {
-        const LightGunTarget t = ApplyCalibration({}, {true, 0.3f, 0.7f});
-        CHECK(t.u == 0.3f);
-        CHECK(t.v == 0.7f);
-    }
-    SECTION("its file's line, and back; bad text is none") {
-        AimCalibration c{true, 0.04f, 1.1f, -0.02f, 0.95f, true};
-        const AimCalibration back = AimCalibrationFrom(AimCalibrationText(c));
-        CHECK(back.set);
-        CHECK(back.au == Approx(c.au));
-        CHECK(back.bv == Approx(c.bv));
-        CHECK(back.scaled);
-        CHECK_FALSE(AimCalibrationFrom("").set);
-        CHECK_FALSE(AimCalibrationFrom("v1 0 9 0 1 1").set); // a scale past the limits
-        CHECK_FALSE(AimCalibrationFrom("v2 0 1 0 1 0").set);
-        CHECK(AimCalibrationText({}).empty());
-    }
-}
+// AzaharFrame kiuaim2: Calibrate Aim's fit and steps are gone (Check Aim: direct_aim.cpp).
 
-TEST_CASE("Calibrate Aim: the steps, a grip press each", "[kiufix]") {
-    AimCalibrationFlow flow;
-    flow.Start();
-    REQUIRE(flow.step() == AimCalibrationFlow::Step::Centre);
-    // A grip held when it starts is no press.
-    CHECK_FALSE(flow.Update(1.0f, {true, 0.55f, 0.5f}).result.has_value());
-    flow.Update(0.0f, {true, 0.55f, 0.5f});
-    auto out = flow.Update(1.0f, {true, 0.55f, 0.48f});
-    REQUIRE(out.result.has_value());
-    CHECK(out.changed);
-    CHECK(out.result->au == Approx(-0.05f));
-    CHECK(flow.step() == AimCalibrationFlow::Step::TopLeft);
-    flow.Update(0.0f, {});
-    out = flow.Update(1.0f, {}); // not on the top screen: asked again
-    CHECK(out.retry);
-    CHECK(flow.step() == AimCalibrationFlow::Step::TopLeft);
-    flow.Update(0.0f, {});
-    out = flow.Update(1.0f, {true, 0.05f, -0.02f});
-    REQUIRE(out.result.has_value());
-    CHECK(out.result->scaled);
-    flow.Update(0.0f, {});
-    out = flow.Update(1.0f, {true, 1.05f, 0.98f});
-    REQUIRE(out.result.has_value());
-    CHECK_FALSE(flow.active());
-    CHECK(std::string(AimCalibrationPrompt(AimCalibrationFlow::Step::Off)) == kAimCalibratedToast);
-    // The fitted line maps the three points onto what was asked.
-    CHECK(ApplyCalibration(*out.result, {true, 0.55f, 0.48f}).u == Approx(0.5f).margin(0.02f));
-    CHECK(ApplyCalibration(*out.result, {true, 1.05f, 0.98f}).v == Approx(1.0f).margin(0.02f));
-}
-
-TEST_CASE("Calibrate Aim: the dot on the screen where the target is", "[kiufix]") {
+TEST_CASE("Check Aim: the target on the screen where (u, v) is", "[kiufix]") {
     PanelQuad flat{Facing(), 1.6f, 0.96f, true};
     flat.pose.position = {0.0f, 1.0f, -2.0f};
     for (const float curve : {0.0f, 1.5f}) {

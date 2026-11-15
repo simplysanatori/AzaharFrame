@@ -314,6 +314,12 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::RecoilRapid;
     case Id::WeaponSize:
         return MenuSetting::WeaponSize;
+    case Id::TurnZoneFrom: // AzaharFrame kiuaim3
+        return MenuSetting::TurnZoneFrom;
+    case Id::KeepOnScreen:
+        return MenuSetting::KeepOnScreen;
+    case Id::GripFreesAim:
+        return MenuSetting::GripFreesAim;
     case Id::WeaponScale:
         return MenuSetting::WeaponScale;
     case Id::AutosaveKeep:
@@ -1014,6 +1020,10 @@ void MenuPanel::BuildModel(const Host& host) {
     m.weapon_size = static_cast<int>(std::min<u32>(v.vr_light_gun_weapon_size.GetValue(), 1));
     m.weapon_scale =
         static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_scale.GetValue(), 50, 150));
+    m.keep_on_screen = v.vr_light_gun_lock.GetValue(); // AzaharFrame kiuaim3
+    m.grip_frees_aim = static_cast<int>(std::min<u32>(v.vr_light_gun_grip.GetValue(), 1));
+    m.turn_zone_from =
+        static_cast<int>(std::min<u32>(v.vr_light_gun_turn_zone_from.GetValue(), 1));
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.controllers_in_front = // AzaharFrame ctrlfront
         static_cast<int>(std::min<u32>(v.vr_controllers_in_front.GetValue(), 3));
@@ -1409,6 +1419,20 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         r.value = std::clamp(value, 0, 1);
         Apply(v.vr_light_gun_weapon_size, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::WeaponSize;
+        break;
+    case Id::TurnZoneFrom: // AzaharFrame kiuaim3
+        r.value = std::clamp(value, 0, 1);
+        Apply(v.vr_light_gun_turn_zone_from, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::TurnZoneFrom;
+        break;
+    case Id::KeepOnScreen:
+        Apply(v.vr_light_gun_lock, value != 0, per_game);
+        r.setting = MenuSetting::KeepOnScreen;
+        break;
+    case Id::GripFreesAim:
+        r.value = std::clamp(value, 0, 1);
+        Apply(v.vr_light_gun_grip, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::GripFreesAim;
         break;
     case Id::WeaponScale:
         r.value = std::clamp(value, 50, 150);
@@ -2176,7 +2200,10 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         SetSetting(t.id, model.muzzle_flash ? 0 : 1, host);
         break;
-    case Id::CalibrateAim: // AzaharFrame kiufix: the game on view, the steps as toasts
+    case Id::KeepOnScreen: // AzaharFrame kiuaim3
+        SetSetting(t.id, model.keep_on_screen ? 0 : 1, host);
+        break;
+    case Id::CalibrateAim: // AzaharFrame kiufix (kiuaim2: Check Aim): the game on view, its targets
         if (host.calibrate_aim && model.aim_calibration_ok) {
             host.calibrate_aim();
             ask(MenuCommand::Continue);
@@ -2256,6 +2283,8 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MotionControls:
     case Id::GyroAim: // AzaharFrame kiugyro
     case Id::WeaponSize: // AzaharFrame kiufix
+    case Id::GripFreesAim: // AzaharFrame kiuaim3
+    case Id::TurnZoneFrom:
     case Id::WindowScale:
     case Id::WiderView:
     case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always

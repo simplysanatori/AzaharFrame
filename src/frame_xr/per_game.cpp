@@ -145,6 +145,15 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::WeaponScale:
         f(v.vr_light_gun_weapon_scale);
         return true;
+    case Id::TurnZoneFrom: // AzaharFrame kiuaim3
+        f(v.vr_light_gun_turn_zone_from);
+        return true;
+    case Id::KeepOnScreen:
+        f(v.vr_light_gun_lock);
+        return true;
+    case Id::GripFreesAim:
+        f(v.vr_light_gun_grip);
+        return true;
     default:
         return false;
     }

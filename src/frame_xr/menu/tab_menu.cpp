@@ -307,6 +307,9 @@ bool PerGameSetting(Id id) {
     case Id::RecoilRapid:
     case Id::WeaponSize:
     case Id::WeaponScale:
+    case Id::KeepOnScreen: // AzaharFrame kiuaim3
+    case Id::GripFreesAim:
+    case Id::TurnZoneFrom:
         return true;
     default:
         return false;
@@ -321,7 +324,8 @@ const std::vector<Id>& ControlsScopeRows() {
         Id::ReticleCenter, Id::ReticleStick,        Id::GyroAim,       Id::GyroSensitivity,
         Id::Recoil,        Id::RecoilCharged,       Id::RecoilRapid,   Id::WeaponInHand,
         Id::WeaponSize,    Id::WeaponScale,         Id::MuzzleFlash,   Id::LaserSight,
-        Id::TurnZone,      Id::TurnSpeed}; // fixes7; AzaharFrame kiuflash: Muzzle Flash
+        Id::TurnZone,      Id::TurnSpeed,           Id::KeepOnScreen,  Id::GripFreesAim,
+        Id::TurnZoneFrom}; // fixes7; AzaharFrame kiuflash: Muzzle Flash; kiuaim3: the last three
     return kRows;
 }
 
@@ -455,6 +459,14 @@ const std::vector<std::string>& OptionsFor(Id id) {
         static const std::vector<std::string> kWeaponSize{"Game Size", "Hand Size"};
         return kWeaponSize;
     }
+    case Id::GripFreesAim: { // AzaharFrame kiuaim3
+        static const std::vector<std::string> kGrip{"Hold", "Toggle"};
+        return kGrip;
+    }
+    case Id::TurnZoneFrom: {
+        static const std::vector<std::string> kFrom{"Screen Edge", "Aim Box"};
+        return kFrom;
+    }
     case Id::WindowScale:
         return kScale;
     case Id::ImmersiveMode:
@@ -570,8 +582,14 @@ std::string LabelFor(Id id) {
         return "Weapon Size";
     case Id::WeaponScale:
         return "Weapon Scale";
-    case Id::CalibrateAim:
-        return "Calibrate Aim";
+    case Id::CalibrateAim: // AzaharFrame kiuaim2: was Calibrate Aim
+        return "Check Aim";
+    case Id::KeepOnScreen: // AzaharFrame kiuaim3
+        return "Keep Reticle on Screen";
+    case Id::GripFreesAim:
+        return "Grip Frees Aim";
+    case Id::TurnZoneFrom:
+        return "Turn Zone From";
     case Id::CalibrateAimReset:
         return "Reset";
     case Id::AngelsAimSettings:
@@ -818,11 +836,11 @@ std::string ExplainFor(Id id) {
     case Id::MotionControls:
         return "The controller or headset that acts as the 3DS gyroscope.";
     case Id::GyroAim: // AzaharFrame kiugyro
-        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Direct Aim puts the reticle where you point. Hold the grip to pause.";
+        return "Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Direct Aim puts the reticle where you point. The grip pauses it.";
     case Id::GyroSensitivity:
         return "Scales the gyroscope in every game.";
     case Id::TurnZone:
-        return "Point this close to an edge of the top screen to turn the camera.";
+        return "How far past Turn Zone From's edge you point to turn the camera at full speed.";
     case Id::TurnSpeed:
         return "How fast the camera turns in the Turn Zone.";
     case Id::Recoil:
@@ -842,7 +860,13 @@ std::string ExplainFor(Id id) {
     case Id::WeaponScale:
         return "Makes the weapon in your hand bigger or smaller.";
     case Id::CalibrateAim:
-        return "Point at the top screen's centre, then two corners, pressing the grip at each, so the reticle lands where you aim.";
+        return "Optional. Shows targets on the Primary Screen one at a time: put the reticle on each and pull the trigger. In the air they reach its corners.";
+    case Id::KeepOnScreen: // AzaharFrame kiuaim3
+        return "Point off the Primary Screen and the reticle waits at its edge while the camera turns. Lower your arm to rest it.";
+    case Id::GripFreesAim:
+        return "The aiming controller's grip frees your aim, to point at the Secondary Screen or a menu. Toggle: press once to free, again to lock.";
+    case Id::TurnZoneFrom:
+        return "Where turning starts: the Aim Box, where the C-Stick turns the camera, or the Primary Screen's edge.";
     case Id::ShowControllers:
         return "Shows the controllers in VR.";
     case Id::ControllersInFront: // AzaharFrame ctrlfront
@@ -1868,7 +1892,7 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
     // was); the rest goes under it.
     const float picture_h = (c.y1 - (kChoiceH + kSupportH + kChoiceH)) - 4.0f - list.y0;
     // Aiming's rows: Aiming and Gyro Sensitivity always; Recoil and Weapon in Hand (with their
-    // own rows; AzaharFrame kiuflash: Muzzle Flash among Weapon in Hand's) while it is on; Laser Sight, Turn Zone, Turn Speed and Calibrate Aim with Direct
+    // own rows; AzaharFrame kiuflash: Muzzle Flash among Weapon in Hand's) while it is on; Laser Sight, Keep Reticle on Screen, Grip Frees Aim, Turn Zone From (AzaharFrame kiuaim3), Turn Zone, Turn Speed and Check Aim with Direct
     // Aim (stored 2).
     std::vector<Id> aim_rows{Id::GyroAim, Id::GyroSensitivity};
     if (model.gyro_aim != 0) {
@@ -1885,6 +1909,9 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
         }
         if (model.gyro_aim == 2) {
             aim_rows.push_back(Id::LaserSight);
+            aim_rows.push_back(Id::KeepOnScreen); // AzaharFrame kiuaim3
+            aim_rows.push_back(Id::GripFreesAim);
+            aim_rows.push_back(Id::TurnZoneFrom);
             aim_rows.push_back(Id::TurnZone);
             aim_rows.push_back(Id::TurnSpeed);
             aim_rows.push_back(Id::CalibrateAim);
@@ -2045,6 +2072,15 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             break;
         case Id::WeaponSize:
             choice_row(id, y, std::clamp(model.weapon_size, 0, 1));
+            break;
+        case Id::GripFreesAim: // AzaharFrame kiuaim3
+            choice_row(id, y, std::clamp(model.grip_frees_aim, 0, 1));
+            break;
+        case Id::TurnZoneFrom:
+            choice_row(id, y, std::clamp(model.turn_zone_from, 0, 1));
+            break;
+        case Id::KeepOnScreen:
+            switch_row(id, model.keep_on_screen);
             break;
         case Id::GyroSensitivity:
             slider_row(id, y, model.gyro_sensitivity);

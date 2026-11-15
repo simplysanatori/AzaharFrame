@@ -349,6 +349,10 @@ enum class MenuSetting {
     RecoilRapid,     ///< `value` percent, 0 to 100 (vr_light_gun_recoil_rapid)
     WeaponSize,      ///< `value` 0 Game Size, 1 Hand Size (vr_light_gun_weapon_size)
     WeaponScale,     ///< `value` percent, 50 to 150 (vr_light_gun_weapon_scale)
+    TurnZoneFrom,    ///< AzaharFrame kiuaim3: `value` 0 Screen Edge, 1 Aim Box
+                     ///< (vr_light_gun_turn_zone_from)
+    KeepOnScreen,    ///< `value` 0 or 1 (vr_light_gun_lock)
+    GripFreesAim,    ///< `value` 0 Hold, 1 Toggle (vr_light_gun_grip)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

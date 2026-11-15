@@ -21,7 +21,8 @@ TEST_CASE("Controls tab: Aiming's rows are per game there, and gone from General
     const auto& rows = ControlsScopeRows();
     for (const Id id : {Id::GyroAim, Id::GyroSensitivity, Id::Recoil, Id::RecoilCharged,
                         Id::RecoilRapid, Id::WeaponInHand, Id::WeaponSize, Id::WeaponScale,
-                        Id::LaserSight, Id::TurnZone, Id::TurnSpeed}) {
+                        Id::LaserSight, Id::TurnZone, Id::TurnSpeed, Id::KeepOnScreen,
+                        Id::GripFreesAim, Id::TurnZoneFrom}) { // AzaharFrame kiuaim3
         INFO(LabelFor(id));
         CHECK(std::find(rows.begin(), rows.end(), id) != rows.end());
     }

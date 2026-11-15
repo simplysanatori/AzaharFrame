@@ -5,6 +5,7 @@
 #include <utility>
 #include "common/archives.h"
 #include "common/debug_stall.h" // AzaharFrame pacing2 (test only)
+#include "common/frame_emu_poll.h" // AzaharFrame kiuaim2
 #include "common/hacks/hack_manager.h"
 #include "common/microprofile.h"
 #include "common/xr_pacer.h" // AzaharFrame pacing2
@@ -596,6 +597,10 @@ void GPU::VBlankCallback(std::uintptr_t user_data, s64 cycles_late) {
             Common::DebugStall::Maybe(Common::DebugStall::Where::Picture);
         }
     }
+
+    // AzaharFrame kiuaim2: Direct Aim writes the game's reticle here too, where a game's frame
+    // usually starts (it waits for this VBlank), with the freshest aim (common/frame_emu_poll.h).
+    Common::FrameEmuPoll::RunAim(static_cast<int64_t>(impl->timing.GetTicks()));
 
     // Present renderered frame.
     impl->renderer->SwapBuffers();

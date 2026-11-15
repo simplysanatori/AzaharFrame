@@ -131,6 +131,8 @@ void DrawBeam(PanelArt& a) {
     a.Put(kLaserBeamRect.x, kLaserBeamRect.y, laser.data(), kLaserBeamRect.w, kLaserBeamRect.h);
     const std::vector<uint8_t> dot = LaserDotArt();
     a.Put(kLaserDotRect.x, kLaserDotRect.y, dot.data(), kLaserDotRect.w, kLaserDotRect.h);
+    const std::vector<uint8_t> target = AimTargetArt(); // AzaharFrame kiuaim2
+    a.Put(kAimTargetRect.x, kAimTargetRect.y, target.data(), kAimTargetRect.w, kAimTargetRect.h);
 }
 
 void DrawStats(PanelArt& a, const std::vector<StatsRow>& rows) {

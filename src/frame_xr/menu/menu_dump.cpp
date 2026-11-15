@@ -925,7 +925,7 @@ int main(int argc, char** argv) {
     {
         // AzaharFrame kiumenus: Aiming lives on the Controls page now (it scrolls): Kid Icarus:
         // Uprising, Direct Aim with the C-Stick & Gyro mod. The page at the top, scrolled to
-        // Aiming, and to the end (Recoil's strengths, Weapon Size, Laser Sight, Calibrate Aim).
+        // Aiming, and to the end (Recoil's strengths, Weapon Size, Laser Sight, Check Aim).
         MenuModel go = pg;
         go.game_title = "Kid Icarus: Uprising";
         go.motion_controls = 1;
@@ -962,6 +962,15 @@ int main(int argc, char** argv) {
         ok &= shot("kiu-controls-6b-end-calibrate-unavailable", nocal, at(1.0e5f));
         ok &= shot("kiu-controls-7-tooltip-calibrate", go, at(1.0e5f, Id::CalibrateAim, kLabelIndex, true));
         ok &= shot("kiu-controls-7b-tooltip-laser-sight", go, at(1.0e5f, Id::LaserSight, kLabelIndex, true));
+        // AzaharFrame kiuaim3: Keep Reticle on Screen, Grip Frees Aim, Turn Zone From.
+        ok &= shot("kiu-controls-7c-tooltip-keep-on-screen", go, at(1.0e5f, Id::KeepOnScreen, kLabelIndex, true));
+        ok &= shot("kiu-controls-7d-tooltip-grip-frees-aim", go, at(1.0e5f, Id::GripFreesAim, kLabelIndex, true));
+        ok &= shot("kiu-controls-7e-tooltip-turn-zone-from", go, at(1.0e5f, Id::TurnZoneFrom, kLabelIndex, true));
+        MenuModel alt = go;
+        alt.keep_on_screen = false;
+        alt.grip_frees_aim = 1;
+        alt.turn_zone_from = 0;
+        ok &= shot("kiu-controls-7f-end-lock-off-toggle-screen-edge", alt, at(1.0e5f));
         MenuModel ls = go;
         ls.laser_sight = true;
         ls.recoil_charged = 70;

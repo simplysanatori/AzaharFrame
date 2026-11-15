@@ -314,6 +314,9 @@ struct Visuals::Impl {
     Input::PanelQuad hide_over;
     int laser_hand = -1;       ///< AzaharFrame kiugyro: Light Gun's laser sight, this frame
     Vec3f laser_point{};
+    bool aim_target = false;   ///< AzaharFrame kiuaim2: Check Aim's target, this frame
+    Vec3f aim_target_point{};
+    float aim_target_size = 0.0f;
     const XrCompositionLayerBaseHeader* models_layer = nullptr;
     // AzaharFrame ctrlfront: the models as the eye quads (any choice but Off), and what the
     // next picture is drawn against.
@@ -464,6 +467,7 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
     Impl& m = *impl;
     static_cast<void>(info);
     m.laser_hand = -1; // AzaharFrame kiugyro: GameFrame sets it again for this frame
+    m.aim_target = false; // AzaharFrame kiuaim2: the same
     m.weapon_hand = -1; // AzaharFrame kiuguns: the same
     m.flash = {};       // AzaharFrame kiuflash: the same
     m.hide_hand = -1;
@@ -1046,6 +1050,14 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
                     AtlasQuad(m.atlas.Handle(), kLaserDotRect, dot_pose, size, size));
             }
         }
+        // AzaharFrame kiuaim2: Check Aim's target, on the top screen, over the beams.
+        if (m.aim_target && m.aim_target_size > 0.0f) {
+            const Input::Posef pose{
+                Input::FaceViewer(m.aim_target_point, head.position, {0.0f, 1.0f, 0.0f}),
+                m.aim_target_point};
+            m.top_dots.push_back(AtlasQuad(m.atlas.Handle(), kAimTargetRect, pose,
+                                           m.aim_target_size, m.aim_target_size));
+        }
         // The dots, over the beams; a dot of an idle controller goes with its beam.
         for (std::size_t d = 0; d < dots.size(); d++) {
             const int h = d < dot_hand.size() ? dot_hand[d] : -1;
@@ -1109,6 +1121,20 @@ void Visuals::SetBeamHidden(int hand, const Input::PanelQuad& over) {
 void Visuals::SetLaser(int hand, const Input::Vec3f& point) {
     impl->laser_hand = hand;
     impl->laser_point = point;
+}
+
+void Visuals::SetAimTarget(const Input::Vec3f& point, float size_m) {
+    impl->aim_target = true;
+    impl->aim_target_point = point;
+    impl->aim_target_size = size_m;
+}
+
+std::optional<Input::Vec3f> Visuals::WeaponMuzzle(int hand) const {
+    const auto mz = impl->models.WeaponMuzzle(hand);
+    if (!mz) {
+        return std::nullopt;
+    }
+    return Input::Vec3f{(*mz)[0], (*mz)[1], (*mz)[2]};
 }
 
 void Visuals::SetMousePointer(Input::MousePointer* pointer) {

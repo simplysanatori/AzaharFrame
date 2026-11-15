@@ -276,17 +276,21 @@ private:
     Input::GripClutch gyro_clutch; ///< AzaharFrame kiugyro: Gyro Aim's grip
     int gyro_aim_logged = -1;      ///< AzaharFrame kiugyro: Gyro Aim and its controller, as logged
     bool gyro_clutch_logged = false;
+    Input::AimGrip aim_grip;      ///< AzaharFrame kiuaim3: Direct Aim's grip (Grip Frees Aim)
+    bool aim_rest_logged = false; ///< AzaharFrame kiuaim3: Keep Reticle on Screen's resting guard
     Input::Recoil recoil;          ///< AzaharFrame kiugyro: Light Gun's recoil
     Input::ShotRecoil shot_recoil; ///< AzaharFrame kiuguns: Recoil on the game's own shots
     Vis::MuzzleFlash muzzle_flash; ///< AzaharFrame kiuflash: Muzzle Flash on the same shots
     bool muzzle_flash_logged = false;
     bool recoil_real_logged = false;
     bool laser_logged = false; // AzaharFrame kiufix
-    // AzaharFrame kiufix: Calibrate Aim: the running game's (its own file), and the steps.
-    Input::AimCalibration aim_cal;
-    uint64_t aim_cal_title = 0;
-    Input::AimCalibrationFlow cal_flow;
-    int64_t cal_prompt_ns = 0;
+    // AzaharFrame kiuaim2: Check Aim: the running game's map (its own file), and the steps.
+    Input::AimMap aim_map;
+    uint64_t aim_map_title = 0;
+    Input::AimCheckFlow check_flow;
+    Input::GripClutch check_trigger; ///< the aiming controller's trigger, pressed with hysteresis
+    bool check_trigger_was = true;
+    bool check_prompt = false;
     int reticle_modes_logged = -1; ///< AzaharFrame fixes7: the reticle switches, as logged
     bool edge_stick_logged = false; ///< AzaharFrame kiu: C-Stick at Edge pushing (logged)
     int reticle_hand_shown = -1; ///< AzaharFrame polish: ReticleDrivingHand, last frame

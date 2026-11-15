@@ -153,137 +153,85 @@ RecoilPulse ShotRecoil::Update(int64_t now_ns, uint64_t total, bool readable, bo
     return out;
 }
 
-LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top) {
+Ray AimRay(const Posef& aim, const std::optional<Vec3f>& muzzle) {
+    Ray ray;
+    ray.direction = AimDirection(aim);
+    ray.origin = muzzle ? aim.position + Rotate(Normalized(aim.orientation), *muzzle) : aim.position;
+    return ray;
+}
+
+LightGunTarget LightGunTargetFor(const Ray& ray, const PanelQuad& top, const PanelQuad* other) {
     LightGunTarget t;
-    if (!hand.active || !top.visible) {
+    if (!top.visible) {
         return t;
     }
-    const QuadHit hit = IntersectQuad(RayFromPose(hand.aim), top);
+    if (other && other->visible && IntersectQuad(ray, *other).in_bounds) {
+        return t; // on the bottom screen: a touch, not the reticle
+    }
+    const QuadHit hit = IntersectQuad(ray, top);
     if (!hit.on_plane || !std::isfinite(hit.u) || !std::isfinite(hit.v)) {
         return t;
     }
     t.valid = true;
     t.u = std::clamp(hit.u, -0.5f, 1.5f);
     t.v = std::clamp(hit.v, -0.5f, 1.5f);
+    t.point = hit.point_world;
     return t;
 }
 
-LightGunTarget ApplyCalibration(const AimCalibration& c, const LightGunTarget& t) {
-    if (!c.set || !t.valid) {
+LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top) {
+    if (!hand.active) {
+        return {};
+    }
+    return LightGunTargetFor(RayFromPose(hand.aim), top);
+}
+
+LightGunTarget LockedTargetFor(const Ray& ray, const PanelQuad& top) {
+    LightGunTarget t;
+    if (!top.visible || !(top.width_m > 0.0f) || !(top.height_m > 0.0f)) {
         return t;
     }
-    LightGunTarget out = t;
-    out.u = std::clamp(c.au + c.bu * t.u, -0.5f, 1.5f);
-    out.v = std::clamp(c.av + c.bv * t.v, -0.5f, 1.5f);
-    return out;
-}
-
-std::optional<AimCalibration> FitCalibration(const std::vector<Vec2f>& raw,
-                                             const std::vector<Vec2f>& wanted) {
-    if (raw.empty() || raw.size() != wanted.size()) {
-        return std::nullopt;
+    const QuadHit hit = IntersectQuad(ray, top);
+    const bool finite = std::isfinite(hit.u) && std::isfinite(hit.v);
+    t.valid = true;
+    if (hit.in_bounds && finite) {
+        t.u = hit.u;
+        t.v = hit.v;
+        t.point = hit.point_world;
+        return t;
     }
-    AimCalibration c;
-    c.set = true;
-    const auto fit = [&](bool x, float& a, float& b) {
-        const std::size_t n = raw.size();
-        if (n == 1) {
-            b = 1.0f;
-            a = (x ? wanted[0].x - raw[0].x : wanted[0].y - raw[0].y);
-            return std::isfinite(a) && std::fabs(a) <= kCalibrationMaxOffset;
+    float u = 0.5f, v = 1.0f;
+    if (hit.on_plane && finite) {
+        u = hit.u;
+        v = hit.v;
+    } else {
+        // Pointing away from the screen's plane (or along it): the edge in the ray's direction,
+        // seen in the screen's own axes (x right, y up), from its centre.
+        const Vec3f d = Rotate(Conjugate(Normalized(top.pose.orientation)), ray.direction);
+        const float x = d.x / top.width_m, y = -d.y / top.height_m;
+        const float m = std::max(std::fabs(x), std::fabs(y));
+        if (m > 1e-6f) {
+            u = 0.5f + 0.5f * x / m;
+            v = 0.5f + 0.5f * y / m;
         }
-        double sx = 0, sy = 0, sxx = 0, sxy = 0;
-        for (std::size_t i = 0; i < n; i++) {
-            const double r = x ? raw[i].x : raw[i].y;
-            const double w = x ? wanted[i].x : wanted[i].y;
-            sx += r;
-            sy += w;
-            sxx += r * r;
-            sxy += r * w;
-        }
-        const double den = static_cast<double>(n) * sxx - sx * sx;
-        if (!(std::fabs(den) > 1e-9)) {
-            return false;
-        }
-        b = static_cast<float>((static_cast<double>(n) * sxy - sx * sy) / den);
-        a = static_cast<float>((sy - b * sx) / static_cast<double>(n));
-        // The offset as seen at the centre is what is limited (a large a with a scale is fine).
-        const float at_centre = a + b * 0.5f - 0.5f;
-        return std::isfinite(a) && std::isfinite(b) && b >= kCalibrationMinScale &&
-               b <= kCalibrationMaxScale && std::fabs(at_centre) <= kCalibrationMaxOffset;
-    };
-    if (!fit(true, c.au, c.bu) || !fit(false, c.av, c.bv)) {
-        return std::nullopt;
+        // On the edge it is past (exactly 0 or 1 there): nudged past for past_u, past_v.
+        u = u <= 0.0f ? -1.0f : (u >= 1.0f ? 2.0f : u);
+        v = v <= 0.0f ? -1.0f : (v >= 1.0f ? 2.0f : v);
     }
-    c.scaled = raw.size() > 1;
-    return c;
-}
-
-std::string AimCalibrationText(const AimCalibration& c) {
-    if (!c.set) {
-        return {};
+    t.edge = true;
+    t.past_u = u < 0.0f ? -1 : (u > 1.0f ? 1 : 0);
+    t.past_v = v < 0.0f ? -1 : (v > 1.0f ? 1 : 0);
+    t.u = std::clamp(u, 0.0f, 1.0f);
+    t.v = std::clamp(v, 0.0f, 1.0f);
+    t.point = PointOnQuad(top, t.u, t.v);
+    const Vec3f to_edge = t.point - ray.origin;
+    const float len = Length(to_edge), dlen = Length(ray.direction);
+    if (len > 1e-6f && dlen > 1e-6f) {
+        const float c = std::clamp(Dot(to_edge, ray.direction) / (len * dlen), -1.0f, 1.0f);
+        t.past_deg = std::acos(c) * 57.29578f;
     }
-    char buf[96];
-    std::snprintf(buf, sizeof(buf), "v1 %.5f %.5f %.5f %.5f %d", c.au, c.bu, c.av, c.bv,
-                  c.scaled ? 1 : 0);
-    return buf;
-}
-
-AimCalibration AimCalibrationFrom(const std::string& text) {
-    AimCalibration c;
-    float au = 0, bu = 1, av = 0, bv = 1;
-    int scaled = 0;
-    if (std::sscanf(text.c_str(), "v1 %f %f %f %f %d", &au, &bu, &av, &bv, &scaled) != 5) {
-        return {};
-    }
-    const auto ok = [](float a, float b) {
-        return std::isfinite(a) && std::isfinite(b) && b >= kCalibrationMinScale &&
-               b <= kCalibrationMaxScale && std::fabs(a + b * 0.5f - 0.5f) <= kCalibrationMaxOffset;
-    };
-    if (!ok(au, bu) || !ok(av, bv)) {
-        return {};
-    }
-    c = {true, au, bu, av, bv, scaled != 0};
-    return c;
-}
-
-void AimCalibrationFlow::Start() {
-    step_ = Step::Centre;
-    raw_.clear();
-    grip_.Reset();
-    was_held_ = true;
-}
-
-AimCalibrationFlow::Out AimCalibrationFlow::Update(float grip, const LightGunTarget& raw) {
-    Out out;
-    if (step_ == Step::Off) {
-        return out;
-    }
-    const bool held = grip_.Update(grip);
-    const bool press = held && !was_held_;
-    was_held_ = held;
-    if (!press) {
-        return out;
-    }
-    if (!raw.valid || raw.u < -0.25f || raw.u > 1.25f || raw.v < -0.25f || raw.v > 1.25f) {
-        out.retry = true; // not at the top screen
-        return out;
-    }
-    static const Vec2f kWanted[3] = {{0.5f, 0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f}};
-    raw_.push_back({raw.u, raw.v});
-    const std::vector<Vec2f> wanted(kWanted, kWanted + raw_.size());
-    const std::optional<AimCalibration> c = FitCalibration(raw_, wanted);
-    if (!c) {
-        raw_.pop_back();
-        out.retry = true;
-        return out;
-    }
-    out.result = c;
-    out.changed = true;
-    step_ = step_ == Step::Centre    ? Step::TopLeft
-            : step_ == Step::TopLeft ? Step::BottomRight
-                                     : Step::Off;
-    return out;
+    t.resting = t.past_deg > kRestingPastDeg;
+    return t;
 }
 
 Vec3f PointOnQuad(const PanelQuad& quad, float u, float v) {
@@ -299,18 +247,316 @@ Vec3f PointOnQuad(const PanelQuad& quad, float u, float v) {
     return Transform(quad.pose, local);
 }
 
-const char* AimCalibrationPrompt(AimCalibrationFlow::Step step) {
-    switch (step) {
-    case AimCalibrationFlow::Step::Centre:
-        return "Calibrate Aim: Point at the Top Screen's Centre, Press Grip";
-    case AimCalibrationFlow::Step::TopLeft:
-        return "Calibrate Aim: Top-Left Corner, Press Grip";
-    case AimCalibrationFlow::Step::BottomRight:
-        return "Calibrate Aim: Bottom-Right Corner, Press Grip";
-    case AimCalibrationFlow::Step::Off:
-        break;
+// ---- AzaharFrame kiuaim2: Check Aim ---------------------------------------------------------
+
+namespace {
+
+/// Least squares y = sum(c_k x_k) for k unknowns (2 or 3); false when singular.
+bool Solve(const std::vector<std::array<double, 3>>& x, const std::vector<double>& y, int k,
+           double out[3]) {
+    double a[3][4]{};
+    for (std::size_t i = 0; i < x.size(); i++) {
+        for (int r = 0; r < k; r++) {
+            for (int c = 0; c < k; c++) {
+                a[r][c] += x[i][r] * x[i][c];
+            }
+            a[r][3] += x[i][r] * y[i];
+        }
     }
-    return kAimCalibratedToast;
+    for (int c = 0; c < k; c++) {
+        int pivot = c;
+        for (int r = c + 1; r < k; r++) {
+            if (std::fabs(a[r][c]) > std::fabs(a[pivot][c])) {
+                pivot = r;
+            }
+        }
+        if (!(std::fabs(a[pivot][c]) > 1e-12)) {
+            return false;
+        }
+        for (int j = 0; j < 4; j++) {
+            std::swap(a[c][j], a[pivot][j]);
+        }
+        for (int r = 0; r < k; r++) {
+            if (r == c) {
+                continue;
+            }
+            const double f = a[r][c] / a[c][c];
+            for (int j = c; j < 4; j++) {
+                a[r][j] -= f * a[c][j];
+            }
+        }
+    }
+    for (int c = 0; c < k; c++) {
+        out[c] = a[c][3] / a[c][c];
+    }
+    return true;
+}
+
+Vec2f Shown(const AimMap& m, Vec2f w) {
+    return {m.u[0] + m.u[1] * w.x + m.u[2] * w.y, m.v[0] + m.v[1] * w.y + m.v[2] * w.x};
+}
+
+float MaxErrorPx(const AimMap& m, const std::vector<Vec2f>& written,
+                 const std::vector<Vec2f>& shown, float w_px, float h_px) {
+    float worst = 0.0f;
+    for (std::size_t i = 0; i < written.size(); i++) {
+        const Vec2f p = Shown(m, written[i]);
+        worst = std::max(worst, std::hypot((p.x - shown[i].x) * w_px, (p.y - shown[i].y) * h_px));
+    }
+    return worst;
+}
+
+/// One axis: offset and scale (k = 2) or with the other axis' skew (k = 3).
+bool FitAxis(const std::vector<Vec2f>& written, const std::vector<Vec2f>& shown, bool u_axis,
+             int k, float out[3]) {
+    std::vector<std::array<double, 3>> x;
+    std::vector<double> y;
+    for (std::size_t i = 0; i < written.size(); i++) {
+        const double own = u_axis ? written[i].x : written[i].y;
+        const double other = u_axis ? written[i].y : written[i].x;
+        x.push_back({1.0, own, other});
+        y.push_back(u_axis ? shown[i].x : shown[i].y);
+    }
+    double c[3]{0.0, 1.0, 0.0};
+    if (!Solve(x, y, k, c)) {
+        return false;
+    }
+    out[0] = static_cast<float>(c[0]);
+    out[1] = static_cast<float>(c[1]);
+    out[2] = k == 3 ? static_cast<float>(c[2]) : 0.0f;
+    return std::isfinite(out[0]) && std::isfinite(out[1]) && std::isfinite(out[2]);
+}
+
+std::vector<std::string> Lines(const std::string& text) {
+    std::vector<std::string> out;
+    std::size_t at = 0;
+    while (at <= text.size()) {
+        const std::size_t end = text.find('\n', at);
+        std::string line = text.substr(at, end == std::string::npos ? std::string::npos : end - at);
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        if (!line.empty()) {
+            out.push_back(line);
+        }
+        if (end == std::string::npos) {
+            break;
+        }
+        at = end + 1;
+    }
+    return out;
+}
+
+} // namespace
+
+bool AimMapValid(const AimMap& m) {
+    if (!m.set) {
+        return false;
+    }
+    for (int i = 0; i < 3; i++) {
+        if (!std::isfinite(m.u[i]) || !std::isfinite(m.v[i])) {
+            return false;
+        }
+    }
+    const auto axis_ok = [](const float c[3]) {
+        return c[1] >= kAimMapMinScale && c[1] <= kAimMapMaxScale &&
+               std::fabs(c[2]) <= kAimMapMaxSkew &&
+               std::fabs(c[0] + c[1] * 0.5f + c[2] * 0.5f - 0.5f) <= kAimMapMaxOffset;
+    };
+    return axis_ok(m.u) && axis_ok(m.v) && std::isfinite(m.error_px) && m.error_px >= 0.0f;
+}
+
+LightGunTarget ApplyAimMap(const AimMap& m, const LightGunTarget& wanted) {
+    if (!wanted.valid || !AimMapValid(m)) {
+        return wanted;
+    }
+    // shown = A written + b; written = A^-1 (shown - b).
+    const float a = m.u[1], b = m.u[2], c = m.v[2], d = m.v[1];
+    const float det = a * d - b * c;
+    if (!(std::fabs(det) > 1e-6f)) {
+        return wanted;
+    }
+    const float su = wanted.u - m.u[0], sv = wanted.v - m.v[0];
+    LightGunTarget out = wanted;
+    out.u = std::clamp((d * su - b * sv) / det, -0.5f, 1.5f);
+    out.v = std::clamp((a * sv - c * su) / det, -0.5f, 1.5f);
+    return out;
+}
+
+std::optional<AimMap> FitAimMap(const std::vector<Vec2f>& written, const std::vector<Vec2f>& shown,
+                                float w_px, float h_px) {
+    if (written.size() < 3 || written.size() != shown.size() || !(w_px > 0.0f) ||
+        !(h_px > 0.0f)) {
+        return std::nullopt;
+    }
+    AimMap fit;
+    fit.set = true;
+    fit.points = static_cast<int>(written.size());
+    if (!FitAxis(written, shown, true, 2, fit.u) || !FitAxis(written, shown, false, 2, fit.v)) {
+        return std::nullopt;
+    }
+    fit.error_px = MaxErrorPx(fit, written, shown, w_px, h_px);
+    // The skew, only when the points need it (a picture drawn a little sheared).
+    if (written.size() >= 5 && fit.error_px > 1.5f) {
+        AimMap skew = fit;
+        if (FitAxis(written, shown, true, 3, skew.u) && FitAxis(written, shown, false, 3, skew.v)) {
+            skew.error_px = MaxErrorPx(skew, written, shown, w_px, h_px);
+            if (skew.error_px < fit.error_px * (2.0f / 3.0f) && AimMapValid(skew)) {
+                fit = skew;
+            }
+        }
+    }
+    // Nothing to correct: the identity (the player's own hand is in the points too).
+    AimMap identity;
+    identity.set = true;
+    identity.points = fit.points;
+    identity.error_px = MaxErrorPx(identity, written, shown, w_px, h_px);
+    if (identity.error_px <= fit.error_px + 1.0f) {
+        return identity;
+    }
+    if (!AimMapValid(fit)) {
+        return std::nullopt;
+    }
+    return fit;
+}
+
+std::string AimMapText(const AimMap& m) {
+    if (!AimMapValid(m)) {
+        return {};
+    }
+    char buf[192];
+    std::snprintf(buf, sizeof(buf), "v2 %.6f %.6f %.6f %.6f %.6f %.6f %.2f %d", m.u[0], m.u[1],
+                  m.u[2], m.v[0], m.v[1], m.v[2], m.error_px, m.points);
+    return buf;
+}
+
+AimMap AimMapFrom(const std::string& line) {
+    AimMap m;
+    int points = 0;
+    if (std::sscanf(line.c_str(), "v2 %f %f %f %f %f %f %f %d", &m.u[0], &m.u[1], &m.u[2],
+                    &m.v[0], &m.v[1], &m.v[2], &m.error_px, &points) != 8) {
+        return {};
+    }
+    m.set = true;
+    m.points = points;
+    return AimMapValid(m) ? m : AimMap{};
+}
+
+bool IsOldAimCalibration(const std::string& line) {
+    return line.rfind("v1 ", 0) == 0;
+}
+
+std::string AimFileText(const std::string& old_text, const AimMap& m) {
+    std::string out;
+    for (const std::string& line : Lines(old_text)) {
+        if (IsOldAimCalibration(line)) {
+            out = line + "\n"; // an older build's own line, first, as it was
+            break;
+        }
+    }
+    const std::string map = AimMapText(m);
+    if (!map.empty()) {
+        out += map + "\n";
+    }
+    return out;
+}
+
+AimMap AimMapFromFile(const std::string& text, bool* had_old, bool* had_bad) {
+    AimMap found;
+    for (const std::string& line : Lines(text)) {
+        if (IsOldAimCalibration(line)) {
+            if (had_old) {
+                *had_old = true;
+            }
+        } else if (line.rfind("v2 ", 0) == 0) {
+            found = AimMapFrom(line);
+            if (!found.set && had_bad) {
+                *had_bad = true;
+            }
+        }
+    }
+    return found;
+}
+
+std::array<Vec2f, kAimTargets> AimTargets(const AimRegion& r) {
+    const float du = (r.u1 - r.u0) * kAimTargetInset, dv = (r.v1 - r.v0) * kAimTargetInset;
+    const float l = r.u0 + du, t = r.v0 + dv, rt = r.u1 - du, b = r.v1 - dv;
+    const float mu = (r.u0 + r.u1) * 0.5f, mv = (r.v0 + r.v1) * 0.5f;
+    // The centre, then round the edge clockwise from the top left.
+    return {Vec2f{mu, mv}, Vec2f{l, t}, Vec2f{rt, t}, Vec2f{rt, mv}, Vec2f{rt, b}, Vec2f{l, b},
+            Vec2f{l, mv}};
+}
+
+void AimCheckFlow::Start(const AimRegion& region, float w_px, float h_px) {
+    targets_ = AimTargets(region);
+    w_ = w_px > 1.0f ? w_px : 400.0f;
+    h_ = h_px > 1.0f ? h_px : 240.0f;
+    written_.clear();
+    shown_.clear();
+    step_ = 0;
+    retries_ = 0;
+}
+
+AimCheckFlow::Out AimCheckFlow::Update(bool pulled, const LightGunTarget& written) {
+    Out out;
+    if (!active() || !pulled) {
+        return out;
+    }
+    const Vec2f target = targets_[static_cast<std::size_t>(step_)];
+    const auto slip = [&] {
+        out.retry = true;
+        if (++retries_ >= 3 && !written_.empty()) {
+            // Three slips at one target: an earlier point may be the bad one. From the start.
+            written_.clear();
+            shown_.clear();
+            step_ = 0;
+            retries_ = 0;
+            out.retry = false;
+            out.restart = true;
+        }
+        return out;
+    };
+    if (!written.valid) {
+        return slip();
+    }
+    const Vec2f w{written.u, written.v};
+    if (std::fabs((target.x - w.x) * w_) > kAimCheckMaxPx ||
+        std::fabs((target.y - w.y) * h_) > kAimCheckMaxPx) {
+        return slip(); // too far from the target: not on it
+    }
+    if (written_.size() >= 2) {
+        // From the third: against the line the others give, each axis.
+        AimMap line;
+        line.set = true;
+        if (FitAxis(written_, shown_, true, 2, line.u) && FitAxis(written_, shown_, false, 2, line.v)) {
+            const Vec2f p = Shown(line, w);
+            if (std::fabs((p.x - target.x) * w_) > kAimCheckOutlierPx ||
+                std::fabs((p.y - target.y) * h_) > kAimCheckOutlierPx) {
+                return slip();
+            }
+        }
+    }
+    written_.push_back(w);
+    shown_.push_back(target);
+    retries_ = 0;
+    step_++;
+    if (step_ < kAimTargets) {
+        out.changed = true;
+        return out;
+    }
+    step_ = -1;
+    out.done = true;
+    out.result = FitAimMap(written_, shown_, w_, h_);
+    return out;
+}
+
+std::string AimCheckStepToast(int step) {
+    return "Check Aim: Target " + std::to_string(step + 1) + " of " + std::to_string(kAimTargets);
+}
+
+std::string AimCheckedToast(float error_px) {
+    const int px = std::max(1, static_cast<int>(std::ceil(error_px - 0.05f)));
+    return "Aim Checked \xC2\xB7 Within " + std::to_string(px) + " px";
 }
 
 Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction) {
@@ -330,267 +576,190 @@ Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction) {
     return {depth(target.u), depth(target.v)};
 }
 
+AimGrip::Out AimGrip::Update(float grip, bool other_grip, AimGripMode mode, bool suspend) {
+    Out out;
+    const bool held = clutch_.Update(grip);
+    const bool was_free = mode_ == AimGripMode::Toggle && toggled_free_;
+    if (mode != mode_) {
+        mode_ = mode;
+        toggled_free_ = false;
+    }
+    if (held && !was_held_) {
+        joined_ = other_grip;
+    } else if (held) {
+        joined_ = joined_ || other_grip;
+    }
+    const bool released = was_held_ && !held;
+    was_held_ = held;
+    if (suspend) {
+        toggled_free_ = false;
+    } else if (mode == AimGripMode::Toggle && released && !joined_) {
+        toggled_free_ = !toggled_free_;
+    }
+    if (mode == AimGripMode::Toggle) {
+        out.free = toggled_free_;
+        out.toggled = toggled_free_ != was_free;
+    } else {
+        out.free = held;
+    }
+    return out;
+}
+
+// ---- AzaharFrame kiuaim2: Direct Aim --------------------------------------------------------
+
 ReticleBox GroundBox(const ReticleReading& r) {
-    return {0.7f * r.cx, 0.4f * r.cy, 1.3f * r.cx, 1.25f * r.cy};
+    return {0.7f * r.cx, (1.0f + r.box_top) * r.cy, 1.3f * r.cx, (1.0f + r.box_bottom) * r.cy};
 }
 
-void LightGunLoop::Reset() {
-    // What was learnt about the game (its gain, its frame) stays; the rest starts again.
-    LightGunLoop fresh;
-    fresh.gain_[0] = gain_[0];
-    fresh.gain_[1] = gain_[1];
-    fresh.frame_s_ = frame_s_;
-    *this = fresh;
+ReticleBox ReachableBox(const ReticleReading& r) {
+    ReticleBox b = r.ground ? GroundBox(r) : ReticleBox{0.0f, 0.0f, r.w, r.h};
+    b.x0 += kReachInsetPx;
+    b.y0 += kReachInsetPx;
+    b.x1 -= kReachInsetPx;
+    b.y1 -= kReachInsetPx;
+    if (b.x1 < b.x0) {
+        b.x0 = b.x1 = (b.x0 + b.x1) * 0.5f;
+    }
+    if (b.y1 < b.y0) {
+        b.y0 = b.y1 = (b.y0 + b.y1) * 0.5f;
+    }
+    return b;
 }
 
-float LightGunLoop::SentSince(int axis, int64_t from_ns) const {
-    float sum = 0.0f;
-    for (std::size_t i = 0; i < sent_count_; i++) {
-        const Sent& s = sent_[(sent_head_ + kHistory - 1 - i) % kHistory];
-        if (s.time_ns <= from_ns) {
-            break; // older entries are older still
-        }
-        sum += s.deg[axis];
-    }
-    return sum;
+Vec2f ReticlePixel(const ReticleReading& r, float u, float v) {
+    return {u * r.w, v * r.h};
 }
 
-void LightGunLoop::Learn(int64_t time_ns, const ReticleReading& r, bool pushing) {
-    // Is the reticle free to move here (not held by the box or the screen's edge)?
-    float x0 = 0.0f, y0 = 0.0f, x1 = r.w, y1 = r.h;
-    if (r.ground) {
-        const ReticleBox b = GroundBox(r);
-        x0 = b.x0, y0 = b.y0, x1 = b.x1, y1 = b.y1;
-    }
-    constexpr float kEdgePx = 2.0f;
-    const bool free = r.x > x0 + kEdgePx && r.x < x1 - kEdgePx && r.y > y0 + kEdgePx &&
-                      r.y < y1 - kEdgePx;
-    // A move from rest to rest says exactly how far the degrees sent went, however late the
-    // game applied them and whichever frames it sampled: so each axis learns between two quiet
-    // moments (nothing sent for a frame more than the latency).
-    const int64_t quiet_ns = static_cast<int64_t>((kLatencyFrames + 1.5f) * frame_s_ * 1e9f);
-    const float pos[2]{r.x, r.y};
-    // Running away (the reticle goes the other way than sent: the game's invert option, or a
-    // build with the other sign): flip at once rather than wait for a rest that never comes.
-    const int64_t lag_ns = static_cast<int64_t>(kLatencyFrames * frame_s_ * 1e9f);
-    for (int a = 0; a < 2; a++) {
-        if (mark_ns_[a] == 0 || pushing) {
-            mark_ns_[a] = time_ns;
-            mark_pos_[a] = a == 0 ? r.x : r.y;
-            continue;
-        }
-        if (time_ns - mark_ns_[a] < static_cast<int64_t>(6.0f * frame_s_ * 1e9f)) {
-            continue;
-        }
-        const float p = a == 0 ? r.x : r.y;
-        const float moved = p - mark_pos_[a];
-        const float deg = SentSince(a, mark_ns_[a] - lag_ns) - SentSince(a, time_ns - lag_ns);
-        // Or held against an edge while what is sent should take it away from that edge.
-        const float lo = a == 0 ? x0 : y0, hi = a == 0 ? x1 : y1;
-        const float meant = deg * gain_[a]; // where the sent degrees should have taken it
-        const bool pinned = std::fabs(moved) < 0.5f && std::fabs(deg) > 0.3f &&
-                            ((p <= lo + 1.0f && meant > 0.0f) || (p >= hi - 1.0f && meant < 0.0f));
-        const bool away = pinned || (std::fabs(moved) > 6.0f && std::fabs(deg) > 0.3f &&
-                                     (moved / deg < 0.0f) != (gain_[a] < 0.0f));
-        runaway_votes_[a] = away ? runaway_votes_[a] + 1 : 0;
-        if (runaway_votes_[a] >= 2) { // twice in a row: not a late overshoot
-            // The other sign; and how far it went says how much, when it could move.
-            gain_[a] = pinned ? -gain_[a]
-                              : Sign(-gain_[a]) * std::clamp(std::fabs(moved / deg), kMinGain,
-                                                             kMaxGain);
-            sign_votes_[a] = 0;
-            runaway_votes_[a] = 0;
-            window_[a] = {};
-        }
-        mark_ns_[a] = time_ns;
-        mark_pos_[a] = a == 0 ? r.x : r.y;
-    }
-    for (int a = 0; a < 2; a++) {
-        Window& w = window_[a];
-        // (A crawl under 0.02 degrees in that time counts as rest: its error is a few percent
-        // of a window's 0.3 degrees at most.)
-        const bool quiet = std::fabs(SentSince(a, time_ns - quiet_ns)) < 0.02f;
-        if (!quiet) {
-            if (w.start_ns == 0) {
-                continue; // a window opens only at a quiet moment
-            }
-            w.clean = w.clean && free && !pushing;
-            continue;
-        }
-        // A window older than the history cannot be summed.
-        const bool whole = sent_count_ < kHistory ||
-                           sent_[sent_head_ % kHistory].time_ns < w.start_ns;
-        if (w.start_ns != 0 && w.clean && whole && free && !pushing) {
-            const float deg = SentSince(a, w.start_ns);
-            const float moved = pos[a] - w.pos0;
-            if (std::fabs(deg) >= 0.3f && std::fabs(moved) >= 3.0f) {
-                const float seen = moved / deg;
-                if ((seen < 0.0f) != (gain_[a] < 0.0f)) {
-                    // The other way round (the game's invert option): only after it is seen
-                    // twice in a row.
-                    if (++sign_votes_[a] >= 2) {
-                        gain_[a] = std::clamp(seen, -kMaxGain, kMaxGain);
-                        if (std::fabs(gain_[a]) < kMinGain) {
-                            gain_[a] = Sign(gain_[a]) * kMinGain;
-                        }
-                        sign_votes_[a] = 0;
-                    }
-                } else {
-                    sign_votes_[a] = 0;
-                    // Mostly the new measure: it is exact up to the sub-pixel rest.
-                    const float mag = std::exp(0.25f * std::log(std::fabs(gain_[a])) +
-                                               0.75f * std::log(std::fabs(seen)));
-                    gain_[a] = Sign(gain_[a]) * std::clamp(mag, kMinGain, kMaxGain);
-                }
-            }
-        }
-        w.start_ns = time_ns;
-        w.pos0 = pos[a];
-        w.clean = free && !pushing;
-    }
+Vec2f ReticleUv(const ReticleReading& r, float x, float y) {
+    return {r.w > 0.0f ? x / r.w : 0.5f, r.h > 0.0f ? y / r.h : 0.5f};
 }
 
-LightGunLoop::Out LightGunLoop::Update(int64_t time_ns, const ReticleReading& r,
-                                       const LightGunTarget& target, float zone_fraction,
-                                       float turn_speed, bool clutch) {
+AimRegion ReachableRegion(const ReticleReading& r) {
+    const ReticleBox b = ReachableBox(r);
+    const Vec2f a = ReticleUv(r, b.x0, b.y0), c = ReticleUv(r, b.x1, b.y1);
+    return {a.x, a.y, c.x, c.y};
+}
+
+Vec2f AimBoxTurnDepth(const ReticleReading& r, Vec2f px, float zone_fraction) {
+    if (!(zone_fraction > 0.0f) || !(r.w > 0.0f) || !(r.h > 0.0f)) {
+        return {};
+    }
+    const ReticleBox b = GroundBox(r);
+    const auto depth = [](float p, float lo, float hi, float z) {
+        if (p < lo) {
+            return -std::clamp((lo - p) / z, 0.0f, 1.0f);
+        }
+        if (p > hi) {
+            return std::clamp((p - hi) / z, 0.0f, 1.0f);
+        }
+        return 0.0f;
+    };
+    const float z = std::min(zone_fraction, 0.5f);
+    return {depth(px.x, b.x0, b.x1, z * r.w), depth(px.y, b.y0, b.y1, z * r.h)};
+}
+
+Vec2f TurnDepthFor(const ReticleReading& r, const LightGunTarget& target, float zone_fraction,
+                   TurnZoneFrom from) {
+    if (!r.ground || !target.valid || target.resting || !(zone_fraction > 0.0f)) {
+        return {};
+    }
+    Vec2f d = from == TurnZoneFrom::ScreenEdge
+                  ? TurnZoneDepth(target, zone_fraction)
+                  : AimBoxTurnDepth(r, ReticlePixel(r, target.u, target.v), zone_fraction);
+    if (target.edge) {
+        // Past the screen's edge: all the way, as the C-Stick held to its rim.
+        if (target.past_u != 0) {
+            d.x = static_cast<float>(target.past_u);
+        }
+        if (target.past_v != 0) {
+            d.y = static_cast<float>(target.past_v);
+        }
+    }
+    return d;
+}
+
+DirectAim::Out DirectAim::Update(int64_t time_ns, const ReticleReading& r,
+                                 const LightGunTarget& target, const Turn& turn, bool pause) {
     Out out;
     if (!r.valid || !(r.w > 1.0f) || !(r.h > 1.0f)) {
         Reset();
         return out;
     }
-    // What was sent since the last call (the loop's part only: the push is stopped by the box).
-    if (have_last_ && time_ns > last_time_ns_) {
-        const int64_t dt_ns = std::min<int64_t>(time_ns - last_time_ns_, kMaxGapNs);
-        const float dt = static_cast<float>(dt_ns) * 1e-9f;
-        Sent s;
-        s.time_ns = time_ns;
-        s.deg[0] = last_rate_[0] * dt;
-        s.deg[1] = last_rate_[1] * dt;
-        sent_[sent_head_] = s;
-        sent_head_ = (sent_head_ + 1) % kHistory;
-        sent_count_ = std::min(sent_count_ + 1, kHistory);
-    } else if (have_last_ && time_ns <= last_time_ns_) {
-        out.right_dps = last_rate_[0];
-        out.down_dps = last_rate_[1];
+    if (pause || r.game_places) {
+        paused_ = true; // the stick (or the game) has the reticle: hands off
+        easing_ = false;
         return out;
     }
-    // The game frame's length: while a rate is being sent the reticle moves every game frame,
-    // so the changes seen over that time count the frames (the polls, ~101 Hz, are faster than
-    // the game's 60 or 30 frames a second, so none is missed).
-    const bool moved = have_last_ && (r.x != last_x_ || r.y != last_y_);
-    if (have_last_ && (last_rate_[0] != 0.0f || last_rate_[1] != 0.0f)) {
-        count_time_s_ += static_cast<float>(std::min<int64_t>(time_ns - last_time_ns_, kMaxGapNs)) *
-                         1e-9f;
-        count_changes_ += moved ? 1 : 0;
-        if (count_time_s_ >= 0.25f) {
-            if (count_changes_ >= 3) {
-                const float seen = count_time_s_ / static_cast<float>(count_changes_);
-                frame_s_ = std::clamp(frame_s_ + 0.5f * (seen - frame_s_), 1.0f / 120.0f,
-                                      1.0f / 15.0f);
-            }
-            count_time_s_ = 0.0f;
-            count_changes_ = 0;
-        }
-    }
-    last_x_ = r.x;
-    last_y_ = r.y;
-    have_last_ = true;
-    last_time_ns_ = time_ns;
-
-    // AzaharFrame kiufix2: after a pause (the grip, Calibrate Aim, the C-Stick), ease back in.
-    float ease = 1.0f;
-    if (clutch) {
-        paused_ = true;
-        easing_ = false;
-    } else if (paused_) {
+    if (paused_) {
         paused_ = false;
         easing_ = true;
         resume_ns_ = time_ns;
+        from_x_ = r.x;
+        from_y_ = r.y;
     }
-    if (easing_ && !clutch) {
-        const float t =
-            static_cast<float>(time_ns - resume_ns_) / static_cast<float>(kEaseInNs);
-        if (t >= 1.0f) {
+    float ease = 1.0f;
+    if (easing_) {
+        const float t = static_cast<float>(time_ns - resume_ns_) / static_cast<float>(kEaseInNs);
+        if (t >= 1.0f || time_ns < resume_ns_) {
             easing_ = false;
         } else {
             const float k = std::clamp(t, 0.0f, 1.0f);
             ease = k * k * (3.0f - 2.0f * k);
         }
     }
-
-    const Vec2f depth = TurnZoneDepth(target, zone_fraction);
-    const bool push = r.ground && !clutch && target.valid && (depth.x != 0.0f || depth.y != 0.0f);
-    // Nothing is learnt while paused or easing back in: the stick's own moves (and those still
-    // on their way, a frame or two late) are not the rates sent.
-    Learn(time_ns, r, push || clutch || easing_);
-    if (clutch || !target.valid) {
-        last_rate_[0] = last_rate_[1] = 0.0f;
-        return out;
+    if (!target.valid) {
+        return out; // off the top screen: the reticle stays
     }
-
-    // The target in the game's pixels, kept where the reticle can go.
-    float tx = target.u * r.w;
-    float ty = target.v * r.h;
-    float x0 = 0.0f, y0 = 0.0f, x1 = r.w, y1 = r.h;
+    const ReticleBox box = ReachableBox(r);
+    const Vec2f px = ReticlePixel(r, target.u, target.v);
+    const float tx = std::clamp(px.x, box.x0, box.x1);
+    const float ty = std::clamp(px.y, box.y0, box.y1);
+    out.write = true;
+    out.easing = easing_;
+    out.x = easing_ ? from_x_ + (tx - from_x_) * ease : tx;
+    out.y = easing_ ? from_y_ + (ty - from_y_) * ease : ty;
+    out.resting = target.resting;
     if (r.ground) {
-        const ReticleBox b = GroundBox(r);
-        x0 = b.x0, y0 = b.y0, x1 = b.x1, y1 = b.y1;
-    }
-    tx = std::clamp(tx, x0, x1);
-    ty = std::clamp(ty, y0, y1);
-
-    const int64_t lag_ns = static_cast<int64_t>(kLatencyFrames * frame_s_ * 1e9f);
-    const float tau = kTauFrames * frame_s_;
-    const float target_px[2]{tx, ty};
-    const float now_px[2]{r.x, r.y};
-    for (int a = 0; a < 2; a++) {
-        if (std::fabs(target_px[a] - last_target_[a]) > 2.0f) {
-            flips_[a] = 0; // the pointer moves: a change of side is the hand's, not overshoot
+        const Vec2f depth = TurnDepthFor(r, target, turn.zone_fraction, turn.from);
+        if (depth.x != 0.0f || depth.y != 0.0f) {
+            const float s = ClampTurnSpeed(turn.speed) * kTurnPushDps * ease;
+            out.right_dps = std::clamp(depth.x * s, -kModMaxDps, kModMaxDps);
+            out.down_dps = std::clamp(depth.y * s, -kModMaxDps, kModMaxDps);
+            out.turning = true;
         }
-        last_target_[a] = target_px[a];
-    }
-    float rate[2]{};
-    for (int a = 0; a < 2; a++) {
-        const float predicted = now_px[a] + gain_[a] * SentSince(a, time_ns - lag_ns);
-        const float error = target_px[a] - predicted;
-        // Overshooting back and forth: the gain is higher than thought. Halve what is sent.
-        const float seen_error = target_px[a] - now_px[a];
-        if (std::fabs(seen_error) > 3.0f) {
-            const int sign = seen_error > 0.0f ? 1 : -1;
-            if (error_sign_[a] != 0 && sign != error_sign_[a]) {
-                flips_[a]++;
-            }
-            error_sign_[a] = sign;
-        }
-        if (time_ns - flips_since_ns_[a] > static_cast<int64_t>(10.0f * frame_s_ * 1e9f)) {
-            flips_since_ns_[a] = time_ns;
-            flips_[a] = 0;
-        }
-        if (flips_[a] >= 3) {
-            gain_[a] = std::clamp(gain_[a] * 2.0f, -kMaxGain, kMaxGain);
-            flips_[a] = 0;
-            flips_since_ns_[a] = time_ns;
-        }
-        if (std::fabs(error) < kHoldPx) {
-            continue;
-        }
-        rate[a] = ease * error / tau / gain_[a];
-        rate[a] = std::clamp(rate[a], -kModMaxDps, kModMaxDps);
-    }
-    last_rate_[0] = rate[0];
-    last_rate_[1] = rate[1];
-    out.right_dps = rate[0];
-    out.down_dps = rate[1];
-    if (push) {
-        // One screen width (height) a second at the edge, x Turn Speed, past the box.
-        const float s = ClampTurnSpeed(turn_speed);
-        out.right_dps += ease * depth.x * s * r.w / gain_[0];
-        out.down_dps += ease * depth.y * s * r.h / gain_[1];
-        out.right_dps = std::clamp(out.right_dps, -kModMaxDps, kModMaxDps);
-        out.down_dps = std::clamp(out.down_dps, -kModMaxDps, kModMaxDps);
-        out.turning = true;
     }
     return out;
+}
+
+void AimSampler::Push(int64_t host_ns, const LightGunTarget& target) {
+    if (have_last_ && host_ns <= last_ns_) {
+        last_ = target; // the same moment again: the newer value
+        return;
+    }
+    before_ = last_;
+    before_ns_ = last_ns_;
+    have_before_ = have_last_;
+    last_ = target;
+    last_ns_ = host_ns;
+    have_last_ = true;
+}
+
+LightGunTarget AimSampler::At(int64_t host_ns) const {
+    if (!have_last_) {
+        return {};
+    }
+    LightGunTarget t = last_;
+    const int64_t gap = last_ns_ - before_ns_;
+    // AzaharFrame kiuaim3: an edge point (Keep Reticle on Screen) is not carried along.
+    if (!t.valid || !have_before_ || !before_.valid || t.edge || before_.edge || gap <= 0 ||
+        gap > kMaxGapNs || host_ns <= last_ns_) {
+        return t;
+    }
+    const float lead = static_cast<float>(std::min<int64_t>(host_ns - last_ns_, kMaxLeadNs)) /
+                       static_cast<float>(gap);
+    t.u = std::clamp(t.u + (last_.u - before_.u) * lead, -0.5f, 1.5f);
+    t.v = std::clamp(t.v + (last_.v - before_.v) * lead, -0.5f, 1.5f);
+    return t;
 }
 
 } // namespace FrameXr::Input
