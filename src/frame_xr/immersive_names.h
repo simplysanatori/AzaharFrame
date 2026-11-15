@@ -224,8 +224,8 @@ inline constexpr const char* kMotionClarityImmersiveToast = "Black Frame Inserti
 /// Primary/Secondary, 2026-11-15).
 inline constexpr const char* kMatchBottom = "Match Bottom Screen Brightness";
 inline constexpr const char* kMatchBottomTip =
-    "Black Frame Insertion adds a black frame after each one, which dims the picture. This dims "
-    "the bottom screen to match.";
+    "Black Frame Insertion adds a black frame after each picture, which dims it. This dims the "
+    "bottom screen to match.";
 /// AzaharFrame projdef: Settings::values.vr_screens_in_projection, as its opposite: the Primary
 /// screen drawn as a panel (a quad layer) in the Full modes. The VR menu's row (with the
 /// Experimental chip), its tooltip, its note while Motion Clarity takes the panel, its toasts;

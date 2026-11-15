@@ -364,8 +364,8 @@ TEST_CASE("VR group: Motion Clarity's two boxes", "[frame_xr][projdef][fixa]") {
         // fixa: Match Bottom Screen Brightness, one box for both, never greyed.
         CHECK(match->text() == QStringLiteral("Match Bottom Screen Brightness"));
         CHECK(match->toolTip() ==
-              QStringLiteral("Black Frame Insertion adds a black frame after each one, which "
-                             "dims the picture. This dims the bottom screen to match."));
+              QStringLiteral("Black Frame Insertion adds a black frame after each picture, "
+                             "which dims it. This dims the bottom screen to match."));
         auto* layout = w.layout();
         REQUIRE(layout);
         CHECK(layout->indexOf(box) == layout->indexOf(panel) + 1);

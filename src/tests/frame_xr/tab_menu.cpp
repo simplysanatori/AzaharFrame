@@ -4275,8 +4275,8 @@ TEST_CASE("Tab menu: Match Bottom Screen Brightness under each row", "[frame_xr]
     CHECK(LabelFor(Id::MatchBottom) == "Match Bottom Screen Brightness");
     CHECK(LabelFor(Id::MatchBottomNormal) == "Match Bottom Screen Brightness");
     CHECK(ExplainFor(Id::MatchBottom) ==
-          "Black Frame Insertion adds a black frame after each one, which dims the picture. This "
-          "dims the bottom screen to match.");
+          "Black Frame Insertion adds a black frame after each picture, which dims it. This dims "
+          "the bottom screen to match.");
     CHECK(ExplainFor(Id::MatchBottomNormal) == ExplainFor(Id::MatchBottom));
     CHECK_FALSE(MenuModel{}.match_bottom);
     {
