@@ -60,6 +60,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Keep](#autosave) | 1 to 10 | 3 | global and per game | at once |
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% (Full modes: 100%) | global and per game | at once |
+| [Dynamic Resolution](#dynamic-resolution) | on or off | off | global | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10**, **Automatic** | 3DS (5:3) | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
@@ -199,6 +200,11 @@ How deep the 3D looks in a game. 0% is flat. It is on the in-game menu's **Setti
 Outside the Full modes, a screen you make bigger than its start size gets less depth.
 
 The Full modes have their own 3D Depth: **Immersive 3D Depth** in Azahar's window, and the same slider in the in-game menu while a Full mode is on. At 100%, the default, the farthest scenery is at infinity and never past it, so it never doubles, whatever the screen's size or distance. Below 100%, **Full (6DoF): Ocarina of Time, Majora's Mask** brings faraway scenery nearer, and **Full (6DoF): Other Games** keeps it far and flattens everything. A game whose 3D Depth was 0% starts at 0%.
+
+
+## Dynamic Resolution
+
+In the VR menu's **Settings** tab, in **Graphics**; global. While the GPU cannot keep up, it lowers the resolution a step at a time, and it raises it again once the GPU can. It never goes below your **Internal Resolution** setting. The immersive modes draw up to two steps above that setting, so that is where it has room; outside them, and at an Internal Resolution of 1x, it has nothing to do and the row is greyed out. It does not lower the resolution for slowdowns the GPU is not causing, and it is not judged while the game is paused or the menu is open.
 
 ## Immersive Mode
 
