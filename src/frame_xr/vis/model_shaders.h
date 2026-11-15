@@ -30,8 +30,11 @@ layout(push_constant) uniform PC {
                   // hold its motion (weapon_fit.h GlowMotion): key = (u, v, gain, sway),
                   // up = (phase a, phase b, wave, 0)
                   // +16 a muzzle flash's card (kiuflash, with +4; clear of kiumodels' +8): key
-                  // its colour and white core, up its colour mode, half width, half length and
-                  // middle along y; x 1 for a fan
+                  // its colour and white core, up its colour mode (kiuweap2: 3 the flare, drawn
+                  // by the shader alone), half width, half length and middle along y; x 1 for a
+                  // fan, 2 a projectile's bullet mesh times its vertex colour, 3 one without
+                  // +32 (kiuopacity) depth only: a see-through part's first stage
+                  // (see_through.h): discarded where it would be, else nothing (no lighting)
 } pc;
 
 layout(location = 0) in vec3 a_position;
@@ -42,6 +45,9 @@ layout(location = 0) out vec3 v_position;
 layout(location = 1) out vec3 v_normal;
 layout(location = 2) out vec4 v_tangent;
 layout(location = 3) out vec2 v_uv;
+// AzaharFrame kiuopacity: a see-through part's depth stage and its colour stage (depth test
+// LEQUAL against it) must give every vertex the same depth.
+invariant gl_Position;
 
 void main() {
     v_position = a_position;
@@ -103,6 +109,15 @@ vec4 writeLinear(vec3 c) {
     return vec4(v * a, a);
 }
 
+// The coverage alpha of added light (the glows', the flash's; AzaharFrame kiufix): from the light
+// itself, at most 0.6. AzaharFrame kiuopacity: never under 4/255 where there is light at all, so
+// a dim pixel (a flame's fringe, a glow at a low Weapon Opacity) is not written at alpha 0 and
+// dropped as clear; 4/255 still rounds above 0 after a 4x MSAA resolve with one sample lit.
+float coverOf(vec3 light) {
+    float m = max(light.r, max(light.g, light.b));
+    return m > 0.0 ? clamp(max(m * 0.6, 4.0 / 255.0), 0.0, 0.6) : 0.0;
+}
+
 vec3 sky(vec3 dir, vec3 up, float spread) {
     float t = clamp(0.5 + 0.5 * dot(dir, up) / max(spread + 0.15, 0.15), 0.0, 1.0);
     return mix(GROUND, SKY, t);
@@ -115,6 +130,11 @@ void main() {
         (mod(pc.params.w, 4.0) > 1.5 && v_position.x < 0.0)) {
         discard;
     }
+    if ((int(pc.params.w + 0.5) & 32) != 0) {
+        // AzaharFrame kiuopacity: the depth stage (no colour is written).
+        fragColor = vec4(0.0);
+        return;
+    }
     if ((int(pc.params.w + 0.5) & 16) != 0) {
         // AzaharFrame kiuflash: a muzzle flash's card, as light (added): the texture's
         // own colour times the set's (mode 0), its red channel as light in the colour (1), or a
@@ -124,14 +144,32 @@ void main() {
         vec3 light = mode == 2 ? pc.key.rgb * t.g + vec3(pc.key.w * t.r)
                    : mode == 1 ? pc.key.rgb * t.r
                                : pc.key.rgb * t.rgb * t.a;
+        if (mode == 3) {
+            // AzaharFrame kiuweap2: the flare (no texture): a halo of the flash's colour and a
+            // white-hot core (key.w), round over the card, gone at its edge.
+            vec2 f = vec2(v_position.x / max(pc.up.y, 1e-4), (v_position.y - pc.up.w) / max(pc.up.z, 1e-4));
+            float r = length(f);
+            float halo = 1.0 - smoothstep(0.0, 1.0, r);
+            float core = 1.0 - smoothstep(0.0, 0.35, r);
+            light = pc.key.rgb * halo * halo + vec3(pc.key.w * core);
+        }
         // Its edges fade, so a sprite that reaches its border shows no square (a fan's from
         // its sides and far end only: its point is at the muzzle).
-        vec2 q = vec2(v_position.x / max(pc.up.y, 1e-4), (v_position.y - pc.up.w) / max(pc.up.z, 1e-4));
-        float edge = pc.params.x > 0.5 ? max(abs(q.x), q.y) : max(abs(q.x), abs(q.y));
-        light *= (1.0 - smoothstep(0.75, 1.0, edge)) * clamp(pc.params.z, 0.0, 1.0);
+        // AzaharFrame kiuflash: a projectile's bullet mesh (x 2 or 3): no edge to fade; with x 2
+        // its vertex colour (in the tangent's place) times the light.
+        if (pc.params.x > 1.5) {
+            if (pc.params.x < 2.5) {
+                light *= clamp(v_tangent.rgb, 0.0, 1.0) * clamp(v_tangent.a, 0.0, 1.0);
+            }
+        } else if (mode != 3) {
+            vec2 q = vec2(v_position.x / max(pc.up.y, 1e-4), (v_position.y - pc.up.w) / max(pc.up.z, 1e-4));
+            float edge = pc.params.x > 0.5 ? max(abs(q.x), q.y) : max(abs(q.x), abs(q.y));
+            light *= 1.0 - smoothstep(0.75, 1.0, edge);
+        }
+        light *= clamp(pc.params.z, 0.0, 1.0);
         // A coverage alpha from the light itself, as the glows' (AzaharFrame kiufix): light at
         // alpha 0 can be dropped as clear.
-        float cover = clamp(max(light.r, max(light.g, light.b)) * 0.6, 0.0, 0.6);
+        float cover = coverOf(light);
         fragColor = vec4(OUT_LINEAR ? light : linearToSrgb(light), cover);
         return;
     }
@@ -141,13 +179,15 @@ void main() {
         // AzaharFrame kiufix: twice as bright (the game's cards are dim textures it lights up),
         // and a coverage alpha from the light itself, so the layer holds it as premultiplied
         // light (a pixel with alpha 0 can be dropped as clear: the palm's flames did not show).
-        vec3 glowColour = min(texture(u_colour, v_uv).rgb * 2.0, vec3(1.0)) *
-                          clamp(pc.params.z, 0.0, 1.0);
+        vec3 glowColour = min(texture(u_colour, v_uv).rgb * 2.0, vec3(1.0));
         // AzaharFrame kiumodels: a moving glow flickers (its gain, about 1).
         if ((int(pc.params.w + 0.5) & 12) == 12) {
             glowColour = min(glowColour * clamp(pc.key.z, 0.0, 2.0), vec3(1.0));
         }
-        float cover = clamp(max(glowColour.r, max(glowColour.g, glowColour.b)) * 0.6, 0.0, 0.6);
+        // The fade last (AzaharFrame kiuopacity: times Weapon Opacity), so light and coverage
+        // scale with it as one; at fade 1 the same as before.
+        glowColour *= clamp(pc.params.z, 0.0, 1.0);
+        float cover = coverOf(glowColour);
         fragColor = vec4(OUT_LINEAR ? glowColour : linearToSrgb(glowColour), cover);
         return;
     }

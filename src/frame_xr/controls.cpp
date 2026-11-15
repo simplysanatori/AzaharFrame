@@ -24,6 +24,7 @@
 #include "core/frame_weapon_models.h" // AzaharFrame kiuguns
 #include "common/frame_test_switches.h" // AzaharFrame kiuguns
 #include "frame_xr/test_switches.h" // AzaharFrame kiugyro: AZAHARFRAME_CSTICK_EDGE
+#include "frame_xr/vis/see_through.h" // AzaharFrame kiuopacity
 #include "frame_xr/immersive.h"
 #include "frame_xr/immersive_layout.h" // AzaharFrame immersive2: kGripPress
 #include "frame_xr/input/devices.h"    // AzaharFrame padsui
@@ -2044,8 +2045,10 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // AzaharFrame kiuflash: Muzzle Flash, with the weapon in hand; its shots are read for it
     // too (Recoil keeps its own switch).
     const bool flash_on = weapon_on && Settings::values.vr_light_gun_flash.GetValue();
+    // AzaharFrame kiuflash: Projectiles, the same way (each shot flies into the screen).
+    const bool projectiles_on = weapon_on && Settings::values.vr_light_gun_projectile.GetValue();
     bool weapon_shown = false;
-    Kiu::SetWanted(weapon_on, kiu && (recoil_on || flash_on), kiu);
+    Kiu::SetWanted(weapon_on, kiu && (recoil_on || flash_on || projectiles_on), kiu);
     if (weapon_on) {
         FrameWeapons::Request(); // made the first time they are wanted (once a boot)
         // AZAHARFRAME_KIU_WEAPON=<id> (live): that weapon, for tuning its class's fit.
@@ -2058,13 +2061,22 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
             }
         }
         if (id >= 0) {
-            visuals.SetWeapon(gyro_aim_hand, id);
+            // AzaharFrame kiuopacity: Weapon Opacity, or AZAHARFRAME_KIU_OPACITY's (live).
+            const Vis::OpacityTune see = Vis::ParseOpacityTune(
+                Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_OPACITY"));
+            visuals.SetWeapon(
+                gyro_aim_hand, id,
+                Vis::OpacityOf(
+                    static_cast<int>(Settings::values.vr_light_gun_weapon_opacity.GetValue()),
+                    see.weapon));
             weapon_shown = true;
         }
     }
     // AzaharFrame kiuflash: a flash at the weapon's muzzle on each of the game's own shots.
+    // AzaharFrame kiuflash: the same shots fire the projectiles (ShotSignal; the target is set
+    // with Laser Sight's point below).
     {
-        const bool active = flash_on && weapon_shown;
+        const bool active = (flash_on || projectiles_on) && weapon_shown;
         const bool readable = Kiu::ShotsReadable();
         muzzle_flash.SetDurationMs(
             active ? Vis::ParseFlashTune(Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_FLASH"))
@@ -2073,12 +2085,34 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         muzzle_flash.Update(in.time_ns, Kiu::ShotTotal(), readable, active);
         if (active && readable != muzzle_flash_logged) {
             muzzle_flash_logged = readable;
-            LOG_INFO(Frontend, "xr: muzzle flash: {}",
+            LOG_INFO(Frontend, "xr: muzzle flash and projectiles: {}",
                      readable ? "on the game's own shots" : "waiting for the shots record");
         }
-        const Vis::FlashFrame flash = muzzle_flash.Current(in.time_ns);
-        if (active && flash.shown) {
+        Vis::FlashFrame flash = muzzle_flash.Current(in.time_ns);
+        // AzaharFrame kiuweap2: Muzzle Flash Size (per game).
+        flash.size = Vis::FlashSizeFactor(
+            static_cast<int>(Settings::values.vr_light_gun_muzzle_flash_size.GetValue()));
+        if (active && flash_on && flash.shown) {
             visuals.SetMuzzleFlash(flash);
+        }
+        shot_signal = {};
+        if (active && projectiles_on && readable) {
+            const Vis::ShotTune tune =
+                Vis::ParseShotTune(Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_SHOT"));
+            shot_signal.on = true;
+            shot_signal.shots = muzzle_flash.Shots();
+            shot_signal.charged = muzzle_flash.LastCharged();
+            shot_signal.speed =
+                static_cast<float>(Settings::values.vr_light_gun_projectile_speed.GetValue()) /
+                100.0f * tune.speed;
+            shot_signal.size =
+                static_cast<float>(Settings::values.vr_light_gun_projectile_size.GetValue()) /
+                100.0f * tune.size;
+            // AzaharFrame kiuopacity: Projectile Opacity, or AZAHARFRAME_KIU_OPACITY's (live).
+            shot_signal.opacity = Vis::OpacityOf(
+                static_cast<int>(Settings::values.vr_light_gun_projectile_opacity.GetValue()),
+                Vis::ParseOpacityTune(Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_OPACITY"))
+                    .projectile);
         }
     }
     // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
@@ -2136,9 +2170,27 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (beam.laser) {
             visuals.SetLaser(gyro_aim_hand, aim_hit.point);
         }
+        // AzaharFrame kiuflash: the projectiles fly to where the reticle is put, held on the top
+        // screen (the game's reticle stops at its edge too). kiuinteg: with Direct Aim, the
+        // point Direct Aim writes (kiuaim2: the ray's hit through the game's Check Aim map; Keep
+        // Reticle on Screen's edge point); with Gyro Aim, the aim pose's own ray, as before.
+        const Input::LightGunTarget target =
+            gyro_aim_frame.mode == Input::GyroAimMode::LightGun
+                ? gyro_aim_frame.target
+                : Input::LightGunTargetFor(game_in.hand[static_cast<std::size_t>(gyro_aim_hand)],
+                                           panels.top);
+        if (shot_signal.on && target.valid) {
+            const Input::Vec3f p = Input::PointOnQuad(panels.top, std::clamp(target.u, 0.0f, 1.0f),
+                                                      std::clamp(target.v, 0.0f, 1.0f));
+            shot_signal.target_valid = true;
+            shot_signal.target = {p.x, p.y, p.z};
+        }
         if (beam.hide_top) {
             visuals.SetBeamHidden(gyro_aim_hand, panels.top);
         }
+    }
+    if (shot_signal.on) { // AzaharFrame kiuflash
+        visuals.SetShots(gyro_aim_hand, shot_signal);
     }
     {
         // AzaharFrame kiu: C-Stick at Edge starts and stops (one line each). AzaharFrame kiu2:

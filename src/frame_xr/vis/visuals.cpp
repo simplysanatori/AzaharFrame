@@ -309,7 +309,10 @@ struct Visuals::Impl {
     std::vector<Quad> top_beams, top_dots;
     int weapon_hand = -1;      ///< AzaharFrame kiuguns: the weapon in hand, this frame
     int weapon_id = -1;
+    float weapon_opacity = 1.0f; ///< AzaharFrame kiuopacity
     FlashFrame flash;          ///< AzaharFrame kiuflash: its muzzle flash, this frame
+    int shots_hand = -1;       ///< AzaharFrame kiuflash: the projectiles' hand and signal
+    ShotSignal shots;
     int hide_hand = -1;        ///< AzaharFrame kiuguns: no beam over `hide_over`, this frame
     Input::PanelQuad hide_over;
     int laser_hand = -1;       ///< AzaharFrame kiugyro: Light Gun's laser sight, this frame
@@ -470,6 +473,7 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
     m.aim_target = false; // AzaharFrame kiuaim2: the same
     m.weapon_hand = -1; // AzaharFrame kiuguns: the same
     m.flash = {};       // AzaharFrame kiuflash: the same
+    m.shots_hand = -1;
     m.hide_hand = -1;
     // AzaharFrame statspos: a grip with the beam on the stats (In Front) holds them; the hand's
     // grip and stick then move them and reach neither the screens nor the game.
@@ -1089,7 +1093,9 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             out.fade = m.activity[h].Model();
             out.input = ModelInputsFor(in, h);
             out.weapon = h == m.weapon_hand ? m.weapon_id : -1; // AzaharFrame kiuguns
+            out.weapon_opacity = h == m.weapon_hand ? m.weapon_opacity : 1.0f; // kiuopacity
             out.flash = h == m.weapon_hand ? m.flash : FlashFrame{}; // AzaharFrame kiuflash
+            out.shots = h == m.shots_hand ? m.shots : ShotSignal{};
         }
     }
     // AzaharFrame ctrlfront: "Controllers in Front of Screen", read every frame (model_plane.h).
@@ -1104,13 +1110,19 @@ void Visuals::SetOccluders(std::vector<Occluder>&& occluders) {
     impl->occluders = std::move(occluders);
 }
 
-void Visuals::SetWeapon(int hand, int id) {
+void Visuals::SetWeapon(int hand, int id, float opacity) {
     impl->weapon_hand = hand;
     impl->weapon_id = id;
+    impl->weapon_opacity = opacity; // AzaharFrame kiuopacity
 }
 
 void Visuals::SetMuzzleFlash(const FlashFrame& flash) { // AzaharFrame kiuflash
     impl->flash = flash;
+}
+
+void Visuals::SetShots(int hand, const ShotSignal& shots) { // AzaharFrame kiuflash
+    impl->shots_hand = hand;
+    impl->shots = shots;
 }
 
 void Visuals::SetBeamHidden(int hand, const Input::PanelQuad& over) {

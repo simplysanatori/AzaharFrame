@@ -273,6 +273,19 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   another fighter in the records (multiplayer) and in menus. Every class's muzzle (the json's
   `muzzleNode_` + `muzzleOffset_`) is on the aim ray: held classes are turned so it is, worn ones
   raised onto it, the orbitars' middle is on the hand's line; a bow shoots from the hand.
+  AzaharFrame kiuweap2: blades, staffs, clubs, bows and cannons are held as Pit holds them in the
+  game: the converter reads his class's poses (`player/g<class>.zrc`, `character/mdl.arc`'s
+  skeletal animations `ChrPit00Wait<Class>` and `ChrPit00ShotWait<Class>`, first frame) and keeps
+  the weapon's place in his holding hand (`hold` line of the manifest, `HoldInfo`; a manifest
+  without it is made again once, no version change). The fit puts his hand on the player's:
+  blades, staffs and clubs by the fist (`HoldMap::Grip`: the fist's axis along the Frame
+  controller's handle, the hilt through it, so a blade rises from the thumb's side as in his
+  grip); bows and cannons by the hand's line (`HoldMap::Point`: fingers along the ray, thumb up;
+  the bow upright in the fist, in his left hand's grip mirrored to the right; the cannon along
+  the forearm, its housing outward). Staffs take his aiming grip (his idle one points the staff
+  back along the forearm). Their muzzles follow the weapon (the shots, the flash and the laser
+  start at its tip), not the ray. Claws, palms, arms and orbitars keep their fits (the game's hold
+  of them is the hand itself). Test switch (live): `AZAHARFRAME_KIU_HOLD=idle|shot`.
 - **Muzzle Flash** (`vr_light_gun_flash`, per game too, on by default; shown under Weapon in
   Hand while it is on; AzaharFrame kiuflash): a flash at the weapon's muzzle on each of the
   game's own shots (the same shots record as Recoil, read for either; `vis/muzzle_flash.h`). The
@@ -282,7 +295,49 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   Added to what is behind, 70 ms (charged 100 ms), fading as it grows a little. A weapon whose
   file has no flash borrows its class's first, in neutral colours. Recoil and Laser Sight are
   untouched by it. Test switch (live): `AZAHARFRAME_KIU_FLASH=size,ms` (a size factor, a
-  duration).
+  duration). AzaharFrame kiuweap2: bigger and clearer: 90 ms (charged 120 ms), the cards 1.5 times
+  larger (and their limits), bursting from 0.6 to 1.4 of their size (most of it early), the
+  charged one 1.4 times the rapid one, and a flare under them (one more card drawn by the shader
+  alone: a white-hot core in a halo of the weapon's flash colour, gone by 70 % of the flash).
+  **Muzzle Flash Size** (`vr_light_gun_muzzle_flash_size`, per game too, 50 to 300 %, 100 % by
+  default; the row under Muzzle Flash while it is on) scales all of it. A plain new key.
+- **"Angel's Aim Is On"** (AzaharFrame kiuweap2): turning Aiming on (Off to Direct Aim or Gyro
+  Aim) in the VR menu with Kid Icarus: Uprising open shows, once, a notice of what is on
+  (Weapon in Hand, Muzzle Flash, Projectiles, Recoil, Laser Sight, each On or Off) with OK and
+  Controls (the Controls tab at Aiming). Shown once in all: `vr_angels_aim_intro_shown`, a plain
+  new global key (an older build ignores it; no older key changes meaning).
+- **Weapon Opacity** (`vr_light_gun_weapon_opacity`, per game too, 20 to 100 %, 100 % by
+  default; the first row under Weapon in Hand while it is on, above Weapon Size; AzaharFrame
+  kiuopacity): how solid the weapon in hand looks (`vis/see_through.h`). Under 100 % its lit
+  parts are drawn twice, depth only, then their colour where they are the nearest surface
+  (LEQUAL, nothing written to depth), premultiplied at the opacity and blended over what is
+  there, so the fade is even and shows no inner or back faces; its glows, a palm's flames and
+  the muzzle flash (added light) are drawn after it with their light and coverage alpha times
+  the opacity, their coverage held at the most of what is there and their own (blend op MAX,
+  not summed, so overlapping glow cards never cover more than the opacity), and the other hand's
+  controller is drawn first so it shows through. At 100 % the
+  pass is as before (no extra draws). The controllers' image is premultiplied (the layer, and
+  Controllers in Front of Screen's eye quads, have only `XR_COMPOSITION_LAYER_BLEND_TEXTURE_
+  SOURCE_ALPHA_BIT`), so the screens and the room show through it the same way in either path.
+  Laser Sight is untouched. A plain new key (no mirror bit): an older build ignores it, and one
+  that saves the game's file sends it back to the global value.
+- **Projectiles** (`vr_light_gun_projectile`, per game too, on by default; under Muzzle Flash;
+  AzaharFrame kiuflash), with **Projectile Size** and **Projectile Speed** (50 to 200 %, 100 % by
+  default; shown while it is on): each of the game's own shots flies as the weapon's own bullet
+  (its effect file's bullet model, `core/frame_weapon_models.h` ConvertBullets, or its bullet
+  sprites when it has no mesh) from the muzzle to where the reticle is put on the top screen
+  (with Direct Aim the point it writes, through the game's Check Aim map and at Keep Reticle on
+  Screen's edge point; with Gyro Aim where the aim pose's ray meets it; held on the screen;
+  kiuinteg), then shrinks into it
+  (`vis/projectile.h`). 14 m/s rapid, 9 m/s charged (110 to 220 ms and 180 to 380 ms), at most 8
+  at once, turning slowly about the way they fly (the bullets' own animations are not read).
+  Projectiles is mirrored in `vr_controls_preset_done` bits 30 and 31; Size and Speed are plain
+  new keys. Test switch (live): `AZAHARFRAME_KIU_SHOT=speed,size` (factors on top).
+  **Projectile Opacity** (`vr_light_gun_projectile_opacity`, per game too, 20 to 100 %, 100 % by
+  default; the first row under Projectiles while it is on, above Projectile Size; AzaharFrame
+  kiuopacity): the same see-through drawing as Weapon Opacity for the bullets in flight (solid
+  bullets depth first, then their colour; added bullets and sprite bullets dimmed). A plain new
+  key. Test switch (live) for both: `AZAHARFRAME_KIU_OPACITY=weapon,projectile` (percent).
 - **Laser Sight** (`vr_light_gun_laser`, per game too, off by default; shown with Direct Aim;
   AzaharFrame kiuguns): on, the red laser sight above, from the weapon's muzzle when the weapon
   is drawn (`ControllerModels::WeaponMuzzle`), else from the controller; off, the aiming hand has

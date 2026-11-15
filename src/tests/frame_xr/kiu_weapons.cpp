@@ -233,6 +233,144 @@ TEST_CASE("Weapon fit: held weapons' grip in the palm and muzzle on the ray", "[
     CHECK(limb[1] > o[1]);
 }
 
+namespace {
+/// Rotation by `a` radians about x, as the game's hold has it (row major 3x4, moved by `t`).
+std::array<float, 12> TurnX(float a, std::array<float, 3> t) {
+    const float c = std::cos(a), s = std::sin(a);
+    return {1, 0, 0, t[0], 0, c, -s, t[1], 0, s, c, t[2]};
+}
+std::array<float, 3> Dir(const Vis::FitMat& m, const std::array<float, 3>& d) {
+    const auto o = Point(m, {0, 0, 0});
+    const auto p = Point(m, d);
+    return {p[0] - o[0], p[1] - o[1], p[2] - o[2]};
+}
+float Dot(const std::array<float, 3>& a, const std::array<float, 3>& b) {
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+float Len(const std::array<float, 3>& a) {
+    return std::sqrt(Dot(a, a));
+}
+} // namespace
+
+TEST_CASE("Weapon fit: the game's hold, by class", "[kiuweap2]") {
+    CHECK(Vis::HoldMapFor(0) == Vis::HoldMap::Grip);
+    CHECK(Vis::HoldMapFor(1) == Vis::HoldMap::Grip);
+    CHECK(Vis::HoldMapFor(5) == Vis::HoldMap::Grip);
+    CHECK(Vis::HoldMapFor(3) == Vis::HoldMap::Point);
+    CHECK(Vis::HoldMapFor(6) == Vis::HoldMap::Point);
+    for (const int c : {2, 4, 7, 8, -1, 9}) {
+        CHECK(Vis::HoldMapFor(c) == Vis::HoldMap::None);
+    }
+    // Which pose: idle, but a staff's aiming grip; the switch picks either for all.
+    CHECK(Vis::HoldPickFor(0, std::nullopt) == Vis::HoldPick::Idle);
+    CHECK(Vis::HoldPickFor(1, std::nullopt) == Vis::HoldPick::Shot);
+    CHECK(Vis::HoldPickFor(3, std::string{"shot"}) == Vis::HoldPick::Shot);
+    CHECK(Vis::HoldPickFor(1, std::string{"idle"}) == Vis::HoldPick::Idle);
+    CHECK(Vis::HoldPickFor(1, std::string{"bogus"}) == Vis::HoldPick::Shot);
+    CHECK(Vis::HoldPickFor(5, std::string{""}) == Vis::HoldPick::Idle);
+    CHECK(std::string{Vis::kHoldSwitch} == "AZAHARFRAME_KIU_HOLD");
+    // The handle's axis: a unit vector, raked forward, up.
+    CHECK(Len(Vis::kHandleAxis) == Approx(1.0f).margin(1e-3));
+    CHECK(Vis::kHandleAxis[1] > 0.5f);
+    CHECK(Vis::kHandleAxis[2] < -0.5f);
+
+    // A blade as the game holds it: its grip half a turn about the hand's x, the grip bone (the
+    // weapon's origin) at the fist.
+    Vis::FitWeapon blade{0, {-4.55f, 0.1f, -9.89f}, true};
+    blade.hold = Vis::FitHold{TurnX(3.14159265f, {-0.898f, -0.076f, 0.0f}), {-0.898f, -0.076f, 0.0f}};
+    const auto r = Vis::FitWeaponToHand(blade, false, {Vis::FitSide::Centre});
+    REQUIRE(r.size() == 1);
+    CHECK(r[0].side == Vis::FitSide::Centre);
+    CHECK_FALSE(r[0].mirrored);
+    CHECK(Det(r[0].transform) > 0.0f);
+    const auto grip = Point(r[0].transform, {0, 0, 0});
+    for (std::size_t i = 0; i < 3; i++) {
+        CHECK(grip[i] == Approx(Vis::kHandleCentre[i]).margin(1e-4)); // in the fist, on the handle
+    }
+    // The hand's thumb side (+z) along the handle: the blade's own z, turned half about x, against it.
+    const auto bz = Dir(r[0].transform, {0, 0, 1});
+    CHECK(Dot(bz, Vis::kHandleAxis) / Len(bz) == Approx(-1.0f).margin(1e-3));
+    // The back of the hand outward: the blade's y (turned: -y) to the right.
+    const auto by = Dir(r[0].transform, {0, -1, 0});
+    CHECK(by[0] / Len(by) > 0.9f);
+    // The muzzle follows the fit (the shots and the laser from the blade's tip).
+    const auto mz = Vis::FitMuzzle(blade, false, {Vis::FitSide::Centre});
+    REQUIRE(mz);
+    const auto tip = Point(r[0].transform, blade.muzzle);
+    for (std::size_t i = 0; i < 3; i++) {
+        CHECK((*mz)[i] == Approx(tip[i]).margin(1e-5));
+    }
+    // The left hand: the right's mirrored (the left controller's handle is the mirror).
+    const auto l = Vis::FitWeaponToHand(blade, true, {Vis::FitSide::Centre});
+    REQUIRE(l.size() == 1);
+    CHECK(l[0].mirrored);
+    CHECK(Det(l[0].transform) < 0.0f);
+    const auto lg = Point(l[0].transform, {0, 0, 0});
+    CHECK(lg[0] == Approx(-Vis::kHandleCentre[0]).margin(1e-4));
+    CHECK(lg[1] == Approx(grip[1]).margin(1e-5));
+    const auto lt = Point(l[0].transform, blade.muzzle);
+    CHECK(lt[0] == Approx(-tip[0]).margin(1e-4));
+    CHECK(lt[2] == Approx(tip[2]).margin(1e-4));
+    // The tune: an offset moves it, a scale keeps the fist in place.
+    Vis::FitOverride tune;
+    tune.offset_cm = {1.0f, 0.0f, 0.0f};
+    tune.scale = 1.5f;
+    const auto t = Vis::FitWeaponToHand(blade, false, {Vis::FitSide::Centre}, tune);
+    const auto tg = Point(t[0].transform, {-0.0f, 0, 0});
+    CHECK(tg[0] == Approx(Vis::kHandleCentre[0] + 0.01f).margin(1e-4));
+    CHECK(tg[1] == Approx(Vis::kHandleCentre[1]).margin(1e-4));
+    // A file of halves only: its right half.
+    const auto halves = Vis::FitWeaponToHand(blade, false, {Vis::FitSide::Right, Vis::FitSide::Left});
+    REQUIRE(halves.size() == 1);
+    CHECK(halves[0].side == Vis::FitSide::Right);
+
+    // A bow: in Pit's left hand; for the right hand mirrored, its grip at the palm point, its
+    // arrow axis (+x) ahead, its limbs (z) upright.
+    Vis::FitWeapon bow{3, {0.0f, -0.175f, 0.0f}, true};
+    bow.hold = Vis::FitHold{TurnX(0.0f, {0, 0, 0}), {0.899f, 0.076f, 0.0f}, true};
+    for (const bool left : {false, true}) {
+        INFO((left ? "left" : "right"));
+        const auto b = Vis::FitWeaponToHand(bow, left, {Vis::FitSide::Centre});
+        REQUIRE(b.size() == 1);
+        CHECK(b[0].mirrored == !left);
+        CHECK((Det(b[0].transform) < 0.0f) == !left);
+        const auto fist = Point(b[0].transform, {0.899f, 0.076f, 0.0f});
+        CHECK(fist[0] == Approx(0.0f).margin(1e-4));
+        CHECK(fist[1] == Approx(-0.0525f).margin(1e-4));
+        CHECK(fist[2] == Approx(0.043f).margin(1e-4));
+        const auto ahead = Dir(b[0].transform, {1, 0, 0});
+        CHECK(ahead[2] / Len(ahead) < -0.99f);
+        const auto limb = Dir(b[0].transform, {0, 0, 1});
+        CHECK(limb[1] / Len(limb) > 0.99f);
+    }
+    // A cannon: on the forearm, its housing (+y of the arm) outward: the right for the right
+    // hand, the left for the left.
+    Vis::FitWeapon cannon{6, {-8.2f, -4.7f, 1.3f}, true};
+    cannon.hold = Vis::FitHold{TurnX(0.0f, {0, 0, 0}), {-3.076f, 0.076f, 0.0f}};
+    const auto cr = Vis::FitWeaponToHand(cannon, false, {Vis::FitSide::Centre});
+    const auto cl = Vis::FitWeaponToHand(cannon, true, {Vis::FitSide::Centre});
+    REQUIRE(cr.size() == 1);
+    REQUIRE(cl.size() == 1);
+    CHECK_FALSE(cr[0].mirrored);
+    CHECK(Dir(cr[0].transform, {0, 1, 0})[0] > 0.0f);
+    CHECK(Dir(cl[0].transform, {0, 1, 0})[0] < 0.0f);
+    const auto forearm = Dir(cr[0].transform, {1, 0, 0}); // the forearm back from the hand
+    CHECK(forearm[2] > 0.0f);
+    // Claws, palms, arms, orbitars: their own fits, a hold or not.
+    for (const int cls : {2, 4, 8}) {
+        Vis::FitWeapon w{cls, {-1.3f, 0.0f, 0.0f}, true};
+        const auto sides = cls == 2 ? std::vector{Vis::FitSide::Right, Vis::FitSide::Left}
+                                    : std::vector{Vis::FitSide::Centre};
+        const auto before = Vis::FitWeaponToHand(w, false, sides);
+        w.hold = Vis::FitHold{TurnX(1.0f, {1, 2, 3}), {1, 2, 3}};
+        const auto after = Vis::FitWeaponToHand(w, false, sides);
+        REQUIRE(before.size() == after.size());
+        for (std::size_t i = 0; i < before.size(); i++) {
+            CHECK(before[i].transform == after[i].transform);
+        }
+    }
+}
+
 TEST_CASE("Weapon fit: claws on their own hand, orbitars either side", "[kiuguns]") {
     const Vis::FitWeapon claws{2, {-1.3f, 0, 0}, true};
     const std::vector<Vis::FitSide> both{Vis::FitSide::Right, Vis::FitSide::Left};
@@ -368,7 +506,17 @@ TEST_CASE("Kid Icarus: the fits of converted weapons", "[.kiuguns_real]") {
             }
         }
         for (const bool left : {false, true}) {
-            const auto fits = Vis::FitWeaponToHand({w.cls, w.muzzle, w.muzzle_valid}, left, sides);
+            // AzaharFrame kiuweap2: the game's hold, in the pose the app picks (as its FitInputs).
+            Vis::FitWeapon fw{w.cls, w.muzzle, w.muzzle_valid, std::nullopt};
+            if (w.hold.valid) {
+                const auto pick = Vis::HoldPickFor(
+                    w.cls, std::getenv(Vis::kHoldSwitch)
+                               ? std::optional<std::string>{std::getenv(Vis::kHoldSwitch)}
+                               : std::nullopt);
+                const auto& hp = pick == Vis::HoldPick::Shot ? w.hold.shot : w.hold.idle;
+                fw.hold = Vis::FitHold{hp.to_hand, hp.fist, w.hold.hand == "LHandN"};
+            }
+            const auto fits = Vis::FitWeaponToHand(fw, left, sides);
             // Palm, elbow mode (AZAHARFRAME_KIU_PALM_MODE=elbow): the forearm's turn as the app
             // works it out, for a head 0.42 m above, 0.38 m behind and 0.18 m inward of the
             // controller (aim space taken as the room, the controller held level).

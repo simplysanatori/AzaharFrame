@@ -752,6 +752,103 @@ bool ReadClassUvAnims(std::span<const u8> class_zrc, std::vector<FrameCgfx::UvAn
     return true;
 }
 
+// ---- AzaharFrame kiuweap2: how Pit holds the weapon ----
+
+std::string PoseZrcName(int cls) {
+    return fmt::format("g{}.zrc", cls);
+}
+
+namespace {
+const char* GameClassName(int cls) {
+    static constexpr const char* kNames[kClasses] = {"Rifle",  "Snipe", "Nail", "Bow", "Palm",
+                                                     "Pillar", "Launch", "Bit", "Arm"};
+    return cls >= 0 && cls < kClasses ? kNames[cls] : "?";
+}
+} // namespace
+
+std::string IdleAnimation(int cls) {
+    return fmt::format("ChrPit00Wait{}", GameClassName(cls));
+}
+
+std::string ShotAnimation(int cls) {
+    return fmt::format("ChrPit00ShotWait{}", GameClassName(cls));
+}
+
+bool ReadClassPoses(std::span<const u8> pose_zrc, int cls, ClassPoses& out, std::string& error) {
+    Bytes bcres;
+    if (!FrameCgfx::DarcMember(pose_zrc, "character/mdl.arc!mdl/00.bcres", bcres, error)) {
+        return false;
+    }
+    ClassPoses p;
+    if (!FrameCgfx::ReadSkeletalPose(bcres, IdleAnimation(cls), p.idle, error)) {
+        return false;
+    }
+    std::string why;
+    if (!FrameCgfx::ReadSkeletalPose(bcres, ShotAnimation(cls), p.shot, why)) {
+        p.shot = p.idle; // clubs have no aiming pose
+    }
+    out = std::move(p);
+    return true;
+}
+
+HoldInfo MakeHold(const FrameCgfx::Model& m, int cls, s32 anchor, const ClassPoses& poses) {
+    HoldInfo h;
+    h.known = true;
+    const s32 hand = m.BoneIndex(cls == kBow ? "LHandN" : "RHandN");
+    const s32 arm = m.BoneIndex("RArmN");
+    const s32 ref = hand >= 0 ? hand : (cls == kBow ? -1 : arm);
+    const std::size_t n = m.bones.size();
+    if (ref < 0 || anchor < 0 || static_cast<std::size_t>(anchor) >= n ||
+        static_cast<std::size_t>(ref) >= n) {
+        return h;
+    }
+    h.hand = m.bones[static_cast<std::size_t>(ref)].name;
+    // The fist's centre when the weapon has no grip bone: the fist marker of Pit's left hand
+    // (LHandFistM, in the bind pose), mirrored for his right (Pit's right is -x); for a cannon,
+    // where his right hand would be on the forearm: the left arm's hand and fist, mirrored.
+    const auto translation = [](const FrameCgfx::Mat34& t) {
+        return std::array<float, 3>{t[3], t[7], t[11]};
+    };
+    const auto bind = [&](s32 b) { return m.bones[static_cast<std::size_t>(b)].bind; };
+    const s32 fist_marker = m.BoneIndex("LHandFistM");
+    const s32 left_hand = m.BoneIndex("LHandN");
+    const s32 left_arm = m.BoneIndex("LArmN");
+    std::array<float, 3> marker{0.9f, 0.076f, 0.0f}; // the files' value when a skeleton lacks it
+    if (fist_marker >= 0 && left_hand >= 0) {
+        const s32 base = (h.hand == "RArmN" && left_arm >= 0) ? left_arm : left_hand;
+        marker = translation(FrameCgfx::Multiply34(FrameCgfx::Inverse34(bind(base)),
+                                                   bind(fist_marker)));
+    } else if (h.hand == "RArmN") {
+        marker[0] += 2.177f; // Pit's hand bone's length (when a skeleton lacks the left arm)
+    }
+    const std::string& anchor_name = m.bones[static_cast<std::size_t>(anchor)].name;
+    const bool grip_bone = anchor_name == "GripN" || anchor_name == "SnipeM";
+    const auto pose = [&](const FrameCgfx::SkeletalPose& sp, HoldPose& out) {
+        const std::vector<FrameCgfx::Mat34> world = FrameCgfx::PoseBones(m, sp);
+        out.to_hand = FrameCgfx::Multiply34(
+            FrameCgfx::Inverse34(world[static_cast<std::size_t>(ref)]),
+            world[static_cast<std::size_t>(anchor)]);
+        if (grip_bone) {
+            out.fist = translation(out.to_hand);
+        } else {
+            out.fist = marker;
+            if (cls != kBow) {
+                out.fist[0] = -out.fist[0];
+            }
+        }
+    };
+    pose(poses.idle, h.idle);
+    pose(poses.shot, h.shot);
+    const auto finite = [](const HoldPose& p) {
+        return std::all_of(p.to_hand.begin(), p.to_hand.end(),
+                           [](float f) { return std::isfinite(f) && std::abs(f) < 1e4f; }) &&
+               std::all_of(p.fist.begin(), p.fist.end(),
+                           [](float f) { return std::isfinite(f) && std::abs(f) < 1e4f; });
+    };
+    h.valid = finite(h.idle) && finite(h.shot);
+    return h;
+}
+
 UvMotion GameUvMotion(const std::vector<FrameCgfx::UvAnim>& anims, const std::string& material,
                       s32 coord, float scale_u, float scale_v) {
     UvMotion m;
@@ -864,7 +961,8 @@ UvMotion FlowMotion(const PartBuilder& pb, Side primary, u32 wrap_u, u32 wrap_v)
 } // namespace
 
 bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string& error,
-                   const TexturePack* pack, const std::vector<FrameCgfx::UvAnim>* class_anims) {
+                   const TexturePack* pack, const std::vector<FrameCgfx::UvAnim>* class_anims,
+                   const ClassPoses* poses) {
     if (id < 0 || id >= kWeapons) {
         error = "not a weapon id";
         return false;
@@ -912,6 +1010,12 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
     {
         const s32 b = anchor_of(primary);
         w.anchor = b >= 0 ? m.bones[static_cast<std::size_t>(b)].name : std::string{};
+    }
+    // AzaharFrame kiuweap2: how Pit holds it (his class's poses; none: the class's own fit).
+    if (poses) {
+        w.hold = MakeHold(m, cls, anchor_of(primary), *poses);
+    } else {
+        w.hold.known = true;
     }
     const std::map<Side, FrameCgfx::Mat34> space{
         {Side::Centre, to_anchor(Side::Centre)},
@@ -1134,6 +1238,7 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
     // AzaharFrame kiuflash: its flashes from its own effects (another weapon's when it has
     // none: the caller's, GameConverter::Ensure).
     ConvertFlash(id, zrc, id, false, c, pack);
+    ConvertBullets(id, zrc, c, pack); // AzaharFrame kiuflash: its projectiles
     error.clear();
     out = std::move(c);
     return true;
@@ -1182,6 +1287,515 @@ FlashModels PickFlashModels(int id, const std::vector<std::string>& names) {
         out.charged = out.rapid;
     }
     return out;
+}
+
+namespace {
+
+/// The first of `suffixes` that names a model `prefix + suffix` exactly ("" for none).
+std::string ExactName(const std::string& prefix, const std::vector<std::string>& names,
+                      std::initializer_list<const char*> suffixes) {
+    for (const char* suffix : suffixes) {
+        const std::string want = prefix + suffix;
+        if (std::find(names.begin(), names.end(), want) != names.end()) {
+            return want;
+        }
+    }
+    return {};
+}
+
+FlashModels PickBullets(int id, const std::vector<std::string>& names, const char* lead) {
+    FlashModels out;
+    if (id < 0 || id >= kWeapons) {
+        return out;
+    }
+    const std::string prefix =
+        fmt::format("{}{}{:02d}", lead, kEffectClass[ClassOf(id)], id % kPerClass);
+    out.rapid = ExactName(prefix, names, {"Bullet1", "Bullet01", "BulletA01"});
+    out.charged = ExactName(prefix, names, {"Bullet3", "Bullet03"});
+    if (out.rapid.empty()) {
+        out.rapid = out.charged;
+    }
+    if (out.charged.empty()) {
+        out.charged = out.rapid;
+    }
+    return out;
+}
+
+using C4 = std::array<float, 4>;
+
+/// A texel (0 to 1) at the texture coordinates (wrapped), white with no texture.
+C4 Texel(const FrameCgfx::Texture* t, float u, float v) {
+    if (!t || t->width == 0 || t->height == 0) {
+        return {1.0f, 1.0f, 1.0f, 1.0f};
+    }
+    const auto wrap = [](float x, u32 n) {
+        const float f = x - std::floor(x);
+        return std::min(static_cast<u32>(f * static_cast<float>(n)), n - 1);
+    };
+    const u8* p = t->rgba.data() + (std::size_t{wrap(v, t->height)} * t->width + wrap(u, t->width)) * 4;
+    return {p[0] / 255.0f, p[1] / 255.0f, p[2] / 255.0f, p[3] / 255.0f};
+}
+
+/// The material's combiner stages run on one texel (PICA's TEV, as the effects study reads it:
+/// the vertex colour as given, lighting as full, the secondary colour as none).
+C4 RunStages(const FrameCgfx::Material& m, const std::array<C4, 3>& tex, const C4& vertex) {
+    C4 prev{0.0f, 0.0f, 0.0f, 0.0f};
+    if (m.stages.empty()) {
+        return tex[0];
+    }
+    const auto constant = [&](u32 sel) -> C4 {
+        const auto& c = m.constants[sel < 6 ? sel : 0];
+        return {c[0], c[1], c[2], c[3]};
+    };
+    for (const auto& st : m.stages) {
+        const C4 k = constant(st.constant);
+        const auto source = [&](u32 src) -> C4 {
+            switch (src) {
+            case 0:
+                return vertex;
+            case 1:
+                return {1.0f, 1.0f, 1.0f, 1.0f};
+            case 2:
+                return {0.0f, 0.0f, 0.0f, 0.0f};
+            case 3:
+                return tex[0];
+            case 4:
+                return tex[1];
+            case 5:
+            case 6:
+                return tex[2];
+            case 0xE:
+                return k;
+            default:
+                return prev;
+            }
+        };
+        std::array<std::array<float, 3>, 3> rgb{};
+        std::array<float, 3> alpha{};
+        for (u32 i = 0; i < 3; i++) {
+            const C4 cs = source((st.source >> (4 * i)) & 0xF);
+            const C4 as = source((st.source >> (16 + 4 * i)) & 0xF);
+            const u32 oc = (st.operand >> (4 * i)) & 0xF;
+            for (int ch = 0; ch < 3; ch++) {
+                float x;
+                switch (oc) {
+                case 1: x = 1.0f - cs[ch]; break;
+                case 2: x = cs[3]; break;
+                case 3: x = 1.0f - cs[3]; break;
+                case 4: x = cs[0]; break;
+                case 5: x = 1.0f - cs[0]; break;
+                case 8: x = cs[1]; break;
+                case 9: x = 1.0f - cs[1]; break;
+                case 12: x = cs[2]; break;
+                case 13: x = 1.0f - cs[2]; break;
+                default: x = cs[ch]; break;
+                }
+                rgb[i][ch] = x;
+            }
+            const u32 oa = (st.operand >> (12 + 4 * i)) & 7;
+            const float a[8] = {as[3], 1.0f - as[3], as[0], 1.0f - as[0],
+                                as[1], 1.0f - as[1], as[2], 1.0f - as[2]};
+            alpha[i] = a[oa];
+        }
+        const auto combine = [](u32 op, float a, float b, float c) {
+            switch (op) {
+            case 0: return a;
+            case 2: return a + b;
+            case 3: return a + b - 0.5f;
+            case 4: return a * c + b * (1.0f - c);
+            case 5: return a - b;
+            case 8: return a * b + c;
+            case 9: return (a + b) * c;
+            default: return a * b;
+            }
+        };
+        const float cs = static_cast<float>(1u << (st.scale & 3));
+        const float as = static_cast<float>(1u << ((st.scale >> 16) & 3));
+        C4 out;
+        for (int ch = 0; ch < 3; ch++) {
+            out[ch] = std::clamp(combine(st.combine & 0xF, rgb[0][ch], rgb[1][ch], rgb[2][ch]) * cs,
+                                 0.0f, 1.0f);
+        }
+        out[3] = std::clamp(combine((st.combine >> 16) & 0xF, alpha[0], alpha[1], alpha[2]) * as,
+                            0.0f, 1.0f);
+        prev = out;
+    }
+    return prev;
+}
+
+/// A bullet material's look as one of the flash colour modes and a colour, fitted (least squares)
+/// to its combiner run over its first texture's texels, the light it adds (times its alpha when
+/// it blends with it).
+std::array<float, kBulletValues> FitBulletLook(const FrameCgfx::Material& m,
+                                               const std::array<const FrameCgfx::Texture*, 3>& tex,
+                                               const C4& mean_vertex) {
+    std::array<float, kBulletValues> v{};
+    v[kBulletAdded] = m.blend ? 1.0f : 0.0f;
+    // The vertex colour times the rest (the first stage multiplies by it, or there is none): left
+    // to the draw, per vertex; else its mean goes through the stages here.
+    bool multiplies = m.stages.empty();
+    if (!m.stages.empty()) {
+        const auto& st = m.stages[0];
+        multiplies = (st.combine & 0xF) == 1 &&
+                     ((st.source & 0xF) == 0 || ((st.source >> 4) & 0xF) == 0) &&
+                     (st.operand & 0xFF) == 0;
+    }
+    v[kBulletVertexColour] = multiplies ? 1.0f : 0.0f;
+    const C4 vertex = multiplies ? C4{1.0f, 1.0f, 1.0f, 1.0f} : mean_vertex;
+    if (!m.blend || !tex[0]) {
+        v[kBulletMode] = kFlashTexture;
+        v[kBulletRed] = v[kBulletGreen] = v[kBulletBlue] = 1.0f;
+        return v;
+    }
+    const FrameCgfx::Texture& t0 = *tex[0];
+    double tt[3]{}, tl[3]{}, ll[3]{}, rr = 0.0, rl[3]{};
+    for (u32 y = 0; y < t0.height; y++) {
+        for (u32 x = 0; x < t0.width; x++) {
+            const float u = (static_cast<float>(x) + 0.5f) / static_cast<float>(t0.width);
+            const float w = (static_cast<float>(y) + 0.5f) / static_cast<float>(t0.height);
+            const std::array<C4, 3> texels{Texel(tex[0], u, w), Texel(tex[1], u, w),
+                                           Texel(tex[2], u, w)};
+            const C4 o = RunStages(m, texels, vertex);
+            const float a = m.blend_src == 6 ? o[3] : m.blend_src == 7 ? 1.0f - o[3] : 1.0f;
+            const C4& t = texels[0];
+            for (int c = 0; c < 3; c++) {
+                const double light = o[c] * a;
+                const double basis = t[c] * t[3];
+                tt[c] += basis * basis;
+                tl[c] += basis * light;
+                ll[c] += light * light;
+                rl[c] += t[0] * light;
+            }
+            rr += t[0] * t[0];
+        }
+    }
+    // The error of each mode: sum(L^2) - (sum(B L))^2 / sum(B^2), per channel.
+    double err_tex = 0.0, err_lum = 0.0;
+    std::array<float, 3> k_tex{}, k_lum{};
+    for (int c = 0; c < 3; c++) {
+        k_tex[c] = tt[c] > 1e-9 ? static_cast<float>(tl[c] / tt[c]) : 0.0f;
+        k_lum[c] = rr > 1e-9 ? static_cast<float>(rl[c] / rr) : 0.0f;
+        err_tex += ll[c] - (tt[c] > 1e-9 ? tl[c] * tl[c] / tt[c] : 0.0);
+        err_lum += ll[c] - (rr > 1e-9 ? rl[c] * rl[c] / rr : 0.0);
+    }
+    // The texture's own colour unless its red channel alone is clearly the better fit.
+    const bool lum = err_lum < err_tex * 0.8 - 1e-9;
+    const auto& k = lum ? k_lum : k_tex;
+    v[kBulletMode] = lum ? kFlashLuminance : kFlashTexture;
+    for (int c = 0; c < 3; c++) {
+        v[static_cast<std::size_t>(kBulletRed + c)] = std::clamp(k[c], 0.0f, 1.0f);
+    }
+    return v;
+}
+
+constexpr u32 kFlagBullet = 1u << 18; // frame_xr/vis/model_file.h kModelFlagBullet
+
+struct BulletBuilder {
+    const FrameCgfx::Material* material = nullptr;
+    int mapper = -1;
+    std::vector<float> verts; // 12 floats each, model space until normalised
+    std::vector<u32> idx;
+};
+
+} // namespace
+
+FlashModels PickBulletModels(int id, const std::vector<std::string>& names) {
+    return PickBullets(id, names, "Eff");
+}
+
+FlashModels PickBulletSprites(int id, const std::vector<std::string>& names) {
+    return PickBullets(id, names, "Ptc");
+}
+
+bool ConvertBullets(int id, std::span<const u8> zrc, Converted& out, const TexturePack* pack) {
+    BulletInfo made;
+    made.known = true;
+    Bytes effects;
+    std::string why;
+    if (!FrameCgfx::DarcMember(zrc, "character/effect.bcres", effects, why)) {
+        out.info.bullets = made;
+        return false;
+    }
+    // The names: the mesh models and the particle models.
+    std::vector<FrameCgfx::ParticleModel> particles;
+    FrameCgfx::ReadParticleModels(effects, particles, why);
+    // The mesh bullets PickBulletModels can name: only these are read.
+    std::vector<std::string> names;
+    for (const char* suffix : {"Bullet1", "Bullet01", "BulletA01", "Bullet3", "Bullet03"}) {
+        names.push_back(fmt::format("Eff{}{:02d}{}", kEffectClass[ClassOf(id)], id % kPerClass,
+                                    suffix));
+    }
+    FrameCgfx::File file;
+    if (!FrameCgfx::ReadCgfxModels(effects, names, file, why)) {
+        out.info.bullets = made;
+        return false;
+    }
+    std::vector<std::string> mesh_names;
+    for (const auto& m : file.models) {
+        mesh_names.push_back(m.name);
+    }
+    std::vector<std::string> sprite_names;
+    for (const auto& m : particles) {
+        sprite_names.push_back(m.name);
+    }
+    const FlashModels meshes = PickBulletModels(id, mesh_names);
+    const FlashModels sprites = PickBulletSprites(id, sprite_names);
+    const auto model = [&](const std::string& name) -> const FrameCgfx::Model* {
+        for (const auto& m : file.models) {
+            if (!name.empty() && m.name == name) {
+                u32 triangles = 0;
+                for (const auto& mesh : m.meshes) {
+                    if (mesh.shape >= 0 && static_cast<std::size_t>(mesh.shape) < m.shapes.size()) {
+                        for (const auto& sub : m.shapes[static_cast<std::size_t>(mesh.shape)].submeshes) {
+                            triangles += static_cast<u32>(sub.indices.size() / 3);
+                        }
+                    }
+                }
+                return triangles > 0 && triangles <= kBulletTrianglesMax ? &m : nullptr;
+            }
+        }
+        return nullptr;
+    };
+    const FrameCgfx::Model* rapid = model(meshes.rapid);
+    const FrameCgfx::Model* charged = model(meshes.charged);
+    std::vector<std::pair<std::string, std::vector<u8>>> files;
+    const auto add_part = [&](FlashPart part, const FrameCgfx::Texture* tex, Bytes bytes) {
+        part.file = fmt::format("w{:03d}-b{}.model", id, made.parts.size());
+        if (tex) {
+            part.texture = tex->name;
+            part.hash = VideoCore::CustomTexManager::NewHash(tex->raw);
+            if (pack && pack->on) {
+                if (const auto it = pack->files.find(part.hash); it != pack->files.end()) {
+                    const auto ext = std::filesystem::path(it->second).extension().string();
+                    if (ext == ".png" || ext == ".PNG") {
+                        part.replaced = it->second;
+                        part.replaced_flip = pack->flip_png;
+                    }
+                }
+            }
+        }
+        files.emplace_back(part.file, std::move(bytes));
+        made.parts.push_back(std::move(part));
+    };
+
+    // The mesh bullets: each model once, its components the kinds it is.
+    for (int pass = 0; pass < 2; pass++) {
+        const FrameCgfx::Model* m = pass == 0 ? rapid : charged;
+        if (!m || (pass == 1 && charged == rapid)) {
+            continue; // none, or the rapid one again (made once, for both)
+        }
+        std::vector<const char*> kinds;
+        if (m == rapid) {
+            kinds.push_back("rapid");
+        }
+        if (m == charged) {
+            kinds.push_back("charged");
+        }
+        std::map<s32, BulletBuilder> by_material;
+        float lo[3] = {1e30f, 1e30f, 1e30f}, hi[3] = {-1e30f, -1e30f, -1e30f};
+        for (const FrameCgfx::Mesh& mesh : m->meshes) {
+            if (!m->MeshShown(mesh) || mesh.shape < 0 ||
+                static_cast<std::size_t>(mesh.shape) >= m->shapes.size()) {
+                continue;
+            }
+            BulletBuilder& b = by_material[mesh.material];
+            b.material = &m->materials[static_cast<std::size_t>(mesh.material)];
+            if (b.mapper < 0) {
+                for (int i = 0; i < 3; i++) {
+                    const auto& mp = b.material->mappers[static_cast<std::size_t>(i)];
+                    if (!mp.texture.empty() && file.FindTexture(mp.texture)) {
+                        b.mapper = i;
+                        break;
+                    }
+                }
+            }
+            FrameCgfx::TexCoord coord;
+            if (b.mapper >= 0 && !b.material->coords.empty()) {
+                coord = b.material->coords[std::min<std::size_t>(static_cast<std::size_t>(b.mapper),
+                                                                 b.material->coords.size() - 1)];
+            }
+            const FrameCgfx::Shape& shape = m->shapes[static_cast<std::size_t>(mesh.shape)];
+            for (const FrameCgfx::SubMesh& sub : shape.submeshes) {
+                for (const u32 vi : sub.indices) {
+                    const FrameCgfx::Vertex& v = shape.vertices[vi];
+                    const auto p = FrameCgfx::BindPosition(*m, sub, v);
+                    for (int k = 0; k < 3; k++) {
+                        lo[k] = std::min(lo[k], p[static_cast<std::size_t>(k)]);
+                        hi[k] = std::max(hi[k], p[static_cast<std::size_t>(k)]);
+                    }
+                    const auto& uv = coord.source == 1 ? v.uv1 : v.uv0;
+                    // Unlit: the normal unused; the vertex colour in the tangent's place.
+                    b.verts.insert(b.verts.end(),
+                                   {p[0], p[1], p[2], 0.0f, 0.0f, 1.0f, v.colour[0], v.colour[1],
+                                    v.colour[2], v.colour[3],
+                                    uv[0] * coord.scale_u + coord.translate_u,
+                                    1.0f - (uv[1] * coord.scale_v + coord.translate_v)});
+                    b.idx.push_back(static_cast<u32>(b.idx.size()));
+                }
+            }
+        }
+        if (by_material.empty() || !(hi[0] >= lo[0])) {
+            continue;
+        }
+        // Centred, its largest side 1; its head to +z: a trail reaches farther from the bullet's
+        // mass (its vertices' mean) than its head does.
+        const float centre[3] = {(lo[0] + hi[0]) / 2.0f, (lo[1] + hi[1]) / 2.0f,
+                                 (lo[2] + hi[2]) / 2.0f};
+        const float size = std::max({hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], 1e-6f});
+        double mean_z = 0.0;
+        std::size_t count = 0;
+        for (const auto& [mat, b] : by_material) {
+            for (std::size_t i = 0; i + 11 < b.verts.size(); i += 12) {
+                mean_z += b.verts[i + 2];
+                count++;
+            }
+        }
+        mean_z /= static_cast<double>(std::max<std::size_t>(count, 1));
+        const bool flip = hi[2] - mean_z > (mean_z - lo[2]) * 1.1;
+        for (auto& [mat, b] : by_material) {
+            for (std::size_t i = 0; i + 11 < b.verts.size(); i += 12) {
+                for (int k = 0; k < 3; k++) {
+                    b.verts[i + static_cast<std::size_t>(k)] =
+                        (b.verts[i + static_cast<std::size_t>(k)] - centre[k]) / size;
+                }
+                if (flip) { // half a turn about y
+                    b.verts[i] = -b.verts[i];
+                    b.verts[i + 2] = -b.verts[i + 2];
+                }
+            }
+            const FrameCgfx::Texture* tex =
+                b.mapper >= 0 ? file.FindTexture(b.material->mappers[static_cast<std::size_t>(b.mapper)].texture)
+                              : nullptr;
+            std::array<const FrameCgfx::Texture*, 3> texs{};
+            for (int i = 0; i < 3; i++) {
+                const auto& mp = b.material->mappers[static_cast<std::size_t>(i)];
+                texs[static_cast<std::size_t>(i)] = mp.texture.empty() ? nullptr : file.FindTexture(mp.texture);
+            }
+            if (b.mapper > 0) {
+                std::swap(texs[0], texs[static_cast<std::size_t>(b.mapper)]);
+            }
+            C4 mean{0.0f, 0.0f, 0.0f, 0.0f};
+            for (std::size_t i = 0; i + 11 < b.verts.size(); i += 12) {
+                for (int k = 0; k < 4; k++) {
+                    mean[k] += b.verts[i + 6 + static_cast<std::size_t>(k)];
+                }
+            }
+            for (float& x : mean) {
+                x /= std::max<float>(1.0f, static_cast<float>(b.verts.size() / 12));
+            }
+            const auto look = FitBulletLook(*b.material, texs, mean);
+            const u32 wrap_u = b.mapper >= 0 ? b.material->mappers[static_cast<std::size_t>(b.mapper)].wrap_u : 2;
+            const u32 wrap_v = b.mapper >= 0 ? b.material->mappers[static_cast<std::size_t>(b.mapper)].wrap_v : 2;
+            // The file: the components the kinds, the look in their floats.
+            const u32 tw = tex ? tex->width : 8, th = tex ? tex->height : 8;
+            Bytes bytes;
+            bytes.insert(bytes.end(), {'M', 'X', 'F', 'M'});
+            Put32(bytes, kModelVersion);
+            Put32(bytes, static_cast<u32>(b.verts.size() / 12));
+            Put32(bytes, static_cast<u32>(b.idx.size()));
+            Put32(bytes, static_cast<u32>(kinds.size()));
+            Put32(bytes, tw);
+            Put32(bytes, th);
+            Put32(bytes, kFlagWeaponSpace | (wrap_u & 7) << 8 | (wrap_v & 7) << 12 |
+                             kFlagFlatSurface | kFlagBullet);
+            for (const char* kind : kinds) {
+                Bytes rec(kComponentBytes, 0);
+                std::memcpy(rec.data(), kind, std::strlen(kind));
+                std::memcpy(rec.data() + kNameBytes, b.material->name.data(),
+                            std::min<std::size_t>(b.material->name.size(), kNameBytes - 1));
+                const auto put_at = [&](std::size_t at, u32 val) {
+                    for (int k = 0; k < 4; k++) {
+                        rec[at + k] = static_cast<u8>(val >> (8 * k));
+                    }
+                };
+                put_at(2 * kNameBytes, 0);
+                put_at(2 * kNameBytes + 4, static_cast<u32>(b.idx.size()));
+                for (int k = 0; k < kBulletValues; k++) {
+                    u32 bits;
+                    std::memcpy(&bits, &look[static_cast<std::size_t>(k)], 4);
+                    put_at(2 * kNameBytes + 16 + std::size_t(k) * 4, bits);
+                }
+                bytes.insert(bytes.end(), rec.begin(), rec.end());
+            }
+            for (const float f : b.verts) {
+                PutF(bytes, f);
+            }
+            for (const u32 i : b.idx) {
+                Put32(bytes, i);
+            }
+            for (std::size_t i = 0; i < std::size_t{tw} * th; i++) {
+                if (tex) {
+                    bytes.insert(bytes.end(), {tex->rgba[i * 4], tex->rgba[i * 4 + 1],
+                                               tex->rgba[i * 4 + 2], tex->rgba[i * 4 + 3]});
+                } else {
+                    bytes.insert(bytes.end(), {255, 255, 255, 255});
+                }
+            }
+            bytes.insert(bytes.end(), {128, 128, 255, kRoughness});
+            FlashPart part;
+            part.cards = static_cast<u32>(kinds.size());
+            add_part(std::move(part), tex, std::move(bytes));
+        }
+        (m == rapid ? made.rapid : made.charged) = m->name;
+        if (m == rapid && m == charged) {
+            made.charged = m->name;
+        }
+    }
+    // A kind with no mesh: its sprites, face cards as the flashes' (one file per texture).
+    std::vector<Card> cards;
+    for (const FlashKind kind : {FlashKind::Rapid, FlashKind::Charged}) {
+        const bool is_rapid = kind == FlashKind::Rapid;
+        if ((is_rapid && rapid) || (!is_rapid && charged)) {
+            continue;
+        }
+        const std::string& name = is_rapid ? sprites.rapid : sprites.charged;
+        const auto pm = std::find_if(particles.begin(), particles.end(),
+                                     [&](const auto& p) { return !name.empty() && p.name == name; });
+        if (pm == particles.end()) {
+            continue;
+        }
+        std::vector<Card> more = FlashCards(*pm, kind, file.textures, false);
+        for (Card& c : more) {
+            c.role = CardRole::Face; // a bullet is seen from wherever it flies
+            c.values[kFlashOffset] = 0.0f;
+        }
+        if (!more.empty()) {
+            (is_rapid ? made.rapid : made.charged) = pm->name;
+            (is_rapid ? made.rapid_cards : made.charged_cards) = true;
+            cards.insert(cards.end(), std::make_move_iterator(more.begin()),
+                         std::make_move_iterator(more.end()));
+        }
+    }
+    std::vector<bool> done(cards.size(), false);
+    for (std::size_t i = 0; i < cards.size(); i++) {
+        if (done[i]) {
+            continue;
+        }
+        std::vector<const Card*> group;
+        for (std::size_t k = i; k < cards.size(); k++) {
+            if (!done[k] && cards[k].texture == cards[i].texture &&
+                cards[k].wrap_u == cards[i].wrap_u && cards[k].wrap_v == cards[i].wrap_v) {
+                group.push_back(&cards[k]);
+                done[k] = true;
+            }
+        }
+        const FrameCgfx::Texture* tex = file.FindTexture(cards[i].texture);
+        if (!tex) {
+            continue;
+        }
+        FlashPart part;
+        part.cards = static_cast<u32>(group.size());
+        add_part(std::move(part), tex, WriteFlashModel(*tex, group));
+    }
+    std::vector<u64> hashes;
+    for (const FlashPart& p : made.parts) {
+        hashes.push_back(p.hash);
+    }
+    made.pack_key = PackKey(pack, hashes);
+    out.files.insert(out.files.end(), std::make_move_iterator(files.begin()),
+                     std::make_move_iterator(files.end()));
+    out.info.bullets = std::move(made);
+    return !out.info.bullets.parts.empty();
 }
 
 bool ConvertFlash(int id, std::span<const u8> source_zrc, int source, bool neutral,
@@ -1301,11 +1915,18 @@ bool ConvertFlash(int id, std::span<const u8> source_zrc, int source, bool neutr
 //   part <file> <material> <sides> <triangles> <wrap u> <wrap v> <glow> <cull> <flip> [pack PNG]
 //   flashes <rapid model|-> <charged model|-> <source weapon|-1> <flash pack key>
 //   flash <file> <texture> <texture hash> <cards> <flip> [pack PNG]
+//   bullets <rapid model|-> <charged model|-> <rapid as sprites 0|1> <charged as sprites 0|1>
+//           <bullet pack key>
+//   bullet <file> <texture> <texture hash> <components> <flip> [pack PNG]
 //   uvanim <file> <source: 1 game, 2 flow> <frames> <du> <dv> <turns>   (kiumodels, version 4)
+//   hold <hand bone|-> <idle: fist x y z, anchor to hand 12 numbers (row major 3x4)>
+//        <aiming: the same>                                            (kiuweap2, HoldInfo)
 // A part line belongs to the weapon line before it; the PNG's path is the rest of the line. A
 // uvanim line belongs to that weapon's part of the same file.
-// AzaharFrame kiuflash: the flashes and flash lines too (builds before them skip both; a weapon
-// line without a flashes line is made again).
+// AzaharFrame kiuflash: the flashes and flash lines too, and the bullets and bullet lines (builds
+// before them skip them; a weapon line without a flashes or a bullets line is made again).
+// AzaharFrame kiuweap2: the hold line the same way (no version change: builds before it keep
+// their files and skip the line; this one makes a weapon without it again, once).
 
 bool WriteManifest(const std::string& path, const Manifest& m, std::string& error) {
     std::string out = "# Kid Icarus: Uprising's weapons, made by Azahar for Frame from this game's "
@@ -1358,6 +1979,24 @@ bool WriteManifest(const std::string& path, const Manifest& m, std::string& erro
                                    p.uv.turns);
             }
         }
+        // AzaharFrame kiuweap2: how Pit holds it (a weapon without the line is made again).
+        if (w.hold.known) {
+            const HoldInfo& h = w.hold;
+            if (!h.valid) {
+                out += "hold -\n";
+            } else {
+                out += "hold " + h.hand;
+                for (const HoldPose* hp : {&h.idle, &h.shot}) {
+                    for (const float f : hp->fist) {
+                        out += fmt::format(" {}", f);
+                    }
+                    for (const float f : hp->to_hand) {
+                        out += fmt::format(" {}", f);
+                    }
+                }
+                out += "\n";
+            }
+        }
         // AzaharFrame kiuflash: for a weapon made with its flashes (one made by a build before
         // them, kept as it was, keeps none: it is made again when next asked for).
         const FlashInfo& f = w.flash;
@@ -1369,6 +2008,23 @@ bool WriteManifest(const std::string& path, const Manifest& m, std::string& erro
         for (const FlashPart& p : f.parts) {
             out += fmt::format("flash {} {} {} {} {}", p.file, p.texture.empty() ? "-" : p.texture,
                                Hex(p.hash), p.cards, p.replaced_flip ? 1 : 0);
+            if (!p.replaced.empty()) {
+                out += " " + p.replaced;
+            }
+            out += "\n";
+        }
+        // AzaharFrame kiuflash: the projectiles, the same way.
+        const BulletInfo& b = w.bullets;
+        if (!b.known) {
+            continue;
+        }
+        out += fmt::format("bullets {} {} {} {} {}\n", b.rapid.empty() ? "-" : b.rapid,
+                           b.charged.empty() ? "-" : b.charged, b.rapid_cards ? 1 : 0,
+                           b.charged_cards ? 1 : 0, Hex(b.pack_key));
+        for (const FlashPart& p : b.parts) {
+            out += fmt::format("bullet {} {} {} {} {}", p.file,
+                               p.texture.empty() ? "-" : p.texture, Hex(p.hash), p.cards,
+                               p.replaced_flip ? 1 : 0);
             if (!p.replaced.empty()) {
                 out += " " + p.replaced;
             }
@@ -1465,6 +2121,31 @@ bool ReadManifest(const std::string& path, Manifest& out, std::string& error) {
             p.glow = glow != 0;
             p.replaced_flip = flip != 0;
             current->parts.push_back(std::move(p));
+        } else if (key == "hold" && current) { // AzaharFrame kiuweap2
+            HoldInfo h;
+            h.known = true;
+            in >> h.hand;
+            if (in && h.hand != "-") {
+                bool ok = h.hand == "RHandN" || h.hand == "LHandN" || h.hand == "RArmN";
+                for (HoldPose* hp : {&h.idle, &h.shot}) {
+                    for (float& f : hp->fist) {
+                        ok = ok && static_cast<bool>(in >> f) && std::isfinite(f) &&
+                             std::abs(f) < 1e4f;
+                    }
+                    for (float& f : hp->to_hand) {
+                        ok = ok && static_cast<bool>(in >> f) && std::isfinite(f) &&
+                             std::abs(f) < 1e4f;
+                    }
+                }
+                if (!ok) {
+                    error = "a bad hold line";
+                    return false;
+                }
+                h.valid = true;
+            } else {
+                h.hand.clear();
+            }
+            current->hold = std::move(h);
         } else if (key == "flashes" && current) { // AzaharFrame kiuflash
             FlashInfo& f = current->flash;
             in >> f.rapid >> f.charged >> f.source;
@@ -1493,6 +2174,40 @@ bool ReadManifest(const std::string& path, Manifest& out, std::string& error) {
             std::getline(in >> std::ws, p.replaced);
             p.replaced_flip = flip != 0;
             current->flash.parts.push_back(std::move(p));
+        } else if (key == "bullets" && current) { // AzaharFrame kiuflash
+            BulletInfo& b = current->bullets;
+            int rc = 0, cc = 0;
+            in >> b.rapid >> b.charged >> rc >> cc;
+            if (!in || !hex(b.pack_key)) {
+                error = "a bad bullets line";
+                return false;
+            }
+            for (std::string* t : {&b.rapid, &b.charged}) {
+                if (*t == "-") {
+                    t->clear();
+                }
+            }
+            b.rapid_cards = rc != 0;
+            b.charged_cards = cc != 0;
+            b.known = true;
+        } else if (key == "bullet" && current && current->bullets.known) {
+            FlashPart p;
+            int flip = 1;
+            in >> p.file >> p.texture;
+            const bool ok = static_cast<bool>(in) && hex(p.hash);
+            in >> p.cards >> flip;
+            if (!ok || !in || p.file.find('/') != std::string::npos ||
+                p.file.find("..") != std::string::npos || p.cards == 0 ||
+                p.cards > 2u * kFlashCardsMax) {
+                error = "a bad bullet line";
+                return false;
+            }
+            std::getline(in >> std::ws, p.replaced);
+            p.replaced_flip = flip != 0;
+            if (p.texture == "-") {
+                p.texture.clear();
+            }
+            current->bullets.parts.push_back(std::move(p));
         } else if (key == "uvanim" && current) {
             // AzaharFrame kiumodels: a part's texture motion; a bad one is dropped (still).
             std::string file;
@@ -1596,13 +2311,14 @@ public:
             old->pack_key == PackKey(pack, old->texture_hashes) &&
             std::all_of(old->parts.begin(), old->parts.end(),
                         [&](const Part& p) { return FileUtil::Exists(dir + p.file); }) &&
-            FlashCurrent(old->flash)) {
+            FlashCurrent(old->flash) && BulletsCurrent(old->bullets) && old->hold.known) {
             res.kept++;
             return true;
         }
         Converted c;
         std::string why;
-        if (!ConvertWeapon(id, zrc, c, why, pack, ClassAnims(ClassOf(id)))) {
+        if (!ConvertWeapon(id, zrc, c, why, pack, ClassAnims(ClassOf(id)),
+                           Poses(ClassOf(id)))) {
             LOG_WARNING(Frontend, "xr: weapon models: {} ({}): {}", ZrcName(id), id, why);
             res.failed++;
             return false;
@@ -1638,6 +2354,12 @@ public:
                     FileUtil::Delete(dir + p.file);
                 }
             }
+            for (const FlashPart& p : old->bullets.parts) {
+                if (std::none_of(c.info.bullets.parts.begin(), c.info.bullets.parts.end(),
+                                 [&](const FlashPart& q) { return q.file == p.file; })) {
+                    FileUtil::Delete(dir + p.file);
+                }
+            }
             manifest.weapons.erase(old);
         }
         for (const Part& p : c.info.parts) {
@@ -1665,6 +2387,21 @@ public:
             }
         }
         return f.pack_key == PackKey(pack, hashes);
+    }
+
+    /// AzaharFrame kiuflash: a weapon's bullets as made, the same way.
+    bool BulletsCurrent(const BulletInfo& b) const {
+        if (!b.known) {
+            return false;
+        }
+        std::vector<u64> hashes;
+        for (const FlashPart& p : b.parts) {
+            hashes.push_back(p.hash);
+            if (!FileUtil::Exists(dir + p.file)) {
+                return false;
+            }
+        }
+        return b.pack_key == PackKey(pack, hashes);
     }
 
     bool Save(RunResult& res) {
@@ -1705,7 +2442,32 @@ private:
         return it->second ? &*it->second : nullptr;
     }
 
+    /// AzaharFrame kiuweap2: the class's Pit poses (how he holds his weapon), read once per
+    /// class (nullptr when the file is missing or bad: the class's own fit).
+    const ClassPoses* Poses(int cls) {
+        auto it = class_poses.find(cls);
+        if (it == class_poses.end()) {
+            std::optional<ClassPoses> poses;
+            const std::string name = PoseZrcName(cls);
+            const auto* f = index.Find(manifest.region + "/player/" + name);
+            Bytes zrc;
+            std::string why = "not in the RomFS";
+            ClassPoses read;
+            if (f && index.Read(*f, zrc, u64{8} << 20) && ReadClassPoses(zrc, cls, read, why)) {
+                poses = std::move(read);
+                LOG_INFO(Frontend, "xr: weapon models: {}: Pit's hold of the {} ({}, {})", name,
+                         ClassName(cls), poses->idle.animation, poses->shot.animation);
+            } else {
+                LOG_WARNING(Frontend, "xr: weapon models: {}: {} (the {}'s own fit)", name,
+                            f ? why : std::string{"not in the RomFS"}, ClassName(cls));
+            }
+            it = class_poses.emplace(cls, std::move(poses)).first;
+        }
+        return it->second ? &*it->second : nullptr;
+    }
+
     std::map<int, std::optional<std::vector<FrameCgfx::UvAnim>>> class_anims;
+    std::map<int, std::optional<ClassPoses>> class_poses;
     FrameCgfx::RomFSIndex index;
     Manifest manifest;
     u64 title_id = 0;

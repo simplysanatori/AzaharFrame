@@ -526,6 +526,7 @@ void QtConfig::ReadVrValues() {
 
     if (global) {
         ReadBasicSetting(Settings::values.vr_xr_image_lag); // AzaharFrame imglag (internal)
+        ReadBasicSetting(Settings::values.vr_angels_aim_intro_shown); // AzaharFrame kiuweap2
     }
     ReadGlobalSetting(Settings::values.vr_immersive_mode);
     ReadGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
@@ -635,6 +636,9 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     ReadGlobalSetting(Settings::values.vr_light_gun_laser);
     ReadGlobalSetting(Settings::values.vr_light_gun_flash); // AzaharFrame kiuflash
+    ReadGlobalSetting(Settings::values.vr_light_gun_projectile);
+    ReadGlobalSetting(Settings::values.vr_light_gun_projectile_size);
+    ReadGlobalSetting(Settings::values.vr_light_gun_projectile_speed);
     ReadGlobalSetting(Settings::values.vr_light_gun_recoil_charged); // AzaharFrame kiufix
     ReadGlobalSetting(Settings::values.vr_light_gun_recoil_rapid);
     ReadGlobalSetting(Settings::values.vr_light_gun_weapon_size);
@@ -642,6 +646,9 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_light_gun_turn_zone_from); // AzaharFrame kiuaim3
     ReadGlobalSetting(Settings::values.vr_light_gun_lock);
     ReadGlobalSetting(Settings::values.vr_light_gun_grip);
+    ReadGlobalSetting(Settings::values.vr_light_gun_weapon_opacity); // AzaharFrame kiuopacity
+    ReadGlobalSetting(Settings::values.vr_light_gun_projectile_opacity);
+    ReadGlobalSetting(Settings::values.vr_light_gun_muzzle_flash_size); // AzaharFrame kiuweap2
     if (!global) {
         // AzaharFrame kiu: what the Controls preset already decided (a game's file only).
         ReadGlobalSetting(Settings::values.vr_controls_preset_done);
@@ -1309,6 +1316,7 @@ void QtConfig::SaveVrValues() {
 
     if (global) {
         WriteBasicSetting(Settings::values.vr_xr_image_lag); // AzaharFrame imglag (internal)
+        WriteBasicSetting(Settings::values.vr_angels_aim_intro_shown); // AzaharFrame kiuweap2
     }
     WriteGlobalSetting(Settings::values.vr_immersive_mode);
     WriteGlobalSetting(Settings::values.vr_immersive_positional_game_scaler);
@@ -1355,6 +1363,9 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     WriteGlobalSetting(Settings::values.vr_light_gun_laser);
     WriteGlobalSetting(Settings::values.vr_light_gun_flash); // AzaharFrame kiuflash
+    WriteGlobalSetting(Settings::values.vr_light_gun_projectile);
+    WriteGlobalSetting(Settings::values.vr_light_gun_projectile_size);
+    WriteGlobalSetting(Settings::values.vr_light_gun_projectile_speed);
     WriteGlobalSetting(Settings::values.vr_light_gun_recoil_charged); // AzaharFrame kiufix
     WriteGlobalSetting(Settings::values.vr_light_gun_recoil_rapid);
     WriteGlobalSetting(Settings::values.vr_light_gun_weapon_size);
@@ -1362,6 +1373,9 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_light_gun_turn_zone_from); // AzaharFrame kiuaim3
     WriteGlobalSetting(Settings::values.vr_light_gun_lock);
     WriteGlobalSetting(Settings::values.vr_light_gun_grip);
+    WriteGlobalSetting(Settings::values.vr_light_gun_weapon_opacity); // AzaharFrame kiuopacity
+    WriteGlobalSetting(Settings::values.vr_light_gun_projectile_opacity);
+    WriteGlobalSetting(Settings::values.vr_light_gun_muzzle_flash_size); // AzaharFrame kiuweap2
     if (!global) {
 #ifdef ENABLE_FRAME_XR
         FrameXr::MirrorGyroAim(); // AzaharFrame kiugyro: kept by builds that drop vr_gyro_aim

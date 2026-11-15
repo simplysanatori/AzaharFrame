@@ -20,6 +20,7 @@
 #include "common/settings.h" // AzaharFrame kiufix: Weapon Size
 #include "frame_xr/session.h"
 #include "frame_xr/vis/controller_models.h"
+#include "frame_xr/vis/see_through.h" // AzaharFrame kiuopacity
 #include "frame_xr/vis/model_shaders.h"
 #include "frame_xr/vis/proj_screen.h" // AzaharFrame projscreen
 #include "frame_xr/vis/weapon_fit.h" // AzaharFrame kiuguns
@@ -229,6 +230,26 @@ struct ControllerModels::Gpu {
     vk::Pipeline pipeline;
     vk::Pipeline pipeline_add; ///< AzaharFrame kiuguns: glows: added, no depth written
     vk::Pipeline pipeline_occluder; ///< AzaharFrame ctrlfront: depth only (null: none)
+    /// AzaharFrame kiuopacity (see_through.h): a see-through part's depth stage (no colour) and
+    /// its colour stage (premultiplied over, depth LEQUAL, no depth written).
+    vk::Pipeline pipeline_depth, pipeline_fade;
+    /// AzaharFrame kiuopacity: a see-through part's added light, its coverage held (MAX).
+    vk::Pipeline pipeline_add_held;
+    vk::Pipeline Of(Pipe p) const {
+        switch (p) {
+        case Pipe::Added:
+            return pipeline_add;
+        case Pipe::AddedHeld:
+            return pipeline_add_held;
+        case Pipe::DepthOnly:
+            return pipeline_depth;
+        case Pipe::Blended:
+            return pipeline_fade;
+        case Pipe::Opaque:
+            break;
+        }
+        return pipeline;
+    }
     vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
     vk::ImageView msaa_view, depth_view;
     std::vector<vk::ImageView> swap_views;
@@ -463,6 +484,9 @@ struct ControllerModels::Gpu {
         /// AzaharFrame kiuflash: a muzzle flash's cards (components), and each card's extent.
         bool flash = false;
         std::vector<FlashCardExtent> card_size;
+        /// AzaharFrame kiuflash: a projectile's bullet (a mesh, BulletValue; or, with `flash`
+        /// too, its sprite cards).
+        bool bullet = false;
         FrameWeapons::UvMotion uv; ///< AzaharFrame kiumodels: how its texture moves
     };
     struct Weapon {
@@ -477,6 +501,7 @@ struct ControllerModels::Gpu {
         uint32_t triangles = 0;
         uint64_t gpu_bytes = 0; ///< buffers and images (the mip chains' too)
         uint64_t flash_bytes = 0; ///< AzaharFrame kiuflash: of them, the flash cards'
+        uint64_t bullet_bytes = 0; ///< AzaharFrame kiuflash: the bullets'
         float flash_push = 0.0f;  ///< AzaharFrame kiuflash: FlashPush, the class's own fit
         int pack_textures = 0;
     };
@@ -519,6 +544,7 @@ struct ControllerModels::WeaponLoad { // AzaharFrame kiuguns
     FrameWeapons::Weapon info;
     std::vector<ModelFile> files;
     std::size_t part_files = 0; ///< AzaharFrame kiuflash: the parts' (the flash cards' after)
+    std::size_t flash_end = 0;  ///< AzaharFrame kiuflash: then the bullets' files, to the end
     float flash_push = 0.0f;    ///< AzaharFrame kiuflash: FlashPush (metres, the class's fit)
     int pack_textures = 0; ///< colour images taken from the texture pack
 };
@@ -683,6 +709,11 @@ void ControllerModels::DestroyXr() {
         }
         if (g.queries) {
             g.device.destroyQueryPool(g.queries);
+        }
+        for (const vk::Pipeline p : {g.pipeline_depth, g.pipeline_fade, g.pipeline_add_held}) { // kiuopacity
+            if (p) {
+                g.device.destroyPipeline(p);
+            }
         }
         if (g.pipeline_layout) {
             g.device.destroyPipelineLayout(g.pipeline_layout);
@@ -855,6 +886,41 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         }
         UpdateWeapon(weapon);
         FitWeapon(views, hands);
+        // AzaharFrame kiuflash: a new shot flies from the muzzle (as fitted now) to its target.
+        const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                std::chrono::steady_clock::now().time_since_epoch())
+                                .count();
+        bool on = false;
+        for (int h = 0; h < 2; h++) {
+            const Hand& hand = hands[static_cast<std::size_t>(h)];
+            const ShotSignal& sig = hand.shots;
+            if (!sig.on) {
+                continue;
+            }
+            on = true;
+            if (!shots_was_on) {
+                shots_seen = sig.shots; // what came before is not fired
+            }
+            if (sig.shots != shots_seen) {
+                shots_seen = sig.shots;
+                if (sig.target_valid && muzzle && muzzle_hand == h && g.weapon_live &&
+                    g.weapon_live->id == hand.weapon) {
+                    const XrPosef aim = ToXr(hand.aim);
+                    const Mat aim_m = FromPose(aim.orientation, aim.position);
+                    const float push = g.weapon_live->flash_push * weapon_scale /
+                                       std::max(FitClassScale(g.weapon_live->info.cls), 1e-6f);
+                    const auto from =
+                        Apply(aim_m, (*muzzle)[0], (*muzzle)[1], (*muzzle)[2] - push, 1.0f);
+                    projectiles.Fire({from[0], from[1], from[2]}, sig.target, sig.charged, now,
+                                     sig.speed, sig.size);
+                }
+            }
+        }
+        if (!on) {
+            projectiles.Clear();
+        }
+        shots_was_on = on;
+        shot_draws = projectiles.Current(now);
     }
     if (!any) {
         g.shown_fresh = false; // when they come back, a new image first
@@ -1464,13 +1530,69 @@ void ControllerModels::Setup(Runtime& rt) {
                                                                   .renderPass = g.render_pass,
                                                                   .subpass = 0,
                                                               });
+    // AzaharFrame kiuopacity (see_through.h): a see-through part's two stages: its depth (no
+    // colour written), then its colour over what is there, premultiplied (the layer's image is),
+    // only where it is the nearest surface (LEQUAL, nothing written to depth).
+    const vk::PipelineColorBlendAttachmentState depth_only_att{
+        .blendEnable = false,
+        .colorWriteMask = {},
+    };
+    const vk::PipelineColorBlendStateCreateInfo depth_only_blend{.attachmentCount = 1,
+                                                                 .pAttachments = &depth_only_att};
+    const vk::PipelineColorBlendAttachmentState fade_att{
+        .blendEnable = true,
+        .srcColorBlendFactor = vk::BlendFactor::eOne,
+        .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+        .colorBlendOp = vk::BlendOp::eAdd,
+        .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+        .dstAlphaBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+        .alphaBlendOp = vk::BlendOp::eAdd,
+        .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                          vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+    };
+    const vk::PipelineColorBlendStateCreateInfo fade_blend{.attachmentCount = 1,
+                                                           .pAttachments = &fade_att};
+    const auto variant = [&](const vk::PipelineDepthStencilStateCreateInfo* ds,
+                             const vk::PipelineColorBlendStateCreateInfo* cb) {
+        return g.device.createGraphicsPipeline({}, {
+                                                       .stageCount = 2,
+                                                       .pStages = shader_stages.data(),
+                                                       .pVertexInputState = &vertex_input,
+                                                       .pInputAssemblyState = &assembly,
+                                                       .pViewportState = &viewport,
+                                                       .pRasterizationState = &raster,
+                                                       .pMultisampleState = &multisample,
+                                                       .pDepthStencilState = ds,
+                                                       .pColorBlendState = cb,
+                                                       .pDynamicState = &dynamic,
+                                                       .layout = g.pipeline_layout,
+                                                       .renderPass = g.render_pass,
+                                                       .subpass = 0,
+                                                   });
+    };
+    // Depth as the opaque pipeline's (written, LEQUAL); the colour stage tests it, as the glows.
+    const auto made_depth = variant(&depth_state, &depth_only_blend);
+    const auto made_fade = variant(&add_depth, &fade_blend);
+    // A see-through part's added light: the colour added as the glows', the coverage held at the
+    // most of what is there and its own (MAX: blend factors are ignored), so overlapping cards
+    // never cover more than the opacity (see_through.h).
+    vk::PipelineColorBlendAttachmentState add_held_att = add_att;
+    add_held_att.alphaBlendOp = vk::BlendOp::eMax;
+    const vk::PipelineColorBlendStateCreateInfo add_held_blend{.attachmentCount = 1,
+                                                               .pAttachments = &add_held_att};
+    const auto made_add_held = variant(&add_depth, &add_held_blend);
     g.device.destroyShaderModule(vert);
     g.device.destroyShaderModule(frag);
-    if (made.result != vk::Result::eSuccess || made_add.result != vk::Result::eSuccess) {
+    if (made.result != vk::Result::eSuccess || made_add.result != vk::Result::eSuccess ||
+        made_depth.result != vk::Result::eSuccess || made_fade.result != vk::Result::eSuccess ||
+        made_add_held.result != vk::Result::eSuccess) {
         throw std::runtime_error("pipeline");
     }
     g.pipeline = made.value;
     g.pipeline_add = made_add.value;
+    g.pipeline_depth = made_depth.value;
+    g.pipeline_fade = made_fade.value;
+    g.pipeline_add_held = made_add_held.value;
 
     // AzaharFrame ctrlfront: the screens and panels into the depth buffer, before the models
     // (unless Off): a strip of triangles made in the vertex shader, no vertex buffer, no
@@ -1728,10 +1850,13 @@ void ControllerModels::Setup(Runtime& rt) {
 namespace {
 
 // AzaharFrame kiuguns: a weapon's parts at the aim pose times each fit (weapon_fit.h).
+// AzaharFrame kiuopacity: in the stages of its Weapon Opacity (see_through.h): at 1 one stage,
+// the draws as before; under it the lit parts' depth, then their colour, then the glows.
 template <typename GpuT, typename WeaponT, typename HandT>
 void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& view_proj,
                   const XrVector3f& eye_pos, const Mat& head, const HandT& hand, bool left,
                   const std::vector<FitPart>& fits, float clip_x, const FitMat* forearm_turn) {
+    const float opacity = std::clamp(hand.weapon_opacity, 0.0f, 1.0f);
     (void)left;
     const XrPosef aim = ToXr(hand.aim);
     const Mat aim_m = FromPose(aim.orientation, aim.position);
@@ -1746,12 +1871,13 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
     // AzaharFrame kiumodels: AZAHARFRAME_KIU_GLOW_MOTION=0 (live): the glows still (as before).
     const bool glow_motion =
         Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_GLOW_MOTION").value_or("1") != "0";
+    for (const DrawStage stage : StagesFor(opacity)) {
     for (const FitPart& fit : fits) {
       for (const bool glow_pass : {false, true}) {
-        if (glow_pass && !glow) {
+        if ((glow_pass && !glow) || !DrawnIn(stage, glow_pass)) {
             continue;
         }
-        c.bindPipeline(vk::PipelineBindPoint::eGraphics, glow_pass ? g.pipeline_add : g.pipeline);
+        c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.Of(PipeFor(stage, glow_pass)));
         Mat fit_m{};
         std::copy(fit.transform.begin(), fit.transform.end(), fit_m.begin());
         // The orbitars' and detached parts' float (weapon_fit.h FitMotion), across the ray.
@@ -1787,13 +1913,14 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
         pc.key = {key[0], key[1], key[2], 0.0f};
         const auto up = Apply(to_model, 0.0f, 1.0f, 0.0f, 0.0f);
         pc.up = {up[0], up[1], up[2], 0.0f};
-        pc.params = {0.0f, 1.0f, std::clamp(hand.fade, 0.0f, 1.0f), w_flags};
+        pc.params = {0.0f, 1.0f, StageFade(stage, std::clamp(hand.fade, 0.0f, 1.0f), opacity),
+                     StageFlags(stage, w_flags)};
         pc.mvp = Multiply(view_proj, model);
         const char* side = fit.side == FitSide::Right  ? "R"
                            : fit.side == FitSide::Left ? "L"
                                                        : "C";
         for (const auto& part : w.parts) {
-            if (part.glow != glow_pass || part.flash) {
+            if (part.glow != glow_pass || part.flash || part.bullet) {
                 continue;
             }
             // AzaharFrame kiumodels: a glow moves (its texture slides, it flickers, a palm's
@@ -1828,6 +1955,7 @@ void RecordWeapon(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vi
         }
       }
     }
+    }
     c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline); // for what is drawn next
 }
 
@@ -1837,7 +1965,7 @@ template <typename GpuT, typename WeaponT>
 void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& view_proj,
                  const XrPosef& head_pose, const Input::Posef& hand_aim, float fade,
                  const std::array<float, 3>& muzzle, float fit_scale, const FlashFrame& flash,
-                 float tune_size) {
+                 float tune_size, Pipe pipe_kind = Pipe::Added) {
     const XrPosef aim = ToXr(hand_aim);
     const Mat aim_m = FromPose(aim.orientation, aim.position);
     const auto o = Apply(aim_m, muzzle[0], muzzle[1], muzzle[2], 1.0f);
@@ -1852,10 +1980,36 @@ void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vie
     if (!(strength > 0.0f)) {
         return;
     }
+    // AzaharFrame kiuweap2: Muzzle Flash Size and the charged shot's larger flash.
+    tune_size *= std::max(flash.size, 0.0f) * FlashKindScale(flash.charged);
     bool pipeline = false;
     uint32_t n = 0;
+    // AzaharFrame kiuweap2: the flare, on the kind's first face card (the shader draws it: mode
+    // 3), in the brightest of the kind's colours.
+    const FlashFlare flare = FlashFlareAt(flash.age, flash.charged);
+    bool flare_drawn = !(flare.strength > 0.0f);
+    std::array<float, 3> flare_colour{};
     for (const auto& part : w.parts) {
-        if (!part.flash) {
+        if (!part.flash || part.bullet) {
+            continue;
+        }
+        for (const ModelComponent& comp : part.components) {
+            if (comp.name == kind && comp.index_count > 0) {
+                const float* v = comp.motion.data();
+                const std::array<float, 3> col{v[FrameWeapons::kFlashRed],
+                                               v[FrameWeapons::kFlashGreen],
+                                               v[FrameWeapons::kFlashBlue]};
+                if (col[0] + col[1] + col[2] > flare_colour[0] + flare_colour[1] + flare_colour[2]) {
+                    flare_colour = col;
+                }
+            }
+        }
+    }
+    if (flare_colour[0] + flare_colour[1] + flare_colour[2] < 0.15f) {
+        flare_colour = {1.0f, 0.9f, 0.7f}; // a card that shows its texture's own colours: warm
+    }
+    for (const auto& part : w.parts) {
+        if (!part.flash || part.bullet) {
             continue;
         }
         bool bound = false;
@@ -1865,7 +2019,7 @@ void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vie
                 continue;
             }
             if (!pipeline) {
-                c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline_add);
+                c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.Of(pipe_kind));
                 pipeline = true;
             }
             if (!bound) {
@@ -1879,8 +2033,31 @@ void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vie
             const bool fan = comp.path == "fan";
             const FlashCardExtent size =
                 k < part.card_size.size() ? part.card_size[k] : FlashCardExtent{};
+            if (!flare_drawn && !fan && size.Units() > 0.0f) {
+                // AzaharFrame kiuweap2: the flare: round (its half sides alike), a fifth of its
+                // width ahead of the muzzle, under the cards (all added light).
+                flare_drawn = true;
+                const float units = size.Units();
+                const float flare_m = flare.metres * tune_size / units;
+                const auto card = FlashCardTransform(false, origin, forward, eye, head_up, flare_m,
+                                                     0.2f * units, 0.0f);
+                Mat model{};
+                std::copy(card.begin(), card.end(), model.begin());
+                PushConstants pc{};
+                pc.mvp = Multiply(view_proj, model);
+                pc.key = {FlashLinear(flare_colour[0]), FlashLinear(flare_colour[1]),
+                          FlashLinear(flare_colour[2]), flare.core};
+                const float half = units / 2.0f;
+                pc.up = {3.0f, half, half, size.middle};
+                pc.params = {0.0f, 1.0f, flare.strength * std::clamp(fade, 0.0f, 1.0f), 20.0f};
+                c.pushConstants(g.pipeline_layout,
+                                vk::ShaderStageFlagBits::eVertex |
+                                    vk::ShaderStageFlagBits::eFragment,
+                                0, sizeof(pc), &pc);
+                c.drawIndexed(comp.index_count, 1, comp.first_index, 0, 0);
+            }
             const float metres = FlashCardMetres(fan, size.Units(), fit_scale, tune_size) *
-                                 FlashGrowth(flash.age, v[FrameWeapons::kFlashGrow]);
+                                 FlashBurst(flash.age, v[FrameWeapons::kFlashGrow]);
             const auto card = FlashCardTransform(fan, origin, forward, eye, head_up, metres,
                                                  v[FrameWeapons::kFlashOffset],
                                                  FlashSpin(flash.shot * 7u + n++));
@@ -1903,6 +2080,122 @@ void RecordFlash(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& vie
     if (pipeline) {
         c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline);
     }
+}
+
+// AzaharFrame kiuflash: the projectiles in flight (projectile.h), each its kind's bullet: a mesh
+// (added light, or solid and lit) turned along the way it flies, or its sprites turned to the
+// centre eye.
+// AzaharFrame kiuopacity: in the stages of Projectile Opacity (`opacity`, see_through.h), as
+// the weapon's.
+template <typename GpuT, typename WeaponT>
+void RecordShots(vk::CommandBuffer& c, GpuT& g, const WeaponT& w, const Mat& view_proj,
+                 const XrPosef& head_pose, float fade, float opacity,
+                 const std::vector<ShotDraw>& shots) {
+    const Mat head = FromPose(head_pose.orientation, head_pose.position);
+    const auto up = Apply(head, 0.0f, 1.0f, 0.0f, 0.0f);
+    const std::array<float, 3> eye{head_pose.position.x, head_pose.position.y,
+                                   head_pose.position.z},
+        head_up{up[0], up[1], up[2]};
+    const auto back = Apply(head, 0.0f, 0.0f, 1.0f, 0.0f);
+    opacity = std::clamp(opacity, 0.0f, 1.0f);
+    for (const DrawStage stage : StagesFor(opacity)) {
+    for (const ShotDraw& d : shots) {
+        const char* kind = d.charged ? "charged" : "rapid";
+        const float strength = std::clamp(d.strength * fade, 0.0f, 1.0f);
+        if (!(strength > 0.0f) || !(d.size > 0.0f)) {
+            continue;
+        }
+        const auto shot_m = ShotTransform(d);
+        for (const auto& part : w.parts) {
+            if (!part.bullet) {
+                continue;
+            }
+            bool bound = false;
+            for (std::size_t k = 0; k < part.components.size(); k++) {
+                const ModelComponent& comp = part.components[k];
+                if (comp.name != kind || comp.index_count == 0) {
+                    continue;
+                }
+                const float* v = comp.motion.data();
+                Mat model{};
+                PushConstants pc{};
+                bool added = true;
+                if (part.flash) { // sprites: face cards at the shot, as a flash's
+                    const FlashCardExtent size =
+                        k < part.card_size.size() ? part.card_size[k] : FlashCardExtent{};
+                    const float metres = d.size / std::max(size.Units(), 1e-4f);
+                    const auto card = FlashCardTransform(false, d.at, d.forward, eye, head_up,
+                                                         metres, 0.0f, d.spin);
+                    std::copy(card.begin(), card.end(), model.begin());
+                    pc.key = {FlashLinear(v[FrameWeapons::kFlashRed]),
+                              FlashLinear(v[FrameWeapons::kFlashGreen]),
+                              FlashLinear(v[FrameWeapons::kFlashBlue]), v[FrameWeapons::kFlashCore]};
+                    pc.up = {v[FrameWeapons::kFlashMode], size.half_width, size.half_length,
+                             size.middle};
+                    pc.params = {0.0f, 1.0f, strength, 20.0f};
+                } else {
+                    std::copy(shot_m.begin(), shot_m.end(), model.begin());
+                    added = v[FrameWeapons::kBulletAdded] > 0.5f;
+                    if (added) { // light, times the vertex colour (x 2) or not (x 3): a bullet
+                        pc.key = {FlashLinear(v[FrameWeapons::kBulletRed]),
+                                  FlashLinear(v[FrameWeapons::kBulletGreen]),
+                                  FlashLinear(v[FrameWeapons::kBulletBlue]), 0.0f};
+                        pc.up = {v[FrameWeapons::kBulletMode], 1.0f, 1.0f, 0.0f};
+                        pc.params = {v[FrameWeapons::kBulletVertexColour] > 0.5f ? 2.0f : 3.0f,
+                                     1.0f, strength, 20.0f};
+                    } else { // solid and lit, as the weapon
+                        const Mat to_model = InverseAffine(model);
+                        const auto e = Apply(to_model, eye[0], eye[1], eye[2], 1.0f);
+                        pc.eye = {e[0], e[1], e[2], 0.0f};
+                        const auto key = Apply(to_model, back[0] * 0.6f, 1.0f + back[1] * 0.6f,
+                                               back[2] * 0.6f, 0.0f);
+                        pc.key = {key[0], key[1], key[2], 0.0f};
+                        const auto mu = Apply(to_model, 0.0f, 1.0f, 0.0f, 0.0f);
+                        pc.up = {mu[0], mu[1], mu[2], 0.0f};
+                        pc.params = {0.0f, 1.0f, strength, 0.0f};
+                    }
+                }
+                if (!DrawnIn(stage, added)) {
+                    continue;
+                }
+                pc.params[2] = StageFade(stage, pc.params[2], opacity);
+                pc.params[3] = StageFlags(stage, pc.params[3]);
+                pc.mvp = Multiply(view_proj, model);
+                c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.Of(PipeFor(stage, added)));
+                if (!bound) {
+                    c.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, g.pipeline_layout, 0,
+                                         part.set, {});
+                    c.bindVertexBuffers(0, part.vertices, vk::DeviceSize{0});
+                    c.bindIndexBuffer(part.indices, 0, vk::IndexType::eUint32);
+                    bound = true;
+                }
+                c.pushConstants(g.pipeline_layout,
+                                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                                0, sizeof(pc), &pc);
+                c.drawIndexed(comp.index_count, 1, comp.first_index, 0, 0);
+            }
+        }
+    }
+    }
+    c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.pipeline);
+}
+
+} // namespace
+
+namespace {
+
+/// AzaharFrame kiuweap2: a weapon's fit inputs, with the game's hold in the pose asked for.
+::FrameXr::Vis::FitWeapon FitInputs(const FrameWeapons::Weapon& info, HoldPick pose) {
+    ::FrameXr::Vis::FitWeapon fw{info.cls, info.muzzle, info.muzzle_valid, std::nullopt};
+    if (info.hold.valid) {
+        const FrameWeapons::HoldPose& hp = pose == HoldPick::Shot ? info.hold.shot : info.hold.idle;
+        FitHold h;
+        h.to_hand = hp.to_hand;
+        h.fist = hp.fist;
+        h.left = info.hold.hand == "LHandN";
+        fw.hold = h;
+    }
+    return fw;
 }
 
 } // namespace
@@ -1947,10 +2240,12 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
                 }
             }
             const bool left = h == Input::HandIndex(Input::Hand::Left);
-            weapon_fits = FitWeaponToHand({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
+            const auto fw = FitInputs( // AzaharFrame kiuweap2: the game's hold
+                info, HoldPickFor(info.cls, Common::FrameTestSwitches::Value(kHoldSwitch)));
+            weapon_fits = FitWeaponToHand(fw, left, sides, tune);
             weapon_scale = FitClassScale(info.cls) * tune.scale; // AzaharFrame kiuflash
             muzzle_hand = h;
-            muzzle = FitMuzzle({info.cls, info.muzzle, info.muzzle_valid}, left, sides, tune);
+            muzzle = FitMuzzle(fw, left, sides, tune);
 
             const auto forearm = Common::FrameTestSwitches::Value(kPalmForearmSwitch);
             const PalmMode mode =
@@ -2120,6 +2415,13 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
                 ParseFlashTune(Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_FLASH")).size;
         }
     }
+    // AzaharFrame kiuopacity: a see-through weapon after the other hand, which shows through it.
+    const auto weapon_drawn = [&](const Hand& hand) {
+        return hand.shown && hand.weapon >= 0 && g.weapon_live && g.weapon_live->id == hand.weapon;
+    };
+    const std::array<int, 2> order =
+        HandOrder(weapon_drawn(hands[0]) && SeeThrough(hands[0].weapon_opacity),
+                  weapon_drawn(hands[1]) && SeeThrough(hands[1].weapon_opacity));
     for (int e = 0; e < 2; e++) {
         const vk::Viewport vp{static_cast<float>(g.eye_w * e), 0.0f, static_cast<float>(g.eye_w),
                               static_cast<float>(g.eye_h), 0.0f, 1.0f};
@@ -2218,14 +2520,14 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
                 c.clearAttachments(black, zeros);
             }
         }
-        for (int h = 0; h < 2; h++) {
+        for (const int h : order) {
             const Hand& hand = hands[static_cast<std::size_t>(h)];
             if (!hand.shown) {
                 continue;
             }
             // AzaharFrame kiuguns: the weapon in hand in place of the controller, once it is on
             // the GPU.
-            if (hand.weapon >= 0 && g.weapon_live && g.weapon_live->id == hand.weapon) {
+            if (weapon_drawn(hand)) {
                 RecordWeapon(c, g, *g.weapon_live, view_proj, views.eye[e].position, head, hand,
                              h == Input::HandIndex(Input::Hand::Left), weapon_fits, weapon_clip,
                              palm_elbow ? &palm_turn : nullptr);
@@ -2235,8 +2537,16 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
                         (*muzzle)[0], (*muzzle)[1],
                         (*muzzle)[2] - g.weapon_live->flash_push * weapon_scale /
                                            std::max(FitClassScale(g.weapon_live->info.cls), 1e-6f)};
-                    RecordFlash(c, g, *g.weapon_live, view_proj, views.head, hand.aim, hand.fade,
-                                from, weapon_scale, hand.flash, flash_size);
+                    // AzaharFrame kiuopacity: its light and coverage times Weapon Opacity.
+                    RecordFlash(c, g, *g.weapon_live, view_proj, views.head, hand.aim,
+                                hand.fade * std::clamp(hand.weapon_opacity, 0.0f, 1.0f), from,
+                                weapon_scale, hand.flash, flash_size,
+                                FlashPipe(hand.weapon_opacity));
+                }
+                // AzaharFrame kiuflash: its projectiles in flight.
+                if (!shot_draws.empty() && hand.shots.on) {
+                    RecordShots(c, g, *g.weapon_live, view_proj, views.head, hand.fade,
+                                hand.shots.opacity, shot_draws);
                 }
                 continue;
             }
@@ -2372,7 +2682,7 @@ void ControllerModels::UpdateWeapon(int id) {
         const FrameWeapons::FlashInfo& fl = g.weapon_live->info.flash;
         std::size_t cards = 0;
         for (const auto& part : g.weapon_live->parts) {
-            cards += part.flash ? part.components.size() : 0;
+            cards += part.flash && !part.bullet ? part.components.size() : 0;
         }
         LOG_INFO(Frontend,
                  "xr: muzzle flash: {} cards ({} KB on the GPU), {:.0f} cm out of the muzzle: "
@@ -2382,6 +2692,11 @@ void ControllerModels::UpdateWeapon(int id) {
                  fl.source >= 0 && fl.source != g.weapon_live->id
                      ? fmt::format(" (weapon {}'s, neutral)", fl.source)
                      : std::string{});
+        const FrameWeapons::BulletInfo& bl = g.weapon_live->info.bullets;
+        LOG_INFO(Frontend, "xr: projectiles: {} KB on the GPU: rapid {}{}, charged {}{}",
+                 g.weapon_live->bullet_bytes >> 10, bl.rapid.empty() ? "none" : bl.rapid,
+                 bl.rapid_cards ? " (sprites)" : "", bl.charged.empty() ? "none" : bl.charged,
+                 bl.charged_cards ? " (sprites)" : "");
     }
     // A read done: to the GPU (or noted as failed, not tried again until the files change).
     if (weapon_load_state == 2) {
@@ -2478,7 +2793,8 @@ void ControllerModels::UpdateWeapon(int id) {
                         }
                     }
                 }
-                const ::FrameXr::Vis::FitWeapon fw{w->cls, w->muzzle, w->muzzle_valid};
+                const ::FrameXr::Vis::FitWeapon fw = FitInputs(
+                    *w, HoldPickFor(w->cls, Common::FrameTestSwitches::Value(kHoldSwitch)));
                 const auto fits = FitWeaponToHand(fw, false, sides);
                 const auto at = FitMuzzle(fw, false, sides);
                 for (std::size_t i = 0; at && !fits.empty() && i < l.files.size(); i++) {
@@ -2508,6 +2824,34 @@ void ControllerModels::UpdateWeapon(int id) {
                     if (FrameWeapons::LoadPackTexture(part.replaced, part.replaced_flip, rgba, w,
                                                       h, true)) {
                         FlashTextureFit(rgba, w, h); // a card needs no more
+                        file.colour = std::move(rgba);
+                        file.tex_width = w;
+                        file.tex_height = h;
+                        l.pack_textures++;
+                    }
+                }
+                l.files.push_back(std::move(file));
+            }
+            l.flash_end = l.files.size();
+            // AzaharFrame kiuflash: the bullets (one that cannot be read: left out).
+            for (const FrameWeapons::FlashPart& part : w->bullets.parts) {
+                if (!l.error.empty()) {
+                    break;
+                }
+                ModelFile file;
+                std::string why;
+                if (!LoadModelFile(dir + part.file, file, why, kModelFlagWeaponSpace) ||
+                    !(file.flags & (kModelFlagFlash | kModelFlagBullet))) {
+                    LOG_WARNING(Frontend, "xr: projectiles: {}: {}", part.file,
+                                why.empty() ? "not a bullet" : why);
+                    continue;
+                }
+                if (!part.replaced.empty()) {
+                    std::vector<u8> rgba;
+                    u32 w = 0, h = 0;
+                    if (FrameWeapons::LoadPackTexture(part.replaced, part.replaced_flip, rgba, w,
+                                                      h, true)) {
+                        FlashTextureFit(rgba, w, h);
                         file.colour = std::move(rgba);
                         file.tex_width = w;
                         file.tex_height = h;
@@ -2630,13 +2974,14 @@ void ControllerModels::UploadWeapon() {
         }
         const uint64_t bytes = m.vertices.size() * 4 + m.indices.size() * 4 +
                                (m.colour.size() + m.surface.size()) * 4 / 3; // with the mips
-        if (i >= l.part_files) { // AzaharFrame kiuflash: a flash's cards
-            part.flash = true;
+        if (i >= l.part_files) { // AzaharFrame kiuflash: a flash's cards, or a bullet
+            part.flash = (m.flags & kModelFlagFlash) != 0;
+            part.bullet = i >= l.flash_end;
             for (const ModelComponent& comp : m.components) {
                 part.card_size.push_back(
                     FlashCardSize(m.vertices, m.indices, comp.first_index, comp.index_count));
             }
-            w->flash_bytes += bytes;
+            (part.bullet ? w->bullet_bytes : w->flash_bytes) += bytes;
         }
         w->triangles += static_cast<uint32_t>(m.indices.size() / 3);
         w->gpu_bytes += bytes;

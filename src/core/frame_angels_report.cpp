@@ -63,11 +63,13 @@ CrashReport::Feedback BuildPayload(Type type, const std::string& text, const Inf
         {"settings",
          fmt::format("Aiming: {}\nWeapon in Hand: {}\nLaser Sight: {}\nRecoil: {}\n"
                      "Charged Shot: {} %\nRapid Fire: {} %\nWeapon Size: {}\nWeapon Scale: {} %\n"
+                     "Weapon Opacity: {} %\nProjectile Opacity: {} %\nMuzzle Flash Size: {} %\n"
                      "Gyro Sensitivity: {}\nTurn Zone: {}\nTurn Speed: {}\nTurn Zone From: {}\n"
                      "Keep Reticle on Screen: {}\nGrip Frees Aim: {}\nImmersive Mode: {}",
                      AimingName(info.aiming), OnOff(info.weapon_in_hand), OnOff(info.laser_sight),
                      OnOff(info.recoil), info.recoil_charged, info.recoil_rapid,
                      info.weapon_size == 1 ? "Hand Size" : "Game Size", info.weapon_scale,
+                     info.weapon_opacity, info.projectile_opacity, info.flash_size, // kiuweap2
                      info.gyro_sensitivity, info.turn_zone, info.turn_speed,
                      info.turn_zone_from == 0 ? "Screen Edge" : "Aim Box",
                      OnOff(info.keep_on_screen), info.grip_toggle ? "Toggle" : "Hold",

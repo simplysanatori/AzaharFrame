@@ -512,7 +512,13 @@ TEST_CASE("Angel's Aim report: the payload has the fields and nothing of the mac
         all += k + v;
         settings |= k == "settings" && v.find("Laser Sight: On") != std::string::npos &&
                     v.find("Immersive Mode: On") != std::string::npos &&
-                    v.find("Weapon in Hand: On") != std::string::npos;
+                    v.find("Weapon in Hand: On") != std::string::npos &&
+                    // AzaharFrame kiuopacity
+                    v.find("Weapon Opacity: 100 %\nProjectile Opacity: 100 %") !=
+                        std::string::npos &&
+                    // AzaharFrame kiuweap2
+                    v.find("Projectile Opacity: 100 %\nMuzzle Flash Size: 100 %\n") !=
+                        std::string::npos;
         version |= k == "app_version" && v == "1.1.1-524 test";
     }
     CHECK(settings);

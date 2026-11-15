@@ -1195,6 +1195,8 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
     std::vector<std::pair<std::string, std::string>> info_rows;
     if (d.kind == ModsDialogKind::Optimize) {
         info_rows = {{"Textures", d.mod}, {"Size", d.other}};
+    } else if (d.kind == ModsDialogKind::Notice) { // AzaharFrame kiuweap2: a notice's own rows
+        info_rows = d.rows;
     }
     constexpr float kInfoRowH = 28.0f;
     const float rows_h =
@@ -1293,7 +1295,9 @@ void TabMenu::DrawModsDialog(Kit& kit, const ModsDialog& d, const MenuView& view
         const float w = ButtonWidth(kit, label, false, 12.0f);
         const Rect b{right - w, by, right, by + kButtonH};
         kit.Button(b, ButtonStyle::Text, 0, label, StateOf(view, {id}));
-        AddHit({b.x0, b.Cy() - 24.0f, b.x1, b.Cy() + 24.0f}, {id}, panel);
+        // AzaharFrame kiuweap2: a short label ("OK") still gets a 48 dp target.
+        const float grow = std::max(0.0f, (48.0f - b.W()) * 0.5f);
+        AddHit({b.x0 - grow, b.Cy() - 24.0f, b.x1 + grow, b.Cy() + 24.0f}, {id}, panel);
         right = b.x0 - 8.0f;
     };
     if (d.kind == ModsDialogKind::Blocked) {
