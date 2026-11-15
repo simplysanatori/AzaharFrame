@@ -211,8 +211,10 @@ TEST_CASE("Angel's Aim along the weapon: the ray from the tip hits where the ret
     const Vec3f hand{0.2f, 1.0f, -0.3f};
     for (const ClassCase& c : Classes()) {
         for (const bool left : {false, true}) {
-            const auto mz = Vis::FitMuzzle(c.w, left, SidesFor(c.w.cls));
-            const auto ax = Vis::FitAxis(c.w, left, SidesFor(c.w.cls));
+            // As the app takes it (FitAim: the class's start and direction, AimSourceFor).
+            const Vis::FitAimStart a = Vis::FitAim(c.w, left, SidesFor(c.w.cls));
+            const auto& mz = a.start;
+            const auto& ax = a.axis;
             const std::optional<Vec3f> muzzle = mz ? std::optional<Vec3f>{V(*mz)} : std::nullopt;
             const std::optional<Vec3f> axis = ax ? std::optional<Vec3f>{V(*ax)} : std::nullopt;
             for (const Vec2f& p : std::vector<Vec2f>{{0.5f, 0.5f}, {0.1f, 0.15f}, {0.9f, 0.85f}}) {
@@ -340,6 +342,11 @@ TEST_CASE("Angel's Aim along the weapon: AZAHARFRAME_ANGELS_AIM_RAY=hand is kiua
         const auto ax = Vis::FitAxis(c.w, false, SidesFor(c.w.cls));
         const std::optional<Vec3f> muzzle = mz ? std::optional<Vec3f>{V(*mz)} : std::nullopt;
         const std::optional<Vec3f> axis = ax ? std::optional<Vec3f>{V(*ax)} : std::nullopt;
+        // The switch in the app (FitAim's hand_ray): every class from its muzzle, no axis.
+        const Vis::FitAimStart by_hand = Vis::FitAim(c.w, false, SidesFor(c.w.cls), {}, true);
+        CHECK(by_hand.start == mz);
+        CHECK_FALSE(by_hand.axis);
+        CHECK_FALSE(by_hand.fist);
         for (const float roll : {0.0f, 33.0f, 90.0f, 181.0f}) {
             for (const float yaw : {-20.0f, 0.0f, 12.5f}) {
                 INFO(c.name << " roll " << roll << " yaw " << yaw);
@@ -375,12 +382,14 @@ TEST_CASE("Angel's Aim along the weapon: Check Aim with the weapon's ray, at any
     const PanelQuad top = Screen(1.6f);
     const Vec3f hand{0.1f, 1.0f, -0.2f};
     for (const ClassCase& c : Classes()) {
-        const auto mz = Vis::FitMuzzle(c.w, false, SidesFor(c.w.cls));
-        const auto ax = Vis::FitAxis(c.w, false, SidesFor(c.w.cls));
-        if (!ax) {
+        // As the app takes it: the held classes along the weapon, a club from the fist.
+        const Vis::FitAimStart a = Vis::FitAim(c.w, false, SidesFor(c.w.cls));
+        if (!a.axis && !a.fist) {
             continue;
         }
-        const Vec3f muzzle = V(*mz), axis = V(*ax);
+        const Vec3f muzzle = V(*a.start);
+        const std::optional<Vec3f> axis =
+            a.axis ? std::optional<Vec3f>{V(*a.axis)} : std::nullopt;
         std::optional<AimMap> first;
         for (const float roll : {0.0f, 45.0f, 90.0f, 180.0f, 270.0f}) {
             INFO(c.name << " roll " << roll);
@@ -431,6 +440,85 @@ TEST_CASE("Weapon fit: Pit's fist on the controller's handle, every class he hol
                       Approx(left ? -Vis::kHandleCentre[0] : Vis::kHandleCentre[0]).margin(1e-4f));
                 CHECK((*fist)[1] == Approx(Vis::kHandleCentre[1]).margin(1e-4f));
                 CHECK((*fist)[2] == Approx(Vis::kHandleCentre[2]).margin(1e-4f));
+            }
+        }
+    }
+}
+
+TEST_CASE("Angel's Aim: the start and direction per class (AimSourceFor)", "[frame_xr][kiuinteg]") {
+    using Vis::AimSource;
+    const AimSource want[9] = {AimSource::Weapon, AimSource::Weapon, AimSource::Hand,
+                               AimSource::Weapon, AimSource::Hand,   AimSource::Fist,
+                               AimSource::Weapon, AimSource::Hand,   AimSource::Hand};
+    for (int cls = 0; cls < 9; cls++) {
+        CHECK(Vis::AimSourceFor(cls) == want[cls]);
+    }
+    CHECK(Vis::AimSourceFor(-1) == AimSource::Hand);
+    CHECK(Vis::AimSourceFor(9) == AimSource::Hand);
+    // Every class but the club: as before this commit (the muzzle; the weapon's axis for the
+    // held ones, none for the others).
+    for (const ClassCase& c : Classes()) {
+        for (const bool left : {false, true}) {
+            INFO(c.name << (left ? " L" : " R"));
+            const Vis::FitAimStart a = Vis::FitAim(c.w, left, SidesFor(c.w.cls));
+            if (c.w.cls == 5) {
+                continue;
+            }
+            CHECK(a.start == Vis::FitMuzzle(c.w, left, SidesFor(c.w.cls)));
+            CHECK_FALSE(a.fist);
+            if (Vis::AimSourceFor(c.w.cls) == AimSource::Weapon) {
+                CHECK(a.axis == Vis::FitAxis(c.w, left, SidesFor(c.w.cls)));
+            } else {
+                CHECK_FALSE(a.axis);
+            }
+        }
+    }
+}
+
+TEST_CASE("Angel's Aim: a club aims with the hand, from the fist's front, at every roll",
+          "[frame_xr][kiuinteg]") {
+    const ClassCase club = Classes()[5];
+    REQUIRE(club.w.cls == 5);
+    const PanelQuad top = Screen(1.6f);
+    const Vec3f hand{0.15f, 1.0f, -0.3f};
+    for (const bool left : {false, true}) {
+        const Vis::FitAimStart a = Vis::FitAim(club.w, left, kCentre);
+        REQUIRE(a.start);
+        CHECK(a.fist);
+        CHECK_FALSE(a.axis);
+        // The club itself is held raised: its own axis is far off the controller's line.
+        const auto club_axis = Vis::FitAxis(club.w, left, kCentre);
+        REQUIRE(club_axis);
+        CHECK(std::acos(std::clamp(-(*club_axis)[2], -1.0f, 1.0f)) / kDeg > 10.0f);
+        // The start: the front of Pit's fist, on the handle, toward where the controller points.
+        const auto fist = Vis::FitFist(club.w, left, kCentre);
+        REQUIRE(fist);
+        CHECK((*a.start)[0] == Approx((*fist)[0]).margin(1e-6f));
+        CHECK((*a.start)[1] == Approx((*fist)[1]).margin(1e-6f));
+        CHECK((*a.start)[2] == Approx((*fist)[2] - Vis::kFistFrontM).margin(1e-6f));
+        CHECK((*a.start)[0] == Approx(left ? -Vis::kHandleCentre[0] : Vis::kHandleCentre[0]).margin(1e-4f));
+        const Vec3f start = V(*a.start);
+        for (const Vec2f& p : std::vector<Vec2f>{{0.5f, 0.5f}, {0.1f, 0.15f}, {0.9f, 0.85f}}) {
+            const Vec3f at = PointOnQuad(top, p.x, p.y);
+            for (const float roll : {0.0f, 45.0f, 90.0f, 180.0f, 270.0f}) {
+                INFO((left ? "L" : "R") << " at " << p.x << ", " << p.y << " roll " << roll);
+                const Posef aim = AimAt(hand, at, start, std::nullopt, roll);
+                const Ray ray = AngelsAimRay(aim, start, std::nullopt, AimRayFrom::Weapon);
+                // The hand's ray: the controller's direction, bit for bit, from the fist.
+                const Ray hand_ray = AimRay(aim, start);
+                CHECK(SameBits(ray, hand_ray));
+                CHECK(std::memcmp(&ray.direction, &hand_ray.direction, sizeof(ray.direction)) == 0);
+                const Vec3f dir = AimDirection(aim);
+                CHECK(std::memcmp(&ray.direction, &dir, sizeof(dir)) == 0);
+                // The beam from the fist ends on the reticle, which is the point aimed at.
+                const LightGunTarget t = LightGunTargetFor(ray, top);
+                REQUIRE(t.valid);
+                CHECK(t.u == Approx(p.x).margin(2e-3f));
+                CHECK(t.v == Approx(p.y).margin(2e-3f));
+                CHECK(Length(PointOnQuad(top, t.u, t.v) - t.point) < 1e-4f);
+                const Vec3f beam = t.point - ray.origin;
+                CHECK(Length(Cross(Normalized(beam), ray.direction)) < 1e-4f);
+                CHECK(Dot(beam, ray.direction) > 0.0f);
             }
         }
     }

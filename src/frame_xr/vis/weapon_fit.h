@@ -135,6 +135,28 @@ std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand
 std::optional<std::array<float, 3>> FitAxis(const FitWeapon& w, bool left_hand,
                                             const std::vector<FitSide>& sides,
                                             const FitOverride& tune = {});
+/// AzaharFrame kiuinteg: where Angel's Aim's ray (the laser, the reticle's ray) and the shots
+/// (the muzzle flash, the projectiles) start for each class, and along what, in one table
+/// (AimSourceFor) so it can be changed after a headset test:
+///   Weapon: from the muzzle along the weapon's own axis as held (FitAxis): blades, staffs, and
+///     bows and cannons (whose axis is the controller's line anyway);
+///   Hand: from the muzzle along the controller's direction: claws, palms, arms, orbitars;
+///   Fist: from the front of Pit's fist (kFistFrontM ahead of its centre, on the handle) along
+///     the controller's direction: clubs, which his grip holds raised about 48 degrees, drawn as
+///     he holds them, so a beam from the club's head would leave it at that angle.
+/// AZAHARFRAME_ANGELS_AIM_RAY=hand (`hand_ray`): every class from its muzzle along the
+/// controller's direction, kiuaim2's ray.
+enum class AimSource : uint8_t { Weapon, Hand, Fist };
+AimSource AimSourceFor(int cls);
+inline constexpr float kFistFrontM = 0.04f;
+struct FitAimStart {
+    std::optional<std::array<float, 3>> start; ///< aim space; none: no weapon fitted
+    std::optional<std::array<float, 3>> axis;  ///< aim space, unit; none: the controller's -Z
+    bool fist = false;                         ///< the start is the fist's front (AimSource::Fist)
+};
+FitAimStart FitAim(const FitWeapon& w, bool left_hand, const std::vector<FitSide>& sides,
+                   const FitOverride& tune = {}, bool hand_ray = false);
+
 /// AzaharFrame kiuinteg: Pit's fist's centre (the hold's), in aim space, as fitted: where his
 /// hand is drawn, for the check that it sits on the controller's handle (kHandleCentre). None
 /// without a hold.

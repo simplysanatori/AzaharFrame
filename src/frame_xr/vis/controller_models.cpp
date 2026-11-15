@@ -19,6 +19,7 @@
 #include "common/logging/log.h"
 #include "common/settings.h" // AzaharFrame kiufix: Weapon Size
 #include "common/stall_telemetry.h" // AzaharFrame projdef
+#include "frame_xr/input/gyro_aim.h" // AzaharFrame kiuinteg: AZAHARFRAME_ANGELS_AIM_RAY
 #include "frame_xr/retired_swapchains.h" // AzaharFrame projdef
 #include "frame_xr/session.h"
 #include "frame_xr/vis/controller_models.h"
@@ -505,6 +506,7 @@ struct ControllerModels::Gpu {
         uint64_t flash_bytes = 0; ///< AzaharFrame kiuflash: of them, the flash cards'
         uint64_t bullet_bytes = 0; ///< AzaharFrame kiuflash: the bullets'
         float flash_push = 0.0f;  ///< AzaharFrame kiuflash: FlashPush, the class's own fit
+        float flash_push_fist = 0.0f; ///< AzaharFrame kiuinteg: FlashPush from the fist's front
         int pack_textures = 0;
     };
     std::unique_ptr<Weapon> weapon_live, weapon_uploading;
@@ -548,6 +550,7 @@ struct ControllerModels::WeaponLoad { // AzaharFrame kiuguns
     std::size_t part_files = 0; ///< AzaharFrame kiuflash: the parts' (the flash cards' after)
     std::size_t flash_end = 0;  ///< AzaharFrame kiuflash: then the bullets' files, to the end
     float flash_push = 0.0f;    ///< AzaharFrame kiuflash: FlashPush (metres, the class's fit)
+    float flash_push_fist = 0.0f; ///< AzaharFrame kiuinteg: from the fist's front (AimSource::Fist)
     int pack_textures = 0; ///< colour images taken from the texture pack
 };
 
@@ -912,7 +915,9 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                     g.weapon_live->id == hand.weapon) {
                     const XrPosef aim = ToXr(hand.aim);
                     const Mat aim_m = FromPose(aim.orientation, aim.position);
-                    const float push = g.weapon_live->flash_push * weapon_scale /
+                    const float push = (muzzle_fist ? g.weapon_live->flash_push_fist
+                                                    : g.weapon_live->flash_push) *
+                                       weapon_scale /
                                        std::max(FitClassScale(g.weapon_live->info.cls), 1e-6f);
                     const auto from =
                         Apply(aim_m, (*muzzle)[0], (*muzzle)[1], (*muzzle)[2] - push, 1.0f);
@@ -2211,6 +2216,7 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
     muzzle_hand = -1;
     muzzle.reset();
     axis.reset();
+    muzzle_fist = false;
     weapon_clip = 0.0f;
     palm_elbow = false;
     if (!gpu) {
@@ -2251,8 +2257,16 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
             weapon_fits = FitWeaponToHand(fw, left, sides, tune);
             weapon_scale = FitClassScale(info.cls) * tune.scale; // AzaharFrame kiuflash
             muzzle_hand = h;
-            muzzle = FitMuzzle(fw, left, sides, tune);
-            axis = FitAxis(fw, left, sides, tune); // AzaharFrame kiuinteg
+            // AzaharFrame kiuinteg: where the ray and the shots start, and along what, by class
+            // (weapon_fit.h AimSourceFor); AZAHARFRAME_ANGELS_AIM_RAY=hand: the muzzle and the
+            // controller's direction for every class.
+            const FitAimStart aim_start =
+                FitAim(fw, left, sides, tune,
+                       Input::AimRayFromSwitch(Common::FrameTestSwitches::Value(
+                           Input::kAimRaySwitch)) == Input::AimRayFrom::Hand);
+            muzzle = aim_start.start;
+            axis = aim_start.axis;
+            muzzle_fist = aim_start.fist;
 
             const auto forearm = Common::FrameTestSwitches::Value(kPalmForearmSwitch);
             const PalmMode mode =
@@ -2545,7 +2559,9 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
                 if (hand.flash.shown && muzzle && muzzle_hand == h) {
                     const std::array<float, 3> from{
                         (*muzzle)[0], (*muzzle)[1],
-                        (*muzzle)[2] - g.weapon_live->flash_push * weapon_scale /
+                        (*muzzle)[2] - (muzzle_fist ? g.weapon_live->flash_push_fist
+                                                    : g.weapon_live->flash_push) *
+                                           weapon_scale /
                                            std::max(FitClassScale(g.weapon_live->info.cls), 1e-6f)};
                     // AzaharFrame kiuopacity: its light and coverage times Weapon Opacity.
                     RecordFlash(c, g, *g.weapon_live, view_proj, views.head, hand.aim,
@@ -2812,11 +2828,19 @@ void ControllerModels::UpdateWeapon(int id) {
                     *w, HoldPickFor(w->cls, Common::FrameTestSwitches::Value(kHoldSwitch)));
                 const auto fits = FitWeaponToHand(fw, false, sides);
                 const auto at = FitMuzzle(fw, false, sides);
+                // AzaharFrame kiuinteg: and from the fist's front, for a class whose shots start
+                // there (AimSource::Fist).
+                const FitAimStart fist = FitAim(fw, false, sides);
                 for (std::size_t i = 0; at && !fits.empty() && i < l.files.size(); i++) {
                     if (i < w->parts.size() && !w->parts[i].glow) {
                         l.flash_push =
                             std::max(l.flash_push, FlashPush(l.files[i].vertices,
                                                              fits[0].transform, *at));
+                        if (fist.fist && fist.start) {
+                            l.flash_push_fist = std::max(
+                                l.flash_push_fist,
+                                FlashPush(l.files[i].vertices, fits[0].transform, *fist.start));
+                        }
                     }
                 }
             }
@@ -2892,6 +2916,7 @@ void ControllerModels::UploadWeapon() {
     w->info = l.info;
     w->pack_textures = l.pack_textures;
     w->flash_push = l.flash_push; // AzaharFrame kiuflash
+    w->flash_push_fist = l.flash_push_fist; // AzaharFrame kiuinteg
     vk::DeviceSize total = 0;
     for (const ModelFile& m : l.files) {
         total += m.vertices.size() * 4 + m.indices.size() * 4 + m.colour.size() + m.surface.size();

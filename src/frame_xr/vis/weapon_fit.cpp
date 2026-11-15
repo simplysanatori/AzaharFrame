@@ -670,4 +670,36 @@ std::optional<std::array<float, 3>> FitAxis(const FitWeapon& w, bool left_hand,
     return Normal(axis);
 }
 
+AimSource AimSourceFor(int cls) {
+    // AzaharFrame kiuinteg: the owner's table (weapon_fit.h AimSource).
+    //                                   blade   staff   claws  bow     palm  club  cannon  orbit arm
+    static constexpr AimSource kSource[9] = {
+        AimSource::Weapon, AimSource::Weapon, AimSource::Hand, AimSource::Weapon, AimSource::Hand,
+        AimSource::Fist,   AimSource::Weapon, AimSource::Hand, AimSource::Hand};
+    return cls >= 0 && cls < 9 ? kSource[cls] : AimSource::Hand;
+}
+
+FitAimStart FitAim(const FitWeapon& w, bool left_hand, const std::vector<FitSide>& sides,
+                   const FitOverride& tune, bool hand_ray) {
+    FitAimStart out;
+    out.start = FitMuzzle(w, left_hand, sides, tune);
+    if (!out.start || hand_ray) {
+        return out;
+    }
+    switch (AimSourceFor(w.cls)) {
+    case AimSource::Weapon:
+        out.axis = FitAxis(w, left_hand, sides, tune);
+        break;
+    case AimSource::Hand:
+        break;
+    case AimSource::Fist:
+        if (const auto fist = FitFist(w, left_hand, sides, tune)) {
+            out.start = std::array<float, 3>{(*fist)[0], (*fist)[1], (*fist)[2] - kFistFrontM};
+            out.fist = true;
+        }
+        break;
+    }
+    return out;
+}
+
 } // namespace FrameXr::Vis
