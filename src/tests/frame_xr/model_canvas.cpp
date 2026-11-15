@@ -396,3 +396,322 @@ TEST_CASE("Controllers' layer gaps: a line a second, only with gaps", "[frame_xr
     log.Gap(LayerGap::Count); // ignored
     CHECK_FALSE(log.Take(9 * kS));
 }
+
+// ---- AzaharFrame ctrl2: two canvases (model_plane.h CanvasDouble) ----
+
+namespace {
+
+/// One refresh of the pair: the image drawn on a refresh is released on the next, into the side
+/// it was drawn for, for that side's canvas.
+struct PairRun {
+    CanvasDouble pair;
+    std::array<uint32_t, 2> released{};
+    int drawn_side = -1;
+    uint32_t drawn_canvas = 0;
+    CanvasPairFrame Step() {
+        if (drawn_side >= 0) {
+            released[static_cast<std::size_t>(drawn_side)] = drawn_canvas;
+        }
+        const CanvasPairFrame f = pair.Step(released);
+        drawn_side = f.draw;
+        drawn_canvas = f.draw >= 0 ? f.canvas[static_cast<std::size_t>(f.draw)] : 0;
+        return f;
+    }
+};
+
+} // namespace
+
+TEST_CASE("Canvas pair: a move keeps the old pair on view until the new one has its images",
+          "[frame_xr][ctrl2]") {
+    constexpr int S = CanvasDouble::kSettle;
+    PairRun r;
+    r.pair.Request(1);
+    int first = -1;
+    for (int i = 0; i < 20 && first < 0; i++) {
+        const CanvasPairFrame f = r.Step();
+        if (f.shown[0] || f.shown[1]) {
+            first = i;
+            CHECK(f.shown[0]); // the first canvas on side 0
+            CHECK(f.canvas[0] == 1);
+        }
+    }
+    REQUIRE(first > S);
+    for (int i = 0; i < 2 * S; i++) {
+        r.Step();
+    }
+    CHECK_FALSE(r.pair.Busy());
+
+    // The move: side 1 is put at canvas 2, shrunk; side 0 stays at canvas 1, at full size.
+    r.pair.Request(2);
+    CHECK(r.pair.Busy());
+    CHECK(r.pair.Canvas() == 2);
+    std::vector<CanvasPairFrame> f;
+    for (int i = 0; i < 20; i++) {
+        f.push_back(r.Step());
+    }
+    REQUIRE(f[0].canvas[1] == 2);
+    int new_shown = -1, old_hidden = -1, first_image = -1;
+    std::array<int, 2> draws{};
+    for (int i = 0; i < static_cast<int>(f.size()); i++) {
+        const CanvasPairFrame& s = f[static_cast<std::size_t>(i)];
+        INFO("refresh " << i);
+        CHECK((s.shown[0] || s.shown[1])); // never a refresh without the controllers
+        CHECK(s.canvas[1] == 2);
+        if (old_hidden < 0) {
+            CHECK(s.canvas[0] == 1); // the pair on view keeps its place until it shrinks
+        }
+        if (s.draw >= 0) {
+            draws[static_cast<std::size_t>(s.draw)]++;
+        }
+        if (first_image < 0 && i > 0 && f[static_cast<std::size_t>(i - 1)].draw == 1) {
+            first_image = i; // released into side 1 on this refresh
+        }
+        if (new_shown < 0 && s.shown[1]) {
+            new_shown = i;
+        }
+        if (new_shown >= 0 && old_hidden < 0 && !s.shown[0]) {
+            old_hidden = i;
+        }
+    }
+    REQUIRE(first_image >= 0);
+    REQUIRE(new_shown >= 0);
+    REQUIRE(old_hidden >= 0);
+    // Shown only once its place and images have gone out S refreshes; the old pair at full size
+    // with it for S refreshes, then shrunk.
+    CHECK(new_shown >= S);
+    CHECK(new_shown >= first_image + S);
+    CHECK(old_hidden == new_shown + S);
+    for (int i = new_shown; i < old_hidden; i++) {
+        CHECK((f[static_cast<std::size_t>(i)].shown[0] && f[static_cast<std::size_t>(i)].shown[1]));
+    }
+    CHECK(f.back().front == 1);
+    CHECK_FALSE(r.pair.Busy());
+    // Both drawn during the move; only the new one after it.
+    CHECK(draws[0] >= 2);
+    CHECK(draws[1] >= S);
+    CHECK(f.back().draw == 1);
+
+    // The next move goes back to side 0, once it has gone out shrunk S refreshes.
+    r.pair.Request(3);
+    CanvasPairFrame s = r.Step();
+    CHECK(s.canvas[0] == 3);
+    CHECK(s.shown[1]);
+    CHECK_FALSE(s.shown[0]);
+}
+
+TEST_CASE("Canvas pair: a move asked for right after one waits, the pair on view stays",
+          "[frame_xr][ctrl2]") {
+    constexpr int S = CanvasDouble::kSettle;
+    PairRun r;
+    r.pair.Request(1);
+    while (!r.Step().shown[0]) {
+    }
+    r.pair.Request(2);
+    while (r.pair.Busy()) {
+        CHECK(r.Step().shown[0]);
+    }
+    // Side 0 still at full size (with side 1 for S refreshes): canvas 3 takes it only once it
+    // has gone out shrunk S refreshes, and it shows canvas 3 only with images drawn for it.
+    r.pair.Request(3);
+    int shrunk = 0;
+    bool placed = false;
+    for (int i = 0; i < 4 * S; i++) {
+        const CanvasPairFrame f = r.Step();
+        CHECK((f.shown[0] || f.shown[1]));
+        CHECK(f.shown[1]); // canvas 2 on view throughout
+        if (f.canvas[0] == 3 && !placed) {
+            placed = true;
+            CHECK(shrunk >= S);
+        }
+        if (f.canvas[0] == 3 && f.shown[0]) {
+            CHECK(r.released[0] == 3);
+        }
+        shrunk = f.shown[0] ? 0 : shrunk + 1;
+    }
+    CHECK(placed);
+    CHECK(r.pair.Canvas() == 3);
+}
+
+TEST_CASE("Canvas pair: after the models were away, new images first", "[frame_xr][ctrl2]") {
+    constexpr int S = CanvasDouble::kSettle;
+    PairRun r;
+    r.pair.Request(1);
+    while (!r.Step().shown[0]) {
+    }
+    for (int i = 0; i < 5; i++) {
+        r.pair.Absent();
+    }
+    // Back: the images in the swapchains are from before (the caller passes none for them).
+    r.released = {};
+    r.drawn_side = -1;
+    for (int i = 0; i < S; i++) {
+        const CanvasPairFrame f = r.Step();
+        CHECK_FALSE(f.shown[0]);
+        CHECK_FALSE(f.shown[1]);
+        CHECK(f.draw == 0);
+    }
+    int n = 0;
+    while (!r.Step().shown[0]) {
+        REQUIRE(++n < 10);
+    }
+}
+
+TEST_CASE("Canvas pair: taking over from the single handover and back shows no gap",
+          "[frame_xr][ctrl2]") {
+    CanvasHandover h;
+    uint32_t drawn = 0;
+    bool image = false;
+    h.Request(1);
+    CanvasFrame s;
+    for (int i = 0; i < 12; i++) {
+        s = h.Step(image, drawn);
+        image = true;
+        drawn = s.canvas;
+    }
+    REQUIRE(s.quads_shown);
+    REQUIRE_FALSE(s.projection);
+    // To two canvases: the single handover's quads are side 0's.
+    PairRun r;
+    r.pair.Adopt(0, h.Canvas(), h.Shown());
+    r.released = {drawn, 0};
+    CHECK(r.Step().shown[0]);
+    r.pair.Request(2);
+    while (r.pair.Busy()) {
+        const CanvasPairFrame f = r.Step();
+        CHECK((f.shown[0] || f.shown[1]));
+    }
+    for (int i = 0; i < 4; i++) {
+        CHECK(r.Step().shown[1]);
+    }
+    // Back to one (AZAHARFRAME_XR_CANVAS_DOUBLE=0, or no room): side 1's quads, as they are.
+    REQUIRE(r.pair.Front() == 1);
+    REQUIRE(r.pair.FrontShown());
+    h.Adopt(r.pair.FrontCanvas(), r.pair.FrontShown());
+    const CanvasFrame back = h.Step(true, r.released[1]);
+    CHECK(back.canvas == 2);
+    CHECK(back.quads_shown);
+    CHECK_FALSE(back.projection);
+}
+
+// SteamVR's overlays as above, now two per eye (one per canvas, each with its own swapchain):
+// each overlay's place, size and texture taken up to `lag` refreshes late, each on its own. A
+// quad at full size never shows an image drawn for another place, and from the first image on
+// there is never a refresh where no overlay shows the controllers; with the single handover at
+// the same margin, moves hide them.
+TEST_CASE("Canvas pair: no refresh without the controllers, every image at its own place",
+          "[frame_xr][ctrl2]") {
+    struct Motion {
+        const char* name;
+        float yaw, yaw_hz, pitch, pitch_hz;
+        int min_moves;
+    };
+    constexpr float kMargin3 = 3.0f * 3.14159265f / 180.0f;
+    for (const Motion& m : {Motion{"looking round", 0.26f, 0.3f, 0.12f, 0.2f, 1},
+                            Motion{"turning hard", 1.22f, 0.4f, 0.3f, 0.23f, 20}}) {
+        for (const int lag : {1, 2}) {
+            INFO(m.name << ", taken up to " << lag << " refreshes late");
+            std::mt19937 rng{static_cast<unsigned>(21 + lag)};
+            std::uniform_int_distribution<int> late(0, lag);
+            constexpr int kFrames = 12000;
+            constexpr double kRefresh = 1.0 / 120.0;
+            const auto head = [&](int i) {
+                const double t = i * kRefresh;
+                const float yaw = m.yaw * static_cast<float>(std::sin(2.0 * 3.14159265 * m.yaw_hz * t));
+                const float pitch =
+                    m.pitch * static_cast<float>(std::sin(2.0 * 3.14159265 * m.pitch_hz * t));
+                return Input::Posef{Input::Normalized(Input::Multiply(Yaw(yaw), Pitch(pitch))),
+                                    {0.0f, 1.6f, 0.0f}};
+            };
+            const ModelSphere models{{0.05f, 1.25f, -0.38f}, 0.09f};
+            struct Sent {
+                uint32_t place = 0;
+                bool full = false;
+                uint32_t texture = 0;
+            };
+            std::vector<std::array<Sent, 2>> sent(kFrames);
+            std::array<std::array<int, 3>, 2> taken{};
+            PairRun r;
+            std::vector<EyePlane> canvases(1);
+            int mismatched = 0, dark = 0, moves = 0, switches = 0, first = -1;
+            int front = -1;
+            for (int i = 0; i < kFrames; i++) {
+                const Input::Posef eye = head(i);
+                const auto part = ModelsViewBounds(eye, kL, kR, kU, kD, &models, 1, 0.05f);
+                const uint32_t current = r.pair.Canvas();
+                if (!r.pair.Busy() &&
+                    (current == 0 ||
+                     !CanvasServes(canvases[current], eye, kL, kR, kU, kD, part))) {
+                    canvases.push_back(PlaceCanvas(eye, kL, kR, kU, kD, 0.4f, kMargin3));
+                    r.pair.Request(static_cast<uint32_t>(canvases.size() - 1));
+                    moves++;
+                }
+                const CanvasPairFrame f = r.Step();
+                if (front >= 0 && f.front != front) {
+                    switches++;
+                }
+                front = f.front;
+                for (std::size_t s = 0; s < 2; s++) {
+                    // A side with no canvas yet goes out shrunk; its texture is what was last
+                    // released into its swapchain.
+                    sent[static_cast<std::size_t>(i)][s] = {f.canvas[s], f.shown[s], r.released[s]};
+                }
+                bool any = false;
+                for (std::size_t s = 0; s < 2; s++) {
+                    for (int& k : taken[s]) {
+                        k = std::max(k, i - late(rng));
+                    }
+                    const Sent& place = sent[static_cast<std::size_t>(taken[s][0])][s];
+                    const Sent& size = sent[static_cast<std::size_t>(taken[s][1])][s];
+                    const Sent& texture = sent[static_cast<std::size_t>(taken[s][2])][s];
+                    if (size.full) {
+                        if (texture.texture != place.place) {
+                            mismatched++;
+                        } else {
+                            any = true;
+                        }
+                    }
+                }
+                if (any && first < 0) {
+                    first = i;
+                }
+                if (first >= 0 && !any) {
+                    dark++;
+                }
+            }
+            INFO("moves " << moves << ", handed over " << switches);
+            REQUIRE(first >= 0);
+            CHECK(first < 12);
+            CHECK(mismatched == 0);
+            CHECK(dark == 0);
+            CHECK(switches >= moves - 2);
+            CHECK(moves >= m.min_moves);
+        }
+    }
+
+    // The single handover, the same turns at 3 degrees: each move hides the quads.
+    CanvasHandover h;
+    std::vector<EyePlane> canvases(1);
+    uint32_t drawn = 0;
+    bool image = false;
+    int hidden = 0, moves = 0;
+    for (int i = 0; i < 2400; i++) {
+        const float yaw = 1.22f * static_cast<float>(std::sin(2.0 * 3.14159265 * 0.4 * i / 120.0));
+        const Input::Posef eye{Yaw(yaw), {0.0f, 1.6f, 0.0f}};
+        const ModelSphere models{{0.05f, 1.25f, -0.38f}, 0.09f};
+        const auto part = ModelsViewBounds(eye, kL, kR, kU, kD, &models, 1, 0.05f);
+        if (h.Canvas() == 0 ||
+            (!h.Busy() && !CanvasServes(canvases[h.Canvas()], eye, kL, kR, kU, kD, part))) {
+            canvases.push_back(PlaceCanvas(eye, kL, kR, kU, kD, 0.4f, kMargin3));
+            h.Request(static_cast<uint32_t>(canvases.size() - 1));
+            moves++;
+        }
+        const CanvasFrame s = h.Step(image, drawn);
+        image = true;
+        drawn = s.canvas;
+        if (i > 12 && !s.quads_shown) {
+            hidden++;
+        }
+    }
+    CHECK(moves > 4);
+    CHECK(hidden >= (moves - 1) * CanvasHandover::kSettle);
+}

@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -434,6 +435,20 @@ public:
         matched_ = 0;
     }
 
+    /// AzaharFrame ctrl2: takes over quads already on `canvas` (CanvasDouble's side on view when
+    /// the two canvases stop: AZAHARFRAME_XR_CANVAS_DOUBLE=0, or no room for four quads), its
+    /// place and its images long settled; `shown`: at full size now.
+    void Adopt(uint32_t canvas, bool shown) {
+        Reset();
+        quads_ = canvas;
+        pose_age_ = kSettle;
+        if (shown) {
+            shown_ = true;
+            shown_age_ = kSettle;
+            matched_ = kSettle;
+        }
+    }
+
     void Reset() {
         *this = {};
     }
@@ -446,6 +461,187 @@ private:
     int shown_age_ = 0;  ///< refreshes in a row they went out at full size
     int pose_age_ = 0;   ///< refreshes they have carried this canvas's place
     int matched_ = 0;    ///< refreshes in a row the image released was drawn for it
+};
+
+// ---- AzaharFrame ctrl2: two canvases, the next one made ready while the one on view stays ----
+//
+// 1.2.0 RC2 (the owner): the controllers and the weapon blinked out at each canvas move (the
+// handover above hides them for its few refreshes; up to 22 moves in 10 s), and the 10 degree
+// margin that made moves rarer made them soft. Now each canvas has its own pair of eye quads with
+// its own swapchain, so its own overlays (layer_slots.h): the pair on view keeps its place and
+// its swapchain while the other pair is put at the new place, shrunk, and images for the new
+// place go into its swapchain. Once that pair's place and images have gone out for kSettle
+// refreshes it grows; the old pair stays at full size until the new one has been for kSettle
+// refreshes (both show the models where they are, each drawn for its own place), then shrinks
+// in place and waits there for the next move. Whatever order SteamVR takes the calls up in, a
+// quad at full size only ever shows an image drawn for its place, and one of the two always
+// does. One image is drawn a refresh, as before: during a move it goes to the two swapchains in
+// turn. No OpenXR or Vulkan here (unit tested).
+
+/// What the two pairs of eye quads do this refresh.
+struct CanvasPairFrame {
+    std::array<uint32_t, 2> canvas{}; ///< the canvas each side's quads carry (0: none yet)
+    std::array<bool, 2> shown{};      ///< each side's quads at full size (else shrunk, in place)
+    int front = -1; ///< the side whose canvas serves the view (-1: none yet)
+    int draw = -1;  ///< the side the next image is drawn into, for its canvas (-1: none)
+};
+
+class CanvasDouble {
+public:
+    static constexpr int kSettle = CanvasHandover::kSettle;
+
+    /// A new canvas (its number, never 0) wanted: it goes to the side not on view once that side
+    /// has gone out shrunk (or not at all) for kSettle refreshes. Ignored while one is on its way.
+    void Request(uint32_t canvas) {
+        if (!Busy()) {
+            pending_ = canvas;
+        }
+    }
+    bool Busy() const {
+        return pending_ != 0 || back_ >= 0;
+    }
+    /// The newest canvas: the one asked for or being made ready, else the one on view (0: none).
+    uint32_t Canvas() const {
+        if (pending_ != 0) {
+            return pending_;
+        }
+        if (back_ >= 0) {
+            return sides_[static_cast<std::size_t>(back_)].canvas;
+        }
+        return front_ >= 0 ? sides_[static_cast<std::size_t>(front_)].canvas : 0;
+    }
+    int Front() const {
+        return front_;
+    }
+    /// The canvas of the side on view, and whether it went out at full size on the last Step.
+    uint32_t FrontCanvas() const {
+        return front_ >= 0 ? sides_[static_cast<std::size_t>(front_)].canvas : 0;
+    }
+    bool FrontShown() const {
+        return front_ >= 0 && sides_[static_cast<std::size_t>(front_)].shown;
+    }
+    bool Shown() const {
+        return sides_[0].shown || sides_[1].shown;
+    }
+
+    /// Each refresh the quads go out. `released[s]`: the canvas the image released last into
+    /// side s was drawn for, 0 when none has been since the models last went away.
+    CanvasPairFrame Step(const std::array<uint32_t, 2>& released) {
+        if (pending_ != 0 && back_ < 0 && retiring_ < 0) {
+            const int s = front_ < 0 ? 0 : 1 - front_;
+            Side& b = sides_[static_cast<std::size_t>(s)];
+            if (b.hidden >= kSettle) {
+                b.canvas = pending_;
+                b.pose_age = 0;
+                b.matched = 0;
+                back_ = s;
+                pending_ = 0;
+            }
+        }
+        const auto ready = [&](int s) {
+            const Side& d = sides_[static_cast<std::size_t>(s)];
+            return d.canvas != 0 && released[static_cast<std::size_t>(s)] == d.canvas &&
+                   d.pose_age >= kSettle && d.matched >= kSettle;
+        };
+        // The new pair ready: on view from now, the old one until the new one has been for kSettle.
+        if (back_ >= 0 && ready(back_)) {
+            if (front_ >= 0 && sides_[static_cast<std::size_t>(front_)].shown) {
+                retiring_ = front_;
+            }
+            front_ = back_;
+            back_ = -1;
+        }
+        CanvasPairFrame f;
+        f.front = front_;
+        for (std::size_t s = 0; s < 2; s++) {
+            f.canvas[s] = sides_[s].canvas;
+        }
+        if (front_ >= 0) {
+            f.shown[static_cast<std::size_t>(front_)] = ready(front_);
+        }
+        if (retiring_ >= 0) {
+            const Side& fr = sides_[static_cast<std::size_t>(front_)];
+            if (f.shown[static_cast<std::size_t>(front_)] && fr.shown && fr.shown_age >= kSettle) {
+                retiring_ = -1; // shrunk from now, in place
+            } else {
+                f.shown[static_cast<std::size_t>(retiring_)] = true;
+            }
+        }
+        // One image a refresh: the new pair's first, then the two pairs on view (or being made
+        // ready) in turn, so neither shows the controllers more than a refresh or two old.
+        if (back_ >= 0) {
+            const bool front_on = front_ >= 0 && f.shown[static_cast<std::size_t>(front_)];
+            const std::size_t b = static_cast<std::size_t>(back_);
+            const bool back_has = released[b] == sides_[b].canvas;
+            f.draw = !front_on || !back_has || (tick_ & 1) ? back_ : front_;
+        } else if (retiring_ >= 0) {
+            f.draw = (tick_ & 1) ? retiring_ : front_;
+        } else {
+            f.draw = front_;
+        }
+        tick_++;
+        for (std::size_t s = 0; s < 2; s++) {
+            Side& d = sides_[s];
+            if (f.shown[s]) {
+                d.shown_age++;
+                d.hidden = 0;
+            } else {
+                d.shown_age = 0;
+                d.hidden++;
+            }
+            d.shown = f.shown[s];
+            d.pose_age++;
+            d.matched = d.canvas != 0 && released[s] == d.canvas ? d.matched + 1 : 0;
+        }
+        return f;
+    }
+
+    /// Each refresh the quads do not go out (no models, or Off): both pairs shrink in place
+    /// (layer_slots.h); a pair goes out again once images drawn since have been for kSettle.
+    void Absent() {
+        for (Side& d : sides_) {
+            d.shown = false;
+            d.shown_age = 0;
+            d.hidden++;
+            d.matched = 0;
+        }
+        retiring_ = -1;
+    }
+
+    /// Takes over the one pair the single handover had on `canvas` (side `side`), as
+    /// CanvasHandover::Adopt; the other pair waits kSettle refreshes before it is used.
+    void Adopt(int side, uint32_t canvas, bool shown) {
+        Reset();
+        front_ = side;
+        Side& d = sides_[static_cast<std::size_t>(side)];
+        d.canvas = canvas;
+        d.pose_age = kSettle;
+        if (shown) {
+            d.shown = true;
+            d.shown_age = kSettle;
+            d.matched = kSettle;
+        }
+    }
+
+    void Reset() {
+        *this = {};
+    }
+
+private:
+    struct Side {
+        uint32_t canvas = 0;
+        bool shown = false;
+        int hidden = 0;    ///< refreshes in a row it went out shrunk (or not at all)
+        int shown_age = 0; ///< refreshes in a row it went out at full size
+        int pose_age = 0;  ///< refreshes it has carried its canvas's place
+        int matched = 0;   ///< refreshes in a row the image released into it was drawn for it
+    };
+    std::array<Side, 2> sides_{};
+    int front_ = -1;    ///< the side on view (or the first canvas's)
+    int back_ = -1;     ///< the side being made ready for a new canvas
+    int retiring_ = -1; ///< the side still at full size after a switch
+    uint32_t pending_ = 0;
+    uint32_t tick_ = 0;
 };
 
 /// AzaharFrame fixc: why a refresh that showed a controller (or had just lost one) went out

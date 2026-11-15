@@ -323,7 +323,7 @@ struct Visuals::Impl {
     const XrCompositionLayerBaseHeader* models_layer = nullptr;
     // AzaharFrame ctrlfront: the models as the eye quads (any choice but Off), and what the
     // next picture is drawn against.
-    std::array<Quad, 2> model_quads{};
+    ControllerModels::EyeQuadSet model_quads{}; ///< AzaharFrame ctrl2: two or four
     bool model_quads_ready = false;
     std::vector<Occluder> occluders;
     std::size_t max_layers = 16;
@@ -1187,13 +1187,24 @@ const XrCompositionLayerBaseHeader* Visuals::TopLayers(std::vector<Quad>& top,
     // AzaharFrame ctrlfront: or the two eye quads, under the beams and dots. AzaharFrame
     // ctrlglitch: they come first; the projection layer goes with them only while their canvas
     // moves (controller_models.h), and a frame without room for it just shows the quads.
-    const bool model_quads = m.model_quads_ready && room >= m.model_quads.size();
-    room -= model_quads ? m.model_quads.size() : 0;
+    // AzaharFrame ctrl2: both canvases' four quads, or, short of room, the pair on view alone
+    // (the models go to one canvas for a while).
+    const ControllerModels::EyeQuadSet& mq = m.model_quads;
+    std::size_t model_from = 0, model_n = 0;
+    if (m.model_quads_ready && room >= mq.count) {
+        model_n = mq.count;
+    } else if (m.model_quads_ready && mq.count > 2 && room >= 2) {
+        model_from = mq.keep;
+        model_n = 2;
+    }
+    const bool model_quads = model_n > 0;
+    room -= model_n;
     const XrCompositionLayerBaseHeader* models = room > 0 ? m.models_layer : nullptr;
     room -= models ? 1 : 0;
     const std::size_t beams = std::min(room, m.top_beams.size());
     // AzaharFrame fixc: counted with the refreshes without the controllers' layer.
-    impl->models.NoteNoRoom(m.model_quads_ready && !model_quads, m.models_layer && !models);
+    impl->models.NoteNoRoom(m.model_quads_ready && !model_quads, m.models_layer && !models,
+                            model_quads && model_n < mq.count);
     if (beams < m.top_beams.size() || dots < m.top_dots.size() || (m.models_layer && !models) ||
         (m.model_quads_ready && !model_quads)) {
         static int said = 0;
@@ -1204,7 +1215,8 @@ const XrCompositionLayerBaseHeader* Visuals::TopLayers(std::vector<Quad>& top,
         }
     }
     if (model_quads) {
-        top.insert(top.end(), m.model_quads.begin(), m.model_quads.end());
+        top.insert(top.end(), mq.quad.begin() + static_cast<std::ptrdiff_t>(model_from),
+                   mq.quad.begin() + static_cast<std::ptrdiff_t>(model_from + model_n));
     }
     top.insert(top.end(), m.top_beams.begin(), m.top_beams.begin() + beams);
     top.insert(top.end(), m.top_dots.begin(), m.top_dots.begin() + dots);

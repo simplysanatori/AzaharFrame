@@ -13,7 +13,8 @@
 // onto it from where the eyes are, so SteamVR taking up an image and a place from different
 // refreshes no longer moves the controllers; the canvas moves rarely, through a handover, and the
 // models are drawn where the controller will be on the refresh their image is on view
-// (model_plane.h, input/pose_guard.h).
+// (model_plane.h, input/pose_guard.h). AzaharFrame ctrl2: two canvases, each with its own
+// swapchain and eye quads, so the one on view stays while the next is made ready (CanvasDouble).
 //
 // This is the one part of frame_xr that renders on the XR thread while a game runs, so it keeps
 // to the rules the screens keep: it never waits for the GPU on the XR thread, it holds the queue
@@ -31,6 +32,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <atomic>
 #include <memory>
 #include <optional>
@@ -114,9 +116,16 @@ public:
     /// The layer for this frame's xrEndFrame, or null (also when the image goes out as the eye
     /// quads). Valid until the next Frame.
     const XrCompositionLayerBaseHeader* Layer() const;
+    /// AzaharFrame ctrl2: this refresh's eye quads: one canvas's two, or both canvases' four
+    /// (model_plane.h CanvasDouble; the first canvas's pair first, always in that order).
+    struct EyeQuadSet {
+        std::array<Quad, 4> quad{};
+        std::size_t count = 0;
+        std::size_t keep = 0; ///< of four, the first of the pair on view (alone when two fit)
+    };
     /// AzaharFrame ctrlfront: the image as two quads, the left eye's and the right eye's
     /// (any choice but Off; never in screens mode); false when there is none this frame.
-    bool EyeQuads(std::array<Quad, 2>& out) const;
+    bool EyeQuads(EyeQuadSet& out) const;
     /// AzaharFrame projscreen: AZAHARFRAME_XR_SCREENS_IN_PROJECTION (proj_screen.h). XR thread,
     /// before Frame. On: the pass is made at the eye buffer's full size (times `scale`), Frame only
     /// reads the hands and the next draw waits for FrameScreens; a change makes the pass again.
@@ -131,9 +140,12 @@ public:
     /// AzaharFrame fixc: after Frame (and FrameScreens), the eye quads or the projection layer
     /// had no room among this refresh's layers: counted with the refreshes without the
     /// controllers' layer (the per-second log line, judged at the next Frame).
-    void NoteNoRoom(bool quads, bool layer) {
+    /// AzaharFrame ctrl2: `pair`: of the two canvases' four quads only the pair on view went
+    /// out; one canvas for a while (controller_models.cpp).
+    void NoteNoRoom(bool quads, bool layer, bool pair = false) {
         gap_quads_dropped = gap_quads_dropped || quads;
         gap_layer_dropped = gap_layer_dropped || layer;
+        pair_no_room = pair_no_room || pair;
     }
 
 private:
@@ -151,6 +163,10 @@ private:
     bool AsEyeQuads() const;
     /// Releases the image in flight once its fence has signalled (no wait).
     void TryRelease();
+    /// AzaharFrame ctrl2: the second canvas's swapchain, and its first (blank) image.
+    void MakeSecond(Runtime& rt);
+    void DrawBlankSecond();
+    bool pair_no_room = false;
     /// AzaharFrame fixc: at the top of Frame, the refresh before: counted when it had no layer of
     /// the controllers' (LayerGapFor), and the line logged each second there were any.
     void NoteLayerGap(int64_t now_ns);

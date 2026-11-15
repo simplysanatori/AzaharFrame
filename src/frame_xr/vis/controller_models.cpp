@@ -45,6 +45,9 @@ constexpr float kFar = 20.0f;
 // modes always was. It was half that, at most 1000 high (AZAHARFRAME_MODEL_EYE_PX still caps it).
 constexpr uint32_t kMaxEyeHeight = 2048;
 constexpr float kEyeScale = 1.0f;
+// AzaharFrame ctrl2: after a refresh without room for both canvases' quads, one canvas for this
+// many refreshes (about 2 s), so a panel that comes and goes does not switch it every refresh.
+constexpr uint32_t kPairShortRefreshes = 240;
 
 Mat Multiply(const Mat& a, const Mat& b) {
     Mat m{};
@@ -292,6 +295,37 @@ struct ControllerModels::Gpu {
     CanvasFrame step;
     bool canvas_on = false; ///< this refresh's quads are on a canvas (AZAHARFRAME_XR_CANVAS)
     uint32_t canvas_moves = 0, canvas_projection = 0; ///< for the log
+    // AzaharFrame ctrl2: the second canvas's swapchain (model_plane.h CanvasDouble), made the
+    // first time two canvases are wanted, with a blank image released into it so its quads can
+    // go out from then on. Side 0 is the swapchain above. The side the image in flight and the
+    // one released last went into; the canvas each side's last image was drawn for, and whether
+    // it was since the models last went away; the single handover's side; the two-canvas step.
+    struct Second {
+        XrSwapchain swapchain = XR_NULL_HANDLE;
+        std::vector<VkImage> images;
+        std::vector<vk::ImageView> views;
+        std::vector<vk::Framebuffer> framebuffers;
+        bool acquired = false;
+        uint32_t index = 0;
+        bool ready = false;  ///< an image released into it
+        bool failed = false; ///< could not be made: one canvas only
+    } second;
+    int drawn_side = 0, shown_side = 0;
+    bool drawn_blank = false; ///< the image in flight is the second's blank first one
+    std::array<uint32_t, 2> side_canvas{};
+    std::array<bool, 2> side_fresh{};
+    int single_side = 0;
+    bool double_on = false; ///< this refresh's quads are the two canvases' (CanvasDouble)
+    CanvasDouble pair;
+    CanvasPairFrame pair_step;
+    uint32_t pair_short = 0; ///< refreshes left with one canvas: four quads had no room
+    uint32_t canvas_switches = 0; ///< for the log
+    XrSwapchain SwapchainOf(int side) const {
+        return side == 1 ? second.swapchain : swapchain;
+    }
+    std::array<uint32_t, 2> Released() const {
+        return {side_fresh[0] ? side_canvas[0] : 0u, side_fresh[1] ? side_canvas[1] : 0u};
+    }
     const Canvas* FindCanvas(uint32_t id) const {
         for (const Canvas& c : canvases) {
             if (id != 0 && c.id == id) {
@@ -585,7 +619,8 @@ const XrCompositionLayerBaseHeader* ControllerModels::Layer() const {
     // projection layer during a canvas move is SteamVR's main layer, under every screen, and it
     // can show with the quads not yet shrunk, a second image. Now the models are simply hidden
     // for the move's few refreshes. Live test switch AZAHARFRAME_XR_CANVAS_FALLBACK=1: the
-    // projection layer during the move, as before.
+    // projection layer during the move, as before. AzaharFrame ctrl2: with two canvases a move
+    // hides nothing (model_plane.h CanvasDouble); FALLBACK=1 goes back to one canvas.
     const bool fallback =
         Common::FrameTestSwitches::Value("AZAHARFRAME_XR_CANVAS_FALLBACK").value_or("0") == "1";
     const bool wanted =
@@ -597,23 +632,21 @@ const XrCompositionLayerBaseHeader* ControllerModels::Layer() const {
 
 // AzaharFrame ctrlfront: the image released last as each eye's quad: the eye's view at the
 // distance it was drawn for, so it shows just as the projection layer would (model_plane.h).
-bool ControllerModels::EyeQuads(std::array<Quad, 2>& out) const {
+bool ControllerModels::EyeQuads(EyeQuadSet& out) const {
+    out.count = 0;
+    out.keep = 0;
     if (!layer_ready || !AsEyeQuads()) {
         return false;
     }
     const Gpu& g = *gpu;
     // AzaharFrame ctrlglitch: the canvas's place in the room, which changes only through the
     // handover (model_plane.h), shrunk to nothing in place while it is not shown.
-    if (g.canvas_on) {
-        const Gpu::Canvas* canvas = g.FindCanvas(g.step.canvas);
-        if (!canvas) {
-            return false;
-        }
+    const auto canvas_quads = [&](int side, const EyePlane* planes, bool shown) {
         for (std::size_t e = 0; e < 2; e++) {
-            const EyePlane& plane = canvas->eye[e];
-            const float k = g.step.quads_shown ? 1.0f : kCanvasShrink;
-            Quad& q = out[e];
-            q.swapchain = g.swapchain;
+            const EyePlane& plane = planes[e];
+            const float k = shown ? 1.0f : kCanvasShrink;
+            Quad& q = out.quad[out.count++];
+            q.swapchain = g.SwapchainOf(side);
             q.image_rect = {{static_cast<int32_t>(g.eye_w * e), 0},
                             {static_cast<int32_t>(g.eye_w), static_cast<int32_t>(g.eye_h)}};
             q.pose = ToXr(plane.pose);
@@ -621,15 +654,39 @@ bool ControllerModels::EyeQuads(std::array<Quad, 2>& out) const {
             q.eye = e == 0 ? XR_EYE_VISIBILITY_LEFT : XR_EYE_VISIBILITY_RIGHT;
             q.flags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
         }
+    };
+    // AzaharFrame ctrl2: the two canvases' pairs, side 0's first, every refresh (so they keep
+    // their overlays); a side with no canvas yet goes out shrunk at the other's place.
+    if (g.canvas_on && g.double_on) {
+        const CanvasPairFrame& p = g.pair_step;
+        std::array<const Gpu::Canvas*, 2> c{g.FindCanvas(p.canvas[0]), g.FindCanvas(p.canvas[1])};
+        if (!c[0] && !c[1]) {
+            return false;
+        }
+        for (int s = 0; s < 2; s++) {
+            const Gpu::Canvas* own = c[static_cast<std::size_t>(s)];
+            canvas_quads(s, (own ? own : c[static_cast<std::size_t>(1 - s)])->eye.data(),
+                         own && p.shown[static_cast<std::size_t>(s)]);
+        }
+        out.keep = p.front == 1 ? 2 : 0;
         return true;
     }
+    if (g.canvas_on) {
+        const Gpu::Canvas* canvas = g.FindCanvas(g.step.canvas);
+        if (!canvas) {
+            return false;
+        }
+        canvas_quads(g.single_side, canvas->eye.data(), g.step.quads_shown);
+        return true;
+    }
+    out.count = 2;
     for (int e = 0; e < 2; e++) {
         const XrFovf& fov = g.shown_views.fov[e];
         const EyePlane plane =
             PlaneForEye(FromXr(g.shown_views.eye[e]), fov.angleLeft, fov.angleRight, fov.angleUp,
                         fov.angleDown, g.shown_plane);
-        Quad& q = out[static_cast<std::size_t>(e)];
-        q.swapchain = g.swapchain;
+        Quad& q = out.quad[static_cast<std::size_t>(e)];
+        q.swapchain = g.SwapchainOf(g.shown_side);
         q.image_rect = g.layer_views[static_cast<std::size_t>(e)].subImage.imageRect;
         q.pose = ToXr(plane.pose);
         q.size = {plane.width_m, plane.height_m};
@@ -649,7 +706,8 @@ void ControllerModels::DestroyXr() {
         if (g.in_flight) {
             static_cast<void>(g.device.waitForFences(g.fence, true, 1'000'000'000));
             XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-            g.queue_lock->With([&] { return Xr().xrReleaseSwapchainImage(g.swapchain, &ri); });
+            const XrSwapchain sc = g.SwapchainOf(g.drawn_side); // AzaharFrame ctrl2
+            g.queue_lock->With([&] { return Xr().xrReleaseSwapchainImage(sc, &ri); });
         }
         if (g.state == 1) {
             static_cast<void>(g.device.waitForFences(g.upload_fence, true, 1'000'000'000));
@@ -700,6 +758,12 @@ void ControllerModels::DestroyXr() {
             g.device.destroyFramebuffer(fb);
         }
         for (auto v : g.swap_views) {
+            g.device.destroyImageView(v);
+        }
+        for (auto fb : g.second.framebuffers) { // AzaharFrame ctrl2
+            g.device.destroyFramebuffer(fb);
+        }
+        for (auto v : g.second.views) {
             g.device.destroyImageView(v);
         }
         for (auto v : g.views) {
@@ -765,6 +829,11 @@ void ControllerModels::DestroyXr() {
         // AzaharFrame projdef: its eye quads' slots go before the next frame's list
         // (retired_swapchains.h): a live switch to the projection layer sent the dead handle.
         RetiredSwapchains::Note(reinterpret_cast<uint64_t>(g.swapchain));
+    }
+    if (g.second.swapchain != XR_NULL_HANDLE) { // AzaharFrame ctrl2: the same for the second
+        const auto destroy = [&] { return Xr().xrDestroySwapchain(g.second.swapchain); };
+        g.queue_lock ? g.queue_lock->With(destroy) : destroy();
+        RetiredSwapchains::Note(reinterpret_cast<uint64_t>(g.second.swapchain));
     }
     gpu.reset();
 }
@@ -1046,7 +1115,9 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
     }
     if (!any) {
         g.shown_fresh = false; // when they come back, a new image first
+        g.side_fresh = {};     // AzaharFrame ctrl2: for each canvas
         g.handover.Absent();   // AzaharFrame ctrlglitch: no quads go out
+        g.pair.Absent();       // AzaharFrame ctrl2
         g.canvas_on = false;
         return;
     }
@@ -1055,6 +1126,7 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         // test3d: no eye quads in screens mode, so no canvas (ctrlglitch) and none going out.
         g.canvas_on = false;
         g.handover.Absent();
+        g.pair.Absent(); // AzaharFrame ctrl2
         pending_views = views;
         pending_hands = hands;
         return;
@@ -1067,13 +1139,57 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         Common::FrameTestSwitches::Value("AZAHARFRAME_XR_CANVAS").value_or("1") != "0";
     const bool canvas_was_on = g.canvas_on;
     g.canvas_on = canvas_wanted;
+    // AzaharFrame ctrl2: two canvases (model_plane.h CanvasDouble), so a move no longer hides the
+    // models; one, through the single handover as before, with the live test switch
+    // AZAHARFRAME_XR_CANVAS_DOUBLE=0 (an A/B), with AZAHARFRAME_XR_CANVAS_FALLBACK=1 (the
+    // projection layer during the single handover's moves), when the second swapchain could not
+    // be made, and for a while after four quads had no room among the runtime's layers. A change
+    // takes over the pair on view, so it shows no gap; to two canvases only between moves.
+    if (pair_no_room) {
+        pair_no_room = false;
+        g.pair_short = kPairShortRefreshes;
+    }
+    const bool double_wanted =
+        g.canvas_on &&
+        Common::FrameTestSwitches::Value("AZAHARFRAME_XR_CANVAS_FALLBACK").value_or("0") != "1" &&
+        Common::FrameTestSwitches::Value("AZAHARFRAME_XR_CANVAS_DOUBLE").value_or("1") != "0" &&
+        !g.second.failed && g.pair_short == 0;
+    if (g.pair_short > 0) {
+        g.pair_short--;
+    }
+    if (double_wanted && g.second.swapchain == XR_NULL_HANDLE) {
+        MakeSecond(rt);
+    }
     if (!g.canvas_on) {
         // The quads at the eye views (the A/B) are on view elsewhere; Off has none.
-        ModelsAsQuads(choice) ? g.handover.Elsewhere() : g.handover.Absent();
+        if (ModelsAsQuads(choice)) {
+            g.handover.Elsewhere();
+            g.pair.Reset(); // ctrl2: back through the single handover, then two again
+            g.double_on = false;
+        } else {
+            g.handover.Absent();
+            g.pair.Absent();
+        }
     } else {
+        if (!double_wanted && g.double_on) {
+            const int front = g.pair.Front();
+            if (front >= 0) {
+                g.single_side = front;
+                g.handover.Adopt(g.pair.FrontCanvas(), g.pair.FrontShown());
+            } else {
+                g.handover.Reset();
+            }
+            g.double_on = false;
+        } else if (double_wanted && !g.double_on && g.second.ready && canvas_was_on &&
+                   !g.handover.Busy() && !g.step.projection) {
+            g.pair.Adopt(g.single_side, g.handover.Canvas(), g.handover.Shown());
+            g.double_on = true;
+        }
+        const uint32_t newest = g.double_on ? g.pair.Canvas() : g.handover.Canvas();
+        const bool busy = g.double_on ? g.pair.Busy() : g.handover.Busy();
         // Back from the A/B: a new canvas, through the handover.
-        bool serves = g.handover.Canvas() != 0 && canvas_was_on;
-        const Gpu::Canvas* current = g.FindCanvas(g.handover.Canvas());
+        bool serves = newest != 0 && canvas_was_on;
+        const Gpu::Canvas* current = g.FindCanvas(newest);
         const std::array<ModelSphere, 2> spheres = Spheres(hands);
         const std::size_t n = SphereCount(hands);
         for (int e = 0; e < 2 && serves; e++) {
@@ -1085,7 +1201,7 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                                               fov.angleLeft, fov.angleRight, fov.angleUp,
                                               fov.angleDown, models);
         }
-        if (views.valid && (g.handover.Canvas() == 0 || (!serves && !g.handover.Busy()))) {
+        if (views.valid && !busy && (newest == 0 || !serves)) {
             std::array<std::optional<Input::Vec3f>, 2> at{};
             for (std::size_t h = 0; h < hands.size(); h++) {
                 if (hands[h].shown) {
@@ -1099,7 +1215,9 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
             // 22 moves in 10 s): a larger canvas, 10 degrees round the view (was 4), so a head
             // turn moves it far less often; a little less sharp. Live test switch
             // AZAHARFRAME_XR_CANVAS_MARGIN_DEG (1 to 30) to tune it in the headset.
-            float margin_deg = 10.0f;
+            // AzaharFrame ctrl2 (the owner: the weapons soft at 10 degrees): 3 degrees with two
+            // canvases, whose moves do not show; 10 still with the single handover.
+            float margin_deg = g.double_on ? 3.0f : 10.0f;
             if (const auto v = Common::FrameTestSwitches::Value("AZAHARFRAME_XR_CANVAS_MARGIN_DEG")) {
                 char* end = nullptr;
                 const float f = std::strtof(v->c_str(), &end);
@@ -1113,23 +1231,47 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                 c.eye[e] = PlaceCanvas(FromXr(views.eye[e]), fov.angleLeft, fov.angleRight,
                                        fov.angleUp, fov.angleDown, distance, margin);
             }
-            g.handover.Request(c.id);
+            g.double_on ? g.pair.Request(c.id) : g.handover.Request(c.id);
             g.canvas_moves++;
         }
-        g.step = g.handover.Step(g.has_image && g.shown_fresh, g.shown_canvas);
-        if (g.step.projection) {
-            g.canvas_projection++;
+        if (g.double_on) {
+            // ctrl2: the pair's step, and what the gap count and Layer read of it (the quads on
+            // view at full size; never the projection layer).
+            const int front_before = g.pair.Front();
+            g.pair_step = g.pair.Step(g.Released());
+            g.step = {};
+            g.step.canvas = g.pair_step.front >= 0
+                                ? g.pair_step.canvas[static_cast<std::size_t>(g.pair_step.front)]
+                                : 0;
+            g.step.quads_shown = g.pair_step.shown[0] || g.pair_step.shown[1];
+            if (front_before >= 0 && g.pair_step.front != front_before) {
+                g.canvas_switches++;
+            }
+        } else {
+            const std::size_t ss = static_cast<std::size_t>(g.single_side);
+            g.step = g.handover.Step(g.has_image && g.shown_fresh,
+                                     g.side_fresh[ss] ? g.side_canvas[ss] : 0);
+            if (g.step.projection) {
+                g.canvas_projection++;
+            }
         }
     }
 
     // AzaharFrame ctrlglitch: the views the next image is drawn with: onto the quads' canvas,
     // seen from where the eyes are now (CanvasView); the eyes' own views without one (Off). With
     // a canvas the eye is not in front of, none is drawn (the canvas is about to move).
+    // AzaharFrame ctrl2: with two canvases, onto the canvas of the side the pair's step names.
     std::optional<ViewPose> draw_views;
     uint32_t draw_canvas = 0;
+    int draw_side = g.single_side;
+    uint32_t target = g.step.canvas;
+    if (g.canvas_on && g.double_on) {
+        draw_side = g.pair_step.draw;
+        target = draw_side >= 0 ? g.pair_step.canvas[static_cast<std::size_t>(draw_side)] : 0;
+    }
     if (!g.canvas_on) {
         draw_views = views;
-    } else if (const Gpu::Canvas* c = g.FindCanvas(g.step.canvas); c && views.valid) {
+    } else if (const Gpu::Canvas* c = g.FindCanvas(target); c && views.valid) {
         std::array<std::optional<CanvasEye>, 2> ce{};
         for (std::size_t e = 0; e < 2; e++) {
             const XrVector3f& p = views.eye[e].position;
@@ -1146,19 +1288,29 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         }
     }
 
+    // AzaharFrame ctrl2: the second swapchain's first image, blank, so its quads can go out.
+    if (!g.in_flight && g.second.swapchain != XR_NULL_HANDLE && !g.second.ready) {
+        DrawBlankSecond();
+    }
+
     // ---- Draw the next one ----
     if (!g.in_flight && views.valid && draw_views) {
-        if (!g.acquired) {
+        // AzaharFrame ctrl2: into the swapchain of the side it is drawn for.
+        const XrSwapchain sc = g.SwapchainOf(draw_side);
+        bool& acquired = draw_side == 1 ? g.second.acquired : g.acquired;
+        uint32_t& index = draw_side == 1 ? g.second.index : g.index;
+        if (!acquired) {
             XrSwapchainImageAcquireInfo ai{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
             if (XR_SUCCEEDED(g.queue_lock->With(
-                    [&] { return xr.xrAcquireSwapchainImage(g.swapchain, &ai, &g.index); }))) {
-                g.acquired = true;
+                    [&] { return xr.xrAcquireSwapchainImage(sc, &ai, &index); }))) {
+                acquired = true;
             }
         }
         XrSwapchainImageWaitInfo wi{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
         wi.timeout = 0;
-        if (g.acquired && xr.xrWaitSwapchainImage(g.swapchain, &wi) == XR_SUCCESS) {
-            g.acquired = false;
+        if (acquired && xr.xrWaitSwapchainImage(sc, &wi) == XR_SUCCESS) {
+            acquired = false;
+            g.drawn_side = draw_side;
             // AzaharFrame ctrlfront: the screens' and panels' depth while the image goes out as
             // the eye quads (and with the shader); the eye quads at the nearer controller's depth.
             static const std::vector<Occluder> kNone;
@@ -1207,7 +1359,7 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
             auto& v = g.layer_views[static_cast<std::size_t>(e)];
             v.pose = g.shown_views.eye[e];
             v.fov = g.shown_views.fov[e];
-            v.subImage.swapchain = g.swapchain;
+            v.subImage.swapchain = g.SwapchainOf(g.shown_side); // AzaharFrame ctrl2
             v.subImage.imageRect = {{static_cast<int32_t>(g.eye_w * e), 0},
                                     {static_cast<int32_t>(g.eye_w), static_cast<int32_t>(g.eye_h)}};
             v.subImage.imageArrayIndex = 0;
@@ -1227,10 +1379,19 @@ void ControllerModels::TryRelease() {
     }
     g.device.resetFences(g.fence);
     XrSwapchainImageReleaseInfo ri{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-    const XrResult r =
-        g.queue_lock->With([&] { return Xr().xrReleaseSwapchainImage(g.swapchain, &ri); });
+    const XrSwapchain sc = g.SwapchainOf(g.drawn_side); // AzaharFrame ctrl2
+    const XrResult r = g.queue_lock->With([&] { return Xr().xrReleaseSwapchainImage(sc, &ri); });
     g.in_flight = false;
-    if (XR_SUCCEEDED(r)) {
+    const bool blank = g.drawn_blank;
+    g.drawn_blank = false;
+    if (XR_SUCCEEDED(r) && blank) {
+        g.second.ready = true; // AzaharFrame ctrl2: its quads can go out from now on
+    } else if (XR_SUCCEEDED(r)) {
+        // AzaharFrame ctrl2: the side it went into and the canvas it was drawn for there.
+        const std::size_t side = static_cast<std::size_t>(g.drawn_side);
+        g.shown_side = g.drawn_side;
+        g.side_canvas[side] = g.drawn_canvas;
+        g.side_fresh[side] = true;
         g.has_image = true;
         g.shown_views = g.drawn_views;
         g.shown_fresh = true;
@@ -1242,9 +1403,113 @@ void ControllerModels::TryRelease() {
     // AzaharFrame projscreen: the views made for the draw that is done; ctrlfront: its GPU time
     // (no wait: the fence has signalled).
     g.DestroyScreenViews();
+    if (blank) {
+        return; // no timestamps in it
+    }
     NoteGpuTime(std::chrono::duration_cast<std::chrono::nanoseconds>(
                     std::chrono::steady_clock::now().time_since_epoch())
                     .count());
+}
+
+// AzaharFrame ctrl2: the second canvas's swapchain, as Setup makes the first (the same size and
+// format, its own image views and framebuffers on the same MSAA and depth targets: one image is
+// drawn at a time). Failing, it stays one canvas for the session.
+void ControllerModels::MakeSecond(Runtime& rt) {
+    Gpu& g = *gpu;
+    Gpu::Second& sc = g.second;
+    auto& xr = Xr();
+    XrSwapchainCreateInfo sci{XR_TYPE_SWAPCHAIN_CREATE_INFO};
+    sci.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+    sci.format = rt.swapchain_format;
+    sci.sampleCount = 1;
+    sci.width = g.eye_w * 2;
+    sci.height = g.eye_h;
+    sci.faceCount = 1;
+    sci.arraySize = 1;
+    sci.mipCount = 1;
+    const XrResult r =
+        g.queue_lock->With([&] { return xr.xrCreateSwapchain(rt.session, &sci, &sc.swapchain); });
+    if (XR_FAILED(r)) {
+        sc.swapchain = XR_NULL_HANDLE;
+        sc.failed = true;
+        LOG_WARNING(Frontend, "xr: controller models: no second canvas ({}): one canvas, hidden "
+                              "while it moves",
+                    ResultName(r));
+        return;
+    }
+    uint32_t count = 0;
+    xr.xrEnumerateSwapchainImages(sc.swapchain, 0, &count, nullptr);
+    std::vector<XrSwapchainImageVulkan2KHR> list(count, {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
+    xr.xrEnumerateSwapchainImages(sc.swapchain, count, &count,
+                                  reinterpret_cast<XrSwapchainImageBaseHeader*>(list.data()));
+    const vk::Format format = static_cast<vk::Format>(rt.swapchain_format);
+    const bool msaa = g.samples != vk::SampleCountFlagBits::e1;
+    for (uint32_t i = 0; i < count; i++) {
+        sc.images.push_back(list[i].image);
+        const vk::ImageView v = g.device.createImageView({
+            .image = vk::Image{list[i].image},
+            .viewType = vk::ImageViewType::e2D,
+            .format = format,
+            .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1},
+        });
+        sc.views.push_back(v);
+        const std::vector<vk::ImageView> fb_views =
+            msaa ? std::vector<vk::ImageView>{g.msaa_view, g.depth_view, v}
+                 : std::vector<vk::ImageView>{v, g.depth_view};
+        sc.framebuffers.push_back(g.device.createFramebuffer({
+            .renderPass = g.render_pass,
+            .attachmentCount = static_cast<uint32_t>(fb_views.size()),
+            .pAttachments = fb_views.data(),
+            .width = g.eye_w * 2,
+            .height = g.eye_h,
+            .layers = 1,
+        }));
+    }
+    LOG_INFO(Frontend, "xr: controller models: a second canvas, {} images of {}x{} ({} MB)", count,
+             g.eye_w * 2, g.eye_h,
+             (static_cast<uint64_t>(count) * g.eye_w * 2 * g.eye_h * 4) >> 20);
+}
+
+// AzaharFrame ctrl2: the second swapchain's first image, cleared to nothing (the pass with no
+// draws), released like any other; a quad of a swapchain with no image released is invalid.
+void ControllerModels::DrawBlankSecond() {
+    Gpu& g = *gpu;
+    Gpu::Second& sc = g.second;
+    auto& xr = Xr();
+    if (!sc.acquired) {
+        XrSwapchainImageAcquireInfo ai{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+        if (XR_SUCCEEDED(g.queue_lock->With(
+                [&] { return xr.xrAcquireSwapchainImage(sc.swapchain, &ai, &sc.index); }))) {
+            sc.acquired = true;
+        }
+    }
+    XrSwapchainImageWaitInfo wi{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+    wi.timeout = 0;
+    if (!sc.acquired || xr.xrWaitSwapchainImage(sc.swapchain, &wi) != XR_SUCCESS) {
+        return;
+    }
+    sc.acquired = false;
+    vk::CommandBuffer& c = g.cmd;
+    c.reset();
+    c.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    std::array<vk::ClearValue, 3> clears{};
+    clears[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
+    c.beginRenderPass({.renderPass = g.render_pass,
+                       .framebuffer = sc.framebuffers[sc.index],
+                       .renderArea = {{0, 0}, {g.eye_w * 2, g.eye_h}},
+                       .clearValueCount = static_cast<uint32_t>(clears.size()),
+                       .pClearValues = clears.data()},
+                      vk::SubpassContents::eInline);
+    c.endRenderPass();
+    c.end();
+    const vk::SubmitInfo submit{.commandBufferCount = 1, .pCommandBuffers = &c};
+    g.queue_lock->With([&] {
+        g.queue.submit(submit, g.fence);
+        return 0;
+    });
+    g.in_flight = true;
+    g.drawn_side = 1;
+    g.drawn_blank = true;
 }
 
 void ControllerModels::SetScreensMode(bool on, float scale) {
@@ -1301,6 +1566,7 @@ ProjLayer ControllerModels::FrameScreens(Runtime& rt, const ProjScreens& screens
                 // (the bottom screen, panels) goes over the projection layer anyway.
                 static const std::vector<Occluder> kNoOccluders;
                 g.drawn_occluders = 0;
+                g.drawn_side = 0; // AzaharFrame ctrl2: one swapchain in screens mode
                 Record(pending_views, pending_hands, kNoOccluders, &screens);
                 const vk::SubmitInfo submit{.commandBufferCount = 1, .pCommandBuffers = &g.cmd};
                 g.queue_lock->With([&] {
@@ -2560,7 +2826,9 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
     std::array<vk::ClearValue, 3> clears{}; // colour: zero, nothing round the models
     clears[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
     c.beginRenderPass({.renderPass = g.render_pass,
-                       .framebuffer = g.framebuffers[g.index],
+                       .framebuffer = g.drawn_side == 1 // AzaharFrame ctrl2
+                                          ? g.second.framebuffers[g.second.index]
+                                          : g.framebuffers[g.index],
                        .renderArea = {{0, 0}, {g.eye_w * 2, g.eye_h}},
                        .clearValueCount = static_cast<uint32_t>(clears.size()),
                        .pClearValues = clears.data()},
@@ -2815,12 +3083,16 @@ void ControllerModels::NoteGpuTime(int64_t now_ns) { // AzaharFrame ctrlfront
                                                              : "Both (eye quads)",
                  // AzaharFrame ctrlglitch
                  !ModelsAsQuads(over_) ? std::string{}
+                 : g.canvas_on && g.double_on // AzaharFrame ctrl2
+                     ? fmt::format("; on two world-locked canvases, moved {} times ({} handed "
+                                   "over)",
+                                   g.canvas_moves, g.canvas_switches)
                  : g.canvas_on
                      ? fmt::format("; on a world-locked canvas, moved {} times, {} refreshes "
                                    "also as the projection layer",
                                    g.canvas_moves, g.canvas_projection)
                      : std::string{"; at each image's eye views (AZAHARFRAME_XR_CANVAS=0)"});
-        g.canvas_moves = g.canvas_projection = 0;
+        g.canvas_moves = g.canvas_projection = g.canvas_switches = 0;
         g.gpu_sum_ms = g.gpu_max_ms = 0.0;
         g.gpu_images = 0;
         g.occluder_sum = 0;
