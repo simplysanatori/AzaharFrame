@@ -581,7 +581,15 @@ bool ControllerModels::AsEyeQuads() const {
 const XrCompositionLayerBaseHeader* ControllerModels::Layer() const {
     // AzaharFrame ctrlglitch: with the quads, too, while their canvas moves (model_plane.h).
     // test3d: projscreen's AsEyeQuads first: in screens mode always the projection layer.
-    const bool wanted = !AsEyeQuads() || (gpu && gpu->canvas_on && gpu->step.projection);
+    // 1.2.0 RC2 (the owner: the models doubled on head turns and dipped behind the screens): the
+    // projection layer during a canvas move is SteamVR's main layer, under every screen, and it
+    // can show with the quads not yet shrunk, a second image. Now the models are simply hidden
+    // for the move's few refreshes. Live test switch AZAHARFRAME_XR_CANVAS_FALLBACK=1: the
+    // projection layer during the move, as before.
+    const bool fallback =
+        Common::FrameTestSwitches::Value("AZAHARFRAME_XR_CANVAS_FALLBACK").value_or("0") == "1";
+    const bool wanted =
+        !AsEyeQuads() || (fallback && gpu && gpu->canvas_on && gpu->step.projection);
     return layer_ready && wanted
                ? reinterpret_cast<const XrCompositionLayerBaseHeader*>(&gpu->layer)
                : nullptr;

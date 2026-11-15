@@ -75,11 +75,19 @@ struct Probe {
     // game no longer pulling a pixel written past the box back to its edge): turning polls in a row
     // that read the reticle still past the box; at kStretchedPolls the box counts as stretched
     // (the mod's whole screen) and the pixel goes past the screen's edge instead.
-    uint32_t unclamped_polls = 0;
     bool stretched = false;
+    bool was_turning = false;
+    int64_t turn_start_ns = 0;
+    bool clamp_seen = false;   ///< the game's clamp flag seen since this turn started
+    uint32_t clamp_word = 0;   ///< the reticle's +kReticleClampFlags as last read
 };
 
-constexpr uint32_t kStretchedPolls = 6;
+/// The reticle object's flags; bit kClampBit is set by the game's clamp (0x6D2C08) when it pulls
+/// the reticle back into the box and turns by the rest (MAPPING.md, the Frame mock's C-Stick run).
+constexpr uint32_t kReticleClampFlags = 0x84;
+constexpr uint32_t kClampBit = 0x100;
+/// A turn with no clamp flag seen for this long: the box is stretched (the mod's whole screen).
+constexpr int64_t kStretchedAfterNs = 80'000'000;
 
 // 1.2.0 RC2 (the owner: touching the C-Stick stopped the Turn Zone for good): the mod keeps a
 // counter of its stick (MAPPING.md: 0xF35D88 with the state at 0xF35D40) and, while it is set,
@@ -298,6 +306,9 @@ void AimPoll(int64_t ticks) {
                 memory.IsValidVirtualAddress(*process, counter_at + 3) &&
                 memory.IsValidVirtualAddress(*process, p.addr.state + kModFlags)) {
                 p.mod_counter = memory.Read32(*process, counter_at);
+                if (memory.IsValidVirtualAddress(*process, p.object + kReticleClampFlags + 3)) {
+                    p.clamp_word = memory.Read32(*process, p.object + kReticleClampFlags);
+                }
                 p.mod_flags = memory.Read8(*process, p.addr.state + kModFlags);
                 // The Turn Zone wants a turn, the stick is let go and the counter is still set:
                 // clear it, so the game's box (and its turn) is back. Live test switch
@@ -337,15 +348,20 @@ void AimPoll(int64_t ticks) {
                                     -kMaxOvershootPx, kMaxOvershootPx);
         const float oy = std::clamp(out.down_dps * kTurnPxPerDeg * kGameFrameS * gy,
                                     -kMaxOvershootPx, kMaxOvershootPx);
-        // The game left the reticle past the box (it did not clamp what was written): stretched.
-        const Input::ReticleBox box = Input::ReachableBox(reading);
-        const bool past = reading.x < box.x0 - 1.0f || reading.x > box.x1 + 1.0f ||
-                          reading.y < box.y0 - 1.0f || reading.y > box.y1 + 1.0f;
-        p.unclamped_polls = past ? p.unclamped_polls + 1 : 0;
-        if (p.unclamped_polls >= kStretchedPolls) {
-            p.stretched = true;
-        } else if (!past) {
+        // Each turn starts on the box's edge; when the game's clamp flag has not shown within
+        // kStretchedAfterNs, the box is stretched and the pixel goes past the screen's edge for
+        // the rest of this turn (the clamp there may set the flag again: no flip-flop).
+        if (!p.was_turning) {
+            p.was_turning = true;
+            p.turn_start_ns = host_now;
+            p.clamp_seen = false;
             p.stretched = false;
+        }
+        if ((p.clamp_word & kClampBit) != 0) {
+            p.clamp_seen = true;
+        }
+        if (!p.clamp_seen && host_now - p.turn_start_ns > kStretchedAfterNs) {
+            p.stretched = true;
         }
         const bool screen_edge =
             p.stretched && Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_STRETCH_EDGE")
@@ -367,7 +383,8 @@ void AimPoll(int64_t ticks) {
             write.y += oy;
         }
     } else {
-        p.unclamped_polls = 0;
+        p.was_turning = false;
+        p.stretched = false;
     }
     p.direct_turn = direct_turn;
     if (write.write && (write.x != reading.x || write.y != reading.y)) {
@@ -419,11 +436,11 @@ void AimPoll(int64_t ticks) {
                                        : "",
                  // 1.2.0 RC2: the push and what the game's gyroscope was given
                  fmt::format("; {} push {:.1f} right {:.1f} down dps, gyro {:.1f} {:.1f} {:.1f} "
-                             "(scale {:.2f}, {} polls); mod flags {:02X} stick {:08X}, {} cleared{}",
+                             "(scale {:.2f}, {} polls); mod flags {:02X} stick {:08X}, {} cleared, clamp {:08X}{}",
                              p.direct_turn ? "direct" : "mod", out.right_dps, out.down_dps,
                              p.last_gyro.x, p.last_gyro.y,
                              p.last_gyro.z, p.last_scale, p.gyro_polls, p.mod_flags,
-                             p.mod_counter, p.counter_resets,
+                             p.mod_counter, p.counter_resets, p.clamp_word,
                              p.stretched ? ", stretched" : ""));
         p.gyro_polls = 0;
         p.counter_resets = 0;
