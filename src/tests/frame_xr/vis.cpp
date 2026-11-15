@@ -83,6 +83,8 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Left Bumper") == "Nothing");
         REQUIRE(ActionFor(page.game, "Grip on a Screen") == "3DS L, Move Screens");
         REQUIRE(ActionFor(page.game, "Grip (Immersive)") == "Move Immersive Screen");
+        // rel120: one grip's D-pad left or right is the Immersive Offset on the immersive screen
+        REQUIRE(ActionFor(page.game, "Hold Grip + D-Pad Left or Right") == "Nudge Screen or Offset");
         // AzaharFrame fovaxis: Curve on the normal screens; on the immersive screen 3D Depth
         // with Field of View, Render Margin with Stretch.
         REQUIRE(ActionFor(page.game, "Hold Grip + D-Pad Up or Down") == "Screen Curve");
@@ -411,6 +413,7 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         REQUIRE(FindDiagramLabel(g, 0, CtrlPart::Grip) == FindDiagramLabel(g, 1, CtrlPart::Grip));
         REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "Grip on a Screen") == "Move Screens");
         REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "D-Pad Up or Down") == "Curve");
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "D-Pad Left or Right") == "Nudge / Offset");
         // AzaharFrame kiu: both grips' D-pad, a label of its own at the right grip
         const DiagramLabel* both_grips = nullptr;
         for (const DiagramLabel& l : g.labels) {
@@ -434,6 +437,7 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         REQUIRE(DiagramAction(w, 1, CtrlPart::B, "B") == "Back");
         REQUIRE(DiagramAction(w, 1, CtrlPart::Y, "Y") == "Keyboard");
         REQUIRE(DiagramAction(w, 1, CtrlPart::Stick, "Hold Click (1 s)") == "Bring Window Back");
+        REQUIRE(DiagramAction(w, 1, CtrlPart::Stick, "Click") == "Right Click"); // as the list
         REQUIRE(DiagramAction(w, 1, CtrlPart::Menu, "Hold Menu (1 s)") == "Back to Game");
         REQUIRE(DiagramAction(w, 0, CtrlPart::View, "View + Menu") == "Switch VR / Flat");
         REQUIRE(DiagramAction(w, 0, CtrlPart::Grip, "Grip") == "Move Window");

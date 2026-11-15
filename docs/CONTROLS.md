@@ -14,15 +14,15 @@ Azahar for Frame keeps CitraVR's layout and uses the Steam Frame controllers' re
 | Left and right grip | Move the screens | See Pointing |
 | Left stick | Circle Pad | |
 | Right stick | C-Stick | |
-| Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this. While a grip holds a screen, the D-pad nudges that screen (left, right) or changes its curve (up, down) instead |
+| Left D-pad | D-pad | On the Quest, CitraVR used the thumbrest and a stick for this. While a grip holds a screen, the D-pad nudges that screen (left, right) or changes its curve (up, down) instead. On the immersive screen it sets the offset, and Render Margin or 3D Depth (see Immersive mode) |
 | **Menu** (right controller) | Start | Hold for 1 second to open the in-game menu |
 | **View** (left controller) | Select | Hold for 1.5 seconds to stop the game and go back to Azahar's window. **Stopping...** shows half way; let go before the end to keep playing |
 | **Menu** or **View**, while a game starts | | Hold for 3 seconds to stop it and go back to Azahar's window, for a start that takes too long (a texture preload) |
-| Left stick click, tap | Hide or Show Other Screen | See Swapping the screens |
+| Left stick click, tap | Hide or Show Secondary Screen | See Swapping the screens |
 | Left stick click, held for 1 second | Screen Layout | See Screen layouts |
 | Right stick click, tap | Swap Screens | The Secondary Screen becomes the Primary Screen. Tap again to swap back |
 | Right stick click, held for 1 second | Reset Screens and View | |
-| Both bumpers, then **View** | Show or Hide Bottom Screen | Only in games that hide it, see below |
+| Both bumpers, then **View** | Show or Hide Bottom Screen | Only in immersive mode and in games that hide it, see below |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat | |
 | Hold **View**, then the right bumper | Quick Save | When you let go of the bumper |
 | Hold **View**, then hold the left bumper for half a second | Quick Load | |
@@ -48,7 +48,7 @@ Each controller has a beam. The hand that pulled its trigger last owns the dot, 
 
 | Aim at | Trigger | Grip | Stick of that hand |
 |---|---|---|---|
-| Bottom screen | Touch. Hold and move to drag the touch | Move both screens | While you move them: nearer and farther (up, down), bigger and smaller (right, left) |
+| Bottom screen | Touch. Hold and move to drag the touch | Move both screens | While you move them: farther and nearer (up, down), bigger and smaller (right, left) |
 | Top screen | ZL or ZR, as everywhere in the game | Move both screens. They keep their distance from you and turn to face you | While you move them: nearer and farther, bigger and smaller. It does not reach the game then |
 | Stats panel (In Front) | ZL or ZR, nothing behind it is touched | Move the stats. They keep their distance from you and turn to face you | While you move them: nearer and farther, bigger and smaller. It does not reach the game then |
 
@@ -107,7 +107,7 @@ Hold the left stick click for 1 second to change the layout. In Flat, a grip hel
 | Left stick click, held for 1 second | **Stacked** or **Side by Side** | **Large Screen**, **Side by Side**, **Default**, and round again |
 | Grip + D-pad right or left | Nudge the screens | Next or previous layout |
 | Right stick click, tap | Swap Screens | Swap Screens |
-| Left stick click, tap | Hide or Show Other Screen | **Single Screen** on or off |
+| Left stick click, tap | Hide or Show Secondary Screen | **Single Screen** on or off |
 | Right stick click, held for 1 second | Reset Screens and View, in the same layout | **Large Screen**, not swapped |
 
 In VR, **Stacked** puts the Secondary Screen below the Primary Screen, tilted back. **Side by Side** puts it to the right of the Primary Screen, at the same distance and height, facing you. Only the Primary Screen curves. A label shows the new layout, and it is kept. **Screen Layout** in the in-game menu's Position tab is the same setting. In Flat, the layout's name shows over the game for a moment.
@@ -329,7 +329,7 @@ Taking hold shows the same kind of hint as for the normal screens, low in front 
 
 The D-pad offset is for your eyes, not for a game: it is the same in every game and every immersive mode, and it stays when you put a game's screen back. **Reset Position** in the menu puts it back to the middle. It goes up to 10 degrees each way. The world stays where it is, only the screen moves. The **Immersive Offset** setting shows it and puts it back to the middle.
 
-The screen starts 3 m ahead in the middle of your view, showing the game at its own scale: nothing is magnified, so the world keeps its shape and stays put wherever you look on it. It is as wide as the picture (**Horizontal Scale** 0%), with **Render Margin** at 1.4x both ways (with Stretch; in Field of View the scales alone decide what the game draws). With both grips down, D-pad left and right always make the screen narrower or wider; with one grip they nudge it. It can grow to 2.5 times its size or shrink to 0.6 times. Bigger only enlarges the game's picture; it shows more around it only with **Render Margin** (see the [user guide](USER_GUIDE.md#immersive-mode)). Each game keeps the screen where you leave it. The grip, that hand's stick and the D-pad do not reach the game while you hold the screen. While immersive mode is paused (the bottom screen in focus, or in the Full modes the bottom screen shown or the in-game menu open), the grips move the normal screens. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
+The screen starts 3 m ahead in the middle of your view, showing the game at its own scale: nothing is magnified, so the world keeps its shape and stays put wherever you look on it. It is as wide as the picture (**Horizontal Scale** 0%), with **Render Margin** at 1.4x both ways (with Stretch; in Field of View the scales alone decide what the game draws). With both grips down in the Full modes, D-pad left and right make the screen narrower or wider; with one grip they nudge it. It can grow to 2.5 times its size or shrink to 0.6 times. Bigger only enlarges the game's picture; it shows more around it only with **Render Margin** (see the [user guide](USER_GUIDE.md#immersive-mode)). Each game keeps the screen where you leave it. The grip, that hand's stick and the D-pad do not reach the game while you hold the screen. While immersive mode is paused (the bottom screen in focus, or in the Full modes the bottom screen shown or the in-game menu open), the grips move the normal screens. More in [src/frame_xr/IMMERSIVE.md](../src/frame_xr/IMMERSIVE.md).
 
 ## Ocarina of Time 3D with Ocarina ReFramed
 

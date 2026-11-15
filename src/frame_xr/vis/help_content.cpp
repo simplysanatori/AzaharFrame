@@ -256,7 +256,9 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     // AzaharFrame natural: in the Full modes the distance is World Scale.
     Row(g, "Hold Grip + Stick Up or Down", std::string("Distance or ") + ImNames::kWorldScale);
     Row(g, "Hold Grip + Stick Sideways", "Screen Size");
-    Row(g, "Hold Grip + D-Pad Left or Right", "Nudge Screen"); // AzaharFrame vrsize
+    // AzaharFrame vrsize; rel120: on the immersive screen it is the Immersive Offset
+    // (Immersive::NudgeOffset), as the grip hint says.
+    Row(g, "Hold Grip + D-Pad Left or Right", "Nudge Screen or Offset");
     // AzaharFrame curve; kiu: Render Margin (was Wider View), and both grips' two scales.
     // AzaharFrame fovaxis: on the immersive screen it follows Scale Mode (Full modes only):
     // 3D Depth with Field of View, Render Margin with Stretch (Layout::GripUpDownFor).
@@ -360,7 +362,7 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
            // pixel too wide beside the right stick's label (vis test "the diagram's labels fit").
            Sub("Stick Up or Down", std::string("Nearer / ") + ImNames::kWorldScale),
            Sub("Stick Sideways", "Screen Size"),
-           Sub("D-Pad Left or Right", "Nudge"), // AzaharFrame vrsize
+           Sub("D-Pad Left or Right", "Nudge / Offset"), // AzaharFrame vrsize; rel120: Offset
            // AzaharFrame fovaxis: the normal screens' Curve; the immersive screen's is in the
            // right grip's label (under the drawings there is no room for more lines).
            Sub("D-Pad Up or Down", "Curve")}); // AzaharFrame curve
@@ -392,7 +394,7 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
           {SubHeading("In-Game Menu"), Sub("Hold Menu (1 s)", "Back to Game"),
            Sub("B (Nothing Open)", "Back to Game")});
     Label(w, kRight, {CtrlPart::Stick},
-          {Title("Right Stick", "Scroll"), Line("Click", "Right-Click"),
+          {Title("Right Stick", "Scroll"), Line("Click", "Right Click"),
            Line("Hold Click (1 s)", "Bring Window Back")});
     Label(w, kBoth, {CtrlPart::Grip}, {Title("Grip", "Move Window")});
     return d;
