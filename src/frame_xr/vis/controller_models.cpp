@@ -18,6 +18,7 @@
 #include "common/frame_test_switches.h" // AzaharFrame kiuguns
 #include "common/logging/log.h"
 #include "common/settings.h" // AzaharFrame kiufix: Weapon Size
+#include "frame_xr/retired_swapchains.h" // AzaharFrame projdef
 #include "frame_xr/session.h"
 #include "frame_xr/vis/controller_models.h"
 #include "frame_xr/vis/model_shaders.h"
@@ -712,6 +713,9 @@ void ControllerModels::DestroyXr() {
     if (g.swapchain != XR_NULL_HANDLE) {
         const auto destroy = [&] { return Xr().xrDestroySwapchain(g.swapchain); };
         g.queue_lock ? g.queue_lock->With(destroy) : destroy();
+        // AzaharFrame projdef: its eye quads' slots go before the next frame's list
+        // (retired_swapchains.h): a live switch to the projection layer sent the dead handle.
+        RetiredSwapchains::Note(reinterpret_cast<uint64_t>(g.swapchain));
     }
     gpu.reset();
 }

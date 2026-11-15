@@ -31,6 +31,7 @@
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
 #include "frame_xr/layer_slots.h"     // AzaharFrame flash
+#include "frame_xr/retired_swapchains.h" // AzaharFrame projdef
 #include "frame_xr/motion_clarity.h"   // AzaharFrame flash
 #include "frame_xr/session.h"
 #include "frame_xr/test_switches.h" // AzaharFrame integ9: the switch file, live
@@ -1217,6 +1218,17 @@ void Runtime::FrameLoop() {
                             one ? 0 : q.image_rect.extent.width,
                             one ? 0 : q.image_rect.extent.height, SlotQuad{space, q});
         };
+        {
+            // AzaharFrame projdef: no slot keeps a destroyed swapchain (retired_swapchains.h):
+            // with the screens' layers the same in number the list lives on, and a collapsed
+            // placeholder of the models' old eye quads made xrEndFrame fail (HANDLE_INVALID).
+            for (const uint64_t h : RetiredSwapchains::Take()) {
+                if (const std::size_t n = layer_slots.Forget(h)) {
+                    LOG_INFO(Frontend, "xr: layer slots: {} dropped with their destroyed swapchain",
+                             n);
+                }
+            }
+        }
         if (fs.shouldRender) {
             // A new list when the panels' context changes or the screens' layers change in number
             // (a game starting or stopping, Motion Clarity's backing coming or going): the slots

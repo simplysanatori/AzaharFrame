@@ -154,6 +154,22 @@ public:
         last_index_ = found;
     }
 
+    /// AzaharFrame projdef: drops every slot of `swapchain` (destroyed: retired_swapchains.h), so
+    /// no collapsed placeholder carries a dead handle into xrEndFrame. The others keep their
+    /// order; a quad of a new swapchain gets a new slot. Returns how many went.
+    std::size_t Forget(uint64_t swapchain) {
+        const auto gone = [swapchain](const auto& k) { return k.swapchain == swapchain; };
+        const std::size_t before = slots_.size();
+        std::erase_if(slots_, [&](const Slot& s) { return gone(s.key); });
+        std::erase_if(unreserved_, gone);
+        const std::size_t n = before - slots_.size();
+        forgotten_ += n;
+        if (n) {
+            last_index_ = -1; // an index into the old list
+        }
+        return n;
+    }
+
     /// The list for this frame: every slot, absent ones collapsed. At most `max_slots` (the
     /// runtime's limit less what else the frame carries): the slots absent longest are dropped
     /// first (for good: a key seen again gets a new slot); integ13: a reserved slot only when no
@@ -215,6 +231,10 @@ public:
     uint64_t Resets() const {
         return resets_;
     }
+    /// AzaharFrame projdef: slots dropped by Forget (their swapchain destroyed).
+    uint64_t Forgotten() const {
+        return forgotten_;
+    }
 
 private:
     struct Slot {
@@ -242,7 +262,7 @@ private:
     uint64_t frame_ = 0;
     int last_index_ = -1;
     Group last_group_ = Group::Extra;
-    uint64_t added_ = 0, dropped_ = 0, resets_ = 0;
+    uint64_t added_ = 0, dropped_ = 0, resets_ = 0, forgotten_ = 0;
 };
 
 } // namespace FrameXr::LayerSlots
