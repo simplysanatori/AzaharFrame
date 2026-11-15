@@ -227,7 +227,7 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   waits at the top screen's bottom edge, and that controller's beam touches nothing there and
   shows no pointer (`HandInput::aim_locked`; its trigger is ZL/ZR and fires). On the ground the
   edge point is past the aim box, so the Turn Zone turns at full depth on the sides the ray is
-  past, as the C-Stick held to its rim does. **Resting guard:** a ray more than 25 degrees past
+  past, as the C-Stick held to its rim does. **Resting guard:** a ray more than 45 degrees past
   the bottom edge, or one that doesn't reach the screen's plane from the front (`kRestingPastDeg`:
   the angle between the ray and the edge point, from the ray's start; the arm lowered to rest)
   keeps the reticle at the edge and turns nothing; past a side or the top edge it always turns

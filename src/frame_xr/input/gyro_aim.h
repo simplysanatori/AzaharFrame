@@ -236,7 +236,9 @@ LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top);
 /// that does not reach the plane from the front, keeps the reticle at the edge and turns nothing;
 /// past a side or the top edge it always turns (1.2.0 RC2, the owner: the reticle at an edge is a
 /// turn). Not valid only when the screen is not shown.
-inline constexpr float kRestingPastDeg = 25.0f;
+/// 1.2.0 RC2: 45, was 25. The owner aims with the arm low, about 20 degrees under the bottom
+/// edge, and at 25 the turn kept stopping; a lowered arm points much further down.
+inline constexpr float kRestingPastDeg = 45.0f;
 LightGunTarget LockedTargetFor(const Ray& ray, const PanelQuad& top);
 
 /// AzaharFrame fixc: Grip Frees Aim and Keep Reticle on Screen are the aiming controller's alone

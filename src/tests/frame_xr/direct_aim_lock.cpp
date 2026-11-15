@@ -265,12 +265,13 @@ TEST_CASE("Keep Reticle on Screen: off the screen it turns all the way, resting 
         CHECK_FALSE(far.resting);
     }
     // The threshold.
-    CHECK(kRestingPastDeg == 25.0f);
+    CHECK(kRestingPastDeg == 45.0f);
     // Past the bottom edge (the arm lowered) only.
     const float bottom_pitch = -std::atan(0.3f) / kDeg; // the bottom edge's middle, from the eye
-    CHECK_FALSE(LockedTargetFor(RayAt(0.0f, bottom_pitch - 24.5f), top).resting);
-    CHECK(LockedTargetFor(RayAt(0.0f, bottom_pitch - 25.5f), top).resting);
-    CHECK_FALSE(LockedTargetFor(RayAt(edge_yaw + 25.5f, 0.0f), top).resting);
+    CHECK_FALSE(LockedTargetFor(RayAt(0.0f, bottom_pitch - 30.0f), top).resting); // aiming low
+    CHECK_FALSE(LockedTargetFor(RayAt(0.0f, bottom_pitch - (kRestingPastDeg - 0.5f)), top).resting);
+    CHECK(LockedTargetFor(RayAt(0.0f, bottom_pitch - (kRestingPastDeg + 0.5f)), top).resting);
+    CHECK_FALSE(LockedTargetFor(RayAt(edge_yaw + 50.0f, 0.0f), top).resting);
     CHECK_FALSE(LockedTargetFor(RayAt(-edge_yaw - 60.0f, 0.0f), top).resting);
     CHECK(LockedTargetFor(RayAt(edge_yaw + 20.0f, 0.0f), top).past_deg ==
           Approx(20.0f).margin(0.05f));

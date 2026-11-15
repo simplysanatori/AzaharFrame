@@ -284,6 +284,8 @@ TEST_CASE("Angel's Aim along the weapon: a blade's tilt, and rolling the wrist m
 TEST_CASE("Angel's Aim along the weapon: Keep Reticle on Screen's resting guard measures the "
           "weapon's ray",
           "[frame_xr][kiuinteg]") {
+    // An angle the blade's line passes and the controller's does not (the old guard's 25).
+    constexpr float kProbeDeg = 25.0f;
     const ClassCase blade = Classes()[0];
     const Vec3f axis = V(*Vis::FitAxis(blade.w, false, kCentre));
     const Vec3f muzzle = V(*Vis::FitMuzzle(blade.w, false, kCentre));
@@ -301,7 +303,7 @@ TEST_CASE("Angel's Aim along the weapon: Keep Reticle on Screen's resting guard 
         const Posef p{Pointing(Rotate(AxisAngle(side, beta), to_edge), 0.0f), hand};
         const LightGunTarget h = LockedTargetFor(AngelsAimRay(p, muzzle, axis, AimRayFrom::Hand), top);
         const LightGunTarget w = LockedTargetFor(AngelsAimRay(p, muzzle, axis, AimRayFrom::Weapon), top);
-        if (h.valid && w.valid && h.past_deg <= kRestingPastDeg && w.past_deg > kRestingPastDeg) {
+        if (h.valid && w.valid && h.past_deg <= kProbeDeg && w.past_deg > kProbeDeg) {
             found = p;
         }
     }
@@ -322,8 +324,8 @@ TEST_CASE("Angel's Aim along the weapon: Keep Reticle on Screen's resting guard 
     };
     const LightGunTarget by_hand = check(AngelsAimRay(aim, muzzle, axis, AimRayFrom::Hand));
     const LightGunTarget by_weapon = check(AngelsAimRay(aim, muzzle, axis, AimRayFrom::Weapon));
-    CHECK(by_hand.past_deg <= kRestingPastDeg);
-    CHECK(by_weapon.past_deg > kRestingPastDeg);
+    CHECK(by_hand.past_deg <= kProbeDeg);
+    CHECK(by_weapon.past_deg > kProbeDeg);
     CHECK(by_weapon.past_deg > by_hand.past_deg + 0.25f * tilt);
 }
 
