@@ -23,7 +23,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Each mod shows its author, version, downloads and date on one line.
 - When two mods conflict, you choose which one to use.
 - Texture packs have their own section in the VR menu. **Download Packs** downloads packs from their original sources, all within the app.
-- **CTGP-7**: with Mario Kart 7 open, the **Mods** tab has a **CTGP-7** section. **Install** checks your Mario Kart 7 (version 1.2 update and save data), downloads CTGP-7's own installer from its official GameBanana page and runs it for you, Installing CTGP-7 takes about 5 minutes to complete. Afterwards it has **Launch** and **Uninstall**, and lists the mods that require CTGP-7 to run. Nothing of CTGP-7 is included or redistributed. CTGP-7 is made by PabloMK7 and the CTGP-7 team.
+- **CTGP-7**: with Mario Kart 7 open, the **Mods** tab has a **CTGP-7** section. **Install** checks your Mario Kart 7 (version 1.2 update and save data), downloads CTGP-7's own installer from its official GameBanana page and runs it for you. Installing CTGP-7 takes about 5 minutes to complete. Afterwards it has **Launch** and **Uninstall**, and lists the mods that require CTGP-7 to run. Nothing of CTGP-7 is included or redistributed. CTGP-7 is made by PabloMK7 and the CTGP-7 team.
 
 ### Texture packs
 
