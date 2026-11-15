@@ -40,8 +40,11 @@ using Mat = std::array<float, 16>; // column major
 
 constexpr float kNear = 0.05f;
 constexpr float kFar = 20.0f;
-constexpr uint32_t kMaxEyeHeight = 1000;
-constexpr float kEyeScale = 0.5f;
+// 1.2.0 RC2 (the owner: the controllers looked less sharp in the Off and Wide modes): the
+// models' own pass at the eye buffer's recommended size, as the projection pass in the Full
+// modes always was. It was half that, at most 1000 high (AZAHARFRAME_MODEL_EYE_PX still caps it).
+constexpr uint32_t kMaxEyeHeight = 2048;
+constexpr float kEyeScale = 1.0f;
 
 Mat Multiply(const Mat& a, const Mat& b) {
     Mat m{};
@@ -1343,7 +1346,7 @@ void ControllerModels::Setup(Runtime& rt) {
     const bool srgb = rt.swapchain_format == VK_FORMAT_R8G8B8A8_SRGB ||
                       rt.swapchain_format == VK_FORMAT_B8G8R8A8_SRGB;
 
-    // The swapchain: both eyes side by side, about half the recommended size, at most 1000 high.
+    // The swapchain: both eyes side by side, at the recommended size (at most kMaxEyeHeight high).
     uint32_t count = 0;
     xr.xrEnumerateViewConfigurationViews(rt.instance, rt.system,
                                          XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &count,
