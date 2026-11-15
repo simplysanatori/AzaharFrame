@@ -929,7 +929,35 @@ void Runtime::FrameLoop() {
             const uint8_t eyes = eye == XR_EYE_VISIBILITY_LEFT    ? 1
                                  : eye == XR_EYE_VISIBILITY_RIGHT ? 2
                                                                   : 3;
-            occluders.push_back({p, size.width, size.height, curve, eyes, always});
+            // 1.2.0 RC2 (the owner's video: the top screen cut the top of the cannon held up to
+            // it, and the bottom screen, about as far as the hand, flickered over and under it):
+            // a screen hides a controller only past kOccluderBehindM behind it. Its occluder is
+            // moved that much further from the head and scaled with it (a curved one's radius
+            // too), so it covers the same part of the view, deeper. `always` ones stay (they hide
+            // at the nearest depth anyway). Live test switch AZAHARFRAME_XR_OCCLUDER_BIAS_M (0 to 2).
+            float width = size.width, height = size.height;
+            if (!always) {
+                float bias = 0.3f;
+                if (const auto v = Common::FrameTestSwitches::Value("AZAHARFRAME_XR_OCCLUDER_BIAS_M")) {
+                    char* end = nullptr;
+                    const float f = std::strtof(v->c_str(), &end);
+                    if (end != v->c_str() && f >= 0.0f && f <= 2.0f) {
+                        bias = f;
+                    }
+                }
+                const XrPosef h = LatestViewPose().head;
+                const Input::Vec3f eye_at{h.position.x, h.position.y, h.position.z};
+                const Input::Vec3f to = p.position - eye_at;
+                const float d = Input::Length(to);
+                if (bias > 0.0f && d > 0.05f) {
+                    const float k = (d + bias) / d;
+                    p.position = eye_at + to * k;
+                    width *= k;
+                    height *= k;
+                    curve *= k;
+                }
+            }
+            occluders.push_back({p, width, height, curve, eyes, always});
         };
         const Vis::ControllersInFront in_front =
             Vis::ControllersInFrontFrom(Settings::values.vr_controllers_in_front.GetValue());
