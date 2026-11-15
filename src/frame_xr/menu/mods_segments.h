@@ -6,8 +6,9 @@
 // only. TabMenu::DrawModsList and TabMenu::DrawTextures (mods_segments.cpp) draw them.
 //
 // Mods: one flat list of what is loaded for the game (core/mods/library.h ListLoaded): the
-// recommended mods (AzaharFrame fixes7: the catalog's "recommended": we recommend them with the
-// game) carry the badge after the name and come first; a managed mod has a switch (on:
+// verified mods (AzaharFrame fixd: the catalog's "verified") carry the Verified chip after the name
+// (name_chip.h) and come first, then the recommended ones (AzaharFrame fixes7: listed first, no
+// badge of their own); a managed mod has a switch (on:
 // in the mods folder, off: kept in the library) and every row a Remove. Install Mods opens the
 // list of mods for this title (ListAvailable). A conflict asks before anything is replaced.
 //
@@ -42,9 +43,10 @@ struct ModRow {
     std::string author; ///< "Created by <author>" ("" for your own files)
     std::string url;    ///< the author's repository, https://github.com/<owner>/<repo> ("" = no link)
     std::string detail; ///< after the author: "v1.5.9"; your own files: "214 Files"
-    bool recommended = false; ///< AzaharFrame fixes7: the catalog's "recommended": the badge after the name
+    bool recommended = false; ///< AzaharFrame fixes7: the catalog's "recommended" (listed first)
     bool managed = false;  ///< installed by the menu: has a switch (unmanaged: Remove only)
     bool active = true;    ///< in the mods folder (managed and off: in the library only)
+    bool verified = false; ///< AzaharFrame fixd: the catalog's "verified": the Verified chip after the name
     bool operator==(const ModRow&) const = default;
 };
 
@@ -62,7 +64,7 @@ struct ModOffer {
     std::string name;
     std::string author;
     std::string url; ///< as ModRow::url
-    bool recommended = false; ///< AzaharFrame fixes7: the badge (ModRow::recommended)
+    bool recommended = false; ///< AzaharFrame fixes7: listed first (ModRow::recommended)
     OfferState state = OfferState::Install;
     std::string note;   ///< after the author: why it cannot install, the phase, or what failed
     bool error = false; ///< `note` is a failure (the error colour)
@@ -91,6 +93,7 @@ struct ModOffer {
     /// AzaharFrame ctgp7: the catalog's "requires": "ctgp7": Install asks "Requires CTGP-7" first
     /// while CTGP-7 is not installed
     bool requires_ctgp7 = false;
+    bool verified = false; ///< AzaharFrame fixd: the Verified chip after the name (ModRow::verified)
     bool operator==(const ModOffer&) const = default;
 };
 
@@ -191,6 +194,7 @@ struct TexturePackItem {
     bool active = false;     ///< on (AzaharFrame texlayers: any number of them)
     bool downloaded = false; ///< from Download Packs: it has Delete
     bool customize = false;  ///< AzaharFrame texparts: two or more parts: the Customize button
+    bool verified = false;   ///< AzaharFrame fixd: from a verified catalog entry: the Verified chip
     bool operator==(const TexturePackItem&) const = default;
 };
 
@@ -294,7 +298,7 @@ struct PackOffer {
     int percent = -1;      ///< Downloading: 0 to 100, -1 unknown
     std::string note;      ///< Downloading: the phase ("Preparing", "Unpacking") or "1.2 of 3.4 GB"; Failed: why
     std::string updated;   ///< AzaharFrame zipinstall: "Updated Sep 2026" ("" unknown)
-    bool recommended = false; ///< AzaharFrame fixes7: the catalog's "recommended": the badge
+    bool recommended = false; ///< AzaharFrame fixes7: the catalog's "recommended": listed first
     std::string notes;     ///< AzaharFrame modcat2: the entry's short description (the row's tooltip)
     bool mismatch = false;       ///< AzaharFrame compat: as ModOffer (Download asks first)
     std::string region_chip;
@@ -305,6 +309,7 @@ struct PackOffer {
     /// AzaharFrame fixes7: a kept partial download: Download says Resume, and the line
     /// "1.2 of 3.4 GB Downloaded" (ResumeText); "" none
     std::string resume;
+    bool verified = false; ///< AzaharFrame fixd: the catalog's "verified": the Verified chip after the name
     bool operator==(const PackOffer&) const = default;
 };
 

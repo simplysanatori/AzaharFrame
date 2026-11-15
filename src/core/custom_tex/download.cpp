@@ -367,7 +367,7 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
             }
             e.licence = str(p, "licence");
             e.notes = str(p, "notes");
-            // AzaharFrame zipinstall: the pack's last update and the verified badge
+            // AzaharFrame zipinstall: the pack's last update; "verified" (AzaharFrame fixd: the Verified chip)
             if (const std::string updated = str(p, "updated"); !updated.empty()) {
                 // AzaharFrame catalog3: "YYYY-MM" as well
                 const auto date = ParseIsoDate(updated.size() == 7 ? updated + "-01" : updated);
@@ -378,7 +378,7 @@ std::optional<Catalog> ParseCatalog(std::string_view json, std::string* error, s
                 }
             }
             e.verified = p.contains("verified") && p["verified"].is_boolean() && p["verified"].get<bool>();
-            // AzaharFrame fixes7: "recommended" drives the badge and the order; "aspect" the shape it is made for
+            // AzaharFrame fixes7: "recommended" is listed first (after "verified"); "aspect" the shape it is made for
             e.recommended =
                 p.contains("recommended") && p["recommended"].is_boolean() && p["recommended"].get<bool>();
             if (p.contains("aspect")) {
@@ -1461,24 +1461,30 @@ std::vector<PackInfo> Downloader::ListForTitle(u64 title_id, const Mods::Compat:
         std::sort(info.folders.begin(), info.folders.end());
         out.push_back(std::move(info));
     }
-    // AzaharFrame compat: the packs for the game's own version first, then the most downloaded
-    // (unknown counts last), then by name
-    std::stable_sort(out.begin(), out.end(), [](const PackInfo& a, const PackInfo& b) {
-        if (a.compat.Fits() != b.compat.Fits()) {
-            return a.compat.Fits();
-        }
-        if (a.recommended != b.recommended) { // AzaharFrame fixes7: the recommended ones first
-            return a.recommended;
-        }
-        if ((a.downloads > 0) != (b.downloads > 0)) { // 0: unknown
-            return a.downloads > 0;
-        }
-        if (a.downloads != b.downloads) {
-            return a.downloads > b.downloads;
-        }
-        return a.name < b.name;
-    });
+    std::stable_sort(out.begin(), out.end(), ListedBefore); // AzaharFrame fixd
     return out;
+}
+
+// AzaharFrame compat: the packs for the game's own version first, then the most downloaded
+// (unknown counts last), then by name. AzaharFrame fixd: the verified ones right after the version
+// fit (Henriko's Drive packs have no count and sank to the bottom), then fixes7's recommended ones.
+bool ListedBefore(const PackInfo& a, const PackInfo& b) {
+    if (a.compat.Fits() != b.compat.Fits()) {
+        return a.compat.Fits();
+    }
+    if (a.verified != b.verified) { // AzaharFrame fixd
+        return a.verified;
+    }
+    if (a.recommended != b.recommended) { // AzaharFrame fixes7: the recommended ones first
+        return a.recommended;
+    }
+    if ((a.downloads > 0) != (b.downloads > 0)) { // 0: unknown
+        return a.downloads > 0;
+    }
+    if (a.downloads != b.downloads) {
+        return a.downloads > b.downloads;
+    }
+    return a.name < b.name;
 }
 
 State Downloader::GetState() const {

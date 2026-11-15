@@ -17,9 +17,11 @@
 //     "author": "simplysanatori",
 //     "licence": "MIT",
 //     "homepage": "https://github.com/...",
-//     "verified": true,                        // honoured ONLY for source type owner_repo_path
-//     "recommended": true,                     // AzaharFrame fixes7: we recommend it with the game (the
-//                                              // badge; listed first), any source; default false
+//     "verified": true,                        // honoured ONLY for source types owner_repo_path and
+//                                              // gamebanana; AzaharFrame fixd: the menu's Verified
+//                                              // chip, listed first
+//     "recommended": true,                     // AzaharFrame fixes7: listed first (after verified),
+//                                              // any source; default false. We never set it.
 //     "aspect": "16:9",                        // AzaharFrame fixes7: the picture shape it makes
 //                                              // ("16:9", "21:9", "16:10", "4:3", "5:3"), optional
 //     "source": { ... },                       // see below
@@ -143,8 +145,8 @@ struct CatalogEntry {
     std::string version;    // AzaharFrame ui3: the mod's own version ("v172"), "" none
     u64 size = 0;           // AzaharFrame catalog3: bytes to download (all parts), 0 unknown; over 1 GB the menu asks first
     u64 downloads = 0;      // AzaharFrame catalog3: the source's lifetime download count, 0 unknown
-    bool verified = false;     // internal since fixes7 (the legacy fix); no badge
-    bool recommended = false;  // AzaharFrame fixes7: the badge, listed first
+    bool verified = false;     // the maintainer's fix (the legacy fix); AzaharFrame fixd: the Verified chip, listed first
+    bool recommended = false;  // AzaharFrame fixes7: listed first (after verified); no badge
     std::string aspect;        // AzaharFrame fixes7: "16:9" (NormalizeAspect), "" not given
     Source source;
     std::vector<Rule> rules;

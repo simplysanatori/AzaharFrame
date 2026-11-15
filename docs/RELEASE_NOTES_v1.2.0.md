@@ -16,7 +16,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - New **Mods** tab in the VR menu, with **Cheats**, **Mods** and **Textures**.
 - **Cheats**: **Download** fetches the game's cheats from Sharkive and from my own repository.
-- Cheats, patches, mods and textures known to work on Azahar for Frame (or made by me) carry a verified badge.
+- Cheats, patches, mods and textures known to work on Azahar for Frame (or made by me) show a **Verified** chip after their name, and texture packs and mods that are verified are listed first, above the most downloaded.
 - Cheats made for a different version of the game show which version. The version is the one the game itself shows, so Mario Kart 7 Ver. 1.2 and Fire Emblem Echoes 1.1 are no longer mistaken for other versions. A version I don't know yet shows as **Update Installed** or the cartridge's revision.
 - I put cheats for another version of the game in a **For Another Version** section at the end of the list, closed until you open it. Its header says how many there are and how many are on.
 - Code patches are matched to the game's own code. The European Fire Emblem Echoes with its update gets the 1.1 patches, not the 1.0 Ghosting Shader Fix, which makes the picture flash there. True 60 FPS says it can't be combined with the Ghosting Shader Fix.

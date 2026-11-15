@@ -26,8 +26,9 @@
 // The Cheats segment: the game's cheats in file order, those made for another version of the game
 // last, in a section of their own that starts closed ("For Another Version (119)"; AzaharFrame
 // scroll). The
-// developer's own (github.com/simplysanatori/3ds-game-fixes) have Material's verified badge after
-// the name; Sharkive's and the player's have no marker. A cheat made for another version has an
+// developer's own (github.com/simplysanatori/3ds-game-fixes) have the Verified chip after the name
+// (AzaharFrame fixd: name_chip.h; it was Material's verified badge); Sharkive's and the player's have
+// no marker. A cheat made for another version has an
 // outlined chip in the error colour ("v1.0"). Each row's switch applies at once. Patches are not
 // here (the Mods segment).
 //

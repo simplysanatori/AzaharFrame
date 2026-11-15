@@ -288,8 +288,8 @@ CatalogEntry ParseEntry(const nlohmann::json& j) {
     e.verified = j.value("verified", false) &&
                  (s.type == Source::Type::OwnerRepoPath || s.type == Source::Type::Gamebanana);
     // (a MEGA mod is never verified here: the owner marks one by testing it, not the catalog)
-    // AzaharFrame fixes7: "recommended" (any source): we recommend it with the game: the menu's badge,
-    // listed first; "verified" stays an internal flag. "aspect": the picture shape it makes ("16:9");
+    // AzaharFrame fixes7: "recommended" (any source): listed first (AzaharFrame fixd: after the
+    // verified ones; the Verified chip is "verified"'s). "aspect": the picture shape it makes ("16:9");
     // a value this build does not know is left out (not an error)
     if (const auto rec = j.find("recommended"); rec != j.end() && rec->is_boolean()) {
         e.recommended = rec->get<bool>();

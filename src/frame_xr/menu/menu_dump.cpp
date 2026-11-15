@@ -112,7 +112,8 @@ CheatsModel SampleCheats() {
 // owner's packs' names. Stella Glow (USA) with the developer's No Bloom loaded.
 ModsListModel SampleModsStellaGlow() {
     ModsListModel mm;
-    mm.loaded = {{"stella-glow-usa-no-bloom", "No Bloom", "simplysanatori", "https://github.com/simplysanatori/3ds-game-fixes", "", true, true, true}};
+    // AzaharFrame fixd: the developer's own fix is verified (the chip), never "recommended"
+    mm.loaded = {{"stella-glow-usa-no-bloom", "No Bloom", "simplysanatori", "https://github.com/simplysanatori/3ds-game-fixes", "", false, true, true, true}};
     return mm;
 }
 
@@ -135,6 +136,7 @@ TexturesModel SampleTextures() {
     t.packs = {{"oot3d-1080p", "1080p", "Henriko Magnifico \u00b7 3.2 \u00b7 ASTC/KTX \u00b7 640 MB", false},
                {"oot3d-4k", "4K", "Henriko Magnifico \u00b7 3.2 \u00b7 ASTC/KTX \u00b7 2.1 GB", true},
                {"oot3d-4k-png", "4K (PNG)", "PNG \u00b7 5.8 GB", false}};
+    t.packs[0].verified = t.packs[1].verified = true; // AzaharFrame fixd: from verified entries
     return t;
 }
 
@@ -154,13 +156,14 @@ TexturesModel SampleOot3dDownloads() {
     t.custom_textures = true;
     t.downloads = {{"oot3d-4k-henriko", "Ocarina of Time 3D 4K", "Henriko Magnifico",
                     "", "", PackOfferState::Download, -1, "",
-                    "Updated Sep 2026", true},
+                    "Updated Sep 2026", false},
                    {"oot3d-1080p-henriko", "Ocarina of Time 3D 1080p", "Henriko Magnifico",
                     "", "", PackOfferState::Downloading, 42,
-                    "Downloading", "Updated Sep 2026", true},
+                    "Downloading", "Updated Sep 2026", false},
                    {"mm3d-hd-deathwrench", "Majora's Mask 3D HD", "DeathWrench",
                     "https://github.com/DeathWrench/MM3DHD", "", PackOfferState::Installed, -1, "",
                     "Updated May 2021", false}};
+    t.downloads[0].verified = t.downloads[1].verified = true; // AzaharFrame fixd: the chip
     t.downloading = true;
     return t;
 }
@@ -1578,6 +1581,16 @@ int main(int argc, char** argv) {
     v.tab = Tab::Mods;
     v.hover = {Id::Cheat, 2};
     ok &= shot("cheats", cm, v);
+    { // AzaharFrame fixd: the developer's cheats have the Verified chip; a long name is cut before it
+        MenuModel vc = cm;
+        vc.mods.cheats.cheats.insert(
+            vc.mods.cheats.cheats.begin() + 1,
+            {"Faster Walking Speed in Every Town and Dungeon (Hold R to Run Faster Still)",
+             CheatSource::Developer, false, ""});
+        MenuView cv = v;
+        cv.hover = {};
+        ok &= shot("fixd-cheats-verified", vc, cv);
+    }
     v.hover = {};
     MenuModel dl = cm; // downloading again over a list
     dl.mods.cheats.download = DownloadState::Downloading;
@@ -1817,7 +1830,7 @@ int main(int argc, char** argv) {
           // downloads, Resume after a Cancel, a rate limit
             MenuModel mr = mi;
             auto& list = mr.mods.mods.available;
-            list[0].recommended = true;
+            list[0].verified = true; // AzaharFrame fixd: the Verified chip (was the recommended badge)
             MenuView rv = v;
             rv.hover = {};
             ok &= shot("fixes7-mods-install-recommended", mr, rv);
@@ -1837,6 +1850,40 @@ int main(int argc, char** argv) {
             list[0].note = "GameBanana is limiting downloads from this network. Try again later.";
             list[0].error = true;
             ok &= shot("fixes7-mods-install-rate-limited", mr, rv);
+        }
+        { // AzaharFrame fixd: Install Mods: the Verified chip after the name (a long one cut before
+          // it), with the version chip and the compat chips beside it
+            MenuModel vm = mi;
+            auto& list = vm.mods.mods.available;
+            list[0].verified = true;
+            list[0].name = "Ocarina ReFramed (Single Screen) With the Restored Classic Item Menu";
+            list[0].version = "1.0";
+            list[0].version_match = true;
+            list[1].verified = true;
+            list[1].mismatch = true;
+            list[1].region_chip = "USA Only";
+            ModOffer plain;
+            plain.id = "oot3d-plain";
+            plain.name = "Classic Tunic Colours";
+            plain.author = "someone";
+            plain.downloads = "1K+ Downloads";
+            list.push_back(plain);
+            MenuView vv = v;
+            vv.hover = {};
+            ok &= shot("fixd-mods-install-verified", vm, vv);
+            // the loaded list: a verified mod (the chip) above one that is not
+            MenuModel lm = m;
+            lm.mods.mods.loaded = {
+                {"oot3d-ocarina-reframed-single", "Ocarina ReFramed (Single Screen) With the Restored Classic Item Menu",
+                 "OTPR26", "https://github.com/OTPR26/OOT3DHud", "v1.5.9", false, true, true, true},
+                {"stella-glow-usa-no-bloom", "No Bloom", "simplysanatori",
+                 "https://github.com/simplysanatori/3ds-game-fixes", "", false, true, true, true},
+                {"oot3d-plain", "Classic Tunic Colours", "someone", "", "v2", false, true, false},
+                {"unmanaged:romfs", "romfs", "", "", "214 Files", false, false, true}};
+            MenuView lv;
+            lv.tab = mods_tab;
+            lv.mods_segment = ModsSegment::Mods;
+            ok &= shot("fixd-mods-loaded-verified", lm, lv);
         }
         MenuModel mc = mi; // Dual Screen in, Single Screen asked for
         mc.mods.mods.available[1].state = OfferState::Installed;
@@ -2142,7 +2189,7 @@ int main(int argc, char** argv) {
             o.url = "https://www.henrikomagnifico.com/zelda-majoras-mask-3d-4k";
             o.size_text = "3.4 GB";
             o.updated = "Updated Jan 2026";
-            o.recommended = true;
+            o.verified = true; // AzaharFrame fixd: the Verified chip (was the recommended badge)
             PackOffer o2 = o;
             o2.id = "mm3d-1080p-henriko";
             o2.name = "Majora's Mask 3D 1080p";
@@ -2166,7 +2213,7 @@ int main(int argc, char** argv) {
             row.resume = ResumeText((12ull << 30) / 10, (34ull << 30) / 10); // "1.2 of 3.4 GB Downloaded"
             v.hover = {Id::PackDownload, 0};
             ok &= shot("fixes7-download-resume", mm, v);
-            // the badge: recommended packs first (no row is busy)
+            // the chip: verified packs first (no row is busy)
             row.resume.clear();
             v.hover = {};
             ok &= shot("fixes7-download-recommended", mm, v);
@@ -2177,6 +2224,41 @@ int main(int argc, char** argv) {
                 "GameBanana is limiting downloads from this network. Try again in 10 minutes.";
             v.hover = {Id::PackDownload, 0};
             ok &= shot("fixes7-download-rate-limited", rl, v);
+        }
+        { // AzaharFrame fixd: the Verified chip after the name, a long name cut before it, and the
+          // verified packs first although their download counts are unknown (Henriko's Drive packs)
+            MenuModel vm = dm;
+            vm.game_title = "The Legend of Zelda: Majora's Mask 3D";
+            PackOffer a;
+            a.id = "mm3d-4k-henriko";
+            a.name = "Majora's Mask 3D 4K";
+            a.author = "Henriko Magnifico";
+            a.url = "https://www.henrikomagnifico.com/zelda-majoras-mask-3d-4k";
+            a.size_text = "3.4 GB";
+            a.updated = "Updated Jan 2026";
+            a.verified = true;
+            PackOffer b = a;
+            b.id = "mm3d-1080p-henriko";
+            b.name = "Majora's Mask 3D 1080p Remastered Textures With Every Optional Extra Included";
+            b.size_text = "1.1 GB";
+            PackOffer c;
+            c.id = "mm3d-hd";
+            c.name = "Majora's Mask 3D HD";
+            c.author = "DeathWrench";
+            c.url = "https://github.com/DeathWrench/MM3DHD";
+            c.downloads = "10K+ Downloads";
+            c.updated = "Updated May 2021";
+            PackOffer d = a;
+            d.id = "mm3d-4k-henriko-usa";
+            d.name = "Majora's Mask 3D 4K";
+            d.mismatch = true;
+            d.region_chip = "USA Only";
+            vm.mods.textures.downloads = {a, b, c, d};
+            vm.mods.textures.downloading = false;
+            v.hover = {};
+            ok &= shot("fixd-download-verified", vm, v);
+            v.hover = {Id::PackNote, 1};
+            ok &= shot("fixd-download-verified-hover", vm, v);
         }
         MenuModel df = dm;
         df.mods.textures.downloads[0].state = PackOfferState::Failed;

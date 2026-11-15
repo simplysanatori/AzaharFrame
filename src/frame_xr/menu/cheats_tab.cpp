@@ -6,7 +6,7 @@
 //
 //   [Download] [Add Cheat]           Azahar's Window [Install from File]  top bar (ui2)
 //   12 cheats added, 3 for another version                             status (after a download)
-//   No Bloom (USA) (v)                                       ( o)      48 dp rows, file order
+//   No Bloom (USA) [Verified]                                ( o)      48 dp rows, file order
 //   Infinite HP in Battle                                    (o )
 //   Max Money                                                (o )      the player's own
 //   ------------------------------------------------------------
@@ -23,6 +23,7 @@
 
 #include "frame_xr/menu/md3_fonts.h"
 #include "frame_xr/menu/mods_segments.h" // AzaharFrame ui2: ZipTarget
+#include "frame_xr/menu/name_chip.h"     // AzaharFrame fixd
 #include "frame_xr/menu/tab_menu.h"
 
 namespace FrameXr::Menu {
@@ -41,7 +42,6 @@ constexpr float kTrailGap = 16.0f; ///< between the trailing chip and the switch
 constexpr float kNameGap = 24.0f;  ///< between the name and what trails it
 constexpr float kChipH = 32.0f;
 constexpr float kChipPad = 12.0f;
-constexpr float kBadge = 20.0f; ///< the verified badge after a developer name
 constexpr float kSmall = 14.0f; ///< Body Small, one step up as the menu's type scale
 constexpr float kPi = 3.14159265f;
 
@@ -363,15 +363,9 @@ void TabMenu::DrawCheats(Kit& kit, const MenuModel& model, const MenuView& view,
             kit.TextMid(chip.Cx(), cy, Type::Label, Tok::kError, version, 1);
             right = chip.x0 - kNameGap;
         }
-        const bool dev = cheat.source == CheatSource::Developer;
-        const float nw = right - c.x0 - (dev ? kBadge + 6.0f : 0.0f);
-        const float drawn =
-            kit.TextMid(c.x0, cy, Type::Body, Tok::kOnSurface, kit.Fit(Type::Body, cheat.name, nw));
-        if (dev) {
-            // Material's verified badge right after the name: made for Azahar for Frame.
-            kit.Icon(c.x0 + drawn + 6.0f + kBadge * 0.5f, cy, kBadge, Sym::kVerified, true,
-                     Tok::kPrimary);
-        }
+        // AzaharFrame fixd: the developer's own (made for Azahar for Frame): the Verified chip right
+        // after the name, as the Mods and Textures lists' verified entries (it was a badge)
+        NameWithChip(kit, c.x0, right, cy, cheat.name, cheat.source == CheatSource::Developer);
     }
     kit.ClearClip();
     DrawScrollbar(kit, view, list, area.x1, content_h, max_scroll, scroll); // AzaharFrame scroll

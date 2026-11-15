@@ -113,7 +113,7 @@ Custom textures are on from the first launch, and they load in the background wh
 
 #### The Mods tab
 
-The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, **Mods** and **Textures** at its top switch between three lists for the running game. Nothing is downloaded until you press a download or install button. My own cheats and fixes carry a verified badge after their name.
+The in-game menu's **Mods** tab does all of this from the headset. **Cheats**, **Mods** and **Textures** at its top switch between three lists for the running game. Nothing is downloaded until you press a download or install button. Cheats, patches, mods and texture packs known to work on Azahar for Frame, and my own cheats and fixes, show a **Verified** chip after their name and are listed first.
 
 **Cheats**
 
