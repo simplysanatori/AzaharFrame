@@ -724,13 +724,6 @@ Vec2f TurnDepthFor(const ReticleReading& r, const LightGunTarget& target, float 
         if (target.past_v != 0) {
             d.y = static_cast<float>(target.past_v);
         }
-        // 1.2.0 RC2 (the owner): past the bottom edge is the arm held low, the way the owner
-        // aims, not a wish to look down: no downward turn from there (it pinned the camera to the
-        // floor while the arm stayed low). Sideways still turns; looking down is the Turn Zone
-        // on the screen, below the aim box.
-        if (target.past_v > 0) {
-            d.y = 0.0f;
-        }
     }
     return d;
 }
