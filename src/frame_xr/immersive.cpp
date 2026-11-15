@@ -2234,6 +2234,36 @@ WiderStep StepScale(int wider_steps, int taller_steps) {
     return WiderStep::Changed;
 }
 
+bool GripUpDownSteps3dDepth() {
+    return IsViewMode(g.mode) && L::GripUpDownFor(g.scale_mode) == L::GripUpDown::Depth3d;
+}
+
+// AzaharFrame fovaxis: 3D Depth by grip + D-pad with Field of View: from what the Full modes show
+// now (NaturalDepth: a game's own 3DS 3D Depth of 0 keeps them flat until a value of their own),
+// one row step each, per game as the in-game menu writes it (it opens on Per-Game), live
+// (OnFrame reads it every frame).
+WiderStep StepDepth3d(int steps) {
+    if (!g.adjuster.Active() || !g.engaged || steps == 0) {
+        return WiderStep::None;
+    }
+    auto& setting = Settings::values.vr_immersive_depth;
+    const int before = static_cast<int>(NaturalDepth());
+    const int after = L::SteppedDepth(before, steps);
+    ShowToastText(Names::DepthToast(static_cast<unsigned>(after))); // also at the ends
+    if (after == before) { // at 0 or 100 % already: nothing written
+        LOG_INFO(Frontend, "xr: immersive: {} by the D-pad, at its limit",
+                 Names::DepthToast(static_cast<unsigned>(after)));
+        return WiderStep::None;
+    }
+    if (setting.UsingGlobal()) {
+        setting.SetGlobal(false); // per game, as the in-game menu's row
+    }
+    setting.SetValue(static_cast<u32>(after));
+    LOG_INFO(Frontend, "xr: immersive: {} by the D-pad",
+             Names::DepthToast(static_cast<unsigned>(after)));
+    return WiderStep::Changed;
+}
+
 // AzaharFrame fovaxis: Fill View, once: the size and both scales from Layout::FillView, with the
 // last solve's camera, shape and eye shift, the placement's pitch and distance, the margins and
 // the mode as they are now. Per game, like the grip + stick and the D-pad. Nothing re-applies

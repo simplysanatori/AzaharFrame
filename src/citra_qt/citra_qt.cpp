@@ -1359,6 +1359,9 @@ GMainWindow::GMainWindow(Core::System& system_)
                                 Settings::values.vr_immersive_render_margin_y};
                             FrameKeepSetting keep_scale_x{Settings::values.vr_immersive_scale_x};
                             FrameKeepSetting keep_scale_y{Settings::values.vr_immersive_scale_y};
+                            // AzaharFrame fovaxis: the Full modes' 3D Depth (grip + D-pad up
+                            // and down with Field of View).
+                            FrameKeepSetting keep_depth{Settings::values.vr_immersive_depth};
                             FrameKeepControls keep_controls; // AzaharFrame reticle
                             QtConfig game_config(g_frame_game_config_name,
                                                  QtConfig::ConfigType::PerGameConfig);
@@ -1368,6 +1371,7 @@ GMainWindow::GMainWindow(Core::System& system_)
                             keep_margin_y.Restore();
                             keep_scale_x.Restore();
                             keep_scale_y.Restore();
+                            keep_depth.Restore();
                             game_config.Save();
                         });
                     },

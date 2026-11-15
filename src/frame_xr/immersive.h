@@ -131,6 +131,17 @@ WiderStep StepWiderView(int dir);
 /// toast shows the value. Changed: the caller has the game's config saved. XR thread.
 WiderStep StepScale(int wider_steps, int taller_steps);
 
+/// AzaharFrame fovaxis: true when grip + D-pad up or down steps 3D Depth now (StepDepth3d) while
+/// a grip holds the immersive screen: a Full mode with Field of View (Layout::GripUpDownFor);
+/// else Render Margin (StepWiderView, which says Full Modes Only outside them). XR thread.
+bool GripUpDownSteps3dDepth();
+
+/// AzaharFrame fovaxis: grip + D-pad up or down with Field of View (Full modes): `steps` steps of
+/// the Full modes' 3D Depth (Settings::values.vr_immersive_depth, Layout::SteppedDepth from what
+/// is shown now, Layout::NaturalDepthPercent), set for this game as the in-game menu's row does,
+/// live; the toast "3D Depth: 80%". Changed: the caller has the game's config saved. XR thread.
+WiderStep StepDepth3d(int steps);
+
 /// AzaharFrame fovaxis: Fill View (the VR menu's button): sets this game's head-locked size and
 /// both scales once so the screen covers the view (Layout::FillView), live, and shows the toast.
 /// True when it set them (the caller has the game's config saved). Full modes only. XR thread.
