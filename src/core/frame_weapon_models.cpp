@@ -901,10 +901,6 @@ TexturePack ReadTexturePack(u64 title_id) {
     return pack;
 }
 
-namespace {
-
-/// AzaharFrame fixc: whether a pack's file can replace a model's texture (PackFileFormat); a
-/// file that cannot is logged with its format and why, and the game's texture is used.
 bool PackReplacementUsable(const std::string& path, std::string_view what) {
     std::string why;
     if (!PackFileFormat(path, &why).empty()) {
@@ -914,8 +910,6 @@ bool PackReplacementUsable(const std::string& path, std::string_view what) {
              std::filesystem::path(path).filename().string(), why);
     return false;
 }
-
-} // namespace
 
 u64 PackKey(const TexturePack* pack, const std::vector<u64>& hashes) {
     if (!pack || !pack->on) {
