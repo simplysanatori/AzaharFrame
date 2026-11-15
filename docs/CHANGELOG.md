@@ -99,6 +99,15 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **C-Stick at Edge**: hold the reticle near an edge of the bottom screen and the touch lifts while the C-Stick pushes that way. With the C-Stick & Gyro mod for Kid Icarus: Uprising, the camera turns, the same way the mod turns it when C-Stick aiming pushes past its aiming box.
 - **Aim Only While Pressed** keeps the reticle in the middle until the trigger touches. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick.
 
+### Angel's Aim (Alpha)
+
+- Angel's Aim brings Kid Icarus: Uprising into VR with Darkshade's C-Stick & Gyro mod. **Aiming**, on the **Controls** tab, is **Direct Aim**, which puts the reticle where your weapon points, or **Gyro Aim**, which moves it as you turn your hand. The game starts on **Direct Aim** once the mod is installed.
+- Pit's equipped weapon is in your hand, held the way Pit holds it. **Weapon Opacity**, **Weapon Size** and **Weapon Scale** change how it looks. The aim follows the weapon, so a blade aims a little above the controller's line.
+- Each shot shows a flash at the weapon's tip (**Muzzle Flash**, with **Muzzle Flash Size**), and your shots fly from the weapon into the screen (**Projectiles**, with their opacity, size and speed). Each real shot buzzes the controller (**Recoil**).
+- With **Direct Aim**: **Laser Sight**, **Keep Reticle on Screen**, **Grip Frees Aim** (**Hold** or **Toggle**), **Turn Zone From**, **Turn Zone**, **Turn Speed**, and **Check Aim**, which shows targets one at a time so you can check your aim.
+- The first time you turn **Aiming** on, **Angel's Aim Is On** lists what is on.
+- The **Angel's Aim** segment on the **Mods** tab shows the mod it needs and the suggested texture packs, with **Report an Issue** and **Send Report**.
+
 ### Mouse and Pointer Controls
 
 - **Bottom Screen**: the mouse touches and drags on the bottom screen, for games that aim with the touch screen, such as Kid Icarus: Uprising.
