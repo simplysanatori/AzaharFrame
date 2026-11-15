@@ -429,7 +429,13 @@ TEST_CASE("Aim lock: only the aiming controller's grip is taken and only it is l
         CHECK_FALSE(frame.hand[static_cast<std::size_t>(1 - aim)].aim_locked);
         LockAim(frame, aim, false); // freed by its grip, or Keep Reticle on Screen off
         CHECK_FALSE(frame.hand[0].aim_locked);
-        CHECK_FALSE(frame.hand[1].aim_locked);
+        CHECK_FALSE(frame.hand[1].aim_locked);        // 1.2.0 RC2: the other controller's grip held (moving a screen): read, but left.
+        InputFrame both = IdleFrame();
+        both.hand[0].grip = 0.9f;
+        both.hand[1].grip = 0.7f;
+        CHECK(TakeAimGrip(both, aim, true) == (aim == 0 ? 0.9f : 0.7f));
+        CHECK(both.hand[0].grip == 0.9f);
+        CHECK(both.hand[1].grip == 0.7f);
     }
     // Headset: no controller aims, nothing is taken.
     InputFrame frame = IdleFrame();

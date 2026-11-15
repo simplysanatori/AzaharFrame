@@ -278,6 +278,8 @@ private:
     int gyro_aim_logged = -1;      ///< AzaharFrame kiugyro: Gyro Aim and its controller, as logged
     bool gyro_clutch_logged = false;
     Input::AimGrip aim_grip;      ///< AzaharFrame kiuaim3: Direct Aim's grip (Grip Frees Aim)
+    /// 1.2.0 RC2: the other controller's grip (with hysteresis); held, it frees the aiming one.
+    Input::GripClutch other_grip_clutch;
     bool aim_rest_logged = false; ///< AzaharFrame kiuaim3: Keep Reticle on Screen's resting guard
     Input::Recoil recoil;          ///< AzaharFrame kiugyro: Light Gun's recoil
     Input::ShotRecoil shot_recoil; ///< AzaharFrame kiuguns: Recoil on the game's own shots

@@ -245,7 +245,9 @@ LightGunTarget LockedTargetFor(const Ray& ray, const PanelQuad& top);
 /// touches nothing, HandInput::aim_locked). The other controller's grip, trigger and pointing are
 /// left as they are: it points, touches the Secondary Screen, grabs and uses the menus with no
 /// grip held. A hand out of range (Headset) takes nothing.
-float TakeAimGrip(InputFrame& frame, int aim_hand);
+/// 1.2.0 RC2: `leave` (the other controller's grip held, moving a screen): the grip is read but
+/// left in `frame`, so the aiming controller grabs and joins both grips as any controller does.
+float TakeAimGrip(InputFrame& frame, int aim_hand, bool leave = false);
 void LockAim(InputFrame& frame, int aim_hand, bool locked);
 
 /// AzaharFrame kiufix: the world point at (u, v) of a screen as drawn (flat or curved, as

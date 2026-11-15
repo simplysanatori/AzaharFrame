@@ -1758,7 +1758,13 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (on && aim_source != 3) {
             gyro_aim_hand = Input::HandIndex(aim_source == 2 ? Input::Hand::Left : Input::Hand::Right);
             // AzaharFrame fixc: the aiming controller's grip alone (the other keeps its own).
-            const float aim_grip_value = Input::TakeAimGrip(game_in, gyro_aim_hand);
+            // 1.2.0 RC2 (the owner): while the other controller's grip is held (moving a
+            // screen), the aiming controller is free: its grip is left to the screens (both
+            // grips, a second hand on the screen) and its aim unlocked.
+            const bool other_holds = other_grip_clutch.Update(
+                in.hand[static_cast<std::size_t>(1 - gyro_aim_hand)].grip);
+            const float aim_grip_value =
+                Input::TakeAimGrip(game_in, gyro_aim_hand, /*leave=*/other_holds);
             if (gyro_aim_frame.mode == Input::GyroAimMode::LightGun) {
                 // AzaharFrame kiuaim3: Grip Frees Aim: Hold (free while held, as the pause was)
                 // or Toggle (a press frees, the next locks; a short toast each time). A press
@@ -1770,7 +1776,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                     aim_grip_value, other > Immersive::Layout::kGripPress,
                     Input::AimGripModeFrom(Settings::values.vr_light_gun_grip.GetValue()),
                     check_flow.active());
-                gyro_aim_frame.clutch = g.free;
+                gyro_aim_frame.clutch = g.free || other_holds;
                 if (g.toggled) {
                     ShowToastText(g.free ? Input::kAimUnlockedToast : Input::kAimLockedToast);
                     LOG_INFO(Frontend, "xr: Direct Aim: {} (Grip Frees Aim: Toggle)",
@@ -1784,6 +1790,7 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         } else {
             gyro_clutch.Reset();
             aim_grip.Reset();
+            other_grip_clutch.Reset();
         }
         if (gyro_aim_frame.clutch != gyro_clutch_logged) {
             gyro_clutch_logged = gyro_aim_frame.clutch;

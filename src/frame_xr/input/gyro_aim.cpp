@@ -608,13 +608,15 @@ Vec2f TurnZoneDepth(const LightGunTarget& target, float zone_fraction) {
     return {depth(target.u), depth(target.v)};
 }
 
-float TakeAimGrip(InputFrame& frame, int aim_hand) { // AzaharFrame fixc
+float TakeAimGrip(InputFrame& frame, int aim_hand, bool leave) { // AzaharFrame fixc
     if (aim_hand < 0 || aim_hand >= kNumHands) {
         return 0.0f;
     }
     HandInput& hand = frame.hand[static_cast<std::size_t>(aim_hand)];
     const float grip = hand.grip;
-    hand.grip = 0.0f;
+    if (!leave) {
+        hand.grip = 0.0f;
+    }
     return grip;
 }
 
