@@ -987,43 +987,6 @@ const char* DefaultCatalogJson() {
       "notes": "Removes the ghosting around characters at higher internal resolutions (Europe Birthright and Conquest). It is a code patch, so it replaces any other code patch for the game."
     },
     {
-      "id": "fates-paralogue-unlocker",
-      "name": "Paralogue Unlocker",
-      "title": "Fire Emblem Fates",
-      "title_ids": [
-        "0004000000179800",
-        "000400000017A800",
-        "000400000012DE00",
-        "0004000000179400",
-        "0004000000179600",
-        "0004000000179500",
-        "0004000000179700",
-        "000400000012DC00",
-        "000400000012DD00"
-      ],
-      "author": "Moonling",
-      "author_url": "https://gamebanana.com/members/1698465",
-      "licence": "CC BY-NC-ND 4.0",
-      "homepage": "https://gamebanana.com/mods/51421",
-      "verified": false,
-      "downloads": 19272,
-      "updated": "2020-01",
-      "source": {
-        "type": "gamebanana",
-        "mod": 51421,
-        "file_pattern": "gay_fates_ips_patches_*.zip"
-      },
-      "install": {
-        "rules": [
-          {
-            "from": "{tid}/",
-            "to": ""
-          }
-        ]
-      },
-      "notes": "Lifts the same-sex marriage restriction on paralogues, for the Special Edition, Birthright and Conquest in all three regions. It is a code patch, so it replaces any other code patch for the game."
-    },
-    {
       "id": "fates-icon-project",
       "name": "Fates Icon Project",
       "title": "Fire Emblem Fates",
