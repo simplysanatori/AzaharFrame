@@ -446,7 +446,8 @@ TEST_CASE("VR group: the scales from -100 % to +100 %", "[frame_xr][fov100]") {
     Keep<s32, true> kx{v.vr_immersive_scale_x};
     Keep<s32, true> ky{v.vr_immersive_scale_y};
     // The setting's own range (what any reader clamps to).
-    CHECK(v.vr_immersive_scale_x.GetDefault() == 0);
+    CHECK(v.vr_immersive_scale_x.GetDefault() == 40);
+    CHECK(v.vr_immersive_scale_y.GetDefault() == 40);
     Settings::SetConfiguringGlobal(true);
     Values(v.vr_immersive_scale_x, 100, -100);
     Values(v.vr_immersive_scale_y, -100, 100);

@@ -873,13 +873,14 @@ struct Values {
     // AzaharFrame kiu: Horizontal Scale and Vertical Scale (Full (6DoF) only): the immersive
     // screen this many percent larger (positive) or smaller (negative) than the picture on that
     // axis, -100 to +100 in 5 % steps (AzaharFrame fov100; -30 to +30 before, and those keep
-    // their screen), 0 by default, read every frame (frame_xr/immersive_layout.h ScalePercent,
-    // ScaleFactor). Both grips + D-pad left or right (up or down) set it for the game on view.
+    // their screen), +40 by default (0 before 1.2.0: a global file that saved the default reads
+    // the current one, so old users get +40 too, and an older build reads its own 0), read
+    // every frame (frame_xr/immersive_layout.h ScalePercent, ScaleFactor). Both grips + D-pad left or right (up or down) set it for the game on view.
     // They replace Narrow Screen and Narrow Height (vr_immersive_squeeze, _y, percent narrower):
     // a file with only those is converted once when read (FrameConfig::MigratedScale), so Narrow
     // Screen 10 % is -10 here.
-    SwitchableSetting<s32, true> vr_immersive_scale_x{0, -100, 100, "vr_immersive_scale_x"};
-    SwitchableSetting<s32, true> vr_immersive_scale_y{0, -100, 100, "vr_immersive_scale_y"};
+    SwitchableSetting<s32, true> vr_immersive_scale_x{40, -100, 100, "vr_immersive_scale_x"};
+    SwitchableSetting<s32, true> vr_immersive_scale_y{40, -100, 100, "vr_immersive_scale_y"};
     // AzaharFrame fovscale: how the scales act (Full (6DoF) only, per game, read every frame):
     // 0 = Stretch (the picture stretched on the larger or smaller screen, as every build before),
     // 1 = Field of View (the game draws that much more or less on that axis; the default). The
