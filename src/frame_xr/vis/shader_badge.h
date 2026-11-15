@@ -77,9 +77,17 @@ struct Placed {
     float height = 0.0f;
 };
 
+/// AzaharFrame fixd: on a curved screen the badge's ends stay this far in front of the cylinder.
+constexpr float kCurveClear = 0.002f;
+/// How far in front of the screen's surface the badge's centre goes (metres): 3 mm on a flat
+/// screen; on a cylinder of `curve_radius` the sagitta of the flat badge's width, w^2 / (8 r), and
+/// kCurveClear, so its ends do not go behind the curve.
+float CurveLift(float badge_width, float curve_radius);
+
 /// Normal view: on the screen centred at `screen`, `width` x `height` metres, flat or (with
 /// `curve_radius` above 0) a cylinder of that radius as ScreenRig::CylinderFor makes it. `aspect`:
-/// the badge's width over its height. Shrunk to fit a very small screen.
+/// the badge's width over its height. Shrunk to fit a very small screen. On the cylinder its
+/// centre is CurveLift in front of the surface.
 Placed OnScreen(const Input::Posef& screen, float width, float height, float curve_radius,
                 float aspect);
 

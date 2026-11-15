@@ -21,6 +21,13 @@ constexpr float kDegToRad = 3.14159265f / 180.0f;
 constexpr float kLift = 0.003f;
 } // namespace
 
+float CurveLift(float badge_width, float curve_radius) {
+    if (curve_radius <= 0.0f) {
+        return kLift;
+    }
+    return badge_width * badge_width / (8.0f * curve_radius) + kCurveClear;
+}
+
 Placed OnScreen(const Posef& screen, float width, float height, float curve_radius, float aspect) {
     Placed out;
     const float inset = height * kScreenInset;
@@ -40,8 +47,11 @@ Placed OnScreen(const Posef& screen, float width, float height, float curve_radi
     if (curve_radius > 0.0f) {
         // On the cylinder (screen_rig.cpp CylinderFor): its axis the radius in front of the
         // screen's centre, the arc as long as the screen is wide; the badge faces the axis.
+        // AzaharFrame fixd: the badge is flat, so its ends stand w^2/(8r) farther from the axis
+        // than its centre: lifted by that and kCurveClear, all of it is in front of the curve (it
+        // was 3 mm at the centre, and its ends 1.5 to 2.5 cm inside the screen at 60 to 90 degrees).
         const float phi = x / curve_radius;
-        const float r = curve_radius - kLift;
+        const float r = curve_radius - CurveLift(out.width, curve_radius);
         local = {r * std::sin(phi), y, curve_radius - r * std::cos(phi)};
         turn = {0.0f, std::sin(-phi * 0.5f), 0.0f, std::cos(-phi * 0.5f)};
     }
