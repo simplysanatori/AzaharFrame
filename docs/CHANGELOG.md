@@ -26,6 +26,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Each mod shows its author, version, downloads and date on one line.
 - When two mods conflict, you choose which one to use.
 - Texture packs have their own section in the VR menu. **Download Packs** downloads packs from their original sources, all within the app.
+- **CTGP-7**: with Mario Kart 7 open, the **Mods** tab has a **CTGP-7** section with **Install**. It first checks that your Mario Kart 7 has its version 1.2 update and save data, and tells you what is missing. Then it downloads CTGP-7's own offline installer from its official GameBanana page, checks it, installs your Mario Kart 7 as a title if needed and runs the installer for you. A bar and **Installing CTGP-7: About 5 Minutes** show the progress, and **Cancel** stops it. Afterwards the section has **Launch** and **Uninstall**, and lists the mods that need CTGP-7. Nothing of CTGP-7 comes with Azahar for Frame: it is downloaded only from that official source and is not redistributed. CTGP-7 is made by PabloMK7 and the CTGP-7 team.
 
 ### Texture packs
 
@@ -62,7 +63,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Autosave** makes save states while you play. It is off by default. Turn it on in **Settings** > **General**.
 - It saves every 5 minutes, when you open the menu and when you close the game. Each game keeps its newest 3. Both can be set per game.
 - **Load State** has an **Autosave** card with the newest one, and a list of the others.
-- "Autosaved" shows above the top screen, or as a short message when that corner is out of view. **Couldn't Autosave** tells you when one fails.
+- "Autosaved" shows above the Primary Screen, or as a short message when that corner is out of view. **Couldn't Autosave** tells you when one fails.
 - Autosaves never replace a slot or the Quick Save.
 - The autosave made when you open the menu has a spot of its own. It doesn't count toward the newest 3, so opening the menu never removes an older autosave.
 - An autosave pauses the game for about 0.2 to 0.5 seconds.
@@ -74,7 +75,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Settings**, **Controls** and **Position** have a **Global | Per-Game** switch at the top right. The menu opens on **Per-Game** while a game runs. Choose **Global** to change every game.
 - Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game, for example "2 Per-Game Values Set".
 - **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
-- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset**, **C-Stick at Edge** on (when the C-Stick mod is installed for it) and **Motion Controls** off. These are only starting values: anything you set for the game, or for all games, stays.
+- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset** and **Motion Controls** off. These are only starting values: anything you set for the game, or for all games, stays.
 
 ### Crash reports
 
@@ -94,15 +95,14 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - **Edit Controls** shows a New 3DS XL.
 - Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
-- **Bottom Screen Reticle**: a controller or your head aims at the bottom screen, for games that aim with the touch screen. That controller shows no beam while it aims.
+- **Bottom Screen Reticle**: a controller or your head aims at the Secondary Screen, for games that aim with the touch screen. That controller shows no beam while it aims.
 - **Reticle Speed**: how far the reticle moves when you turn. At the default 2.0x your head turns half as far as before to cross the screen, about 15 degrees side to side.
-- **C-Stick at Edge**: hold the reticle near an edge of the bottom screen and the touch lifts while the C-Stick pushes that way. With the C-Stick & Gyro mod for Kid Icarus: Uprising, the camera turns, the same way the mod turns it when C-Stick aiming pushes past its aiming box.
 - **Aim Only While Pressed** keeps the reticle in the middle until the trigger touches. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick.
 
 ### Angel's Aim (Alpha)
 
 - Angel's Aim brings Kid Icarus: Uprising into VR with Darkshade's C-Stick & Gyro mod. **Aiming**, on the **Controls** tab, is **Direct Aim**, which puts the reticle where your weapon points, or **Gyro Aim**, which moves it as you turn your hand. The game starts on **Direct Aim** once the mod is installed.
-- Pit's equipped weapon is in your hand, held the way Pit holds it. **Weapon Opacity**, **Weapon Size** and **Weapon Scale** change how it looks. The aim follows the weapon, so a blade aims a little above the controller's line.
+- Pit's equipped weapon is in your hand, held the way Pit holds it, with his fist on the controller's handle. **Weapon Opacity**, **Weapon Size** and **Weapon Scale** change how it looks. Blades, staffs, bows and cannons aim along the weapon as Pit holds it, so a blade aims a little above the controller's line. Clubs aim along your hand from the front of Pit's fist, and claws, palms, arms and orbitars along your hand.
 - Each shot shows a flash at the weapon's tip (**Muzzle Flash**, with **Muzzle Flash Size**), and your shots fly from the weapon into the screen (**Projectiles**, with their opacity, size and speed). Each real shot buzzes the controller (**Recoil**).
 - With **Direct Aim**: **Laser Sight**, **Keep Reticle on Screen**, **Grip Frees Aim** (**Hold** or **Toggle**), **Turn Zone From**, **Turn Zone**, **Turn Speed**, and **Check Aim**, which shows targets one at a time so you can check your aim.
 - The first time you turn **Aiming** on, **Angel's Aim Is On** lists what is on.
@@ -110,7 +110,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### Mouse and Pointer Controls
 
-- **Bottom Screen**: the mouse touches and drags on the bottom screen, for games that aim with the touch screen, such as Kid Icarus: Uprising.
+- **Bottom Screen**: the mouse touches and drags on the Secondary Screen, for games that aim with the touch screen, such as Kid Icarus: Uprising.
 - **Pointer**: a 3D pointer for the menu and screens, adapted from [Frametop](https://github.com/Frametop/frametop), so you can use the app outside a game.
 - Hold left and right click for 3 seconds to switch modes.
 - Middle click opens the VR menu.
@@ -118,7 +118,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 ### Screens
 
 - **Detach Screens**: Off, Secondary or Both. Detached screens keep their place per game.
-- **Touchpad**: a gamepad's touchpad works as the bottom screen.
+- **Touchpad**: a gamepad's touchpad works as the Secondary Screen.
 
 ### Game keyboard
 
@@ -129,25 +129,28 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - **Detect Game FOV** reads the game camera's field of view, so cutscenes, zooms and widescreen mods stay correct. I gave it three choices: **Always** follows the camera while you play, **Once** measures it once and saves it for that game, and **Off** uses the Immersive Game FOV you set. You can change it in the VR menu or in Azahar's settings.
 - New presets for Super Mario 3D Land, Mario Kart 7, Ocarina of Time 3D and Majora's Mask 3D, tuned for the Frame's wider field of view compared with Quest headsets. They are the settings I play with: resolution, texture filter, 3D Depth, Horizontal Scale, Vertical Scale, Render Margin and where the screen sits. A value you set yourself always wins.
-- The immersive screen now has the game's own shape. **Render Margin** adds the same margin on every side, and at **Off** you see exactly the game's picture. Before, the game drew a quarter more up and down than across, so a 5:3 game came out as 4:3 and full-screen pictures such as Ocarina of Time 3D's item screen were stretched. When a game zooms in to aim, the screen keeps its size and shape.
+- The immersive screen now has the game's own shape. At 0% you see exactly the game's picture, and **Render Margin** (with **Stretch**) adds a margin around it. Before, the game drew a quarter more up and down than across, so a 5:3 game came out as 4:3 and full-screen pictures such as Ocarina of Time 3D's item screen were stretched. When a game zooms in to aim, the screen keeps its size and shape.
 - **Screen Shape** has a new **Automatic** choice. I made it follow the shape the game's camera draws with, 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9, so a mod or cheat that changes the picture's shape looks right without setting it yourself.
-- Faraway scenery no longer doubles in Ocarina of Time 3D and Majora's Mask 3D. The 3D was too deep for a screen this big: at 3D Depth 30, Ocarina of Time 3D put distant scenery further apart than your eyes. In **Full (6DoF): Ocarina of Time, Majora's Mask** I now limit the 3D to the deepest that still lines up, worked out from the screen's size and distance and your IPD, and it follows them as you change them. Your 3D Depth setting stays as you set it. When the limit applies, the 3D Depth message says so, for example **3D Depth: 30% (Limited to 8%)**.
+- Faraway scenery doubles less in Ocarina of Time 3D and Majora's Mask 3D. The 3D was too deep for a screen this big: at 3D Depth 30, Ocarina of Time 3D put distant scenery further apart than your eyes. In **Full (6DoF): Ocarina of Time, Majora's Mask** I now limit the 3D to the deepest that still lines up, worked out from the screen's size and distance and your IPD, and it follows them as you change them. Your 3D Depth setting stays as you set it. When the limit applies, the 3D Depth message says so, for example **3D Depth: 30% (Limited to 8%)**.
 - In the same mode, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without Render Margin's border of the paused world around them. The margin comes back as you return to the game.
 - Both eyes now always see the same moment of the game.
 - In the Full modes the Primary screen is now drawn together with the controllers, in step with your head, which reduces doubling on fast head turns. The normal and wide views keep the screen as it was. **Primary Screen as Panel** (Experimental) brings back the separate panel, for one game or for all.
 - New **Motion Clarity** (Experimental): each game picture shows only once, for a clearer, more solid picture when you turn your head, but it may flicker or double in demanding scenes. The screen is dimmer. Games that run under 60 fps, a game's pause and the VR menu show as before. In the Full modes it works only when you turn on **In Immersive Modes** under it (off by default). You can set both for one game or for all, in the VR menu (**Settings > Immersive**) or in Azahar's settings.
 - SteamVR's recentre and the right stick hold keep the immersive screen's size and distance. Reset Position in the menu puts everything back, the Immersive Offset too.
-- Immersive mode recentres on where you face each time it resumes after the menu or the bottom screen, so the character stays in the middle after you change settings such as the resolution.
+- Immersive mode recentres on where you face each time it resumes after the menu or the Secondary Screen, so the character stays in the middle after you change settings such as the resolution.
 - Render Margin no longer cuts off Ocarina of Time 3D's world at the edge of the game's own picture, or repeats the last frame in Majora's Mask 3D.
 - Kid Icarus: Uprising starts in the normal view: its aiming does not work with a head-turned camera. Its preset sets only the graphics and where the screen sits. You can still turn Immersive Mode on for it.
 - Super Mario 3D Land now has proper stereoscopic 3D in immersive view.
 - I replaced **Narrow Screen** with **Horizontal Scale** and added **Vertical Scale**. Each goes from -100% to +100% in 5% steps, so the immersive screen can be larger than the picture as well as smaller, and both start at 0%. A game where you set Narrow Screen keeps its screen: Narrow Screen 10% becomes Horizontal Scale -10%. In VR, hold the immersive screen with both grips and press D-pad right or left for wider or narrower, up or down for taller or shorter.
-- **Wider View** is now called **Render Margin**, and it has two rows, **Render Margin: Horizontal** and **Render Margin: Vertical**, so the margin left and right can differ from the one above and below. It applies with **Stretch**, where the screen grows outward and the game's own picture and HUD stay where they are. With **Field of View**, Horizontal Scale and Vertical Scale alone decide what the game draws, so the rows are hidden there and keep their values for Stretch. A game where you set Wider View keeps it on both, and earlier versions still read it. With Stretch, the grip and D-pad gesture changes both.
-- With **Field of View**, holding the immersive screen with a grip and pressing D-pad up or down now changes the Full modes' **3D Depth** for this game, 5% per press, with a label such as **3D Depth: 80%**.
+- **Wider View** is now called **Render Margin**, and it has two rows, **Render Margin: Horizontal** and **Render Margin: Vertical**, so the margin left and right can differ from the one above and below. It applies only with **Scale Mode** on **Stretch**, where the screen grows outward and the game's own picture and HUD stay where they are, and the rows show only there. **Field of View**, the default, uses Horizontal Scale and Vertical Scale alone, so a game's old Wider View value no longer applies unless you pick **Stretch**. The value is kept, and it applies again as soon as you do. Earlier versions still read it.
 - With **Field of View**, a fresh setup now shows exactly the game's own picture at 0%, a smaller screen than the 1.4x Render Margin gave before. The presets for Super Mario 3D Land, Ocarina of Time 3D, Majora's Mask 3D and Asphalt 3D start at +40% both ways, which is that 1.4x again.
 - With **Scale Mode** at **Field of View**, a screen smaller than the game's own picture now crops its edges instead of squeezing the picture, so the world keeps its shape. **Stretch** still squeezes it, HUD included, and Mario Kart 7's preset now starts in **Stretch** so its HUD at the sides stays in view.
-- New **Fill View** button under Scale Mode: one press sets the screen's size and both scales to cover your view, as far as they reach. Change them from there as usual.
+- New **Fill View** button under Scale Mode: one press sets the screen's size so its width fills your view, and **Vertical Scale** to the nearest 5% step. It is a one-time set: change the size and scales from there as usual. If that goes past the limits below it still fills, and the rows say **May Warp**.
 - I limited the scales so the world does not warp: in **Field of View** the game draws at most 1.6 times its own view, and in **Stretch** one direction is stretched at most 1.5 times as much as the other. A scale that goes past that says **May Warp** on its row.
+- In the Full modes, hold the immersive screen with a grip and press D-pad up or down: with **Field of View** this changes **3D Depth**, one step per press, with a message such as **3D Depth: 80%**; with **Stretch** it changes **Render Margin** on both axes. One grip with D-pad left or right still nudges the screen, and both grips with the D-pad still change **Horizontal Scale** and **Vertical Scale**.
+- New **World Scale** (10% to 400%, 100% by default) for the Full modes: how big the game world feels, below 100% like a diorama. Hold the screen with a grip and push the stick up or down to change it; the screen moves farther or nearer and keeps its size in your view. It replaces **Depth Factor Multiplier**, and your head moves the game camera as far as the 3D shows.
+- New **Follow Screen Size** (on by default) for the Full modes: when you make the screen bigger or smaller with the stick, the world grows or shrinks with it. Off keeps the world's size, and a bigger screen then moves nearer.
+- New **Dynamic Resolution** (**Settings** > **Graphics** in VR, off by default, for every game): while the GPU cannot keep up it lowers the resolution a step at a time, and raises it again once the GPU can. It never goes below your **Internal Resolution** setting, so it only has room in the immersive modes, which draw up to two steps above it.
 - The game's two eyes now follow your IPD as the headset measures it, so turning the IPD dial during play takes effect at once. Before, **Full (6DoF): Other Games** always used 65 mm. The last IPD read is kept for the next start, and only if none was ever read does a message ask you to turn the IPD dial.
 
 ### Smaller changes

@@ -13,7 +13,7 @@ While a game with its own value runs, **Configure** still changes that row's glo
 
 The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**. The **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right, which opens on **Per-Game** while a game runs. **Global** changes every game. Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game (on **Settings**, in this section), and **Use Global Values for All**, in the **⋮** menu next to it, puts them back on the global values.
 
-**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **C-Stick at Edge**, **Aim Only While Pressed**, **Right Stick Moves Touch** and [Angel's Aim](#angels-aim)'s rows are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Aim Only While Pressed**, **Right Stick Moves Touch** and [Angel's Aim](#angels-aim)'s rows are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
 
 ## At a glance
 
@@ -34,7 +34,6 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Bottom Screen Reticle](#bottom-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off (Kid Icarus: Uprising: Headset) | global and per game | at once |
 | [Reticle Speed](#reticle-speed) | 0.5x to 4.0x, in 0.1x steps | 2.0x | global and per game | at once |
 | [At Edge](#at-edge) | **Follow**, **Snap to Middle** | Follow | global and per game | at once |
-| [C-Stick at Edge](#c-stick-at-edge) | on or off | off (Kid Icarus: Uprising with the C-Stick mod: on) | global and per game | at once |
 | [Aim Only While Pressed](#aim-only-while-pressed) | on or off | off | global and per game | at once |
 | [Right Stick Moves Touch](#right-stick-moves-touch) | on or off | off | global and per game | at once |
 | [Aiming](#angels-aim) | **Off**, **Direct Aim**, **Gyro Aim** | Off (Kid Icarus: Uprising with the C-Stick & Gyro mod: Direct Aim) | global and per game | at once |
@@ -61,6 +60,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Keep](#autosave) | 1 to 10 | 3 | global and per game | at once |
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% (Full modes: 100%) | global and per game | at once |
+| [Dynamic Resolution](#dynamic-resolution) | on or off | off | global | at once |
 | [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10**, **Automatic** | 3DS (5:3) | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
@@ -154,10 +154,6 @@ How far the reticle moves when you turn your head or the controller, from where 
 
 What the reticle does at the edge of the bottom screen. **Follow**: the dot stays on the edge. **Snap to Middle**: the touch lifts and starts again in the middle. Shown under **Bottom Screen Reticle** while it is on.
 
-## C-Stick at Edge
-
-While the reticle touches near an edge of the bottom screen, the touch lifts and the C-Stick pushes toward that edge instead: part of the way where the edge band starts, all the way at the edge. Kid Icarus: Uprising with the C-Stick & Gyro mod ignores the C-Stick while the screen is touched, so this is what turns the camera there, the same way it turns when the mod's C-Stick aiming pushes past its aiming box. The band is the same turn of your head or controller at any **Reticle Speed**: about 3 degrees. Move back from the edge and the touch comes back where the reticle is; lift the trigger and both let go. While it is on, the reticle stays on the edge as with **At Edge** on **Follow**, whatever **At Edge** is set to. Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod. Kid Icarus: Uprising starts with it on once a C-Stick mod (that one or kiu-cstick-aim) is installed for the game. Shown under **Bottom Screen Reticle** while it is on.
-
 ## Aim Only While Pressed
 
 The reticle stays in the middle of the bottom screen and moves only while the trigger touches. Let go and it goes back to the middle. Shown under **Bottom Screen Reticle** while it is on.
@@ -168,7 +164,7 @@ The right stick moves the bottom screen's touch point too, together with your he
 
 ## Angel's Aim
 
-Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, on the in-game menu's **Controls** tab under **Aiming**. An alpha. **Direct Aim** puts the reticle where your weapon points on the Primary Screen; **Gyro Aim** moves it as you turn your hand. **Gyro Sensitivity** scales the gyroscope, for **Motion Controls** too. With **Aiming** on, **Recoil** (with **Charged Shot** and **Rapid Fire** while it is on) and **Weapon in Hand** show. **Weapon in Hand** shows the weapon Pit holds in place of the aiming controller, and under it **Weapon Opacity**, **Weapon Size**, **Weapon Scale**, **Muzzle Flash** (with **Muzzle Flash Size**) and **Projectiles** (with **Projectile Opacity**, **Projectile Size** and **Projectile Speed**). **Direct Aim** adds **Laser Sight**, **Keep Reticle on Screen**, **Grip Frees Aim**, **Turn Zone From**, **Turn Zone**, **Turn Speed** and **Check Aim**. The [user guide](USER_GUIDE.md#angels-aim-kid-icarus-uprising) explains each one.
+Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod, on the in-game menu's **Controls** tab under **Aiming**. An alpha. **Direct Aim** puts the reticle where your weapon points on the Primary Screen (blades and staffs aim along the weapon, clubs from the fist along your hand, the other weapons along your hand); **Gyro Aim** moves it as you turn your hand. **Gyro Sensitivity** scales the gyroscope, for **Motion Controls** too. With **Aiming** on, **Recoil** (with **Charged Shot** and **Rapid Fire** while it is on) and **Weapon in Hand** show. **Weapon in Hand** shows the weapon Pit holds in place of the aiming controller, and under it **Weapon Opacity**, **Weapon Size**, **Weapon Scale**, **Muzzle Flash** (with **Muzzle Flash Size**) and **Projectiles** (with **Projectile Opacity**, **Projectile Size** and **Projectile Speed**). **Direct Aim** adds **Laser Sight**, **Keep Reticle on Screen**, **Grip Frees Aim**, **Turn Zone From**, **Turn Zone**, **Turn Speed** and **Check Aim**. The [user guide](USER_GUIDE.md#angels-aim-kid-icarus-uprising) explains each one.
 
 ## Autosave
 
@@ -205,6 +201,11 @@ Outside the Full modes, a screen you make bigger than its start size gets less d
 
 The Full modes have their own 3D Depth: **Immersive 3D Depth** in Azahar's window, and the same slider in the in-game menu while a Full mode is on. At 100%, the default, the farthest scenery is at infinity and never past it, so it never doubles, whatever the screen's size or distance. Below 100%, **Full (6DoF): Ocarina of Time, Majora's Mask** brings faraway scenery nearer, and **Full (6DoF): Other Games** keeps it far and flattens everything. A game whose 3D Depth was 0% starts at 0%. In VR with [Scale Mode](#scale-mode) on **Field of View**, hold the immersive screen with a grip and press D-pad up or down to change it by 5% for this game, as the in-game menu's slider does. Hold the button to keep going. A label shows the value, for example **3D Depth: 80%**.
 
+
+## Dynamic Resolution
+
+In the VR menu's **Settings** tab, in **Graphics**; global. While the GPU cannot keep up, it lowers the resolution a step at a time, and it raises it again once the GPU can. It never goes below your **Internal Resolution** setting. The immersive modes draw up to two steps above that setting, so that is where it has room; outside them, and at an Internal Resolution of 1x, it has nothing to do and the row is greyed out. It does not lower the resolution for slowdowns the GPU is not causing, and it is not judged while the game is paused or the menu is open.
+
 ## Immersive Mode
 
 Puts you inside the game instead of in front of a floating screen.
@@ -232,7 +233,7 @@ Called Match Game Camera in earlier versions. Full modes only. **Always** reads 
 
 ## Render Margin
 
-Called Wider View in earlier versions. With [Scale Mode](#scale-mode) on **Stretch**, the game draws a wider view around the 3DS screen's edges so more of the game shows, and the screen grows outward with it: the game's own picture, and the HUD on it, stay exactly where they are. The game never draws more than 1.6 times its own view on an axis, so with a large scale the margin is trimmed there and the screen grows less. The game's picture keeps its resolution (Internal Resolution), so a wider view is a little softer. Some games leave the edges empty. Full modes only. There are two rows: **Render Margin: Horizontal** for the left and right edges and **Render Margin: Vertical** for the top and bottom, each **Off** (nothing added) or **1.1x** to **1.4x**. The two rows show right under Scale Mode while it is **Stretch**. With **Field of View**, Render Margin does not apply (Horizontal Scale and Vertical Scale alone decide what the game draws), so the rows are hidden; their values are kept and used again when you pick Stretch. A game where you set Render Margin in an earlier version keeps that value on both, and earlier versions still read that value (and apply it in Field of View too, as they always did). In **Full (6DoF): Ocarina of Time, Majora's Mask**, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without the margin. In VR with Stretch, hold the immersive screen with a grip and press D-pad up or down to change both by one step; the screen grows with them. A label shows the value, for example **Render Margin: 1.2x**, or **Render Margin: H 1.4x, V 1.1x** when they differ. With Field of View the same press changes [3D Depth](#3d-depth) instead.
+Called Wider View in earlier versions. With [Scale Mode](#scale-mode) on **Stretch**, the game draws a wider view around the 3DS screen's edges so more of the game shows, and the screen grows outward with it: the game's own picture, and the HUD on it, stay exactly where they are. The game never draws more than 1.6 times its own view on an axis, so with a large scale the margin is trimmed there and the screen grows less. The game's picture keeps its resolution (Internal Resolution), so a wider view is a little softer. Some games leave the edges empty. Full modes only. There are two rows: **Render Margin: Horizontal** for the left and right edges and **Render Margin: Vertical** for the top and bottom, each **Off** (nothing added) or **1.1x** to **1.4x**. The two rows show right under Scale Mode while it is **Stretch**. With **Field of View**, the default, Render Margin does not apply (Horizontal Scale and Vertical Scale alone decide what the game draws): both rows are hidden and their values are kept, so a game's old Wider View value applies again once you pick Stretch. Earlier versions still read that value (and apply it in Field of View too, as they always did). In **Full (6DoF): Ocarina of Time, Majora's Mask**, the game's own menu screens, such as Ocarina of Time 3D's item screen, show at the game's own size, without the margin. In VR, hold the immersive screen with a grip and press D-pad up or down. With Stretch this changes both by one step and the screen grows with them; a label shows the value, for example **Render Margin: 1.2x**, or **Render Margin: H 1.4x, V 1.1x** when they differ. With Field of View it changes [3D Depth](#3d-depth) by one step instead.
 
 ## Horizontal Scale and Vertical Scale
 
