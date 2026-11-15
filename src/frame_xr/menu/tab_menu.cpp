@@ -970,7 +970,7 @@ std::string ExplainFor(Id id) {
     case Id::KeepOnScreen: // AzaharFrame kiuaim3
         return "Point off the Primary Screen and the reticle stays at its edge; on the ground the camera turns. Point far off to rest.";
     case Id::GripFreesAim:
-        return "Hold: free while held. Toggle: press to free, press again to lock.";
+        return "The aiming controller's grip. Hold: free while held. Toggle: press to free, press again to lock.";
     case Id::TurnZoneFrom:
         return "Where turning starts: the Aim Box, where the C-Stick turns the camera, or the Primary Screen's edge.";
     case Id::ShowControllers:

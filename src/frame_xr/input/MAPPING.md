@@ -270,7 +270,10 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   game), no grab; Check Aim confirms with the trigger, and a check keeps the aim locked (Toggle's
   presses wait). Both grips together (with the other hand holding the immersive screen: the
   D-pad shapes it) keep that meaning: in Toggle a press while the other grip is down, or joined by
-  it, toggles nothing; in Hold the aim is paused meanwhile, as before.
+  it, toggles nothing; in Hold the aim is paused meanwhile, as before. AzaharFrame fixc: both are
+  the aiming controller's alone, left or right (`TakeAimGrip`, `LockAim` in `gyro_aim.h`): the
+  other controller's grip, trigger and pointer are never taken, so it points, touches the bottom
+  screen, grabs and uses the menus with no grip held (tests for either aiming hand).
 - **Fire:** while Gyro Aim is on, a trigger that is ZL/ZR (not touching the bottom screen) also
   presses the Left Bumper's control (L in the default profile): the game fires with L, so the
   aiming controller's trigger fires, and the left trigger too. The mod also writes ir:rst's

@@ -230,6 +230,15 @@ LightGunTarget LightGunTargetFor(const HandInput& hand, const PanelQuad& top);
 inline constexpr float kRestingPastDeg = 25.0f;
 LightGunTarget LockedTargetFor(const Ray& ray, const PanelQuad& top);
 
+/// AzaharFrame fixc: Grip Frees Aim and Keep Reticle on Screen are the aiming controller's alone
+/// (`aim_hand`, left or right as Motion Controls sets it). TakeAimGrip returns its grip and takes
+/// it out of `frame` (it frees the aim and grabs nothing); LockAim marks it locked (its beam
+/// touches nothing, HandInput::aim_locked). The other controller's grip, trigger and pointing are
+/// left as they are: it points, touches the Secondary Screen, grabs and uses the menus with no
+/// grip held. A hand out of range (Headset) takes nothing.
+float TakeAimGrip(InputFrame& frame, int aim_hand);
+void LockAim(InputFrame& frame, int aim_hand, bool locked);
+
 /// AzaharFrame kiufix: the world point at (u, v) of a screen as drawn (flat or curved, as
 /// IntersectQuad reads them back). AzaharFrame kiuaim2: where Check Aim's targets are drawn.
 Vec3f PointOnQuad(const PanelQuad& quad, float u, float v);
