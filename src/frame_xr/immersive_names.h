@@ -153,26 +153,49 @@ inline constexpr const char* kFollowScreenTip =
 inline constexpr const char* kFollowScreenWindowTip =
     "When you resize the screen in the Full modes, the world grows or shrinks with it. Off keeps "
     "the world's size.";
-/// AzaharFrame flash: Settings::values.vr_motion_clarity (frame_xr/motion_clarity.h).
-inline constexpr const char* kMotionClarity = "Motion Clarity";
-/// AzaharFrame projdef: experimental (the owner's A/B, 1.1.1-590); its tooltip says so.
+/// AzaharFrame flash: Motion Clarity (frame_xr/motion_clarity.h; its name in the code, the keys,
+/// the switches and the log). AzaharFrame fixa: shown as "Black Frame Insertion" (the owner's
+/// rename, 2026-11-15), the label of both VR menu rows: the Immersive section's
+/// (Settings::values.vr_motion_clarity_immersive, the Full modes) and the Graphics section's
+/// (vr_motion_clarity_normal, the Off and Wide modes).
+inline constexpr const char* kMotionClarity = "Black Frame Insertion";
+/// AzaharFrame projdef: experimental (the owner's A/B, 1.1.1-590); its tooltip says so. fixa: each
+/// row's tooltip says where it works.
 inline constexpr const char* kMotionClarityTip =
-    "Experimental. Shows each picture once for a clearer view on head turns, in the Full modes "
-    "with In Immersive Modes on. May flicker.";
+    "Experimental. In the Full modes, adds a black frame after each picture for a clearer view "
+    "on head turns. Uses Primary Screen as Panel. May flicker.";
 /// rel120: Azahar's window keeps the still true line about slower games.
 inline constexpr const char* kMotionClarityWindowTip =
-    "Experimental. Shows each picture once for a clearer view on head turns, in the Full modes "
-    "with In Immersive Modes on. May flicker. Games that run under 60 fps show as before.";
+    "Experimental. In the Full modes, adds a black frame after each picture for a clearer view "
+    "on head turns. Uses Primary Screen as Panel. May flicker. Games that run under 60 fps show "
+    "as before.";
+/// AzaharFrame fixa: the Graphics section's row (vr_motion_clarity_normal): only the top screen
+/// flashes, while it is the Primary one.
+inline constexpr const char* kMotionClarityNormalTip =
+    "Experimental. In the Off and Wide modes, adds a black frame after each picture on the "
+    "Primary screen for clearer motion. May flicker.";
+inline constexpr const char* kMotionClarityNormalWindowTip =
+    "Experimental. In the Off and Wide modes, adds a black frame after each picture on the "
+    "Primary screen for clearer motion. May flicker. Games that run under 60 fps show as before.";
 /// AzaharFrame projdef: the chip beside Motion Clarity's label in the VR menu.
 inline constexpr const char* kExperimental = "Experimental";
-/// AzaharFrame projdef: Settings::values.vr_motion_clarity_immersive, the row under Motion Clarity
-/// (VR menu), its Configure box, its toast each time it is turned on.
-inline constexpr const char* kMotionClarityImmersive = "In Immersive Modes";
-inline constexpr const char* kMotionClarityImmersiveTip =
-    "Experimental. Uses Primary Screen as Panel. May flicker, mostly in demanding games.";
-inline constexpr const char* kMotionClarityImmersiveWindow = "Motion Clarity in Immersive Modes";
+/// AzaharFrame projdef: Azahar's window (Configure) and Send Report name the two rows apart; the
+/// toast each time either row is turned on. fixa: the VR menu's "In Immersive Modes" row is gone
+/// (the Immersive section's row is that key).
+inline constexpr const char* kMotionClarityImmersiveWindow =
+    "Black Frame Insertion in Immersive Modes";
+inline constexpr const char* kMotionClarityNormalWindow =
+    "Black Frame Insertion in Off and Wide Modes";
 inline constexpr const char* kMotionClarityImmersiveToast =
-    "Motion Clarity: Experimental \u00b7 May Flicker";
+    "Black Frame Insertion: Experimental \u00b7 May Flicker";
+/// AzaharFrame fixa: Settings::values.vr_motion_clarity_match_bottom: the row under each Black
+/// Frame Insertion row while that row is on (VR menu), its Configure box, its Send Report line.
+/// It names the 3DS's bottom screen: only the top screen flashes (the owner's exception to
+/// Primary/Secondary, 2026-11-15).
+inline constexpr const char* kMatchBottom = "Match Bottom Screen Brightness";
+inline constexpr const char* kMatchBottomTip =
+    "Black Frame Insertion adds a black frame after each one, which dims the picture. This dims "
+    "the bottom screen to match.";
 /// AzaharFrame projdef: Settings::values.vr_screens_in_projection, as its opposite: the Primary
 /// screen drawn as a panel (a quad layer) in the Full modes. The VR menu's row (with the
 /// Experimental chip), its tooltip, its note while Motion Clarity takes the panel, its toasts;
@@ -181,7 +204,7 @@ inline constexpr const char* kScreenAsPanel = "Primary Screen as Panel";
 inline constexpr const char* kScreenAsPanelTip =
     "Experimental. Draws the Primary screen as a separate panel in the Full modes. It may double "
     "on fast head turns.";
-inline constexpr const char* kScreenAsPanelNote = "Used by Motion Clarity";
+inline constexpr const char* kScreenAsPanelNote = "Used by Black Frame Insertion";
 inline constexpr const char* kScreenAsPanelOnToast = "Primary Screen as Panel: May Double";
 inline constexpr const char* kScreenAsPanelOffToast = "Primary Screen as Panel: Off";
 

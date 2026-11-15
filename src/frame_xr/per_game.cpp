@@ -51,11 +51,15 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::FollowScreen: // AzaharFrame natural
         f(v.vr_immersive_follow_screen);
         return true;
-    case Id::MotionClarity: // AzaharFrame flash
-        f(v.vr_motion_clarity);
-        return true;
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
+    case Id::MotionClarity: // AzaharFrame flash; fixa: the Immersive section's, the Full modes
         f(v.vr_motion_clarity_immersive);
+        return true;
+    case Id::MotionClarityNormal: // AzaharFrame fixa: the Graphics section's, Off and Wide
+        f(v.vr_motion_clarity_normal);
+        return true;
+    case Id::MatchBottom: // AzaharFrame fixa: one key under both rows
+    case Id::MatchBottomNormal:
+        f(v.vr_motion_clarity_match_bottom);
         return true;
     case Id::ScreenAsPanel: // AzaharFrame projdef
         f(v.vr_screens_in_projection);

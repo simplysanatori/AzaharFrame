@@ -132,7 +132,12 @@ bool RendererVulkan::RenderToXr() {
             cmdbuf.setScissor(0, scissor);
         });
         draw_info.modelview = Orthographic(target.width, target.height);
-        draw_info.layer = 0;
+        // AzaharFrame fixa: the XR present shader takes `layer` (unused otherwise) as Match
+        // Bottom Screen Brightness's dim in thousandths, 1 to 999 (0: none).
+        const float dim =
+            sink->ScreenDim(static_cast<VideoCore::XrScreen>(std::min<u32>(screen_id, 2)));
+        draw_info.layer =
+            dim < 1.0f ? std::clamp(static_cast<int>(dim * 1000.0f + 0.5f), 1, 999) : 0;
         DrawSingleScreen(screen_id, 0.0f, 0.0f, static_cast<float>(target.width),
                          static_cast<float>(target.height),
                          Layout::DisplayOrientation::Landscape);

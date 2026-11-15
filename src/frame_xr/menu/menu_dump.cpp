@@ -1323,34 +1323,56 @@ int main(int argc, char** argv) {
         ok &= shot("fa-may-warp-tooltip", ax, v);
     }
     {
-        // AzaharFrame projdef: Motion Clarity's Experimental chip and its tooltip, In Immersive
-        // Modes under it off (the default) with its tooltip, then on; Motion Clarity off (no
-        // sub-row); the rows locked outside the Full modes; the toast.
+        // AzaharFrame projdef; fixa: the Immersive section's Motion Clarity (the Full modes) with
+        // its Experimental chip and tooltip, on, and outside the Full modes (never locked); the
+        // Graphics section's Motion Clarity (the Off and Wide modes) with its tooltip, on; the
+        // toast.
         MenuModel mc = pg;
         MenuView mv = settings(SettingsSection::Immersive);
-        mv.scroll[static_cast<int>(Tab::Settings)] = -1.0f; // the end: Motion Clarity's rows
+        mv.scroll[static_cast<int>(Tab::Settings)] = -1.0f; // the end: Motion Clarity's row
         mv.hover = {Id::MotionClarity, kLabelIndex};
         mv.tooltip = Id::MotionClarity;
         ok &= shot("pd-1-motion-clarity-experimental-tooltip", mc, mv);
-        mv.hover = {Id::MotionClarityImmersive, kLabelIndex};
-        mv.tooltip = Id::MotionClarityImmersive;
-        ok &= shot("pd-2-in-immersive-modes-off-tooltip", mc, mv);
         mc.motion_clarity_immersive = true;
-        mv.hover = {Id::MotionClarityImmersive};
-        mv.tooltip = Id::None;
-        ok &= shot("pd-3-in-immersive-modes-on", mc, mv);
-        mc.motion_clarity = false;
         mv.hover = {Id::MotionClarity};
-        ok &= shot("pd-4-motion-clarity-off", mc, mv);
+        mv.tooltip = Id::None;
+        ok &= shot("pd-3-motion-clarity-on", mc, mv);
         MenuModel flat = pg;
         flat.immersive_mode = 0;
-        mv.hover = {Id::MotionClarityImmersive, kLabelIndex};
-        mv.tooltip = Id::MotionClarityImmersive;
-        ok &= shot("pd-5-locked-outside-full-modes", flat, mv);
+        mv.hover = {Id::MotionClarity, kLabelIndex};
+        mv.tooltip = Id::MotionClarity;
+        ok &= shot("pd-5-not-locked-outside-full-modes", flat, mv);
+        MenuModel gn = pg;
+        gn.immersive_mode = 0;
+        MenuView gnv = settings(SettingsSection::Graphics);
+        gnv.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        gnv.hover = {Id::MotionClarityNormal, kLabelIndex};
+        gnv.tooltip = Id::MotionClarityNormal;
+        ok &= shot("fixa-1-graphics-motion-clarity-tooltip", gn, gnv);
+        gn.motion_clarity_normal = true;
+        gnv.hover = {Id::MotionClarityNormal};
+        gnv.tooltip = Id::None;
+        ok &= shot("fixa-2-graphics-motion-clarity-on", gn, gnv);
+        // fixa: Match Bottom Screen Brightness under each row while it is on, with its tooltip.
+        gnv.hover = {Id::MatchBottomNormal, kLabelIndex};
+        gnv.tooltip = Id::MatchBottomNormal;
+        ok &= shot("fixa-3-graphics-match-bottom-tooltip", gn, gnv);
+        gn.match_bottom = true;
+        gnv.hover = {Id::MatchBottomNormal};
+        gnv.tooltip = Id::None;
+        ok &= shot("fixa-4-graphics-match-bottom-on", gn, gnv);
+        MenuModel mb = pg;
+        mb.motion_clarity_immersive = true;
+        mb.match_bottom = true;
+        MenuView mbv = settings(SettingsSection::Immersive);
+        mbv.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        mbv.hover = {Id::MatchBottom, kLabelIndex};
+        mbv.tooltip = Id::MatchBottom;
+        ok &= shot("fixa-5-immersive-match-bottom-tooltip", mb, mbv);
         ok &= toast_shot("motion-clarity-immersive-toast.png",
                          {::FrameXr::Immersive::Names::kMotionClarityImmersiveToast});
-        // Primary Screen as Panel: off (the default) with its tooltip, on, its note while Motion
-        // Clarity in Immersive Modes is on, outside the Full modes (never locked), its toasts.
+        // Primary Screen as Panel: off (the default) with its tooltip, on, its note while the Full
+        // modes' Motion Clarity is on, outside the Full modes (never locked), its toasts.
         MenuModel pn = pg;
         MenuView pv = settings(SettingsSection::Immersive);
         pv.scroll[static_cast<int>(Tab::Settings)] = -1.0f;

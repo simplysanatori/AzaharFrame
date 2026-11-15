@@ -1127,10 +1127,13 @@ std::string SettingsSummary() {
                      v.vr_immersive_world_scale.GetValue());
     s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kFollowScreen,
                      on(v.vr_immersive_follow_screen.GetValue()));
-    s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kMotionClarity, // AzaharFrame flash
-                     on(v.vr_motion_clarity.GetValue()));
-    s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kMotionClarityImmersiveWindow, // projdef
+    // AzaharFrame projdef; fixa: the two Motion Clarity rows (vr_motion_clarity is not read).
+    s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kMotionClarityImmersiveWindow,
                      on(v.vr_motion_clarity_immersive.GetValue()));
+    s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kMotionClarityNormalWindow,
+                     on(v.vr_motion_clarity_normal.GetValue()));
+    s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kMatchBottom, // AzaharFrame fixa
+                     on(v.vr_motion_clarity_match_bottom.GetValue()));
     s += fmt::format("{}: {}\n", FrameXr::Immersive::Names::kScreenAsPanel, // AzaharFrame projdef
                      on(!v.vr_screens_in_projection.GetValue()));
     s += fmt::format("{}: {}%\n", FrameXr::Immersive::Names::kImmersiveDepth,

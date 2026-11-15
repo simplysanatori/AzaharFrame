@@ -75,8 +75,9 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [World Scale](#world-scale) | 10% to 400%, 100% by default | 100% | global and per game | eased in |
 | [Follow Screen Size](#follow-screen-size) | on or off | on | global and per game | eased in |
 | [Primary Screen as Panel](#primary-screen-as-panel) (Experimental) | on or off | off | global and per game | at once |
-| [Motion Clarity](#motion-clarity) (Experimental) | on or off | on | global and per game | at once |
-| [In Immersive Modes](#in-immersive-modes) (under Motion Clarity) | on or off | off | global and per game | at once |
+| [Black Frame Insertion](#black-frame-insertion) (Experimental), in **Immersive**: the Full modes | on or off | off | global and per game | at once |
+| [Black Frame Insertion](#black-frame-insertion) (Experimental), in **Graphics**: the Off and Wide modes | on or off | off | global and per game | at once |
+| [Match Bottom Screen Brightness](#match-bottom-screen-brightness), under either **Black Frame Insertion** row while it's on | on or off | off | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
 
@@ -266,23 +267,26 @@ Full modes only. When you resize the immersive screen (grip and stick left or ri
 
 ## Primary Screen as Panel
 
-Experimental. Full modes only. Off by default: the Primary screen is drawn in step with your head, together with the controllers, which reduces doubling on fast head turns. On, it's a separate panel, as in earlier versions. It's a little lighter on the headset's graphics power, but it may double on fast head turns. In the Full modes, a message says what changed, unless Motion Clarity is using the panel (below).
+Experimental. Full modes only. Off by default: the Primary screen is drawn in step with your head, together with the controllers, which reduces doubling on fast head turns. On, it's a separate panel, as in earlier versions. It's a little lighter on the headset's graphics power, but it may double on fast head turns. In the Full modes, a message says what changed, unless Black Frame Insertion is using the panel (below).
 
-**Motion Clarity** with **In Immersive Modes** needs the panel, so while both are on the Primary screen is a panel in the Full modes whatever this says, and there the row reads **Used by Motion Clarity**. The normal and wide views always show the screen as a panel.
+**Black Frame Insertion** in **Immersive** needs the panel, so while it's on the Primary screen is a panel in the Full modes whatever this says, and there the row reads **Used by Black Frame Insertion**. The normal and wide views always show the screen as a panel.
 
-## Motion Clarity
+## Black Frame Insertion
 
-Experimental. Shows each game picture once, for one refresh of the headset, and black until the next one, for a clearer, more solid picture when you turn your head. It may flicker or double in demanding scenes. The screen is dimmer: at 60 fps it is lit half the time, which looks about three quarters as bright, and some people notice a slight flicker at the edges of their view. Games that run under 60 fps show as before. The VR menu, a paused game and a stall keep the same brightness.
+Experimental. Formerly **Motion Clarity**. Shows each game picture once, for one refresh of the headset, and black until the next one, for a clearer, more solid picture when you turn your head or when things move fast. It may flicker or double in demanding scenes, and a message says so each time you turn it on. The screen is dimmer: at 60 fps it is lit half the time, which looks about three quarters as bright, and some people notice a slight flicker at the edges of their view. Games that run under 60 fps show as before. The VR menu, a paused game and a stall keep the same brightness.
 
-For now it works only in the Full modes, and only with **In Immersive Modes** on.
+There are two **Black Frame Insertion** rows, each on its own and off by default, and neither is ever greyed out:
 
-## In Immersive Modes
+- In **Settings > Immersive**: the Full modes. On, the Primary screen is a panel there, whatever **Primary Screen as Panel** says (Black Frame Insertion needs it). Off, **Primary Screen as Panel** decides. It does nothing in the Off and Wide modes.
+- In **Settings > Graphics**: the **Off** and **Wide (3DoF)** modes. Only the 3DS's top screen flashes, while it's the Primary screen; when you swap the bottom screen into the Primary place, the top screen shows as before. The bottom screen never flashes. With **Screen Curve** on, the screen stays curved. It does nothing in the Full modes.
 
-Experimental. Under **Motion Clarity**, while it's on. Off by default. On, Motion Clarity works in the Full modes. It may flicker, mostly in demanding games, and a message says so each time you turn it on.
+In Azahar's settings they're **Black Frame Insertion in Immersive Modes** and **Black Frame Insertion in Off and Wide Modes**.
 
-On, the Primary screen is a panel in the Full modes, whatever **Primary Screen as Panel** says (Motion Clarity needs it). Off, **Primary Screen as Panel** decides.
+Going back to an earlier version: 1.1.1 has no Black Frame Insertion. Earlier 1.2.0 test versions called it Motion Clarity and had one more switch, on by default, that this version no longer reads or changes, so they behave as they did: with it on, they flash the Full modes (the 1.2.0 release candidate only with **In Immersive Modes**, the setting the **Immersive** row now changes, also on). A game's own value of that switch is no longer used. Earlier versions ignore the **Graphics** row and **Match Bottom Screen Brightness**.
 
-Going back to a version before this setting: those versions read only **Motion Clarity**, so with it on they flash the screen in the Full modes again.
+## Match Bottom Screen Brightness
+
+Off by default. It drops down under each **Black Frame Insertion** row while that row is on, and both rows change the same setting. Black Frame Insertion leaves the top screen lit only part of the time, so it looks dimmer than the bottom screen. On, the bottom screen is dimmed to match while the top screen flashes: to half at 120 Hz, two thirds at 90 Hz. It's never brightened. While the top screen isn't flashing (a game under 60 fps, or the top screen swapped out of the Primary place in the Off and Wide modes), the bottom screen shows as before. In Azahar's settings it's **Match Bottom Screen Brightness**.
 
 ## View Matrix Register
 

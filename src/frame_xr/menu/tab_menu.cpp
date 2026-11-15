@@ -202,6 +202,14 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(row(Id::AsyncShaders, RowKind::Switch, 0, m.async_shaders));
             rows.push_back(row(Id::AccurateImageCopies, RowKind::Segmented, // accxfer, xfergpu
                                m.accurate_image_copies));
+            // AzaharFrame fixa: Motion Clarity in the Off and Wide modes (vr_motion_clarity_normal),
+            // never locked: in the Full modes it does nothing (Immersive has their own row).
+            rows.push_back(
+                row(Id::MotionClarityNormal, RowKind::Switch, 0, m.motion_clarity_normal));
+            // AzaharFrame fixa: Match Bottom Screen Brightness drops down under it while it is on.
+            if (m.motion_clarity_normal) {
+                rows.push_back(row(Id::MatchBottomNormal, RowKind::Switch, 0, m.match_bottom));
+            }
             return rows;
         }
         rows.push_back(row(Id::ImmersiveMode, RowKind::MenuButton, m.immersive_mode));
@@ -254,22 +262,22 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         rows.push_back(world);
         rows.push_back(full(row(Id::FollowScreen, RowKind::Switch, 0, m.follow_screen)));
         // AzaharFrame projdef: how the Primary screen is drawn in the Full modes, never locked;
-        // while Motion Clarity in Immersive Modes is on it takes the panel in the Full modes, and
-        // the row says so there (elsewhere the screen is a panel anyway, Motion Clarity or not).
+        // while Motion Clarity is on here it takes the panel in the Full modes, and the row says
+        // so there (elsewhere the screen is a panel anyway, Motion Clarity or not).
         {
             Row panel = row(Id::ScreenAsPanel, RowKind::Switch, 0, m.screen_as_panel);
-            if (m.motion_clarity && m.motion_clarity_immersive && m.immersive_mode >= 2) {
+            if (m.motion_clarity_immersive && m.immersive_mode >= 2) {
                 panel.value = Immersive::Names::kScreenAsPanelNote;
             }
             rows.push_back(panel);
         }
-        // AzaharFrame flash: Motion Clarity, the Full modes only (the picture follows the head)
-        rows.push_back(full(row(Id::MotionClarity, RowKind::Switch, 0, m.motion_clarity)));
-        // AzaharFrame projdef: its Full modes' opt-in, experimental (as Controllers in Immersive
-        // Modes under Show Controllers)
-        if (m.motion_clarity) {
-            rows.push_back(full(row(Id::MotionClarityImmersive, RowKind::Switch, 0,
-                                    m.motion_clarity_immersive)));
+        // AzaharFrame flash; fixa: Motion Clarity in the Full modes (vr_motion_clarity_immersive,
+        // read alone), never locked: elsewhere it does nothing, and its tooltip says where it
+        // works (the Graphics section has the Off and Wide modes' own).
+        rows.push_back(row(Id::MotionClarity, RowKind::Switch, 0, m.motion_clarity_immersive));
+        // AzaharFrame fixa: Match Bottom Screen Brightness drops down under it while it is on.
+        if (m.motion_clarity_immersive) {
+            rows.push_back(row(Id::MatchBottom, RowKind::Switch, 0, m.match_bottom));
         }
     }
     return rows;
@@ -286,6 +294,8 @@ SettingsSection SectionOf(Id id) {
     case Id::TextureFilter:
     case Id::AccurateImageCopies: // AzaharFrame accxfer
     case Id::AsyncShaders:
+    case Id::MotionClarityNormal: // AzaharFrame fixa
+    case Id::MatchBottomNormal:
         return SettingsSection::Graphics;
     case Id::ImmersiveMode:
     case Id::MarginX: // AzaharFrame fovaxis
@@ -299,7 +309,7 @@ SettingsSection SectionOf(Id id) {
     case Id::WorldScale:
     case Id::FollowScreen: // AzaharFrame natural
     case Id::MotionClarity: // AzaharFrame flash
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
+    case Id::MatchBottom:   // AzaharFrame fixa
     case Id::ScreenAsPanel:
         return SettingsSection::Immersive;
     default:
@@ -322,7 +332,9 @@ bool PerGameSetting(Id id) {
     case Id::WorldScale:
     case Id::FollowScreen: // AzaharFrame natural
     case Id::MotionClarity: // AzaharFrame flash
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
+    case Id::MotionClarityNormal: // AzaharFrame fixa
+    case Id::MatchBottom:
+    case Id::MatchBottomNormal:
     case Id::ScreenAsPanel:
     case Id::Depth3d: // AzaharFrame depth3d
     case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
@@ -728,10 +740,12 @@ std::string LabelFor(Id id) {
         return Immersive::Names::kWorldScale; // AzaharFrame natural
     case Id::FollowScreen:
         return Immersive::Names::kFollowScreen;
-    case Id::MotionClarity: // AzaharFrame flash
+    case Id::MotionClarity: // AzaharFrame flash; fixa: both rows are "Motion Clarity"
+    case Id::MotionClarityNormal:
         return Immersive::Names::kMotionClarity;
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
-        return Immersive::Names::kMotionClarityImmersive;
+    case Id::MatchBottom: // AzaharFrame fixa
+    case Id::MatchBottomNormal:
+        return Immersive::Names::kMatchBottom;
     case Id::ScreenAsPanel: // AzaharFrame projdef
         return Immersive::Names::kScreenAsPanel;
     case Id::MoreSettings:
@@ -1017,10 +1031,13 @@ std::string ExplainFor(Id id) {
         return Immersive::Names::kWorldScaleTip; // AzaharFrame natural
     case Id::FollowScreen:
         return Immersive::Names::kFollowScreenTip;
-    case Id::MotionClarity: // AzaharFrame flash
+    case Id::MotionClarity: // AzaharFrame flash; fixa: where each row works
         return Immersive::Names::kMotionClarityTip;
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
-        return Immersive::Names::kMotionClarityImmersiveTip;
+    case Id::MotionClarityNormal:
+        return Immersive::Names::kMotionClarityNormalTip;
+    case Id::MatchBottom: // AzaharFrame fixa
+    case Id::MatchBottomNormal:
+        return Immersive::Names::kMatchBottomTip;
     case Id::ScreenAsPanel: // AzaharFrame projdef
         return Immersive::Names::kScreenAsPanelTip;
     case Id::Autosave: // AzaharFrame autosave
@@ -1982,8 +1999,9 @@ constexpr float kScopeEditGap = 40.0f;
 // style of Angel's Aim's Alpha chip and the Mods list's version chips.
 constexpr float kRowChipH = 32.0f, kRowChipPad = 12.0f, kRowChipGap = 12.0f;
 const char* RowChip(Id id) {
-    return id == Id::MotionClarity || id == Id::ScreenAsPanel ? Immersive::Names::kExperimental
-                                                               : nullptr;
+    return id == Id::MotionClarity || id == Id::MotionClarityNormal || id == Id::ScreenAsPanel
+               ? Immersive::Names::kExperimental
+               : nullptr;
 }
 float RowChipWidth(const Kit& kit, Id id) {
     const char* chip = RowChip(id);

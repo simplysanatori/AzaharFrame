@@ -31,6 +31,9 @@ namespace {
 // written as linear light when the swapchain is sRGB: the hardware encodes it
 // back, so the stored bytes are the game's own colour values, which is what the
 // compositor's sRGB decode expects. Alpha is opaque (quads are not blended).
+// AzaharFrame fixa: `layer` (unused here otherwise), 1 to 999, is Match Bottom Screen
+// Brightness's dim in thousandths (RenderToXr, XrScreenSink::ScreenDim): the colour is
+// multiplied by it in linear light. 0: as it is.
 constexpr std::string_view XR_PRESENT_FRAG = R"(
 #version 450 core
 #extension GL_ARB_separate_shader_objects : enable
@@ -61,10 +64,26 @@ vec4 GetScreen(int screen_id) {
     }
 }
 
+vec3 ToLinear(vec3 c) {
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), greaterThan(c, vec3(0.04045)));
+}
+
+vec3 ToSrgb(vec3 c) {
+    return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, greaterThan(c, vec3(0.0031308)));
+}
+
 void main() {
     vec3 c = GetScreen(screen_id_l).rgb;
+    const bool dimmed = layer > 0 && layer < 1000;
 #ifdef XR_SRGB_TARGET
-    c = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), greaterThan(c, vec3(0.04045)));
+    c = ToLinear(c);
+    if (dimmed) {
+        c *= float(layer) * 0.001;
+    }
+#else
+    if (dimmed) {
+        c = ToSrgb(ToLinear(c) * (float(layer) * 0.001));
+    }
 #endif
     color = vec4(c, 1.0);
 }

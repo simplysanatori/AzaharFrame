@@ -843,6 +843,34 @@ degrees on ...) (over N s, first|changed|no change)` (see below for when). `AZAH
 `AZAHARFRAME_IMMERSIVE_FRAME_TRACE=1` adds the world draws of each swap in order and the distinct
 world projections each second.
 
+AzaharFrame fixa: shown to players as "Black Frame Insertion" (the owner's rename; the code, the
+keys, the switches and the log keep Motion Clarity). Two settings, each read alone, both off by
+default: `vr_motion_clarity_immersive` (the VR menu's Immersive section) for the Full modes, and
+`vr_motion_clarity_normal` (its Graphics section) for the Off and Wide modes
+(`MotionClarity::InEffect`). The earlier master key `vr_motion_clarity` is no longer a setting, so
+it stays in the files as older builds left it. Only the top screen ever flashes. In the Off and
+Wide modes it is held while it is swapped out of the Primary slot (`HeldForSwap`); the Full modes
+keep flash2's rule (the top screen flashes on the beat also with the bottom one in focus). The
+backing has the screen's pose, size and shape: with Screen Curve on it is a cylinder layer of the
+same radius, and a dark refresh shrinks the cylinder's arc. The normal view has one screen layer
+more than the Full modes (the Secondary screen), so before the backing goes in `BackingRoom`
+checks it against the runtime's limit with the last frame's other layers (the screens, the
+projection layer, the slots present); over it the backing is left out and the screen held, and it
+comes back after 90 refreshes that fit (`xr: Motion Clarity held: its backing would go over ...`).
+The flashed screen's brightness is flash2's (no gain).
+
+Match Bottom Screen Brightness (`vr_motion_clarity_match_bottom`, per game and global, off by
+default; a row under each of the two rows while that row is on, one key): while the top screen
+flashes (not held for a slow game, a swap or room), the bottom screen is dimmed to the top one's
+time-averaged light, `1 / Scheduler::Beat` (0.5 at 120 Hz, 0.67 at 90 Hz; `BottomDim`), steady
+rather than the learnt lit share, which wanders with every late picture. Never above 1. Where the
+runtime has `XR_KHR_composition_layer_color_scale_bias` (enabled when offered) an
+`XrCompositionLayerColorScaleBiasKHR` is chained to the bottom screen's layer; otherwise the XR
+present shader multiplies the bottom screen's picture by it in linear light, the dim passed in the
+push constant's unused `layer` field in thousandths (`XrScreenSink::ScreenDim`), which takes effect
+from the next game picture. The method is logged at each session's start (`xr: Match Bottom Screen
+Brightness dims by ...`) and the dim when it changes.
+
 Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' top images in one
 swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together
 (`AZAHARFRAME_XR_SET_RELEASE`), so the two eyes never come from different game frames.
@@ -857,12 +885,12 @@ The projection layer is the one submit that carries image and views together.
 
 Which path the top screen takes (projdef, `vis/proj_path.h`, after the owner's A/B in 1.1.1-590):
 
-- In the Full modes (2 and 3) with Motion Clarity not wanted there (`vr_motion_clarity` and
-  `vr_motion_clarity_immersive` not both on), the setting `vr_screens_in_projection` (per game,
+- In the Full modes (2 and 3) with Motion Clarity not wanted there (`vr_motion_clarity_immersive`
+  off; fixa: read alone, the development builds' `vr_motion_clarity` is no longer read), the setting `vr_screens_in_projection` (per game,
   on by default; the VR menu's "Primary Screen as Panel" is its opposite, experimental, never
   locked): on, the projection layer; off, the quads. With Motion Clarity wanted there, the quads,
   flashed, whatever the setting says (Motion Clarity needs them: a dark refresh is a quad shrunk
-  to nothing); the row then reads "Used by Motion Clarity". Precedence: the test switch, Motion
+  to nothing); the row then reads "Used by Black Frame Insertion". Precedence: the test switch, Motion
   Clarity, the setting.
 - In the normal and the wide view (modes 0 and 1), the quads: a screen fixed in the room is not
   exposed to the overlay race, and the quads are sharper and cheaper there (one resample, no pass).

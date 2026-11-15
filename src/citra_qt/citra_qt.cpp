@@ -5506,11 +5506,14 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::FollowScreen: // AzaharFrame natural
         set(v.vr_immersive_follow_screen, r.value != 0);
         break;
-    case S::MotionClarity: // AzaharFrame flash
-        set(v.vr_motion_clarity, r.value != 0);
-        break;
-    case S::MotionClarityImmersive: // AzaharFrame projdef
+    case S::MotionClarityImmersive: // AzaharFrame projdef, fixa: Immersive's Motion Clarity
         set(v.vr_motion_clarity_immersive, r.value != 0);
+        break;
+    case S::MotionClarityNormal: // AzaharFrame fixa: Graphics' Motion Clarity
+        set(v.vr_motion_clarity_normal, r.value != 0);
+        break;
+    case S::MatchBottom: // AzaharFrame fixa: Match Bottom Screen Brightness
+        set(v.vr_motion_clarity_match_bottom, r.value != 0);
         break;
     case S::ScreensInProjection: // AzaharFrame projdef: `value` 1 = the projection layer
         set(v.vr_screens_in_projection, r.value != 0);

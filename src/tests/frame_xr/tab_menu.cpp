@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
@@ -2930,6 +2931,8 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
                   Id::AccurateImageCopies, Id::ImmersiveMode, Id::MarginX, Id::MarginY, Id::GameFov,
                   Id::MatchCamera, Id::ScaleX, Id::ScaleY, Id::WorldScale, Id::FollowScreen,
                   Id::MotionClarity, // AzaharFrame flash
+                  Id::MotionClarityNormal, // AzaharFrame fixa
+                  Id::MatchBottom, Id::MatchBottomNormal,
                   Id::Autosave,
                   Id::AutosaveEvery, Id::AutosaveKeep, Id::HideBottomScreen, Id::ScreenShape,
                   Id::TouchpadTouch, Id::BottomScreenReticle, Id::ReticleSpeed,
@@ -4192,31 +4195,34 @@ TEST_CASE("Tab menu: Controllers in Front of Screen", "[frame_xr][tabmenu]") {
     }
 }
 
-// AzaharFrame projdef: Motion Clarity is experimental (a chip beside its label, its tooltip), and
-// In Immersive Modes is a per-game switch right under it, only while it is on; off by default;
-// its tooltip fits; the toast it shows when turned on fits one line.
-TEST_CASE("Tab menu: Motion Clarity's Experimental chip and In Immersive Modes",
-          "[frame_xr][tabmenu][projdef]") {
+// AzaharFrame projdef; fixa: Motion Clarity is two independent rows, both "Black Frame Insertion"
+// (the owner's rename) with the Experimental chip, per game, never locked: the Immersive
+// section's (the Full modes) and the Graphics section's (the Off and Wide modes). No "In
+// Immersive Modes" row. Their tooltips say where each works and fit two lines; the toast fits
+// one.
+TEST_CASE("Tab menu: Motion Clarity's two rows", "[frame_xr][tabmenu][projdef][fixa]") {
     namespace Names = FrameXr::Immersive::Names;
-    CHECK(PerGameSetting(Id::MotionClarityImmersive));
-    CHECK(SectionOf(Id::MotionClarityImmersive) == SettingsSection::Immersive);
-    CHECK(LabelFor(Id::MotionClarity) == "Motion Clarity"); // unchanged
-    CHECK(LabelFor(Id::MotionClarityImmersive) == "In Immersive Modes");
+    CHECK(PerGameSetting(Id::MotionClarity));
+    CHECK(PerGameSetting(Id::MotionClarityNormal));
+    CHECK(SectionOf(Id::MotionClarity) == SettingsSection::Immersive);
+    CHECK(SectionOf(Id::MotionClarityNormal) == SettingsSection::Graphics);
+    CHECK(LabelFor(Id::MotionClarity) == "Black Frame Insertion");
+    CHECK(LabelFor(Id::MotionClarityNormal) == "Black Frame Insertion");
     CHECK(ExplainFor(Id::MotionClarity) ==
-          "Experimental. Shows each picture once for a clearer view on head turns, in the Full "
-          "modes with In Immersive Modes on. May flicker.");
-    CHECK(ExplainFor(Id::MotionClarityImmersive) ==
-          "Experimental. Uses Primary Screen as Panel. May flicker, mostly in demanding games.");
+          "Experimental. In the Full modes, adds a black frame after each picture for a clearer "
+          "view on head turns. Uses Primary Screen as Panel. May flicker.");
+    CHECK(ExplainFor(Id::MotionClarityNormal) ==
+          "Experimental. In the Off and Wide modes, adds a black frame after each picture on the "
+          "Primary screen for clearer motion. May flicker.");
     CHECK(std::string{Names::kExperimental} == "Experimental");
     CHECK_FALSE(MenuModel{}.motion_clarity_immersive); // off, the default
-    CHECK(MenuModel{}.motion_clarity);                 // Motion Clarity keeps its default
+    CHECK_FALSE(MenuModel{}.motion_clarity_normal);
     {
         Kit kit{1.0f};
         // rel120: both wrap to at most two lines (DrawTooltip).
-        CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::MotionClarityImmersive)) + 28.0f <=
-              2.0f * kPanelW * 0.7f);
-        CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::MotionClarity)) + 28.0f <=
-              2.0f * kPanelW * 0.7f);
+        for (const Id id : {Id::MotionClarity, Id::MotionClarityNormal}) {
+            CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(id)) + 28.0f <= 2.0f * kPanelW * 0.7f);
+        }
     }
     {
         namespace ui = frame_xr::ui;
@@ -4225,54 +4231,96 @@ TEST_CASE("Tab menu: Motion Clarity's Experimental chip and In Immersive Modes",
             static_cast<float>(FrameXr::ToastFit::kAtlasW) - 2.0f * FrameXr::ToastFit::kPadPx;
         CHECK(ui::TextWidth(ui::kFontLarge, Names::kMotionClarityImmersiveToast) <= kOneLine);
         CHECK(std::string{Names::kMotionClarityImmersiveToast} ==
-              "Motion Clarity: Experimental \xC2\xB7 May Flicker");
+              "Black Frame Insertion: Experimental \xC2\xB7 May Flicker");
     }
-    for (const bool clarity : {true, false}) {
-        for (const bool on : {false, true}) {
-            Drawn d;
-            MenuModel m = Sample(); // mode 2: a Full mode, so neither row is locked
-            m.motion_clarity = clarity;
-            m.motion_clarity_immersive = on;
-            MenuView v;
-            v.tab = Tab::Settings;
-            v.section = SettingsSection::Immersive;
-            bool seen = false, under = false, mc_seen = false;
-            for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
-                v.scroll[static_cast<int>(Tab::Settings)] = scroll;
-                d.Draw(m, v);
-                const auto* row = FindHit(d, Id::MotionClarityImmersive, -1);
-                const auto* mc = FindHit(d, Id::MotionClarity, -1);
-                seen |= row != nullptr;
-                mc_seen |= mc != nullptr;
-                const auto mid = [](const auto* h) { return 0.5f * (h->r.y0 + h->r.y1); };
-                if (row && mc) {
-                    under |= std::abs(mid(row) - mid(mc) - kRowH) < 1.0f;
+    // Each row in its own section, a live switch in every mode (never locked), whatever the other
+    // says.
+    for (const int mode : {0, 1, 2, 3}) {
+        for (const bool immersive : {false, true}) {
+            for (const bool normal : {false, true}) {
+                MenuModel m = Sample();
+                m.immersive_mode = mode;
+                m.motion_clarity_immersive = immersive;
+                m.motion_clarity_normal = normal;
+                INFO("mode " << mode << ", immersive " << immersive << ", normal " << normal);
+                for (const SettingsSection section :
+                     {SettingsSection::Immersive, SettingsSection::Graphics}) {
+                    Drawn d;
+                    MenuView v;
+                    v.tab = Tab::Settings;
+                    v.section = section;
+                    bool full_row = false, normal_row = false;
+                    for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+                        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+                        d.Draw(m, v);
+                        full_row |= FindHit(d, Id::MotionClarity, -1) != nullptr;
+                        normal_row |= FindHit(d, Id::MotionClarityNormal, -1) != nullptr;
+                    }
+                    CHECK(full_row == (section == SettingsSection::Immersive));
+                    CHECK(normal_row == (section == SettingsSection::Graphics));
                 }
             }
-            INFO("Motion Clarity " << clarity << ", In Immersive Modes " << on);
-            CHECK(mc_seen);
-            CHECK(seen == clarity);
-            if (clarity) {
-                CHECK(under);
-            }
         }
     }
-    // Outside the Full modes both rows are locked (Only in the Full Modes), as Motion Clarity was.
+}
+
+// AzaharFrame fixa: Match Bottom Screen Brightness drops down right under each Black Frame
+// Insertion row while that row is on, and is gone while it is off; both rows are one setting, per
+// game, never locked. Its tooltip fits two lines, its label the row.
+TEST_CASE("Tab menu: Match Bottom Screen Brightness under each row", "[frame_xr][tabmenu][fixa]") {
+    CHECK(PerGameSetting(Id::MatchBottom));
+    CHECK(PerGameSetting(Id::MatchBottomNormal));
+    CHECK(SectionOf(Id::MatchBottom) == SettingsSection::Immersive);
+    CHECK(SectionOf(Id::MatchBottomNormal) == SettingsSection::Graphics);
+    CHECK(LabelFor(Id::MatchBottom) == "Match Bottom Screen Brightness");
+    CHECK(LabelFor(Id::MatchBottomNormal) == "Match Bottom Screen Brightness");
+    CHECK(ExplainFor(Id::MatchBottom) ==
+          "Black Frame Insertion adds a black frame after each one, which dims the picture. This "
+          "dims the bottom screen to match.");
+    CHECK(ExplainFor(Id::MatchBottomNormal) == ExplainFor(Id::MatchBottom));
+    CHECK_FALSE(MenuModel{}.match_bottom);
     {
-        Drawn d;
-        MenuModel m = Sample();
-        m.immersive_mode = 0;
-        MenuView v;
-        v.tab = Tab::Settings;
-        v.section = SettingsSection::Immersive;
-        bool any = false;
-        for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
-            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
-            d.Draw(m, v);
-            any |= FindHit(d, Id::MotionClarityImmersive, -1) != nullptr;
-            any |= FindHit(d, Id::MotionClarity, -1) != nullptr;
+        Kit kit{1.0f};
+        CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::MatchBottom)) + 28.0f <=
+              2.0f * kPanelW * 0.7f);
+    }
+    const auto mid = [](const auto* h) { return 0.5f * (h->r.y0 + h->r.y1); };
+    for (const int mode : {0, 2}) {
+        for (const bool on : {false, true}) {
+            for (const bool match : {false, true}) {
+                MenuModel m = Sample();
+                m.immersive_mode = mode;
+                m.motion_clarity_immersive = on;
+                m.motion_clarity_normal = on;
+                m.match_bottom = match;
+                INFO("mode " << mode << ", on " << on << ", match " << match);
+                for (const auto& [section, parent, child, other] :
+                     {std::tuple{SettingsSection::Immersive, Id::MotionClarity, Id::MatchBottom,
+                                 Id::MatchBottomNormal},
+                      std::tuple{SettingsSection::Graphics, Id::MotionClarityNormal,
+                                 Id::MatchBottomNormal, Id::MatchBottom}}) {
+                    Drawn d;
+                    MenuView v;
+                    v.tab = Tab::Settings;
+                    v.section = section;
+                    bool seen = false, under = false, other_seen = false;
+                    for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+                        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+                        d.Draw(m, v);
+                        const auto* row = FindHit(d, child, -1); // a live switch: never locked
+                        const auto* top = FindHit(d, parent, -1);
+                        seen |= row != nullptr;
+                        other_seen |= FindHit(d, other, -1) != nullptr;
+                        if (row && top) {
+                            under |= std::abs(mid(row) - mid(top) - kRowH) < 1.0f;
+                        }
+                    }
+                    CHECK(seen == on);
+                    CHECK(under == on);
+                    CHECK_FALSE(other_seen);
+                }
+            }
         }
-        CHECK_FALSE(any); // no switch hit: only their tooltips (kLabelIndex)
     }
 }
 
@@ -4305,7 +4353,6 @@ TEST_CASE("Tab menu: Primary Screen as Panel", "[frame_xr][tabmenu][projdef]") {
             Drawn d;
             MenuModel m = Sample();
             m.immersive_mode = mode;
-            m.motion_clarity = true;
             m.motion_clarity_immersive = clarity_immersive;
             MenuView v;
             v.tab = Tab::Settings;

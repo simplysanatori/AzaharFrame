@@ -575,8 +575,9 @@ void Runtime::FrameLoop() {
     // flash2: the most layers a frame carried (and its screens' layers) in the last second, and
     // the most logged for the list now in use.
     std::size_t layers_most = 0, layers_most_screens = 0, layers_logged_most = 0;
-    // AzaharFrame flash: Motion Clarity (motion_clarity.h): the setting vr_motion_clarity with
-    // AZAHARFRAME_XR_SINGLE_FLASH as its override, AZAHARFRAME_XR_FLASH_SLOW for slow games and
+    // AzaharFrame flash: Motion Clarity (motion_clarity.h): the settings (fixa: the Full modes'
+    // vr_motion_clarity_immersive, the Off and Wide modes' vr_motion_clarity_normal) with
+    // AZAHARFRAME_XR_SINGLE_FLASH as their override, AZAHARFRAME_XR_FLASH_SLOW for slow games and
     // AZAHARFRAME_XR_FLASH_BACKING for an A/B of the backing, all live (test_switches.h).
     MotionClarity::Scheduler clarity;
     MotionClarity::Log clarity_log;
@@ -591,6 +592,26 @@ void Runtime::FrameLoop() {
             Common::FrameTestSwitches::Value("AZAHARFRAME_XR_FLASH_BACKING"));
     };
     read_clarity_switches();
+    // fixa: Match Bottom Screen Brightness (vr_motion_clarity_match_bottom): the bottom screen
+    // dimmed while the top one flashes (MotionClarity::BottomDim), by its layer's colour scale
+    // (the struct chained to its layers; it is only read, so one serves both) when the runtime
+    // has XR_KHR_composition_layer_color_scale_bias, else by the shader that draws its pictures
+    // (shader_dim_bottom, XrScreenSink::ScreenDim). The method is logged at each session's start,
+    // the dim when it changes.
+    const MotionClarity::DimMethod dim_method = MotionClarity::DimMethodFor(
+        HasExtension(XR_KHR_COMPOSITION_LAYER_COLOR_SCALE_BIAS_EXTENSION_NAME));
+    XrCompositionLayerColorScaleBiasKHR bottom_scale{XR_TYPE_COMPOSITION_LAYER_COLOR_SCALE_BIAS_KHR};
+    bottom_scale.colorScale = {1.0f, 1.0f, 1.0f, 1.0f};
+    bottom_scale.colorBias = {0.0f, 0.0f, 0.0f, 0.0f};
+    float bottom_dim = 1.0f;
+    int32_t bottom_dim_logged = 0;
+    XrSession dim_session_logged = XR_NULL_HANDLE;
+    // fixa: room for the backing under the runtime's limit (BackingRoom), from the last frame's
+    // present slots and projection layer.
+    MotionClarity::BackingRoom backing_room;
+    uint32_t backing_room_logged = 0;
+    std::size_t slots_present_last = 0;
+    bool projection_last = false;
     // AzaharFrame projscreen: the top screen drawn into the projection layer, not sent as a quad
     // (vis/proj_screen.h). projdef: the default in the Full modes with Motion Clarity off
     // (vis/proj_path.h); AZAHARFRAME_XR_SCREENS_IN_PROJECTION (live) forces it on (1) or off (0)
@@ -855,9 +876,9 @@ void Runtime::FrameLoop() {
             pin.game_on_view = ps.game_on_view;
             pin.full_mode = ps.full_mode;
             // AZAHARFRAME_XR_SINGLE_FLASH (Motion Clarity's override) counts as the setting.
-            pin.clarity = clarity_override.value_or(MotionClarity::WantedInFull(
-                Settings::values.vr_motion_clarity.GetValue(),
-                Settings::values.vr_motion_clarity_immersive.GetValue()));
+            // fixa: the Full modes' own Motion Clarity, read alone.
+            pin.clarity = clarity_override.value_or(
+                Settings::values.vr_motion_clarity_immersive.GetValue());
             pin.in_projection = Settings::values.vr_screens_in_projection.GetValue();
             pin.now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                              Clock::now().time_since_epoch())
@@ -977,13 +998,35 @@ void Runtime::FrameLoop() {
                 // never reaches the display with another picture's pose, which is what the
                 // flashing hid; nor would a flashed picture stay one: a refresh the pass is late
                 // shows the image before again.
-                // projdef: in the Full modes with "In Immersive Modes" on too (WantedInFull).
-                rf.on = MotionClarity::InEffect(
-                            MotionClarity::WantedInFull(
-                                Settings::values.vr_motion_clarity.GetValue(),
-                                Settings::values.vr_motion_clarity_immersive.GetValue()),
-                            clarity_override, shown.full_mode) &&
-                        !proj_mode;
+                // fixa: each mode's own setting, read alone (the Immersive section's row in the
+                // Full modes, the Graphics section's in the Off and Wide modes); in the Off and
+                // Wide modes held while the top screen is swapped out of the Primary slot
+                // (HeldForSwap: only the top screen flashes, and only as the Primary one).
+                const bool wanted =
+                    MotionClarity::InEffect(Settings::values.vr_motion_clarity_immersive.GetValue(),
+                                            Settings::values.vr_motion_clarity_normal.GetValue(),
+                                            clarity_override, shown.full_mode) &&
+                    !MotionClarity::HeldForSwap(shown.full_mode, draw.swapped) && !proj_mode;
+                // fixa: the backing only while its layers fit under the runtime's limit (the
+                // last frame's other layers); held while they don't (BackingRoom).
+                const bool top_shown = draw.swapped ? draw.top_visible : shown.show_top;
+                const bool bottom_shown =
+                    draw.swapped || (shown.show_bottom && draw.bottom_visible);
+                const std::size_t screens_now = (top_shown ? 2 : 0) + (bottom_shown ? 1 : 0);
+                const bool room =
+                    !wanted || !ui ||
+                    backing_room.Next(MotionClarity::BackingRoom::Fits(
+                        ui->MaxLayers(),
+                        screens_now + (projection_last ? 1 : 0) + slots_present_last,
+                        2));
+                if (!room && backing_room.TimesOut() != backing_room_logged) {
+                    backing_room_logged = backing_room.TimesOut();
+                    LOG_INFO(Frontend,
+                             "xr: Motion Clarity held: its backing would go over the runtime's {} "
+                             "layers ({} screens, {} panels and controllers)",
+                             ui->MaxLayers(), screens_now, slots_present_last);
+                }
+                rf.on = wanted && room;
                 // flash2: in a Full mode, played only while immersive is engaged (paused, the
                 // top screen is not the head-driven one: on the beat).
                 rf.steady = ui && ui->PlayOnView() && !draw.swapped && shown.show_top &&
@@ -1008,6 +1051,32 @@ void Runtime::FrameLoop() {
                 top_layers = MotionClarity::TopLayersFor(rf.on, flash_backing,
                                                          hud.BackingImage(backing), !d.show);
                 hide_top = top_layers.omit || top_layers.collapse;
+                // fixa: Match Bottom Screen Brightness: the bottom screen's dim while the top one
+                // flashes (not while it is held for a slow game, or without its backing).
+                bottom_dim = MotionClarity::BottomDim(
+                    Settings::values.vr_motion_clarity_match_bottom.GetValue(),
+                    rf.on && (top_layers.backing || !flash_backing) &&
+                        d.why != MotionClarity::Why::Slow,
+                    fs.predictedDisplayPeriod);
+                bottom_scale.colorScale = {bottom_dim, bottom_dim, bottom_dim, 1.0f};
+                shader_dim_bottom.store(dim_method == MotionClarity::DimMethod::Shader ? bottom_dim
+                                                                                       : 1.0f);
+                if (session != dim_session_logged) {
+                    dim_session_logged = session;
+                    LOG_INFO(Frontend, "xr: Match Bottom Screen Brightness dims by {}",
+                             MotionClarity::DimMethodName(dim_method));
+                }
+                const int32_t dim_permille = MotionClarity::DimPermille(bottom_dim);
+                if (dim_permille != bottom_dim_logged) {
+                    bottom_dim_logged = dim_permille;
+                    if (dim_permille > 0) {
+                        LOG_INFO(Frontend, "xr: the bottom screen dimmed to {:.2f} to match the top "
+                                           "one's flashing ({})",
+                                 bottom_dim, MotionClarity::DimMethodName(dim_method));
+                    } else {
+                        LOG_INFO(Frontend, "xr: the bottom screen no longer dimmed");
+                    }
+                }
                 clarity_log.Note(hide_top ? MotionClarity::Why::Dark
                                  : d.show ? d.why
                                           : MotionClarity::Why::Off);
@@ -1147,10 +1216,21 @@ void Runtime::FrameLoop() {
                         return;
                     }
                 }
+                // fixa: Match Bottom Screen Brightness by the layer's colour scale.
+                const bool dimmed = !top && bottom_dim < 1.0f &&
+                                    dim_method == MotionClarity::DimMethod::ColorScale;
                 if (curve > 0.0f) {
-                    quad_layers.push_back(MakeCylinder(space, q, curve)); // AzaharFrame curve
+                    XrCompositionLayerCylinderKHR layer = MakeCylinder(space, q, curve); // curve
+                    if (dimmed) {
+                        layer.next = &bottom_scale;
+                    }
+                    quad_layers.push_back(layer);
                 } else {
-                    quad_layers.push_back(MakeQuad(space, q));
+                    XrCompositionLayerQuad layer = MakeQuad(space, q);
+                    if (dimmed) {
+                        layer.next = &bottom_scale;
+                    }
+                    quad_layers.push_back(layer);
                 }
             };
             // AzaharFrame screenswap: with the bottom screen in focus the screens trade places
@@ -1411,10 +1491,15 @@ void Runtime::FrameLoop() {
                                s.quad.size.height * LayerSlots::kCollapse};
             });
             models_at = screen_layers;
+            slots_present_last = 0; // fixa: for Motion Clarity's backing room (BackingRoom)
+            projection_last = projection != 0;
             for (const auto& o : slot_out) {
                 quad_layers.push_back(MakeQuad(o.quad.space, o.quad.quad));
                 if (o.group < LayerSlots::Group::Top) {
                     models_at++;
+                }
+                if (o.present) {
+                    slots_present_last++;
                 }
             }
         }

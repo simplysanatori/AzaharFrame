@@ -152,10 +152,17 @@ enum class Id : int {
     FillView,
     WorldScale, ///< AzaharFrame natural: World Scale (vr_immersive_world_scale), per game
     FollowScreen, ///< AzaharFrame natural: Follow Screen Size (vr_immersive_follow_screen), per game
-    MotionClarity, ///< AzaharFrame flash: Motion Clarity (vr_motion_clarity), per game
-    /// AzaharFrame projdef: In Immersive Modes, a switch under Motion Clarity while it is on
-    /// (vr_motion_clarity_immersive), per game
-    MotionClarityImmersive,
+    /// AzaharFrame flash; fixa: the Immersive section's Motion Clarity, the Full modes
+    /// (vr_motion_clarity_immersive), per game, never locked
+    MotionClarity,
+    /// AzaharFrame fixa: the Graphics section's Motion Clarity, the Off and Wide modes
+    /// (vr_motion_clarity_normal), per game, never locked
+    MotionClarityNormal,
+    /// AzaharFrame fixa: Match Bottom Screen Brightness (vr_motion_clarity_match_bottom), the row
+    /// under each Motion Clarity row while that row is on: MatchBottom under the Immersive
+    /// section's, MatchBottomNormal under the Graphics section's; one key, per game, never locked
+    MatchBottom,
+    MatchBottomNormal,
     /// AzaharFrame projdef: Primary Screen as Panel, a switch with the Experimental chip right
     /// before Motion Clarity (the opposite of vr_screens_in_projection), per game, never locked
     ScreenAsPanel,
@@ -428,8 +435,9 @@ struct MenuModel {
     /// Automatic) and Follow Screen Size.
     int world_scale_stop = 20;
     bool follow_screen = true;
-    bool motion_clarity = true; ///< AzaharFrame flash: vr_motion_clarity
     bool motion_clarity_immersive = false; ///< AzaharFrame projdef: vr_motion_clarity_immersive
+    bool motion_clarity_normal = false;    ///< AzaharFrame fixa: vr_motion_clarity_normal
+    bool match_bottom = false; ///< AzaharFrame fixa: vr_motion_clarity_match_bottom
     bool screen_as_panel = false; ///< AzaharFrame projdef: !vr_screens_in_projection
     // AzaharFrame autosave: the running game's values (Per-Game, else Global)
     bool autosave = false;

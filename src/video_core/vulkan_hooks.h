@@ -100,6 +100,13 @@ public:
     /// made, and the right eye is drawn into the lower half. Fixed for the sink's life.
     virtual bool PackedTop() const = 0;
 
+    /// AzaharFrame fixa: a dim for the screen's next pictures (Match Bottom Screen Brightness,
+    /// frame_xr/motion_clarity.h, when the runtime has no layer colour scale): the XR present
+    /// shader multiplies their colour, in linear light, by it. 1: none; never above 1.
+    virtual float ScreenDim(XrScreen /*screen*/) const {
+        return 1.0f;
+    }
+
     /// The mutex that guards the renderer's VkQueue (Scheduler::submit_mutex), or
     /// nullptr when no renderer exists. The XR thread holds it around the OpenXR
     /// calls that may use the queue (XR_KHR_vulkan_enable2: xrBeginFrame,

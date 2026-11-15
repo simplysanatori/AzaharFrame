@@ -40,9 +40,12 @@ struct StartOptions {
     /// The window system of the Qt window (picks the Vulkan surface extension).
     Frontend::WindowSystemType window_type{};
     /// Instance extensions enabled when the runtime offers them (other parts add theirs).
+    /// AzaharFrame fixa: the layer colour scale, for Match Bottom Screen Brightness
+    /// (motion_clarity.h DimMethod; without it the shader dims).
     std::vector<std::string> optional_extensions{"XR_FB_display_refresh_rate",
                                                  "XR_VALVE_frame_controller_interaction",
-                                                 "XR_KHR_composition_layer_cylinder"};
+                                                 "XR_KHR_composition_layer_cylinder",
+                                                 "XR_KHR_composition_layer_color_scale_bias"};
     /// True: VR at once (the session too). False: flat first (no session until SetVr(true)).
     bool vr = true;
 };
@@ -311,9 +314,15 @@ enum class MenuSetting {
     ScaleMode, ///< AzaharFrame fovscale: `value` 0 Stretch, 1 Field of View (vr_immersive_scale_mode)
     WorldScale,   ///< AzaharFrame natural: `value` hundredths of a percent (vr_immersive_world_scale)
     FollowScreen, ///< AzaharFrame natural: `value` 0 or 1 (vr_immersive_follow_screen)
-    MotionClarity, ///< AzaharFrame flash: `value` 0 or 1 (vr_motion_clarity)
-    /// AzaharFrame projdef: `value` 0 or 1 (vr_motion_clarity_immersive)
+    /// AzaharFrame projdef, fixa: `value` 0 or 1 (vr_motion_clarity_immersive: the Immersive
+    /// section's Motion Clarity, the Full modes)
     MotionClarityImmersive,
+    /// AzaharFrame fixa: `value` 0 or 1 (vr_motion_clarity_normal: the Graphics section's Motion
+    /// Clarity, the Off and Wide modes)
+    MotionClarityNormal,
+    /// AzaharFrame fixa: `value` 0 or 1 (vr_motion_clarity_match_bottom: Match Bottom Screen
+    /// Brightness, under either row)
+    MatchBottom,
     /// AzaharFrame projdef: `value` 1 the projection layer, 0 a panel (vr_screens_in_projection)
     ScreensInProjection,
     /// AzaharFrame natural: set while the game plays (Immersive::TakeWorldScaleSave), for its own

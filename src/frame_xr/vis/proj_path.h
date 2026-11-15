@@ -8,7 +8,7 @@
 // layer (proj_screen.h) is the cleaner picture: no overlay race, no doubling from a quad shown
 // with another picture's pose, the controllers in the same image. So it is the default there. Motion
 // Clarity's flashing needs the quads (a dark refresh is a quad shrunk to nothing), so with Motion
-// Clarity on in the Full modes ("In Immersive Modes") the screens stay quads and flash, as before.
+// Clarity on in the Full modes (the Immersive section's row) the screens stay quads and flash.
 // The normal and the wide view (modes 0 and 1) stay quads: a screen fixed in the room is not exposed
 // to the overlay race, and quads are sharper and cheaper there (Kid Icarus: Uprising, A vs B).
 //
@@ -50,7 +50,7 @@ struct PathInputs {
     std::optional<bool> forced; ///< the test switch
     bool game_on_view = false;  ///< Immersive::ScreensPathState
     bool full_mode = false;     ///< the game's Immersive Mode is 2 or 3
-    /// Motion Clarity wanted in the Full modes (MotionClarity::WantedInFull: the settings)
+    /// Motion Clarity wanted in the Full modes (fixa: vr_motion_clarity_immersive, read alone)
     bool clarity = false;
     /// The setting vr_screens_in_projection (on by default; off: "Primary Screen as Panel")
     bool in_projection = true;
