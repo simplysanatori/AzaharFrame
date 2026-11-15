@@ -2789,8 +2789,7 @@ int main(int argc, char** argv) {
         ok &= shot("aa-4b-mod-installed-end", ki, kv);
         // Texture packs installed, the mod not
         MenuModel kp = ka;
-        kp.mods.angels_aim.weapons_pack = true;
-        kp.mods.angels_aim.effects_pack = true;
+        kp.mods.angels_aim.textures_pack = true;
         kv.scroll[static_cast<int>(Tab::Mods)] = 1.0e5f;
         ok &= shot("aa-5-packs-installed-end", kp, kv);
         MenuModel kw = kp;

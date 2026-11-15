@@ -634,24 +634,26 @@ void FrameMods::RefreshLoaded() {
 
 // AzaharFrame kiufix: the Angel's Aim segment.
 namespace {
-/// A folder named `name` with a PNG in it, under `dir` (at most three levels down): the Kid
-/// Icarus: Uprising texture packs install as <title>/weapons/ and <title>/effects/.
-bool HasPackFolder(const std::filesystem::path& dir, const std::string& name) {
-    std::error_code ec;
-    std::filesystem::recursive_directory_iterator it(
-        dir, std::filesystem::directory_options::skip_permission_denied, ec);
-    for (; !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
-        if (it.depth() > 3) {
-            it.disable_recursion_pending();
-            continue;
-        }
-        if (it->is_directory(ec) && it->path().filename() == name) {
-            std::error_code ec2;
-            for (const auto& f : std::filesystem::recursive_directory_iterator(it->path(), ec2)) {
-                if (f.path().extension() == ".png") {
-                    return true;
-                }
+/// The catalog's weapons and effects pack (Menu::kAngelsAimPackIds) is on for the game: by its
+/// download marker, on the pack or on its Optimize for Frame partner (the ASTC copy has no PNGs,
+/// which is why the old weapons/ and effects/ folder check said Not Installed).
+bool AngelsAimPackOn(u64 tid) {
+    const CustomTex::Paths paths = CustomTex::DefaultPaths();
+    const auto wanted = [](const std::string& id) {
+        for (const char* w : Menu::kAngelsAimPackIds) {
+            if (id == w) {
+                return true;
             }
+        }
+        return false;
+    };
+    for (const CustomTex::Pack& p : CustomTex::Layers::ActivePacks(paths, tid)) {
+        if (wanted(CustomTex::Layers::CatalogId(p.path))) {
+            return true;
+        }
+        const std::string partner = CustomTex::Layers::Partner(p.path);
+        if (!partner.empty() && wanted(CustomTex::Layers::CatalogId(partner))) {
+            return true;
         }
     }
     return false;
@@ -691,11 +693,7 @@ void FrameMods::RefreshAngelsAim() {
             Menu::AngelsAimModel m;
             m.shown = true;
             m.mod_installed = FrameXr::CStickModInstalled(tid);
-            const std::filesystem::path dir =
-                std::filesystem::path(CustomTex::DefaultPaths().load_dir) / "textures" /
-                fmt::format("{:016X}", tid);
-            m.weapons_pack = HasPackFolder(dir, "weapons");
-            m.effects_pack = HasPackFolder(dir, "effects");
+            m.textures_pack = AngelsAimPackOn(tid);
             m.report_url = Menu::AngelsAimReportUrl(AppVersion(), game, m.mod_installed);
             return m;
         },
@@ -704,10 +702,9 @@ void FrameMods::RefreshAngelsAim() {
                 return;
             }
             angels_aim_report_url = m.report_url;
-            LOG_INFO(Frontend, "xr: Angel's Aim: the mod {}, weapon textures {}, effect textures {}",
+            LOG_INFO(Frontend, "xr: Angel's Aim: the mod {}, the weapons and effects pack {}",
                      m.mod_installed ? "installed" : "not installed",
-                     m.weapons_pack ? "installed" : "not installed",
-                     m.effects_pack ? "installed" : "not installed");
+                     m.textures_pack ? "on" : "not on");
             FrameXr::SetInGameMenuAngelsAim(m);
         });
 }
@@ -1179,6 +1176,10 @@ void FrameMods::RefreshPacks() {
             CheckNudge();
             PublishTextures();
             ComputeSizes();
+            // Angel's Aim's pack row follows a pack installed, removed or turned on or off
+            if (FrameXr::Kiu::IsKidIcarus(tid)) {
+                RefreshAngelsAim();
+            }
         });
 }
 
@@ -1207,6 +1208,7 @@ void FrameMods::FillPackRows() {
             p.managed && (downloaded.count(folder) != 0 || zip_packs.count(folder) != 0);
         Menu::TexturePackItem item{p.id, p.name, PackDetail(p), r.on, mine};
         item.verified = p.managed && verified_folders.count(folder) != 0; // AzaharFrame fixd
+        item.recommended = p.managed && recommended_folders.count(folder) != 0;
         if (const auto it = pack_parts.find(p.id); it != pack_parts.end()) {
             // AzaharFrame texparts; ui3: a PNG or optimized pack has its page too
             item.customize = it->second.count >= 2 || it->second.optimizable;
@@ -1658,12 +1660,16 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
     bool new_folders = false;
     offer_sizes.clear();
     std::set<std::string> verified_now; // AzaharFrame fixd: the installed packs' chip
+    std::set<std::string> recommended_now;
     for (const CustomTex::Download::PackInfo& p : list) {
         offer_sizes[p.id] = p.size;
         for (const std::string& f : p.folders) {
             new_folders |= downloaded.insert(f).second;
             if (p.verified) {
                 verified_now.insert(f);
+            }
+            if (p.recommended) {
+                recommended_now.insert(f);
             }
         }
         Menu::PackOffer o;
@@ -1703,8 +1709,10 @@ void FrameMods::SetOffers(const std::vector<CustomTex::Download::PackInfo>& list
     if (running) {
         PollDownload(); // the percent at once
     }
-    const bool verified_changed = verified_now != verified_folders;
+    const bool verified_changed =
+        verified_now != verified_folders || recommended_now != recommended_folders;
     verified_folders = std::move(verified_now);
+    recommended_folders = std::move(recommended_now);
     if (verified_changed && !new_folders) {
         FillPackRows(); // AzaharFrame fixd: the installed packs' Verified chip
     }

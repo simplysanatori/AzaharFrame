@@ -125,7 +125,7 @@ void TabMenu::DrawAngelsAim(Kit& kit, const MenuModel& model, const MenuView& vi
     if (!rows.empty()) {
         content += OfferListHeight(kit, model.mods.mods, c, rows, opt);
     }
-    content += kDividerH + kTitleH + 2.0f * kItemH;              // Suggested
+    content += kDividerH + kTitleH + kItemH;                     // Suggested, the pack
     content += kDividerH + kTitleH + kButtonH + 16.0f;           // Settings
     const float max_scroll = std::max(0.0f, content - (shown.y1 - c.y0));
     const float scroll =
@@ -212,10 +212,9 @@ void TabMenu::DrawAngelsAim(Kit& kit, const MenuModel& model, const MenuView& vi
     }
     divider();
 
-    // ---- Suggested: the texture packs (no Verified badge until the owner confirms them) ----
+    // ---- Suggested: the catalog's weapons and effects texture pack, one row ----
     title(kAngelsAimSuggested);
-    status_item(kAngelsAimWeaponsPack, m.weapons_pack);
-    status_item(kAngelsAimEffectsPack, m.effects_pack);
+    status_item(kAngelsAimTexturesPack, m.textures_pack);
     divider();
 
     // ---- Settings: the Controls tab at Aiming (the rows live there only) ----

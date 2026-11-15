@@ -17,8 +17,8 @@
 //   (the catalog's C-Stick & Gyro rows, as Install Mods draws them: Install, its versions)
 //   ─────────────────────────────────────────────────────────────
 //   Suggested                                                        (title)
-//   Weapon Textures                                    Installed / Not Installed
-//   Effect Textures                                    Installed / Not Installed
+//   Kid Icarus Uprising Weapons HD                     Installed / Not Installed
+//   (the catalog's weapons and effects texture pack: installed and on in the game's packs)
 //   ─────────────────────────────────────────────────────────────
 //   Settings                                                         (title)
 //   [Aiming Settings]   (the Controls tab, scrolled to Aiming: no second copy of the rows)
@@ -40,8 +40,7 @@ namespace FrameXr::Menu {
 struct AngelsAimModel {
     bool shown = false;         ///< Kid Icarus: Uprising is open
     bool mod_installed = false; ///< a C-Stick & Gyro mod (FrameXr::CStickModInstalled)
-    bool weapons_pack = false;  ///< the weapon texture pack's folder is there
-    bool effects_pack = false;  ///< the effects texture pack's folder is there
+    bool textures_pack = false; ///< the catalog's weapons and effects pack is on (kAngelsAimPackIds)
     std::string report_url;     ///< Report an Issue's page ("" none)
     bool operator==(const AngelsAimModel&) const = default;
 };
@@ -61,8 +60,8 @@ inline constexpr const char* kAngelsAimReportLine = "Bug reports and feature ide
 inline constexpr const char* kAngelsAimRequired = "Required";
 inline constexpr const char* kAngelsAimModName = "Darkshade's C-Stick & Gyro Mod";
 inline constexpr const char* kAngelsAimSuggested = "Suggested";
-inline constexpr const char* kAngelsAimWeaponsPack = "Weapon Textures";
-inline constexpr const char* kAngelsAimEffectsPack = "Effect Textures";
+/// One row for the weapons and effects textures, named as the catalog names the pack.
+inline constexpr const char* kAngelsAimTexturesPack = "Kid Icarus Uprising Weapons HD";
 inline constexpr const char* kAngelsAimSettings = "Settings";
 inline constexpr const char* kAngelsAimInstalled = "Installed";
 inline constexpr const char* kAngelsAimNotInstalled = "Not Installed";
@@ -104,6 +103,10 @@ inline constexpr const char* kAngelsAimModIds[] = {"kiu-cstick-gyro",
                                                    "kiu-cstick-gyro-widescreen-16-9",
                                                    "kiu-cstick-gyro-ultrawide-21-9",
                                                    "kiu-cstick-aim"};
+/// The texture pack's catalogue ids (core/custom_tex: the 3ds-game-fixes texture catalog). The row
+/// says Installed when a pack with one of them is on for the game, whatever form it is kept in
+/// (Optimize for Frame's ASTC copy too).
+inline constexpr const char* kAngelsAimPackIds[] = {"kiu-weapons-hd-4x"};
 /// The catalog rows (indices of `available`) the Required section lists: the C-Stick mods.
 std::vector<int> AngelsAimModRows(const ModsListModel& m);
 
