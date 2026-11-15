@@ -261,6 +261,108 @@ AxisSplit ScaleSplit(float factor, float k, float fov) {
     return {drawn, factor * k / drawn};
 }
 
+namespace {
+// AzaharFrame fovaxis: the caps' room for a stretch, on a log scale.
+const float kLogStretchLo = std::log(1.0f / kScaleGainMax);
+const float kLogStretchHi = std::log(1.0f / kScaleGainMin);
+const float kLogRatio = std::log(kMaxStretchRatio);
+// Past a cap by more than this (log; about 1 %) shows the note: a value at the cap is no warp.
+constexpr float kWarpSlack = 0.01f;
+} // namespace
+
+float GainStretch(float stretch, float caps) {
+    if (!std::isfinite(stretch) || stretch <= 0.0f) {
+        return 1.0f;
+    }
+    const float c = std::isfinite(caps) ? std::clamp(caps, 0.0f, 1.0f) : 0.0f;
+    if (c == 0.0f) {
+        return stretch; // every build before, bit for bit
+    }
+    const float l = std::log(stretch);
+    const float to = std::clamp(l, kLogStretchLo, kLogStretchHi);
+    return to == l ? stretch : std::exp(l + c * (to - l));
+}
+
+ScalePicture SplitScales(float factor_x, float k_x, float factor_y, float k_y, float fov,
+                         float caps) {
+    ScalePicture p;
+    p.x = ScaleSplit(factor_x, k_x, fov);
+    p.y = ScaleSplit(factor_y, k_y, fov);
+    const float share = std::isfinite(fov) ? std::clamp(fov, 0.0f, 1.0f) : 0.0f;
+    const float c = std::isfinite(caps) ? std::clamp(caps, 0.0f, 1.0f) : 0.0f;
+    const bool finite = std::isfinite(p.x.stretch) && p.x.stretch > 0.0f &&
+                        std::isfinite(p.y.stretch) && p.y.stretch > 0.0f &&
+                        std::isfinite(factor_x) && std::isfinite(factor_y) &&
+                        std::isfinite(k_x) && std::isfinite(k_y);
+    if (!finite) {
+        return p;
+    }
+    // What Stretch leaves is capped (Field of View inside its limits has no stretch to cap, and
+    // past kFovFactorMax it cannot draw more).
+    const float w = c * (1.0f - share);
+    if (w > 0.0f) {
+        // An axis's draw moves to give it stretch `r` (log), by the weight, within kFactorMin
+        // and kFovFactorMax (or the factor it already draws, so nothing jumps): the HUD stays.
+        const auto redraw = [w](AxisSplit& a, float f, float k, float to_log) {
+            const float from = std::log(a.stretch);
+            if (to_log == from) {
+                return; // inside the caps: untouched, bit for bit
+            }
+            const float want = f * k / std::exp(from + w * (to_log - from));
+            const float lo = std::min(kFactorMin, a.drawn);
+            const float hi = std::max(kFovFactorMax, a.drawn);
+            a.drawn = std::clamp(want, lo, hi);
+            a.stretch = f * k / a.drawn;
+        };
+        // 1. Each axis's stretch within the gains' room.
+        float tx = std::clamp(std::log(p.x.stretch), kLogStretchLo, kLogStretchHi);
+        float ty = std::clamp(std::log(p.y.stretch), kLogStretchLo, kLogStretchHi);
+        // 2. The two within kMaxStretchRatio: what is past it, half on each axis.
+        const float d = tx - ty;
+        if (std::abs(d) > kLogRatio) {
+            const float e = (std::abs(d) - kLogRatio) * 0.5f * (d > 0.0f ? 1.0f : -1.0f);
+            tx -= e;
+            ty += e;
+        }
+        redraw(p.x, factor_x, k_x, tx);
+        redraw(p.y, factor_y, k_y, ty);
+        // 3. An axis held at its limit: the other takes the rest of the ratio, as far as it can
+        // (the vertical first, then the horizontal).
+        for (int pass = 0; pass < 2; ++pass) {
+            const float lx = std::log(p.x.stretch), ly = std::log(p.y.stretch);
+            const float left = lx - ly;
+            if (std::abs(left) <= kLogRatio + 1e-5f) {
+                break;
+            }
+            const float sign = left > 0.0f ? 1.0f : -1.0f;
+            if (pass == 0) {
+                redraw(p.y, factor_y, k_y, lx - sign * kLogRatio);
+            } else {
+                redraw(p.x, factor_x, k_x, ly + sign * kLogRatio);
+            }
+        }
+    }
+    // The note: what the caps could not take (at full caps; what the settings ask for).
+    const float lx = std::log(p.x.stretch), ly = std::log(p.y.stretch);
+    const auto out_of_room = [](float l) {
+        return l < kLogStretchLo - kWarpSlack || l > kLogStretchHi + kWarpSlack;
+    };
+    const bool ratio_out = std::abs(lx - ly) > kLogRatio + kWarpSlack;
+    p.warp_x = out_of_room(lx) || (ratio_out && std::abs(lx) >= std::abs(ly)) ||
+               (share >= 1.0f && std::abs(lx) > kWarpSlack);
+    p.warp_y = out_of_room(ly) || (ratio_out && std::abs(ly) > std::abs(lx)) ||
+               (share >= 1.0f && std::abs(ly) > kWarpSlack);
+    return p;
+}
+
+WarpAxes ScalesMayWarp(uint32_t level_x, uint32_t level_y, int scale_x, int scale_y,
+                       ScaleMode mode) {
+    const ScalePicture p =
+        SplitScales(WiderFactor(level_x), ScaleFactor(scale_x), WiderFactor(level_y),
+                    ScaleFactor(scale_y), mode == ScaleMode::FieldOfView ? 1.0f : 0.0f, 1.0f);
+    return {p.warp_x, p.warp_y};
+}
+
 const char* ScaleModeName(ScaleMode mode) {
     return mode == ScaleMode::Stretch ? "Stretch" : "Field of View";
 }
@@ -361,6 +463,33 @@ std::string WiderToast(uint32_t level) {
     return buf;
 }
 
+std::string MarginToast(uint32_t level_x, uint32_t level_y) {
+    level_x = std::min(level_x, kMaxWiderLevel);
+    level_y = std::min(level_y, kMaxWiderLevel);
+    if (level_x == level_y) {
+        return WiderToast(level_x);
+    }
+    const auto text = [](uint32_t level) {
+        char buf[16];
+        if (level == 0) {
+            std::snprintf(buf, sizeof(buf), "Off");
+        } else {
+            std::snprintf(buf, sizeof(buf), "%.1fx", WiderFactor(level));
+        }
+        return std::string(buf);
+    };
+    return std::string(Names::kRenderMargin) + ": H " + text(level_x) + ", V " + text(level_y);
+}
+
+SizeFactors MenuSizeFactors(float factor_x, float factor_y, float weight) {
+    const float w = std::isfinite(weight) ? std::clamp(weight, 0.0f, 1.0f) : 0.0f;
+    if (factor_x == factor_y) {
+        return {factor_x, factor_y}; // the padded size, as every build before
+    }
+    const float m = std::min(factor_x, factor_y);
+    return {factor_x + (m - factor_x) * w, factor_y + (m - factor_y) * w};
+}
+
 uint32_t LevelForOldWiderView(std::optional<float> size) {
     if (!size || !std::isfinite(*size)) {
         return kMaxWiderLevel;
@@ -432,6 +561,18 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
             ? std::clamp(options.size_wider, kFactorMin, kFactorMax)
             : s.factor;
     const float drawn_over_sized = s.factor / size_factor;
+    // AzaharFrame fovaxis: Render Margin up and down, when it differs (0: the one across), and
+    // the factor the height is sized with.
+    const float wider_y = std::isfinite(options.wider_y) && options.wider_y > 0.0f
+                              ? std::clamp(options.wider_y, kFactorMin, kFactorMax)
+                              : 0.0f;
+    // Without a height factor of its own: the margin up and down, sized as the one across is
+    // (the same factor when nothing is eased, so equal margins are every build before's numbers).
+    const float size_factor_y =
+        std::isfinite(options.size_wider_y) && options.size_wider_y > 0.0f
+            ? std::clamp(options.size_wider_y, kFactorMin, kFactorMax)
+        : wider_y > 0.0f ? wider_y * (size_factor / s.factor)
+                         : size_factor;
     float qx = size_factor * a * t;
     // AzaharFrame oot: the game's own shape. Render Margin widens the picture by the same factor
     // both ways (Off: exactly the game's frame). The screen used to take the view's shape, so
@@ -439,6 +580,11 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     // game), and full-screen 2D (a 2D vertex at the edge keeps its place) was stretched up and
     // down against the HUD drawn on it.
     float qy = qx / a;
+    if (size_factor_y != size_factor) {
+        // AzaharFrame fovaxis: each axis its own margin; factor_y below follows the shape, so
+        // the picture keeps one scale both ways (the game draws factor_y up and down).
+        qy *= size_factor_y / size_factor;
+    }
     // Never bigger than filling the view (a very wide game camera): smaller, gain above 1.
     const float fit = std::min({1.0f, cover.tan_x / qx, cover.tan_y / qy});
     qx *= fit * p.size;
@@ -465,14 +611,19 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     // The quad above is the same either way.
     const float fov =
         std::isfinite(options.scale_fov) ? std::clamp(options.scale_fov, 0.0f, 1.0f) : 0.0f;
-    const AxisSplit across = ScaleSplit(s.factor, 1.0f - squeeze, fov);
-    const AxisSplit up = ScaleSplit(s.factor_y, 1.0f - squeeze_y, fov);
+    // AzaharFrame fovaxis: both axes at once, with the caps against warping (Options::caps).
+    const ScalePicture split =
+        SplitScales(s.factor, 1.0f - squeeze, s.factor_y, 1.0f - squeeze_y, fov, options.caps);
+    const AxisSplit& across = split.x;
+    const AxisSplit& up = split.y;
     s.factor = across.drawn;
     s.factor_y = up.drawn;
     s.stretch_x = across.stretch;
     s.stretch_y = up.stretch;
-    s.gain = std::clamp(base / up.stretch, kMinGain, kMaxGain);
-    s.gain_x = std::clamp(base / across.stretch, kMinGain, kMaxGain);
+    // The scales' part of each gain within kScaleGainMin to kScaleGainMax (GainStretch); the
+    // gain itself within kMinGain to kMaxGain, as before.
+    s.gain = std::clamp(base / GainStretch(up.stretch, options.caps), kMinGain, kMaxGain);
+    s.gain_x = std::clamp(base / GainStretch(across.stretch, options.caps), kMinGain, kMaxGain);
     // The Immersive Offset last: it turns the screen fitted above, never resizes it.
     const LensOffset offset = ClampedOffset(offset_in);
     s.pitch_rad += offset.up_deg * kDegToRad;

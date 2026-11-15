@@ -820,11 +820,11 @@ TEST_CASE("FrameXr fov100: the setting's range and a round trip through an older
     }
 }
 
-// ---- AzaharFrame fovaxis: crop by default ----
+// ---- AzaharFrame fovaxis: crop by default, the caps against warping, Render Margin per axis ----
 
 // Field of View is "screen size only": below the game's own frame it crops (the world keeps its
 // shape, the gains stay the base gain), up to 1.6x it draws the world to match; Stretch is
-// fovscale's squeeze, bit for bit.
+// fovscale's squeeze, bit for bit while caps are off.
 TEST_CASE("FrameXr fovaxis: Field of View crops and keeps the true shape", "[frame_xr][fovaxis]") {
     const ViewFov view = Symmetric(50);
     int crops = 0;
@@ -836,6 +836,7 @@ TEST_CASE("FrameXr fovaxis: Field of View crops and keeps the true shape", "[fra
                 o.squeeze = SqueezeForScale(sx);
                 o.squeeze_y = SqueezeForScale(sy);
                 o.scale_fov = 1.0f;
+                o.caps = 1.0f;
                 Options o0 = o;
                 o0.squeeze = o0.squeeze_y = 0.0f;
                 const HeadLocked z = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o0);
@@ -861,9 +862,348 @@ TEST_CASE("FrameXr fovaxis: Field of View crops and keeps the true shape", "[fra
                             Approx(z.height() / z.factor_y).epsilon(1e-4));
                     crops += s.factor < kFactorMin;
                 }
+                const WarpAxes w = ScalesMayWarp(level, level, sx, sy, ScaleMode::FieldOfView);
+                // The note: exactly where Field of View cannot keep the true shape (1 % slack).
+                REQUIRE(w.x == (bx > kFovFactorMax * 1.0101f));
+                REQUIRE(w.y == (by > kFovFactorMax * 1.0101f));
             }
         }
     }
     std::printf("fovaxis: %d true-shape screens drawn as a crop\n", crops);
     REQUIRE(crops > 200);
+}
+
+// The caps: Field of View draws at most 1.6x per axis; Stretch keeps the axes within 1.5 of each
+// other and each stretch within 1/1.6 to 1/0.6 (the gains the scales give within 0.6 to 1.6),
+// drawing more or less instead, never below the game's own frame (the HUD stays). What they
+// cannot take shows the note, on the axis that is past them.
+TEST_CASE("FrameXr fovaxis: the caps against warping", "[frame_xr][fovaxis]") {
+    REQUIRE(kFovFactorMax == 1.6f);
+    REQUIRE(kMaxStretchRatio == 1.5f);
+    REQUIRE(kScaleGainMin == 0.6f);
+    REQUIRE(kScaleGainMax == 1.6f);
+    int capped = 0, noted = 0;
+    for (const uint32_t lx : {0u, 2u, 4u}) {
+        for (const uint32_t ly : {0u, 3u, 4u}) {
+            for (int sx = -100; sx <= 100; sx += 5) {
+                for (int sy = -100; sy <= 100; sy += 5) {
+                    const float fx = WiderFactor(lx), fy = WiderFactor(ly);
+                    const float kx = ScaleFactor(sx), ky = ScaleFactor(sy);
+                    INFO("levels " << lx << ", " << ly << " scales " << sx << ", " << sy);
+                    for (const float fov : {0.0f, 1.0f}) {
+                        const ScalePicture p = SplitScales(fx, kx, fy, ky, fov, 1.0f);
+                        for (const AxisSplit* a : {&p.x, &p.y}) {
+                            REQUIRE(std::isfinite(a->drawn));
+                            REQUIRE(std::isfinite(a->stretch));
+                            REQUIRE(a->drawn > 0.0f);
+                            REQUIRE(a->stretch > 0.0f);
+                            REQUIRE(a->drawn <= kFovFactorMax * 1.00001f);
+                            // Stretch keeps the whole frame: never a crop.
+                            REQUIRE(a->drawn >= (fov == 0.0f ? kFactorMin : kCropFactorMin));
+                            // The gain the scale gives, within 0.6 to 1.6.
+                            const float g = 1.0f / GainStretch(a->stretch, 1.0f);
+                            REQUIRE(g >= kScaleGainMin * 0.9999f);
+                            REQUIRE(g <= kScaleGainMax * 1.0001f);
+                        }
+                        // drawn x stretch is the factor x the size on each axis.
+                        REQUIRE(p.x.drawn * p.x.stretch == Approx(fx * kx).epsilon(1e-5));
+                        REQUIRE(p.y.drawn * p.y.stretch == Approx(fy * ky).epsilon(1e-5));
+                        const float ratio = std::abs(std::log(p.x.stretch / p.y.stretch));
+                        const bool past_ratio = ratio > std::log(kMaxStretchRatio) + 0.0101f;
+                        const auto out = [](float r) {
+                            return std::log(r) < std::log(1.0f / kScaleGainMax) - 0.0101f ||
+                                   std::log(r) > std::log(1.0f / kScaleGainMin) + 0.0101f;
+                        };
+                        if (fov == 0.0f) {
+                            // Inside the caps: Stretch exactly as before.
+                            const ScalePicture none = SplitScales(fx, kx, fy, ky, 0.0f, 0.0f);
+                            const bool inside =
+                                std::abs(std::log(kx / ky)) <= std::log(kMaxStretchRatio) &&
+                                !out(kx) && !out(ky) &&
+                                std::log(kx) >= std::log(1.0f / kScaleGainMax) &&
+                                std::log(kx) <= std::log(1.0f / kScaleGainMin) &&
+                                std::log(ky) >= std::log(1.0f / kScaleGainMax) &&
+                                std::log(ky) <= std::log(1.0f / kScaleGainMin);
+                            if (inside) {
+                                REQUIRE(p.x.drawn == none.x.drawn);
+                                REQUIRE(p.x.stretch == none.x.stretch);
+                                REQUIRE(p.y.drawn == none.y.drawn);
+                                REQUIRE(p.y.stretch == none.y.stretch);
+                                REQUIRE(!p.warp_x);
+                                REQUIRE(!p.warp_y);
+                            } else {
+                                capped++;
+                            }
+                            // Past the ratio only where both draws are at a limit.
+                            if (past_ratio) {
+                                const auto at_limit = [](float d) {
+                                    return d <= kFactorMin * 1.0001f ||
+                                           d >= kFovFactorMax * 0.9999f;
+                                };
+                                REQUIRE((at_limit(p.x.drawn) || at_limit(p.y.drawn)));
+                            }
+                        }
+                        // The note: past what the caps took, on that axis.
+                        if (past_ratio || out(p.x.stretch) || out(p.y.stretch)) {
+                            REQUIRE((p.warp_x || p.warp_y));
+                            noted++;
+                        }
+                        if (out(p.x.stretch)) {
+                            REQUIRE(p.warp_x);
+                        }
+                        if (out(p.y.stretch)) {
+                            REQUIRE(p.warp_y);
+                        }
+                        // ScalesMayWarp is this split with the caps on.
+                        const WarpAxes w = ScalesMayWarp(
+                            lx, ly, sx, sy, fov == 0.0f ? ScaleMode::Stretch : ScaleMode::FieldOfView);
+                        REQUIRE(w.x == p.warp_x);
+                        REQUIRE(w.y == p.warp_y);
+                    }
+                }
+            }
+        }
+    }
+    std::printf("fovaxis caps: %d Stretch settings capped, %d past what the caps take\n", capped,
+                noted);
+    REQUIRE(capped > 1000);
+    REQUIRE(noted > 100);
+    // Continuous in the caps' weight (mode 2's menu rule eases them): no jump.
+    for (const int sx : {-100, -60, -30, 0, 50, 100}) {
+        for (const int sy : {-100, -15, 0, 30, 100}) {
+            ScalePicture last = SplitScales(1.4f, ScaleFactor(sx), 1.2f, ScaleFactor(sy), 0.0f, 0.0f);
+            for (int i = 1; i <= 400; ++i) {
+                const ScalePicture now =
+                    SplitScales(1.4f, ScaleFactor(sx), 1.2f, ScaleFactor(sy), 0.0f, i / 400.0f);
+                INFO("scales " << sx << ", " << sy << " weight " << i / 400.0f);
+                REQUIRE(std::abs(now.x.drawn - last.x.drawn) < 0.02f);
+                REQUIRE(std::abs(now.y.drawn - last.y.drawn) < 0.02f);
+                last = now;
+            }
+        }
+    }
+}
+
+// hold.py ports SplitScales and GainStretch for its gain prediction: the same table here and in
+// its selftest (base gain 1, Render Margin 1.4x both ways).
+TEST_CASE("FrameXr fovaxis: hold.py's table", "[frame_xr][fovaxis]") {
+    struct Row {
+        int sx, sy;
+        bool fov;
+        float gx, gy;
+    };
+    const Row rows[] = {
+        {-30, -15, false, 1.0f / 0.7f, 1.0f / 0.85f}, // Mario Kart 7's preset: inside the caps
+        {-30, 0, false, 1.0f / 0.7f, 1.0f},
+        {-30, -15, true, 1.0f, 1.0f}, // crops: true shape
+        {-100, -100, true, 1.0f, 1.0f},
+        {0, 0, false, 1.0f, 1.0f},
+        {30, 0, true, 1.6f / 1.82f, 1.0f},
+        {100, 100, true, 0.6f, 0.6f},
+        {-100, 0, false, 1.6f, 1.0f / 0.875f},
+        {100, 0, false, 0.6f, 1.5f / 1.75f},
+        {-100, -100, false, 1.6f, 1.6f},
+    };
+    const ViewFov view = Symmetric(60); // fits: the base gain is 1, no gain limit near
+
+    for (const Row& r : rows) {
+        Options o;
+        o.wider = kFactorMax;
+        o.squeeze = SqueezeForScale(r.sx);
+        o.squeeze_y = SqueezeForScale(r.sy);
+        o.scale_fov = r.fov ? 1.0f : 0.0f;
+        o.caps = 1.0f;
+        Options o0 = o;
+        o0.squeeze = o0.squeeze_y = 0.0f;
+        const HeadLocked z = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o0);
+        const HeadLocked s = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o);
+        INFO("scales " << r.sx << ", " << r.sy << (r.fov ? " Field of View" : " Stretch"));
+        REQUIRE(s.gain_x / z.gain_x == Approx(r.gx).epsilon(1e-4));
+        REQUIRE(s.gain / z.gain == Approx(r.gy).epsilon(1e-4));
+    }
+    // Stretch at -30 % and +30 % (the old range's widest): the ratio 1.86 capped to 1.5.
+    const ScalePicture p = SplitScales(1.4f, 0.7f, 1.4f, 1.3f, 0.0f, 1.0f);
+    REQUIRE(p.y.stretch / p.x.stretch == Approx(1.5f).epsilon(1e-4));
+    REQUIRE(!p.warp_x);
+    REQUIRE(!p.warp_y);
+}
+
+// The menu dump's notes are what ScalesMayWarp gives for its settings.
+TEST_CASE("FrameXr fovaxis: May Warp for the menu dump's settings", "[frame_xr][fovaxis]") {
+    // Field of View, Render Margin 1.4x across: +30 % wants 1.82x.
+    REQUIRE(ScalesMayWarp(4, 1, 30, 0, ScaleMode::FieldOfView) == WarpAxes{true, false});
+    REQUIRE(ScalesMayWarp(4, 1, 10, 0, ScaleMode::FieldOfView) == WarpAxes{false, false});
+    REQUIRE(ScalesMayWarp(4, 1, 0, 0, ScaleMode::FieldOfView) == WarpAxes{false, false});
+    // Stretch at -100 % and +100 %: both past the gains' room.
+    REQUIRE(ScalesMayWarp(4, 4, -100, 100, ScaleMode::Stretch) == WarpAxes{true, true});
+    // Mario Kart 7's preset in Stretch (Render Margin 1.3x): no note.
+    REQUIRE(ScalesMayWarp(3, 3, -30, -15, ScaleMode::Stretch) == WarpAxes{false, false});
+    // Crops never warp.
+    REQUIRE(ScalesMayWarp(0, 0, -100, -100, ScaleMode::FieldOfView) == WarpAxes{false, false});
+    // Render Margin Off with Field of View: +60 % is still 1.6x.
+    REQUIRE(ScalesMayWarp(0, 0, 60, 60, ScaleMode::FieldOfView) == WarpAxes{false, false});
+    REQUIRE(ScalesMayWarp(0, 0, 70, 0, ScaleMode::FieldOfView) == WarpAxes{true, false});
+}
+
+// Render Margin per axis: the screen sized with each axis's own margin, the game drawing each,
+// one picture scale both ways; the same margins on both axes give every build before's numbers.
+TEST_CASE("FrameXr fovaxis: Render Margin per axis on the screen", "[frame_xr][fovaxis]") {
+    std::mt19937 rng(20261116u);
+    std::uniform_int_distribution<int> level(0, 4), scale(-20, 20), pick(0, 9);
+    std::uniform_real_distribution<float> fov(30.0f, 90.0f), half(35.0f, 60.0f),
+        size(kMinSize, kMaxSize), aspect(1.3f, 2.4f), menu(0.0f, 1.0f);
+    for (int i = 0; i < 2000; ++i) {
+        const uint32_t lx = static_cast<uint32_t>(level(rng)), ly = static_cast<uint32_t>(level(rng));
+        const int sx = scale(rng) * 5, sy = scale(rng) * 5;
+        Placement p;
+        p.size = size(rng);
+        const float a = aspect(rng), game_fov = fov(rng);
+        const ViewFov view = Symmetric(half(rng));
+        INFO("case " << i << " levels " << lx << ", " << ly << " scales " << sx << ", " << sy);
+        for (const float share : {0.0f, 1.0f}) {
+            Options o;
+            o.wider = WiderFactor(lx);
+            o.wider_y = WiderFactor(ly);
+            o.squeeze = SqueezeForScale(sx);
+            o.squeeze_y = SqueezeForScale(sy);
+            o.scale_fov = share;
+            o.caps = 1.0f;
+            // Equal levels: wider_y given or not, the same numbers (bit for bit).
+            if (lx == ly) {
+                Options same = o;
+                same.wider_y = 0.0f;
+                const HeadLocked a1 = SolveHeadLocked(p, game_fov, a, view, 0.0f, o);
+                const HeadLocked a2 = SolveHeadLocked(p, game_fov, a, view, 0.0f, same);
+                REQUIRE(a1.factor == a2.factor);
+                REQUIRE(a1.factor_y == a2.factor_y);
+                REQUIRE(a1.tan_half_y == a2.tan_half_y);
+                REQUIRE(a1.aspect == a2.aspect);
+                REQUIRE(a1.gain == a2.gain);
+                REQUIRE(a1.gain_x == a2.gain_x);
+            }
+            Options o0 = o;
+            o0.squeeze = o0.squeeze_y = 0.0f;
+            const HeadLocked z = SolveHeadLocked(p, game_fov, a, view, 0.0f, o0);
+            const HeadLocked s = SolveHeadLocked(p, game_fov, a, view, 0.0f, o);
+            REQUIRE(Finite(s));
+            REQUIRE(Finite(z));
+            // At 0 %: the game draws each axis's own margin, and the picture keeps one scale.
+            REQUIRE(z.factor == Approx(WiderFactor(lx)).epsilon(1e-5));
+            REQUIRE(z.factor_y == Approx(WiderFactor(ly)).epsilon(1e-5));
+            REQUIRE(PictureShape(z, a) == Approx(1.0f).epsilon(1e-4));
+            REQUIRE(z.stretch_x == 1.0f);
+            REQUIRE(z.stretch_y == 1.0f);
+            // The game's own frame has its own shape on the screen at any margins (the world
+            // keeps its shape): its width over height is the game's.
+            const float frame_w = z.width() / z.factor, frame_h = z.height() / z.factor_y;
+            REQUIRE(frame_w / frame_h == Approx(a).epsilon(1e-4));
+            // The gains the same both ways at 0 % (the base gain).
+            REQUIRE(z.gain_x == Approx(z.gain).epsilon(1e-5));
+            // The scaled screen: the scale's size.
+            REQUIRE(s.width() == Approx(z.width() * ScaleFactor(sx)).epsilon(1e-4));
+            REQUIRE(s.height() == Approx(z.height() * ScaleFactor(sy)).epsilon(1e-4));
+            REQUIRE(s.gain >= kMinGain);
+            REQUIRE(s.gain <= kMaxGain);
+            REQUIRE(s.gain_x >= kMinGain);
+            REQUIRE(s.gain_x <= kMaxGain);
+        }
+        // Mode 2's menu rule with unequal margins: the screen sized with the smaller margin on
+        // both axes at full weight, so the game's own frame (drawn 1x both ways) is not stretched.
+        if (lx != ly && pick(rng) < 5) {
+            const float w = menu(rng);
+            const float fx = WiderFactor(lx), fy = WiderFactor(ly);
+            const SizeFactors sz = MenuSizeFactors(fx, fy, w);
+            Options o;
+            o.size_wider = sz.x;
+            o.size_wider_y = sz.y;
+            o.wider = MenuExact::Factor(fx, w);
+            o.wider_y = MenuExact::Factor(fy, w);
+            const HeadLocked s = SolveHeadLocked(p, game_fov, a, view, 0.0f, o);
+            REQUIRE(Finite(s));
+            REQUIRE(PictureShape(s, a) == Approx(1.0f).epsilon(1e-4)); // never stretched
+            Options full = o;
+            const SizeFactors one = MenuSizeFactors(fx, fy, 1.0f);
+            full.size_wider = one.x;
+            full.size_wider_y = one.y;
+            full.wider = full.wider_y = 1.0f;
+            const HeadLocked m = SolveHeadLocked(p, game_fov, a, view, 0.0f, full);
+            REQUIRE(m.factor == Approx(1.0f));
+            REQUIRE(m.factor_y == Approx(1.0f).epsilon(1e-5));
+            REQUIRE(m.width() / m.height() == Approx(a).epsilon(1e-4)); // the frame's shape
+        }
+    }
+    // MenuSizeFactors: equal margins keep the padded size (as before); unequal ease to the
+    // smaller one on both axes.
+    REQUIRE(MenuSizeFactors(1.4f, 1.4f, 0.7f).x == 1.4f);
+    REQUIRE(MenuSizeFactors(1.4f, 1.4f, 0.7f).y == 1.4f);
+    REQUIRE(MenuSizeFactors(1.4f, 1.1f, 0.0f).x == 1.4f);
+    REQUIRE(MenuSizeFactors(1.4f, 1.1f, 1.0f).x == Approx(1.1f));
+    REQUIRE(MenuSizeFactors(1.4f, 1.1f, 1.0f).y == Approx(1.1f));
+    REQUIRE(MenuSizeFactors(1.4f, 1.1f, 0.5f).x == Approx(1.25f));
+    // The toast of the gesture.
+    REQUIRE(MarginToast(2, 2) == "Render Margin: 1.2x");
+    REQUIRE(MarginToast(0, 0) == "Render Margin: Off");
+    REQUIRE(MarginToast(4, 1) == "Render Margin: H 1.4x, V 1.1x");
+    REQUIRE(MarginToast(0, 3) == "Render Margin: H Off, V 1.3x");
+}
+
+// The solver over the whole ranges with the caps on (what immersive.cpp gives it): finite,
+// positive, gains within their limits and the scales' part of them within 0.6 to 1.6.
+TEST_CASE("FrameXr fovaxis: the solver over the ranges", "[frame_xr][fovaxis]") {
+    std::mt19937 rng(20261117u);
+    std::uniform_int_distribution<int> level(0, 4), scale(-20, 20), pick(0, 9);
+    std::uniform_real_distribution<float> fov(30.0f, 110.0f), live(10.0f, 150.0f),
+        half(35.0f, 60.0f), size(kMinSize, kMaxSize), aspect(1.2f, 3.0f), menu(0.0f, 1.0f);
+    int n = 0;
+    for (int i = 0; i < 6000; ++i) {
+        Options o;
+        const float fx = WiderFactor(static_cast<uint32_t>(level(rng)));
+        const float fy = WiderFactor(static_cast<uint32_t>(level(rng)));
+        o.wider = fx;
+        o.wider_y = fy == fx ? 0.0f : fy;
+        const int sx = scale(rng) * 5, sy = scale(rng) * 5;
+        o.squeeze = SqueezeForScale(sx);
+        o.squeeze_y = SqueezeForScale(sy);
+        o.live_fov_y_deg = pick(rng) < 3 ? 0.0f : live(rng);
+        const bool stretch = pick(rng) < 5;
+        float w = pick(rng) == 0 ? menu(rng) : 0.0f;
+        if (w > 0.0f) {
+            const SizeFactors sz = MenuSizeFactors(fx, fy, w);
+            o.size_wider = sz.x;
+            o.size_wider_y = o.wider_y > 0.0f ? sz.y : 0.0f;
+            o.wider = MenuExact::Factor(fx, w);
+            if (o.wider_y > 0.0f) {
+                o.wider_y = MenuExact::Factor(fy, w);
+            }
+        }
+        o.scale_fov = stretch ? 0.0f : 1.0f - w;
+        o.caps = 1.0f - w;
+        Placement p;
+        p.size = size(rng);
+        const ViewFov view = Symmetric(half(rng));
+        const HeadLocked s = SolveHeadLocked(p, fov(rng), aspect(rng), view, 0.0f, o);
+        INFO("case " << i << " scales " << sx << ", " << sy << " margins " << fx << ", " << fy);
+        REQUIRE(Finite(s));
+        REQUIRE(s.width() > 0.0f);
+        REQUIRE(s.height() > 0.0f);
+        REQUIRE(s.factor > 0.0f);
+        REQUIRE(s.factor_y > 0.0f);
+        REQUIRE(s.factor <= kFovFactorMax * 1.0001f);
+        REQUIRE(s.factor_y <= kFovFactorMax * 1.0001f);
+        REQUIRE(s.gain >= kMinGain);
+        REQUIRE(s.gain <= kMaxGain);
+        REQUIRE(s.gain_x >= kMinGain);
+        REQUIRE(s.gain_x <= kMaxGain);
+        if (w == 0.0f) {
+            // The scales' part of each gain within 0.6 to 1.6.
+            const float gx = 1.0f / GainStretch(s.stretch_x, 1.0f);
+            const float gy = 1.0f / GainStretch(s.stretch_y, 1.0f);
+            REQUIRE(gx >= kScaleGainMin * 0.9999f);
+            REQUIRE(gx <= kScaleGainMax * 1.0001f);
+            REQUIRE(gy >= kScaleGainMin * 0.9999f);
+            REQUIRE(gy <= kScaleGainMax * 1.0001f);
+        }
+        n++;
+    }
+    REQUIRE(n == 6000);
 }

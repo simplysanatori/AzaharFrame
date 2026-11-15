@@ -18,9 +18,17 @@ namespace FrameXr::Immersive::Names {
 
 /// Settings::values.vr_immersive_wider_view_level (was "Wider View").
 inline constexpr const char* kRenderMargin = "Render Margin";
-inline constexpr const char* kRenderMarginTip =
-    "Renders extra picture around the 3DS screen's edges so more of the game shows. Off shows "
-    "exactly the game's own picture.";
+/// AzaharFrame fovaxis: Render Margin per axis (Settings::values.vr_immersive_render_margin_x,
+/// _y; render_margin.h): the VR menu's and Azahar's window's rows, which replace the one Render
+/// Margin row (the toasts and logs keep kRenderMargin).
+inline constexpr const char* kRenderMarginHorizontal = "Render Margin: Horizontal";
+inline constexpr const char* kRenderMarginHorizontalTip =
+    "Renders extra picture left and right of the 3DS screen. The world keeps its shape. Off "
+    "shows exactly the game's own width.";
+inline constexpr const char* kRenderMarginVertical = "Render Margin: Vertical";
+inline constexpr const char* kRenderMarginVerticalTip =
+    "Renders extra picture above and below the 3DS screen. The world keeps its shape. Off shows "
+    "exactly the game's own height.";
 /// Settings::values.vr_immersive_scale_x and _y (were Narrow Screen and Narrow Height).
 /// AzaharFrame fovaxis: in Field of View a narrower screen crops; Stretch squeezes.
 inline constexpr const char* kHorizontalScale = "Horizontal Scale";
@@ -28,6 +36,10 @@ inline constexpr const char* kHorizontalScaleTip =
     "Makes the screen wider or narrower. With Stretch, narrower brings the side HUD in.";
 inline constexpr const char* kVerticalScale = "Vertical Scale";
 inline constexpr const char* kVerticalScaleTip = "Makes the immersive screen taller or shorter.";
+/// AzaharFrame fovaxis: the note under Horizontal or Vertical Scale's label (VR menu) and after
+/// its value (Azahar's window) when the settings go past the caps against warping
+/// (Layout::ScalesMayWarp).
+inline constexpr const char* kMayWarp = "May Warp";
 /// AzaharFrame fovscale: Settings::values.vr_immersive_scale_mode (0 Stretch, 1 Field of View):
 /// how the two scales act. The VR menu's segmented row and Azahar's window.
 inline constexpr const char* kScaleMode = "Scale Mode";

@@ -113,6 +113,8 @@ add_executable(tests
     frame_xr/autosave_label.cpp # AzaharFrame autosave
     frame_xr/use_global.cpp # AzaharFrame useglobal
     ../frame_xr/per_game.cpp # AzaharFrame useglobal
+    ../frame_xr/render_margin.cpp # AzaharFrame fovaxis
+    frame_xr/render_margin.cpp # AzaharFrame fovaxis
     ../frame_xr/vis/autosave_label.cpp # AzaharFrame autosave
     ../frame_xr/vis/shader_badge.cpp # AzaharFrame shaderbadge
     frame_xr/shader_badge.cpp # AzaharFrame shaderbadge

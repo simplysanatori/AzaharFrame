@@ -106,6 +106,8 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     menu_panel.h
     per_game.cpp # AzaharFrame useglobal
     per_game.h
+    render_margin.cpp # AzaharFrame fovaxis
+    render_margin.h
     vis/async_overlay.cpp
     vis/async_overlay.h
     vis/autosave_label.cpp # AzaharFrame autosave

@@ -23,7 +23,8 @@
 //   - Render Margin (per game, 1.4x by default; AzaharFrame widerview, kiu): the game's periphery factor
 //     across (CitraVR's 1.4 at most, `gl_Position.y /= factor`) is the level the player chose, 1.0x
 //     to 1.4x. The default size grows with the factor, so a step keeps the picture's scale and gain
-//     and only shows more or less around it (AzaharFrame immersive2).
+//     and only shows more or less around it (AzaharFrame immersive2). AzaharFrame fovaxis: a level
+//     per axis (Options::wider_y up and down when it differs; frame_xr/render_margin.h).
 //   - Horizontal Scale (per game, 0 % by default, live; AzaharFrame immersive2, kiu: signed,
 //     positive is larger): the quad is that much wider or narrower than the game's picture
 //     (-100 to +100 %, 5 % steps; AzaharFrame fov100, -30 to +30 % before; below -30 % the size
@@ -37,7 +38,9 @@
 //     periphery factors (ScaleSplit): the picture keeps one scale both ways, both gains stay the
 //     base gain, a head roll is a plain rotation, and the HUD keeps its place. Only what the
 //     factor cannot take (above kFovFactorMax, mode 2's menu rule) stays a stretch.
-//     AzaharFrame fovaxis: below the game's own frame Field of View crops (kCropFactorMin).
+//     AzaharFrame fovaxis: below the game's own frame Field of View crops (kCropFactorMin), and
+//     the caps against warping (SplitScales) keep Stretch's two axes within kMaxStretchRatio and
+//     each scale's part of a gain within kScaleGainMin to kScaleGainMax; past them: May Warp.
 //
 // AzaharFrame immersive2: the default size is the world at its own scale (gain 1): the screen is
 // as many degrees across as the game draws (its camera times the Render Margin factor), so nothing is
@@ -233,6 +236,18 @@ struct Options {
     /// wider: SqueezeForScale of Horizontal Scale; AzaharFrame fov100: -1 to 0.74).
     float squeeze = 0.0f;
     float squeeze_y = 0.0f;  ///< AzaharFrame immersive2: and this much lower (Vertical Scale)
+    /// AzaharFrame fovaxis: Render Margin up and down when it differs from `wider` (0: `wider`;
+    /// kFactorMin to kFactorMax), and the factor the screen's height is sized with (0: the one
+    /// across, or `wider_y`). The screen is sized with each axis's own factor, so the picture
+    /// keeps one scale both ways (the world its shape); mode 2's menu rule sizes both with the
+    /// smaller one (MenuSizeFactors).
+    float wider_y = 0.0f;
+    float size_wider_y = 0.0f;
+    /// AzaharFrame fovaxis: the caps against warping (0: none, every build before; 1: on; mode
+    /// 2's menu rule eases them off with its factor): Stretch's axes within kMaxStretchRatio of
+    /// each other and the gains the scales give within kScaleGainMin to kScaleGainMax
+    /// (SplitScales).
+    float caps = 0.0f;
     /// AzaharFrame immersive: the game camera's vertical angle right now (Match Game Camera: a
     /// zoom), degrees; 0 = the angle the screen is sized with. Only the gain follows it.
     float live_fov_y_deg = 0.0f;
@@ -291,7 +306,7 @@ enum class ScaleMode : uint32_t { Stretch = 0, FieldOfView = 1 };
 /// The highest factor Field of View draws on one axis, Render Margin included. AzaharFrame
 /// fovaxis: 1.6 (the owner's cap after session 590: fov100's 2.8x spread the same pixels over a
 /// 141-degree view for a 90-degree camera, edges stretched about 9 times). Past it the screen
-/// still grows with the scale and the rest is a stretch. The
+/// still grows with the scale and the rest is a stretch (and the row says "May Warp"). The
 /// shader has no limit of its own (it divides clip x and y by it: the tangents of the view
 /// widen by it, so the view stays under 180 degrees at any factor).
 inline constexpr float kFovFactorMax = 1.6f;
@@ -300,6 +315,18 @@ inline constexpr float kFovFactorMax = 1.6f;
 /// inside the frame goes past the edges with the world). This is the lowest it draws: under
 /// the smallest scale at Render Margin Off (kMinScaleFactor), so the settings never reach it.
 inline constexpr float kCropFactorMin = 0.25f;
+/// AzaharFrame fovaxis: the caps against warping (session 590's findings, fix 7). Stretch keeps
+/// the picture at most kMaxStretchRatio times as stretched on one axis as on the other (what is
+/// past it is drawn as field of view instead, half on each axis, within kFactorMin and
+/// kFovFactorMax, so the HUD stays in the picture), and the scales change an axis's gain (base
+/// gain over the stretch) by at most kScaleGainMax and at least kScaleGainMin: the stretch kept
+/// within 1/kScaleGainMax to 1/kScaleGainMin the same way, and past that the gain stops
+/// following it (the world drifts a little on that axis). The size's own gain (Placement::size,
+/// the game camera) keeps kMinGain and kMaxGain. Settings past what the caps can take show "May
+/// Warp" on the scale's row (ScalesMayWarp).
+inline constexpr float kMaxStretchRatio = 1.5f;
+inline constexpr float kScaleGainMin = 0.6f;
+inline constexpr float kScaleGainMax = 1.6f;
 /// One axis of a scale split between what the game draws and a stretch of the picture.
 struct AxisSplit {
     float drawn = kFactorMin; ///< the periphery factor the game draws with on this axis
@@ -313,6 +340,34 @@ struct AxisSplit {
 /// what it cannot take stays a stretch, so drawn x stretch = factor x k always, with no jump at
 /// a limit. Stretch: {factor, k} exactly.
 AxisSplit ScaleSplit(float factor, float k, float fov);
+/// AzaharFrame fovaxis: both axes (ScaleSplit each), then the caps by the weight `caps`
+/// (Options::caps) on what Stretch leaves (the share 1 - `fov`): the stretch on each axis within
+/// 1/kScaleGainMax to 1/kScaleGainMin and the two within kMaxStretchRatio, by drawing more or
+/// less on an axis (within kFactorMin and kFovFactorMax, or the factor already drawn), so
+/// drawn x stretch stays factor x k. `warp_x`, `warp_y`: what is left past the caps, on that
+/// axis (a stretch past them; in Field of View any stretch: the true shape lost past
+/// kFovFactorMax).
+struct ScalePicture {
+    AxisSplit x;
+    AxisSplit y;
+    bool warp_x = false;
+    bool warp_y = false;
+};
+ScalePicture SplitScales(float factor_x, float k_x, float factor_y, float k_y, float fov,
+                         float caps);
+/// AzaharFrame fovaxis: the gain's divisor for an axis's stretch: the stretch, within
+/// 1/kScaleGainMax to 1/kScaleGainMin by the weight `caps` (on a log scale).
+float GainStretch(float stretch, float caps);
+/// AzaharFrame fovaxis: the "May Warp" note on Horizontal and Vertical Scale's rows: the
+/// settings (Render Margin's levels, the scales in percent, the mode) past what the caps can
+/// take on that axis, at the default screen (SplitScales with the caps on).
+struct WarpAxes {
+    bool x = false;
+    bool y = false;
+    bool operator==(const WarpAxes&) const = default;
+};
+WarpAxes ScalesMayWarp(uint32_t level_x, uint32_t level_y, int scale_x, int scale_y,
+                       ScaleMode mode);
 /// The mode's name: "Stretch", "Field of View".
 const char* ScaleModeName(ScaleMode mode);
 
@@ -378,6 +433,19 @@ std::string WiderToast(uint32_t level);
 /// The level for a game that had the old Wider View switch on, which let the factor follow the
 /// size (about 0.78 x size on the Frame): the nearest step to that, 1.4x when the size is unknown.
 uint32_t LevelForOldWiderView(std::optional<float> size);
+/// AzaharFrame fovaxis: grip + D-pad up or down with Render Margin's axes at different levels:
+/// "Render Margin: H 1.3x, V 1.1x" (the same level: WiderToast's "Render Margin: 1.2x").
+std::string MarginToast(uint32_t level_x, uint32_t level_y);
+/// AzaharFrame fovaxis: mode 2's menu rule (MenuExact) draws the game's own frame on both axes
+/// at weight 1. With the axes' margins `factor_x`, `factor_y` unequal, a screen kept at its
+/// padded size would stretch that frame by their ratio, so the screen is sized with the smaller
+/// of the two on both axes at weight 1 (eased in between); equal margins keep the padded size
+/// (as before).
+struct SizeFactors {
+    float x = kFactorMax;
+    float y = kFactorMax;
+};
+SizeFactors MenuSizeFactors(float factor_x, float factor_y, float weight);
 
 /// AzaharFrame depth: the game camera's angle and shape the head-locked screen is sized with.
 struct CameraShape {

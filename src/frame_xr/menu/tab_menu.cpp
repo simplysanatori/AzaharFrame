@@ -58,6 +58,8 @@ struct Row {
     float t = 0.0f;    ///< Slider
     int stops = 0;     ///< Slider
     std::string value; ///< Slider, Offset; a MenuButton's value when it is none of its options
+    /// AzaharFrame fovaxis: a short note under the label ("May Warp"), in the error colour
+    std::string note;
     bool Enabled() const {
         return lock == Lock::None;
     }
@@ -199,7 +201,9 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             return rows;
         }
         rows.push_back(row(Id::ImmersiveMode, RowKind::MenuButton, m.immersive_mode));
-        rows.push_back(full(row(Id::WiderView, RowKind::Segmented, m.wider_view)));
+        // AzaharFrame fovaxis: Render Margin per axis (one row before)
+        rows.push_back(full(row(Id::MarginX, RowKind::Segmented, m.margin_x)));
+        rows.push_back(full(row(Id::MarginY, RowKind::Segmented, m.margin_y)));
         Row fov = full(row(Id::GameFov, RowKind::Slider));
         const SliderRange fr = SliderFor(Id::GameFov);
         fov.t = (static_cast<float>(m.game_fov) - fr.min) / (fr.max - fr.min);
@@ -210,16 +214,20 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         // AzaharFrame kiu: Horizontal and Vertical Scale, -100 to +100 % around 0 (AzaharFrame
         // fov100; -30 to +30 % before). No tick marks: 40 stops would be a row of dots, as World
         // Scale's; it still snaps to them.
-        const auto scale = [&](Id id, int value) {
+        // AzaharFrame fovaxis: past the caps against warping, "May Warp" under the label.
+        const auto scale = [&](Id id, int value, bool warp) {
             Row r = full(row(id, RowKind::Slider));
             const SliderRange sr = SliderFor(id);
             const float v = std::clamp(static_cast<float>(value), sr.min, sr.max);
             r.t = (v - sr.min) / (sr.max - sr.min);
             r.value = SliderText(id, v);
+            if (warp) {
+                r.note = ::FrameXr::Immersive::Names::kMayWarp;
+            }
             rows.push_back(r);
         };
-        scale(Id::ScaleX, m.scale_x);
-        scale(Id::ScaleY, m.scale_y);
+        scale(Id::ScaleX, m.scale_x, m.scale_x_warp);
+        scale(Id::ScaleY, m.scale_y, m.scale_y_warp);
         // AzaharFrame fovscale: Stretch | Field of View, under the scales it acts on
         rows.push_back(full(row(Id::ScaleMode, RowKind::Segmented, m.scale_mode)));
         // AzaharFrame natural: World Scale, a slider over its stops (10% to 400%, the default
@@ -250,7 +258,8 @@ SettingsSection SectionOf(Id id) {
     case Id::AsyncShaders:
         return SettingsSection::Graphics;
     case Id::ImmersiveMode:
-    case Id::WiderView:
+    case Id::MarginX: // AzaharFrame fovaxis
+    case Id::MarginY:
     case Id::GameFov:
     case Id::MatchCamera:
     case Id::ScaleX:
@@ -270,7 +279,8 @@ bool PerGameSetting(Id id) {
     case Id::HideBottomScreen:
     case Id::ScreenShape:
     case Id::ImmersiveMode:
-    case Id::WiderView:
+    case Id::MarginX: // AzaharFrame fovaxis
+    case Id::MarginY:
     case Id::GameFov:
     case Id::MatchCamera: // AzaharFrame depth
     case Id::ScaleX:
@@ -460,7 +470,8 @@ const std::vector<std::string>& OptionsFor(Id id) {
         return kScale;
     case Id::ImmersiveMode:
         return kMode;
-    case Id::WiderView:
+    case Id::MarginX: // AzaharFrame fovaxis
+    case Id::MarginY:
         return kWider;
     default:
         return kNone;
@@ -605,8 +616,10 @@ std::string LabelFor(Id id) {
         return "Fast Forward Audio";
     case Id::ImmersiveMode:
         return "Immersive Mode";
-    case Id::WiderView:
-        return ::FrameXr::Immersive::Names::kRenderMargin; // AzaharFrame kiu
+    case Id::MarginX: // AzaharFrame fovaxis (one Render Margin row before)
+        return ::FrameXr::Immersive::Names::kRenderMarginHorizontal;
+    case Id::MarginY:
+        return ::FrameXr::Immersive::Names::kRenderMarginVertical;
     case Id::GameFov:
         return "Immersive Game FOV";
     case Id::MatchCamera: // AzaharFrame depth, fovonce
@@ -868,8 +881,10 @@ std::string ExplainFor(Id id) {
         return "How the sound plays while fast forwarding. Normal Pitch keeps the pitch. Normal Speed (Experimental) plays at real speed.";
     case Id::ImmersiveMode:
         return "Draws a wider view of the game around you.";
-    case Id::WiderView:
-        return ::FrameXr::Immersive::Names::kRenderMarginTip;
+    case Id::MarginX: // AzaharFrame fovaxis
+        return ::FrameXr::Immersive::Names::kRenderMarginHorizontalTip;
+    case Id::MarginY:
+        return ::FrameXr::Immersive::Names::kRenderMarginVerticalTip;
     case Id::GameFov:
         return "The game camera's vertical field of view.";
     case Id::MatchCamera: // AzaharFrame fovonce
@@ -2295,8 +2310,17 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
             // The row itself (its label, and a disabled control): only the tooltip.
             AddHit(row, {r.id, kLabelIndex}, list);
         }
-        kit.TextMid(c.x0, cy, Type::Body, Tok::kOnSurface, LabelFor(r.id), 0,
-                    enabled ? 1.0f : kDisabledContent);
+        if (r.note.empty()) {
+            kit.TextMid(c.x0, cy, Type::Body, Tok::kOnSurface, LabelFor(r.id), 0,
+                        enabled ? 1.0f : kDisabledContent);
+        } else {
+            // AzaharFrame fovaxis: the label a little higher and the note under it (a list
+            // item's supporting text), in the error colour.
+            kit.TextMid(c.x0, cy - 11.0f, Type::Body, Tok::kOnSurface, LabelFor(r.id), 0,
+                        enabled ? 1.0f : kDisabledContent);
+            kit.TextSized(c.x0, cy + 20.0f, 14.0f, false, Tok::kError, r.note, 0,
+                          enabled ? 1.0f : kDisabledContent);
+        }
         const Rect ctl{control_x0, cy - kControlH * 0.5f, c.x1, cy + kControlH * 0.5f};
         switch (r.kind) {
         case RowKind::Switch:

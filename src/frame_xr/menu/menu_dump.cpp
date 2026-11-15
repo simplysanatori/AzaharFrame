@@ -79,7 +79,8 @@ Menu::MenuModel SampleModel() {
     m.show_controllers = true;
     m.window_scale = 1;
     m.immersive_mode = 2;
-    m.wider_view = 2;
+    m.margin_x = 2; // AzaharFrame fovaxis
+    m.margin_y = 2;
     m.game_fov = 60;
     m.scale_x = 0;
     m.slots = {{1, "2026-11-08 21:14"}, {2, "2026-11-09 19:02"}, {5, "2026-11-10 08:47"}};
@@ -1102,8 +1103,8 @@ int main(int argc, char** argv) {
         sc.scale_x = 30;
         sc.scale_y = 0;
         v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
-        v.hover = {Id::WiderView, kLabelIndex};
-        v.tooltip = Id::WiderView;
+        v.hover = {Id::MarginX, kLabelIndex};
+        v.tooltip = Id::MarginX;
         ok &= shot("5c4-settings-render-margin-tooltip", sc, v);
         // AzaharFrame fovscale: Scale Mode, Stretch | Field of View, each picked with its
         // tooltip under the beam, and the label's.
@@ -1146,6 +1147,45 @@ int main(int argc, char** argv) {
             ok &= shot(t == 0.0f ? "f100-scale-x-held-min" : "f100-scale-x-held-max", sc, v);
         }
         v.dragging = Id::None;
+        // AzaharFrame fovaxis: Render Margin's two rows at different levels, their tooltips, and
+        // "May Warp" under a scale's label past the caps (the flags as Layout::ScalesMayWarp
+        // gives them for these settings: immersive_scale.cpp checks them).
+        MenuModel ax = sc;
+        ax.margin_x = 4;
+        ax.margin_y = 1;
+        ax.scale_mode = 1;
+        ax.scale_x = 0;
+        ax.scale_y = 0;
+        v = settings(SettingsSection::Immersive);
+        ok &= shot("fa-margins-per-axis", ax, v);
+        v.hover = {Id::MarginX, kLabelIndex};
+        v.tooltip = Id::MarginX;
+        ok &= shot("fa-margin-horizontal-tooltip", ax, v);
+        v.hover = {Id::MarginY, kLabelIndex};
+        v.tooltip = Id::MarginY;
+        ok &= shot("fa-margin-vertical-tooltip", ax, v);
+        v = settings(SettingsSection::Immersive);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        ax.scale_x = 30; // Field of View: 1.4x x 1.3 = 1.82x wanted, 1.6x drawn
+        ax.scale_x_warp = true;
+        ok &= shot("fa-fov-wider-may-warp", ax, v);
+        ax.scale_mode = 0; // Stretch at the ends: past the ratio and the gains on both axes
+        ax.margin_y = 4;
+        ax.scale_x = -100;
+        ax.scale_y = 100;
+        ax.scale_y_warp = true;
+        ok &= shot("fa-stretch-mixed-may-warp", ax, v);
+        ax.scale_x = -30; // Mario Kart 7's preset in Stretch: inside the caps, no note
+        ax.scale_y = -15;
+        ax.scale_x_warp = ax.scale_y_warp = false;
+        ok &= shot("fa-stretch-mk7-no-note", ax, v);
+        v.hover = {Id::ScaleX, kLabelIndex};
+        v.tooltip = Id::ScaleX;
+        ax.scale_x = 30;
+        ax.scale_y = 0;
+        ax.scale_mode = 1;
+        ax.scale_x_warp = true;
+        ok &= shot("fa-may-warp-tooltip", ax, v);
     }
     MenuModel gv = m; // Global chosen, the game has its own Immersive Mode
     gv.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::GameValue;
@@ -1269,10 +1309,11 @@ int main(int argc, char** argv) {
         ok &= shot("sc4-settings-general-per-game", own(ugs, {Id::Autosave, Id::AutosaveKeep}, 1), v);
         MenuModel ugi = pg;
         ugi.game_fov = 85;
-        ugi.wider_view = 3;
+        ugi.margin_x = 3;
+        ugi.margin_y = 3;
         v = settings(SettingsSection::Immersive);
         ok &= shot("sc5-settings-immersive-per-game",
-                   own(ugi, {Id::WiderView, Id::GameFov, Id::MatchCamera}, 1), v);
+                   own(ugi, {Id::MarginX, Id::MarginY, Id::GameFov, Id::MatchCamera}, 1), v);
         // Position: Hide Bottom Screen and Screen Shape follow the toggle too
         MenuModel pos = pg;
         pos.screen_shape = 1;

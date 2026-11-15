@@ -382,7 +382,11 @@ if (ENABLE_FRAME_XR AND ENABLE_TESTS AND NOT WIN32)
                                   ../tests/frame_xr/configure_per_game_stub.cpp
                                   configuration/configure_frame_vr.cpp
                                   configuration/configure_frame_vr.h
-                                  configuration/configuration_shared.cpp)
+                                  configuration/configuration_shared.cpp
+                                  # AzaharFrame fovaxis: Render Margin per axis, May Warp
+                                  ../frame_xr/render_margin.cpp
+                                  ../frame_xr/immersive_layout.cpp
+                                  ../frame_xr/input/geometry.cpp)
     target_link_libraries(frame_qt_tests PRIVATE citra_common catch2 Qt6::Widgets)
     if (TARGET Qt6::GuiPrivate)
         target_link_libraries(frame_qt_tests PRIVATE Qt6::GuiPrivate)

@@ -196,6 +196,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "frame_xr/kiu_scan.h"          // AzaharFrame kiuguns: IsKidIcarus
 #include "core/mods/aspect.h"           // AzaharFrame fixes7
 #include "frame_xr/presets.h" // AzaharFrame vrqol
+#include "frame_xr/render_margin.h" // AzaharFrame fovaxis
 #include "frame_xr/shader_notice.h" // AzaharFrame stall
 #include "common/stall_telemetry.h" // AzaharFrame stall
 #include "frame_xr/swkbd.h" // AzaharFrame kbd
@@ -1350,6 +1351,12 @@ GMainWindow::GMainWindow(Core::System& system_)
                             // + D-pad).
                             FrameKeepSetting keep_wider{
                                 Settings::values.vr_immersive_wider_view_level};
+                            // AzaharFrame fovaxis: Render Margin's axes (the gesture steps them
+                            // when they have levels of their own).
+                            FrameKeepSetting keep_margin_x{
+                                Settings::values.vr_immersive_render_margin_x};
+                            FrameKeepSetting keep_margin_y{
+                                Settings::values.vr_immersive_render_margin_y};
                             FrameKeepSetting keep_scale_x{Settings::values.vr_immersive_scale_x};
                             FrameKeepSetting keep_scale_y{Settings::values.vr_immersive_scale_y};
                             FrameKeepControls keep_controls; // AzaharFrame reticle
@@ -1357,6 +1364,8 @@ GMainWindow::GMainWindow(Core::System& system_)
                                                  QtConfig::ConfigType::PerGameConfig);
                             keep_controls.Restore();
                             keep_wider.Restore();
+                            keep_margin_x.Restore();
+                            keep_margin_y.Restore();
                             keep_scale_x.Restore();
                             keep_scale_y.Restore();
                             game_config.Save();
@@ -5412,6 +5421,21 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::WiderView:
         set(v.vr_immersive_wider_view_level, u);
         break;
+    case S::MarginX: // AzaharFrame fovaxis: Render Margin per axis (frame_xr/render_margin.h)
+    case S::MarginY: {
+        namespace M = FrameXr::Immersive::Margin;
+        const M::Axis axis = r.setting == S::MarginX ? M::Axis::Horizontal : M::Axis::Vertical;
+        if (use_global) {
+            M::UseGlobal(axis);
+            per_game_setting = true;
+        } else if (r.per_game) {
+            M::Set(axis, std::min<u32>(u, 4), true);
+            per_game_setting = true;
+        } else {
+            M::Set(axis, std::min<u32>(u, 4), false);
+        }
+        break;
+    }
     case S::GameFov:
         set(v.vr_immersive_game_fov, static_cast<s32>(r.value));
         break;

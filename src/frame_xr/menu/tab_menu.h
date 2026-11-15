@@ -133,7 +133,10 @@ enum class Id : int {
     FastForwardSpeed,   ///< AzaharFrame menuux: turbo_limit, global
     FastForwardAudio,   ///< AzaharFrame ffaudio: fast_forward_audio, per game (Sped Up, Normal Pitch, Muted)
     ImmersiveMode,
-    WiderView,
+    /// AzaharFrame fovaxis: "Render Margin: Horizontal" and "Render Margin: Vertical" (were one
+    /// Render Margin row, WiderView): Off, 1.1x to 1.4x, per game (frame_xr/render_margin.h)
+    MarginX,
+    MarginY,
     GameFov,
     MatchCamera, ///< AzaharFrame depth: Detect Game FOV, per game
     ScaleX, ///< AzaharFrame kiu: Horizontal Scale, a slider of -100 to +100 % (5 % steps), per game
@@ -373,12 +376,16 @@ struct MenuModel {
     int fast_forward_speed = 1;  ///< index into OptionsFor(Id::FastForwardSpeed)
     int fast_forward_audio = 1;  ///< Settings::FastForwardAudio, an index of OptionsFor(Id::FastForwardAudio)
     int immersive_mode = 0;
-    int wider_view = 0;  ///< index of Off, 1.1x, 1.2x, 1.3x, 1.4x
+    int margin_x = 4;  ///< AzaharFrame fovaxis: index of Off, 1.1x, 1.2x, 1.3x, 1.4x (across)
+    int margin_y = 4;  ///< and up and down
     int game_fov = 60;   ///< 30 to 110 degrees
     int match_camera = 2; ///< AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
     int scale_x = 0; ///< AzaharFrame kiu, fov100: percent, -100 to 100
     int scale_y = 0;
     int scale_mode = 1; ///< AzaharFrame fovscale: 0 Stretch, 1 Field of View
+    /// AzaharFrame fovaxis: the scale rows' "May Warp" note (Layout::ScalesMayWarp)
+    bool scale_x_warp = false;
+    bool scale_y_warp = false;
     /// AzaharFrame natural: World Scale's slider stop (Layout::kWorldScaleStops; 20 = 100 %,
     /// Automatic) and Follow Screen Size.
     int world_scale_stop = 20;

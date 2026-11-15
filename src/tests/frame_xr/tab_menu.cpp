@@ -162,7 +162,8 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(centre(Id::ScreenShape, 3) == Target{Id::ScreenShape, 3});
 
-    // The Render Margin row in an Off immersive mode: only its tooltip.
+    // The Render Margin row in an Off immersive mode: only its tooltip (AzaharFrame fovaxis:
+    // Render Margin: Horizontal, one of its two rows).
     v = {};
     v.tab = Tab::Settings;
     v.section = SettingsSection::Immersive; // AzaharFrame autosave
@@ -173,8 +174,9 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
         v.scroll[static_cast<int>(Tab::Settings)] = scroll;
         d.Draw(m, v);
         for (const auto& h : d.menu.Hits()) {
-            CHECK(!(h.t.id == Id::WiderView && h.t.index >= 0));
-            label |= h.t.id == Id::WiderView && h.t.index == kLabelIndex;
+            CHECK(!(h.t.id == Id::MarginX && h.t.index >= 0));
+            CHECK(!(h.t.id == Id::MarginY && h.t.index >= 0));
+            label |= h.t.id == Id::MarginX && h.t.index == kLabelIndex;
         }
         if (scroll >= d.menu.MaxScroll()) {
             break;
@@ -216,7 +218,7 @@ TEST_CASE("Tab menu: sliders map the beam to their range", "[frame_xr][tabmenu]"
     const float mid = layout.SliderAt(Id::GameFov, (s.x0 + s.x1) * 0.5f);
     CHECK(mid > 0.45f);
     CHECK(mid < 0.55f);
-    CHECK(layout.SliderAt(Id::WiderView, s.x0) < 0.0f);
+    CHECK(layout.SliderAt(Id::MarginX, s.x0) < 0.0f);
 }
 
 // AzaharFrame depth3d
@@ -2923,7 +2925,7 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
         CHECK(!PerGameSetting(id));
     }
     for (Id id : {Id::Depth3d, Id::InternalResolution, Id::TextureFilter, Id::AsyncShaders,
-                  Id::AccurateImageCopies, Id::ImmersiveMode, Id::WiderView, Id::GameFov,
+                  Id::AccurateImageCopies, Id::ImmersiveMode, Id::MarginX, Id::MarginY, Id::GameFov,
                   Id::MatchCamera, Id::ScaleX, Id::ScaleY, Id::WorldScale, Id::FollowScreen,
                   Id::MotionClarity, // AzaharFrame flash
                   Id::Autosave,
@@ -3307,7 +3309,7 @@ TEST_CASE("Tab menu: every selected segment keeps its check", "[frame_xr][tabmen
     kit.Begin(canvas);
     const std::vector<std::vector<std::string>> rows{
         OptionsFor(Id::MatchCamera), {"Off", "Once", "Always"}, {"Off", "10%", "20%", "30%"},
-        {"1x", "10x", "100x"}, OptionsFor(Id::WiderView)};
+        {"1x", "10x", "100x"}, OptionsFor(Id::MarginX)};
     for (const auto& opts : rows) {
         const float w = kit.SegmentedWidth(opts);
         for (float x1 = 300.0f; x1 < kPanelW; x1 += 1.37f) {

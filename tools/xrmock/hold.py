@@ -31,6 +31,10 @@ swim: 100 % of the step).
           decimals only; with the placement's size and the scales, the exact 1 / size / (1 + scale)
           when that rounds to the logged values, as SolveHeadLocked gives with fit 1 and Detect
           Game FOV settled. --from defaults to 1 s after that line's time.)
+          fovaxis: [--margin-x 4 --margin-y 4 --scale-mode stretch|fov]: the Render Margin
+          levels per axis and the Scale Mode, for the split and the caps against warping
+          (Layout::SplitScales: the scales' part of a gain within 0.6 to 1.6, Stretch's two
+          axes within 1.5 of each other); stretch with 4/4 is every build before.
   hold.py --selftest      (synthetic traces: rigid fails at gain 0.6 and passes at gain 1;
                            warp passes at both; imglag: on a compositor that shows an image a
                            refresh late, an app anchored to the picture it sends fails and one
@@ -504,6 +508,78 @@ def scale_factor(percent):
     return 0.7 * math.exp((p + 30) / 70.0)
 
 
+# fovaxis: the split of the scales and the caps against warping, as Layout::SplitScales and
+# Layout::GainStretch (immersive_layout.cpp), for the gains the app gives a screen.
+FOV_FACTOR_MAX = 1.6      # Layout::kFovFactorMax (fov100: 2.8)
+CROP_FACTOR_MIN = 0.25    # Layout::kCropFactorMin (fovscale, fov100: 1.0, a stretch below)
+LOG_STRETCH_LO = math.log(1.0 / 1.6)   # 1 / kScaleGainMax
+LOG_STRETCH_HI = math.log(1.0 / 0.6)   # 1 / kScaleGainMin
+LOG_RATIO = math.log(1.5)              # kMaxStretchRatio
+
+
+def axis_split(f, k, fov):
+    """Layout::ScaleSplit: (drawn, stretch) of one axis, Render Margin factor f, scale size k,
+    Field of View share fov (0 Stretch, 1 Field of View)."""
+    if fov <= 0.0:
+        return f, k
+    want = f * (k if fov >= 1.0 else k ** fov)
+    d = min(max(want, CROP_FACTOR_MIN), max(FOV_FACTOR_MAX, f))
+    return d, f * k / d
+
+
+def split_scales(fx, kx, fy, ky, fov, caps):
+    """Layout::SplitScales: ((drawn, stretch) across, (drawn, stretch) up and down)."""
+    x = list(axis_split(fx, kx, fov))
+    y = list(axis_split(fy, ky, fov))
+    w = max(0.0, min(1.0, caps)) * (1.0 - max(0.0, min(1.0, fov)))
+    if w > 0.0:
+        def redraw(a, f, k, to_log):
+            frm = math.log(a[1])
+            if to_log == frm:
+                return
+            want = f * k / math.exp(frm + w * (to_log - frm))
+            a[0] = min(max(want, min(1.0, a[0])), max(FOV_FACTOR_MAX, a[0]))
+            a[1] = f * k / a[0]
+        tx = min(max(math.log(x[1]), LOG_STRETCH_LO), LOG_STRETCH_HI)
+        ty = min(max(math.log(y[1]), LOG_STRETCH_LO), LOG_STRETCH_HI)
+        d = tx - ty
+        if abs(d) > LOG_RATIO:
+            e = (abs(d) - LOG_RATIO) * 0.5 * (1.0 if d > 0 else -1.0)
+            tx, ty = tx - e, ty + e
+        redraw(x, fx, kx, tx)
+        redraw(y, fy, ky, ty)
+        for p in range(2):
+            lx, ly = math.log(x[1]), math.log(y[1])
+            if abs(lx - ly) <= LOG_RATIO + 1e-5:
+                break
+            sign = 1.0 if lx > ly else -1.0
+            if p == 0:
+                redraw(y, fy, ky, lx - sign * LOG_RATIO)
+            else:
+                redraw(x, fx, kx, ly + sign * LOG_RATIO)
+    return tuple(x), tuple(y)
+
+
+def gain_stretch(r, caps):
+    """Layout::GainStretch: the stretch the gain follows, within 1/1.6 to 1/0.6 by `caps`."""
+    if caps <= 0.0:
+        return r
+    l = math.log(r)
+    to = min(max(l, LOG_STRETCH_LO), LOG_STRETCH_HI)
+    return r if to == l else math.exp(l + caps * (to - l))
+
+
+def scale_gains(base, sx, sy, margin_x=4, margin_y=4, mode="stretch", caps=1.0):
+    """The gains (across, up and down) of a screen whose base gain is `base` (1 / size at fit 1,
+    Detect Game FOV settled), as SolveHeadLocked gives them."""
+    fx, fy = 1.0 + 0.1 * margin_x, 1.0 + 0.1 * margin_y
+    x, y = split_scales(fx, scale_factor(sx), fy, scale_factor(sy),
+                        1.0 if mode == "fov" else 0.0, caps)
+    gx = min(max(base / gain_stretch(x[1], caps), 0.4), 2.0)
+    gy = min(max(base / gain_stretch(y[1], caps), 0.4), 2.0)
+    return gx, gy
+
+
 def fit_gain(rows, camera, sx, sy, out=print):
     """r31 (Detect Game FOV Once / Always: the gain follows the game's measured camera and is not
     logged after the first line): the base gain at which each picture's camera, read from its
@@ -515,7 +591,7 @@ def fit_gain(rows, camera, sx, sy, out=print):
     pics = [p for p in pics.values() if len(p) >= 2]
 
     def cost(b):
-        gx = min(max(b / scale_factor(sx), 0.4), 2.0)
+        gx = scale_gains(b, sx, sy, *gains_from_log.margins, mode=gains_from_log.mode)[0]
         sp = sorted(max(cs) - min(cs) for cs in
                     ([camera_yaw(r, camera, gx) for r in p] for p in pics))
         return sp[len(sp) // 2] if sp else 1e9
@@ -524,8 +600,7 @@ def fit_gain(rows, camera, sx, sy, out=print):
     lo = best[1] - 0.005
     best = min((cost(lo + k / 10000.0), lo + k / 10000.0) for k in range(0, 101))
     b = best[1]
-    gx = min(max(b / scale_factor(sx), 0.4), 2.0)
-    gy = min(max(b / scale_factor(sy), 0.4), 2.0)
+    gx, gy = scale_gains(b, sx, sy, *gains_from_log.margins, mode=gains_from_log.mode)  # fovaxis
     out("gains fitted from the quads (each picture's camera the same on its refreshes, median "
         "spread %.4f degrees): base %.4f, across %.5f, up %.5f" % (best[0], b, gx, gy))
     return gx, gy
@@ -559,8 +634,9 @@ def gains_from_log(log, size=None, scale_x=None, scale_y=None, out=print):
         return latest[1], latest[2], max(t, latest[0])
     if size is not None:
         base = 1.0 / min(max(size, 0.6), 2.5)
-        cx = min(max(base / scale_factor(scale_x or 0), 0.4), 2.0)
-        cy = min(max(base / scale_factor(scale_y or 0), 0.4), 2.0)
+        # fovaxis: the split and the caps (Stretch, Render Margin 1.4x unless given)
+        cx, cy = scale_gains(base, scale_x or 0, scale_y or 0, *gains_from_log.margins,
+                             mode=gains_from_log.mode)
         if abs(cx - gx) <= 0.0051 and abs(cy - g) <= 0.0051:
             out("gains: logged %.2f across, %.2f up; exact from size %.3f: %.5f, %.5f" % (gx, g, size, cx, cy))
             return cx, cy, t
@@ -569,6 +645,10 @@ def gains_from_log(log, size=None, scale_x=None, scale_y=None, out=print):
     else:
         out("gains: logged %.2f across, %.2f up (2 decimals)" % (gx, g))
     return gx, g, t
+
+
+gains_from_log.margins = (4, 4)   # fovaxis: --margin-x, --margin-y (Render Margin levels)
+gains_from_log.mode = "stretch"   # fovaxis: --scale-mode
 
 
 def synthetic(hold, gx, gy, speed=100.0, seconds=1.0, d=3.0, w=6.0, h=3.6, ipd=0.064, age=3,
@@ -693,6 +773,40 @@ def selftest():
     print("selftest scale sizes: -100 %% %.4f, -30 %% %.2f, +100 %% %.2f -> %s (want PASS)"
           % (scale_factor(-100), scale_factor(-30), scale_factor(100), "PASS" if good else "FAIL"))
     ok &= good
+    # fovaxis: the gains with the caps, against the same cases as the unit test
+    # ("FrameXr fovaxis: hold.py's table", immersive_scale.cpp): base 1, Render Margin 1.4x.
+    table = [  # (sx, sy, mode, gain across, gain up and down)
+        (-30, -15, "stretch", 1.0 / 0.7, 1.0 / 0.85),  # Mario Kart 7's preset: inside the caps
+        (-30, 0, "stretch", 1.0 / 0.7, 1.0),
+        (-30, -15, "fov", 1.0, 1.0),                   # crops: true shape, the base gain
+        (-100, -100, "fov", 1.0, 1.0),
+        (0, 0, "stretch", 1.0, 1.0),
+        (30, 0, "fov", 1.6 / 1.82, 1.0),               # 1.82x wanted, 1.6x drawn, the rest a stretch
+        (100, 100, "fov", 0.6, 0.6),                   # 2.8x wanted: stretch 1.75, gain held at 0.6
+        (-100, 0, "stretch", 1.6, 1.0 / 0.875),        # the ratio past what the draws can take
+        (100, 0, "stretch", 0.6, 1.0 / (1.75 / 1.5)),
+        (-30, 30, "stretch", None, None),               # ratio 1.86 before: now 1.5
+        (-100, -100, "stretch", 1.6, 1.6),
+    ]
+    good = True
+    for sx, sy, mode, wx, wy in table:
+        gx, gy = scale_gains(1.0, sx, sy, 4, 4, mode)
+        x, y = split_scales(1.4, scale_factor(sx), 1.4, scale_factor(sy), 1.0 if mode == "fov" else 0.0, 1.0)
+        fine = (0.6 - 1e-6 <= gx <= 1.6 + 1e-6 and 0.6 - 1e-6 <= gy <= 1.6 + 1e-6
+                and all(math.isfinite(v) and v > 0 for v in x + y)
+                and x[0] <= FOV_FACTOR_MAX + 1e-6 and y[0] <= FOV_FACTOR_MAX + 1e-6)
+        if mode == "stretch":
+            fine &= x[0] >= 1.0 - 1e-6 and y[0] >= 1.0 - 1e-6  # Stretch keeps the whole frame
+            free = all(1.0 + 1e-6 < d < FOV_FACTOR_MAX - 1e-6 for d in (x[0], y[0]))
+            if free:  # nothing at a limit: the ratio within 1.5
+                fine &= abs(math.log(x[1] / y[1])) <= LOG_RATIO + 1e-5
+        for got, want in ((gx, wx), (gy, wy)):
+            if want is not None:
+                fine &= abs(got - want) < 1e-5
+        print("selftest caps %+d %% / %+d %% %s: draws %.3fx %.3fx, stretch %.3f %.3f, gains %.4f %.4f -> %s"
+              % (sx, sy, mode, x[0], y[0], x[1], y[1], gx, gy, "PASS" if fine else "FAIL"))
+        good &= fine
+    ok &= good
     print("RESULT: %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 
@@ -720,6 +834,10 @@ def main():
     ap.add_argument("--size", type=float, help="the placement's size, for exact gains")
     ap.add_argument("--scale-x", type=float, default=0.0)
     ap.add_argument("--scale-y", type=float, default=0.0)
+    ap.add_argument("--margin-x", type=int, default=4, help="fovaxis: Render Margin level across (0-4)")
+    ap.add_argument("--margin-y", type=int, default=4, help="fovaxis: Render Margin level up and down")
+    ap.add_argument("--scale-mode", choices=("stretch", "fov"), default="stretch",
+                    help="fovaxis: Scale Mode for the predicted gains")
     ap.add_argument("--from", dest="t_from", type=float, help="trace time to start at, s")
     ap.add_argument("--to", dest="t_to", type=float, help="trace time to stop at, s")
     ap.add_argument("--roll", action="store_true", help="the roll check (fovscale)")
@@ -738,6 +856,8 @@ def main():
         print("RESULT: %s" % ("PASS" if ok else "FAIL"))
         return 0 if ok else 1
     if a.trace and a.log and (a.gain_x is None or a.gain_y is None):
+        gains_from_log.margins = (a.margin_x, a.margin_y)  # fovaxis
+        gains_from_log.mode = a.scale_mode
         got = gains_from_log(a.log, a.size, a.scale_x, a.scale_y)
         if got is None:
             print("no immersive mode line in %s" % a.log)

@@ -306,6 +306,8 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_immersive_fov_measured.SetGlobal(true);      // AzaharFrame fovonce
     values.vr_immersive_wider_view.SetGlobal(true); // AzaharFrame
     values.vr_immersive_wider_view_level.SetGlobal(true); // AzaharFrame widerview
+    values.vr_immersive_render_margin_x.SetGlobal(true);  // AzaharFrame fovaxis
+    values.vr_immersive_render_margin_y.SetGlobal(true);
     values.vr_immersive_scale_x.SetGlobal(true);    // AzaharFrame kiu
     values.vr_immersive_scale_y.SetGlobal(true);
     values.vr_immersive_scale_mode.SetGlobal(true); // AzaharFrame fovscale

@@ -843,6 +843,15 @@ struct Values {
     // immersive2: 1.4x by default (the owner's Majora's Mask 3D settings).
     SwitchableSetting<u32, true> vr_immersive_wider_view_level{4, 0, 4,
                                                                "vr_immersive_wider_view_level"};
+    // AzaharFrame fovaxis: Render Margin per axis, "Render Margin: Horizontal" and "Render
+    // Margin: Vertical": the level of that axis (0 Off to 4 = 1.4x, as above), or -1 = follow
+    // vr_immersive_wider_view_level (the default, and what every build before reads: that key
+    // keeps its meaning, both axes). Resolved scope first, a game's own value of either key
+    // before the global ones (frame_xr/render_margin.h). Read every frame.
+    SwitchableSetting<s32, true> vr_immersive_render_margin_x{-1, -1, 4,
+                                                              "vr_immersive_render_margin_x"};
+    SwitchableSetting<s32, true> vr_immersive_render_margin_y{-1, -1, 4,
+                                                              "vr_immersive_render_margin_y"};
     // AzaharFrame kiu: Horizontal Scale and Vertical Scale (Full (6DoF) only): the immersive
     // screen this many percent larger (positive) or smaller (negative) than the picture on that
     // axis, -100 to +100 in 5 % steps (AzaharFrame fov100; -30 to +30 before, and those keep
@@ -859,7 +868,7 @@ struct Values {
     // scales keep their meaning (the screen's size), so an older build reading the same file
     // shows the same screen, stretched (frame_xr/immersive_layout.h ScaleSplit). AzaharFrame
     // fovaxis: Field of View crops below the game's own frame (fov100 and before: a squash
-    // there) and draws at most 1.6x.
+    // there) and draws at most 1.6x; Stretch keeps the axes within 1.5 of each other.
     SwitchableSetting<u32, true> vr_immersive_scale_mode{1, 0, 1, "vr_immersive_scale_mode"};
     // AzaharFrame: how the Frame's A, B, X and Y map to the 3DS (global only): 0 = by position
     // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame
