@@ -58,6 +58,11 @@ struct Probe {
     Input::DirectAim::Out last_out;
     Input::LightGunTarget last_target;
     uint64_t writes = 0;
+    // 1.2.0 RC2: what the trace line shows of the Turn Zone's push reaching the game: the HID
+    // gyroscope polls Override answered since the last line, the last gyro it gave, the scale.
+    uint32_t gyro_polls = 0;
+    Common::Vec3f last_gyro{};
+    float last_scale = 1.0f;
 };
 
 Probe& TheProbe() {
@@ -279,7 +284,7 @@ void AimPoll(int64_t ticks) {
         const Input::ReticleBox box = Input::ReachableBox(reading);
         LOG_INFO(Frontend,
                  "xr: Light Gun: reticle {:.1f}, {:.1f} of {:.0f}x{:.0f} ({}, box {:.1f} to "
-                 "{:.1f}, {:.1f} to {:.1f}), ray {:.1f}, {:.1f}{}{}{}",
+                 "{:.1f}, {:.1f} to {:.1f}), ray {:.1f}, {:.1f}{}{}{}{}",
                  reading.x, reading.y, reading.w, reading.h, reading.ground ? "ground" : "air",
                  box.x0, box.x1, box.y0, box.y1, want.x, want.y,
                  // AzaharFrame kiuaim3: Keep Reticle on Screen's edge point, and how far past
@@ -295,7 +300,13 @@ void AimPoll(int64_t ticks) {
                  : reading.game_places ? ", the game places it"
                  : out.easing          ? ", easing back in"
                  : out.turning         ? ", turning"
-                                       : "");
+                                       : "",
+                 // 1.2.0 RC2: the push and what the game's gyroscope was given
+                 fmt::format("; push {:.1f} right {:.1f} down dps, gyro {:.1f} {:.1f} {:.1f} "
+                             "(scale {:.2f}, {} polls)",
+                             out.right_dps, out.down_dps, p.last_gyro.x, p.last_gyro.y,
+                             p.last_gyro.z, p.last_scale, p.gyro_polls));
+        p.gyro_polls = 0;
     }
 }
 
@@ -316,8 +327,11 @@ bool Override(Common::Vec3f& gyro) {
         if (scale > 0.1 && scale < 10.0) {
             g = g * static_cast<float>(1.0 / scale);
         }
+        p.last_scale = static_cast<float>(scale);
     }
     gyro = Common::Vec3f{g.x, g.y, g.z};
+    p.gyro_polls++;
+    p.last_gyro = gyro;
     return true;
 }
 
