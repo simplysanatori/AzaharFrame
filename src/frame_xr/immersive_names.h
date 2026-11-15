@@ -20,19 +20,16 @@ namespace FrameXr::Immersive::Names {
 inline constexpr const char* kRenderMargin = "Render Margin";
 /// AzaharFrame fovaxis: Render Margin per axis (Settings::values.vr_immersive_render_margin_x,
 /// _y; render_margin.h): the VR menu's and Azahar's window's rows, which replace the one Render
-/// Margin row (the toasts and logs keep kRenderMargin).
+/// Margin row (the toasts and logs keep kRenderMargin). Shown with Stretch only (Field of View
+/// hides them; Layout::MarginFactor).
 inline constexpr const char* kRenderMarginHorizontal = "Render Margin: Horizontal";
 inline constexpr const char* kRenderMarginHorizontalTip =
-    "With Stretch, draws more of the game left and right of the 3DS screen, and the screen grows "
-    "with it. Off adds nothing.";
+    "Draws more of the game left and right of the 3DS screen, and the screen grows with it. Off "
+    "adds nothing.";
 inline constexpr const char* kRenderMarginVertical = "Render Margin: Vertical";
 inline constexpr const char* kRenderMarginVerticalTip =
-    "With Stretch, draws more of the game above and below the 3DS screen, and the screen grows "
-    "with it. Off adds nothing.";
-/// AzaharFrame fovaxis: Render Margin applies with Stretch only (Layout::MarginFactor): the
-/// note under both rows' labels (VR menu) and after their values (Azahar's window) while Scale
-/// Mode is Field of View, and on the grip + D-pad toast then.
-inline constexpr const char* kAppliesWithStretch = "Applies with Stretch";
+    "Draws more of the game above and below the 3DS screen, and the screen grows with it. Off "
+    "adds nothing.";
 /// Settings::values.vr_immersive_scale_x and _y (were Narrow Screen and Narrow Height).
 /// AzaharFrame fovaxis: in Field of View a narrower screen crops; Stretch squeezes.
 inline constexpr const char* kHorizontalScale = "Horizontal Scale";

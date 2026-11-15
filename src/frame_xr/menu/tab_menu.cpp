@@ -59,7 +59,7 @@ struct Row {
     int stops = 0;     ///< Slider
     std::string value; ///< Slider, Offset; a MenuButton's value when it is none of its options
     /// AzaharFrame fovaxis: a short note under the label: "May Warp" in the error colour
-    /// (`note_warn`), "Applies with Stretch" in the label's secondary colour
+    /// (`note_warn`), otherwise in the label's secondary colour
     std::string note;
     bool note_warn = false;
     bool Enabled() const {
@@ -203,16 +203,6 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             return rows;
         }
         rows.push_back(row(Id::ImmersiveMode, RowKind::MenuButton, m.immersive_mode));
-        // AzaharFrame fovaxis: Render Margin per axis (one row before)
-        // Applies with Stretch only: never locked in Field of View, a note says so.
-        for (const auto& [id, level] : {std::pair{Id::MarginX, m.margin_x},
-                                        std::pair{Id::MarginY, m.margin_y}}) {
-            Row r = full(row(id, RowKind::Segmented, level));
-            if (m.scale_mode == 1) {
-                r.note = ::FrameXr::Immersive::Names::kAppliesWithStretch;
-            }
-            rows.push_back(r);
-        }
         Row fov = full(row(Id::GameFov, RowKind::Slider));
         const SliderRange fr = SliderFor(Id::GameFov);
         fov.t = (static_cast<float>(m.game_fov) - fr.min) / (fr.max - fr.min);
@@ -240,6 +230,16 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         scale(Id::ScaleY, m.scale_y, m.scale_y_warp);
         // AzaharFrame fovscale: Stretch | Field of View, under the scales it acts on
         rows.push_back(full(row(Id::ScaleMode, RowKind::Segmented, m.scale_mode)));
+        // AzaharFrame fovaxis: Render Margin per axis (one row before), with Stretch only: the
+        // two rows show under Scale Mode while it is Stretch and are gone in Field of View (the
+        // owner's rule), their values kept. Under the row that shows them, so a change of mode
+        // moves nothing above the beam.
+        if (m.scale_mode == 0) {
+            for (const auto& [id, level] : {std::pair{Id::MarginX, m.margin_x},
+                                            std::pair{Id::MarginY, m.margin_y}}) {
+                rows.push_back(full(row(id, RowKind::Segmented, level)));
+            }
+        }
         // AzaharFrame fovaxis: Fill View, once (a button; the values stay ordinary)
         rows.push_back(full(row(Id::FillView, RowKind::Button)));
         // AzaharFrame natural: World Scale, a slider over its stops (10% to 400%, the default

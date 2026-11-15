@@ -168,6 +168,7 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     v.tab = Tab::Settings;
     v.section = SettingsSection::Immersive; // AzaharFrame autosave
     m.immersive_mode = 0;
+    m.scale_mode = 0; // AzaharFrame fovaxis: the rows show with Stretch only
     // AzaharFrame depth3d: lower down now; menuux: not at the end any more, so every scroll.
     bool label = false;
     for (float scroll = 0.0f;; scroll += 32.0f) {
@@ -3838,10 +3839,11 @@ TEST_CASE("Tab menu: Controllers in Front of Screen", "[frame_xr][tabmenu]") {
     }
 }
 
-// AzaharFrame fovaxis: Render Margin applies with Stretch only: in Field of View its two rows
-// stay editable (their segments hit) with the note; Fill View is a button under Scale Mode in a
-// Full mode.
-TEST_CASE("Tab menu: Render Margin's note and Fill View", "[frame_xr][tabmenu][fovaxis]") {
+// AzaharFrame fovaxis: Render Margin's two rows show with Stretch only (the owner's rule), right
+// under Scale Mode, so a change of mode moves nothing above it; in Field of View they are gone
+// (no note), their values kept. Fill View is a button under them in a Full mode.
+TEST_CASE("Tab menu: Render Margin with Stretch only, and Fill View",
+          "[frame_xr][tabmenu][fovaxis]") {
     CHECK(LabelFor(Id::FillView) == "Fill View");
     CHECK(SectionOf(Id::FillView) == SettingsSection::Immersive);
     CHECK(!PerGameSetting(Id::FillView));
@@ -3849,22 +3851,54 @@ TEST_CASE("Tab menu: Render Margin's note and Fill View", "[frame_xr][tabmenu][f
     Drawn d;
     MenuModel m = Sample();
     m.immersive_mode = 2;
-    m.scale_mode = 1; // Field of View
+    m.margin_x = 3;
+    m.margin_y = 1;
     MenuView v;
     v.tab = Tab::Settings;
     v.section = SettingsSection::Immersive;
-    bool margin_segment = false, fill = false;
-    for (float scroll = 0.0f;; scroll += 32.0f) {
-        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
-        d.Draw(m, v);
-        for (const auto& h : d.menu.Hits()) {
-            margin_segment |= (h.t.id == Id::MarginX || h.t.id == Id::MarginY) && h.t.index >= 0;
-            fill |= h.t.id == Id::FillView;
+    struct Seen {
+        bool margin = false, fill = false;
+        int selected_x = -1, selected_y = -1;
+        std::vector<Id> order; // rows, top to bottom
+    };
+    const auto look = [&](int scale_mode) {
+        m.scale_mode = scale_mode;
+        Seen seen;
+        for (float scroll = 0.0f;; scroll += 32.0f) {
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            d.Draw(m, v);
+            for (const auto& h : d.menu.Hits()) {
+                seen.margin |= h.t.id == Id::MarginX || h.t.id == Id::MarginY;
+                seen.fill |= h.t.id == Id::FillView;
+                // Rows by their labels; Fill View, a button, by its own hit.
+                if ((h.t.index == kLabelIndex || h.t.id == Id::FillView) &&
+                    std::find(seen.order.begin(), seen.order.end(), h.t.id) == seen.order.end()) {
+                    seen.order.push_back(h.t.id);
+                }
+            }
+            if (scroll >= d.menu.MaxScroll()) {
+                break;
+            }
         }
-        if (scroll >= d.menu.MaxScroll()) {
-            break;
-        }
-    }
-    CHECK(margin_segment); // never locked in Field of View
-    CHECK(fill);
+        return seen;
+    };
+    const auto index = [](const std::vector<Id>& order, Id id) {
+        return static_cast<int>(std::find(order.begin(), order.end(), id) - order.begin());
+    };
+    const Seen fov = look(1);
+    CHECK(!fov.margin); // gone in Field of View
+    CHECK(fov.fill);
+    CHECK(index(fov.order, Id::FillView) == index(fov.order, Id::ScaleMode) + 1);
+    const Seen stretch = look(0);
+    CHECK(stretch.margin);
+    CHECK(stretch.fill);
+    CHECK(index(stretch.order, Id::MarginX) == index(stretch.order, Id::ScaleMode) + 1);
+    CHECK(index(stretch.order, Id::MarginY) == index(stretch.order, Id::MarginX) + 1);
+    CHECK(index(stretch.order, Id::FillView) == index(stretch.order, Id::MarginY) + 1);
+    // Everything above Scale Mode is the same in both modes.
+    const int above = index(fov.order, Id::ScaleMode);
+    REQUIRE(above < static_cast<int>(fov.order.size()));
+    CHECK(std::vector<Id>(fov.order.begin(), fov.order.begin() + above + 1) ==
+          std::vector<Id>(stretch.order.begin(), stretch.order.begin() + above + 1));
+    // Their values are the settings' (BuildModel reads them each frame); hiding writes nothing.
 }

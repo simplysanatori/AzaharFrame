@@ -2189,10 +2189,7 @@ WiderStep StepWiderView(int dir) {
     // AzaharFrame fovaxis: both axes one level (Render Margin's own key while both follow it, as
     // every build before; render_margin.h).
     const Margin::Stepped step = Margin::StepBoth(dir > 0 ? 1 : -1);
-    // also at the ends, so the press shows; in Field of View it is kept for Stretch
-    ShowToastText(g.scale_mode == L::ScaleMode::Stretch
-                      ? L::MarginToast(step.x, step.y)
-                      : L::MarginToast(step.x, step.y) + " (" + Names::kAppliesWithStretch + ")");
+    ShowToastText(L::MarginToast(step.x, step.y)); // also at the ends, so the press shows
     if (!step.changed) {
         return WiderStep::None;
     }

@@ -380,7 +380,8 @@ TEST_CASE("VR group: the scales from -100 % to +100 %", "[frame_xr][fov100]") {
 }
 
 // AzaharFrame fovaxis: Render Margin's two rows in a game's Properties (each its own value or
-// Use global, the old key followed while untouched) and "May Warp" on a scale's row.
+// Use global, the old key followed while untouched; shown with Stretch only, their values kept
+// while hidden) and "May Warp" on a scale's row.
 TEST_CASE("VR group: Render Margin per axis and the May Warp note", "[frame_xr][fovaxis]") {
     App();
     auto& v = Settings::values;
@@ -421,31 +422,39 @@ TEST_CASE("VR group: Render Margin per axis and the May Warp note", "[frame_xr][
         CHECK(my->currentIndex() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
         CHECK(warp_x->isHidden());
         CHECK(warp_y->isHidden());
-        // Field of View: both margin rows say they apply with Stretch, and stay editable.
-        auto* note_x = w.findChild<QWidget*>(QStringLiteral("frame_vr_margin_x_note"));
-        auto* note_y = w.findChild<QWidget*>(QStringLiteral("frame_vr_margin_y_note"));
-        REQUIRE(note_x);
-        REQUIRE(note_y);
-        CHECK(!note_x->isHidden());
-        CHECK(!note_y->isHidden());
-        CHECK(mx->isEnabled());
-        CHECK(my->isEnabled());
-        // +70 % is past Field of View's 1.6x (the scales alone; the margins apply with
-        // Stretch): the note shows, live.
-        mx->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX);
+        // Field of View: both margin rows are hidden (Render Margin is Stretch's), no note.
+        auto* row_x = w.findChild<QWidget*>(QStringLiteral("frame_vr_margin_x_row"));
+        auto* row_y = w.findChild<QWidget*>(QStringLiteral("frame_vr_margin_y_row"));
+        REQUIRE(row_x);
+        REQUIRE(row_y);
+        CHECK(row_x->isHidden());
+        CHECK(row_y->isHidden());
+        CHECK(!w.findChild<QWidget*>(QStringLiteral("frame_vr_margin_x_note")));
+        // +70 % is past Field of View's 1.6x (the scales alone): the note shows, live.
         sx->setCurrentIndex(34 + ConfigurationShared::USE_GLOBAL_OFFSET); // +70 %
         CHECK(!warp_x->isHidden());
         CHECK(warp_y->isHidden());
-        // Stretch: the margin notes go, and so does May Warp: the caps take +70 % across
-        // with 0 % up and down (the game's frame draws 1.13x across, stretched 1.5).
+        // Stretch: the margin rows show, under Scale Mode, with the values they had; May Warp
+        // goes: the caps take +70 % across with 0 % up and down (the game's frame draws 1.13x
+        // across, stretched 1.5).
         auto* mode = In<QComboBox>(w, "frame_vr_scale_mode_row");
         REQUIRE(mode);
         mode->setCurrentIndex(0 + ConfigurationShared::USE_GLOBAL_OFFSET); // Stretch
-        CHECK(note_x->isHidden());
-        CHECK(note_y->isHidden());
+        CHECK(!row_x->isHidden());
+        CHECK(!row_y->isHidden());
+        CHECK(mx->currentIndex() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
         CHECK(warp_x->isHidden());
+        // Under Scale Mode, so a change of mode moves nothing above it.
+        QLayout* box = row_x->parentWidget()->layout();
+        REQUIRE(box);
+        CHECK(box->indexOf(row_x) == box->indexOf(mode->parentWidget()) + 1);
+        CHECK(box->indexOf(row_y) == box->indexOf(row_x) + 1);
+        mx->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX); // Horizontal: Use global
         mode->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX); // back to the global FoV
-        CHECK(!note_x->isHidden());
+        CHECK(row_x->isHidden());
+        CHECK(row_y->isHidden());
+        CHECK(mx->currentIndex() == ConfigurationShared::USE_GLOBAL_INDEX); // kept while hidden
+        CHECK(my->currentIndex() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
         CHECK(!warp_x->isHidden());
         Shot(w, "qt-vr-margin-axes-may-warp.png");
         // Horizontal back to Use global: the game's Render Margin goes, Vertical keeps 1.2x.
