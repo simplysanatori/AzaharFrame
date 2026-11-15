@@ -83,7 +83,7 @@ Menu::MenuModel SampleModel() {
     m.margin_y = 2;
     m.game_fov = 60;
     m.scale_x = 0;
-    m.slots = {{1, "2026-11-08 21:14"}, {2, "2026-11-09 19:02"}, {5, "2026-11-10 08:47"}};
+    m.save_slots = {{1, "2026-11-08 21:14"}, {2, "2026-11-09 19:02"}, {5, "2026-11-10 08:47"}};
     m.world_scale_stop = 20;
     m.follow_screen = true;
     return m;
@@ -655,7 +655,7 @@ int main(int argc, char** argv) {
     }
     { // AzaharFrame savestate: slots from another build, the mismatch and About notices
         MenuModel sm = m;
-        sm.slots = {{1, "From 1.1.1", true}, {2, "2026-11-09 19:02"}, {5, "From Another Version", true}};
+        sm.save_slots = {{1, "From 1.1.1", true}, {2, "2026-11-09 19:02"}, {5, "From Another Version", true}};
         MenuView sv;
         sv.page = Page::LoadSlots;
         sv.hover = {Id::Slot, 1};

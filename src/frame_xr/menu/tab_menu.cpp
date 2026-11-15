@@ -1336,7 +1336,7 @@ void TabMenu::DrawSlots(Kit& kit, const MenuModel& model, const MenuView& view, 
         const int slot = i + 1;
         std::string time;
         bool other = false; // AzaharFrame savestate: from another build: dimmed, still tappable
-        for (const SaveSlot& s : model.slots) {
+        for (const SaveSlot& s : model.save_slots) {
             if (s.slot == slot) {
                 time = s.time;
                 other = s.other;

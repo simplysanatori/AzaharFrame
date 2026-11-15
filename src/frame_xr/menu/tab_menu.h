@@ -358,7 +358,7 @@ constexpr bool AngelsIntroDue(int stored_before, int index_after, bool kiu_open,
 struct MenuModel {
     std::string game_title;
     bool quick_load_available = true;
-    std::vector<SaveSlot> slots; ///< slots 1 to 10
+    std::vector<SaveSlot> save_slots; ///< slots 1 to 10
     ModsDialog notice; ///< AzaharFrame savestate: a dialog over the whole menu (ModsDialogKind::Notice)
     // Position
     bool hide_bottom_screen = false;

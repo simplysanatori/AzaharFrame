@@ -853,7 +853,7 @@ void MenuPanel::BuildModel(const Host& host) {
             if (s.slot == 0) {
                 m.quick_load_available = true;
             } else {
-                m.slots.push_back({s.slot, s.time, s.other});
+                m.save_slots.push_back({s.slot, s.time, s.other});
             }
         }
     }

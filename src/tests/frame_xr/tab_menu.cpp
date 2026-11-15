@@ -31,7 +31,7 @@ constexpr float kListBottom = kPanelH - 12.0f - 8.0f; // where a scrolled list i
 MenuModel Sample() {
     MenuModel m;
     m.game_title = "The Legend of Zelda: Ocarina of Time 3D";
-    m.slots = {{1, "2026-11-08 21:14"}, {3, "2026-11-09 19:02"}};
+    m.save_slots = {{1, "2026-11-08 21:14"}, {3, "2026-11-09 19:02"}};
     m.immersive_mode = 2;
     m.stats_game = {{"App FPS", "30"}};
     return m;
@@ -1098,7 +1098,7 @@ MenuModel Longest() {
     m.immersive_offset = "Right 10.0°, Down 10.0°";
     m.immersive_offset_set = true;
     for (int i = 1; i <= 10; i++) {
-        m.slots.push_back({i, "2026-12-31 23:59"});
+        m.save_slots.push_back({i, "2026-12-31 23:59"});
     }
     m.stats_game = {{"App FPS", "60"}, {"Emulation Speed", "100%"}, {"Frame Time", "16.7 ms"},
                     {"Internal Resolution", "8x"}, {"Shaders Compiled", "1234"}};
@@ -2502,7 +2502,7 @@ TEST_CASE("Tab menu: Optimize for Frame", "[frame_xr][tabmenu]") {
 TEST_CASE("Tab menu: save states from another build, and the notice", "[frame_xr][tabmenu]") {
     Audit a;
     MenuModel m = Sample();
-    m.slots = {{1, "From 1.1.1", true}, {3, "2026-11-09 19:02"}};
+    m.save_slots = {{1, "From 1.1.1", true}, {3, "2026-11-09 19:02"}};
     MenuView v;
     v.page = Page::LoadSlots;
     a.Draw(m, v);
@@ -2520,7 +2520,7 @@ TEST_CASE("Tab menu: save states from another build, and the notice", "[frame_xr
     CHECK(centre(Id::Slot, 1) == Target{Id::Slot, 1});
 
     // Saved over: a plain slot again (the list comes from the files each time)
-    m.slots = {{1, "2026-11-12 10:15"}, {3, "2026-11-09 19:02"}};
+    m.save_slots = {{1, "2026-11-12 10:15"}, {3, "2026-11-09 19:02"}};
     a.Draw(m, v);
     CHECK(!a.Drew("From 1.1.1"));
     CHECK(a.Drew("2026-11-12 10:15"));
@@ -2773,7 +2773,7 @@ TEST_CASE("Tab menu: Load State's Autosave card", "[frame_xr][tabmenu]") {
     // After a load: Undo Load under the slots, the slots still 48 dp
     v.open_menu = Id::None;
     m.undo_load = "Autosave Loaded: 10:22";
-    m.slots.push_back({5, "2026-11-10 08:47"}); // the bottom row
+    m.save_slots.push_back({5, "2026-11-10 08:47"}); // the bottom row
     d.Draw(m, v);
     REQUIRE(HasHit(d, Id::UndoLoad, -1));
     CHECK(FindHit(d, Id::UndoLoad, -1)->r.y0 >= FindHit(d, Id::Slot, 5)->r.y1);
