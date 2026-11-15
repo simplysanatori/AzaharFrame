@@ -412,3 +412,26 @@ TEST_CASE("Angel's Aim along the weapon: Check Aim with the weapon's ray, at any
         }
     }
 }
+
+TEST_CASE("Weapon fit: Pit's fist on the controller's handle, every class he holds, both hands",
+          "[frame_xr][kiuinteg]") {
+    for (const ClassCase& c : Classes()) {
+        if (!c.w.hold) {
+            continue; // orbitars float by the hand
+        }
+        for (const bool left : {false, true}) {
+            // Weapons of the class differ in their muzzles: the fist stays put across them.
+            for (const float reach : {0.5f, 1.0f, 1.7f}) {
+                INFO(c.name << (left ? ", left hand" : ", right hand") << ", reach " << reach);
+                Vis::FitWeapon w = c.w;
+                w.muzzle = {w.muzzle[0] * reach, w.muzzle[1] * reach, w.muzzle[2] * reach};
+                const auto fist = Vis::FitFist(w, left, SidesFor(w.cls));
+                REQUIRE(fist);
+                CHECK((*fist)[0] ==
+                      Approx(left ? -Vis::kHandleCentre[0] : Vis::kHandleCentre[0]).margin(1e-4f));
+                CHECK((*fist)[1] == Approx(Vis::kHandleCentre[1]).margin(1e-4f));
+                CHECK((*fist)[2] == Approx(Vis::kHandleCentre[2]).margin(1e-4f));
+            }
+        }
+    }
+}

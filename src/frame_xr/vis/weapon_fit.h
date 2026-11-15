@@ -70,11 +70,13 @@ struct FitWeapon {
 ///     (+y) outward, the fist's centre on the handle (kHandleCentre). The controller's handle
 ///     sits where Pit's hand holds the hilt, the hilt through the fist.
 ///   Point (bows, cannons): the fingers' line (-x) along the ray, the thumb (+z) up, the back
-///     of the hand outward, the fist's centre at the palm point (kPalm): the bow upright (as the
+///     of the hand outward, the fist's centre on the handle (kHandleCentre; AzaharFrame
+///     kiuinteg: it was the pistol palm point, 4.7 cm ahead of it): the bow upright (as the
 ///     owner had it), the cannon's forearm along the ray, its housing on the hand's back
 ///     (outward: the right for the right hand, as in the game).
 /// Claws, palms, arms and orbitars keep their own fits (the game's hold of them is the hand
-/// itself, which those fits already are; orbitars float).
+/// itself, which those fits already are; orbitars float). AzaharFrame kiuinteg: claws, palms
+/// and arms with a hold are then moved so Pit's fist's centre is on the handle too.
 enum class HoldMap : uint8_t { None, Grip, Point };
 HoldMap HoldMapFor(int cls);
 /// The Frame controller's handle in aim space (its model's body, the centres of its cross

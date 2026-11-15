@@ -297,6 +297,11 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   back along the forearm). Their muzzles follow the weapon (the shots, the flash and the laser
   start at its tip), not the ray. Claws, palms, arms and orbitars keep their fits (the game's hold
   of them is the hand itself). Test switch (live): `AZAHARFRAME_KIU_HOLD=idle|shot`.
+  AzaharFrame kiuinteg: Pit's fist's centre is on the controller's handle (`kHandleCentre`, its
+  mirror for the left hand) for every class he holds: bows and cannons were 4.7 cm off it (at the
+  pistol palm point), claws and arms 7 to 11 cm (above and ahead, sideways by each weapon's
+  muzzle), palms 6.2 cm; their muzzles now sit 4 to 9 cm off the controller's line (the aim ray
+  starts at the muzzle, so the beam and the reticle still meet). Orbitars float by the hand.
 - **Muzzle Flash** (`vr_light_gun_flash`, per game too, on by default; shown under Weapon in
   Hand while it is on; AzaharFrame kiuflash): a flash at the weapon's muzzle on each of the
   game's own shots (the same shots record as Recoil, read for either; `vis/muzzle_flash.h`). The

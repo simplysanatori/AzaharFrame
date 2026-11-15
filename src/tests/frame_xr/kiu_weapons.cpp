@@ -324,8 +324,9 @@ TEST_CASE("Weapon fit: the game's hold, by class", "[kiuweap2]") {
     REQUIRE(halves.size() == 1);
     CHECK(halves[0].side == Vis::FitSide::Right);
 
-    // A bow: in Pit's left hand; for the right hand mirrored, its grip at the palm point, its
-    // arrow axis (+x) ahead, its limbs (z) upright.
+    // A bow: in Pit's left hand; for the right hand mirrored, its grip on the controller's
+    // handle (AzaharFrame kiuinteg: it was the palm point), its arrow axis (+x) ahead, its limbs
+    // (z) upright.
     Vis::FitWeapon bow{3, {0.0f, -0.175f, 0.0f}, true};
     bow.hold = Vis::FitHold{TurnX(0.0f, {0, 0, 0}), {0.899f, 0.076f, 0.0f}, true};
     for (const bool left : {false, true}) {
@@ -335,9 +336,9 @@ TEST_CASE("Weapon fit: the game's hold, by class", "[kiuweap2]") {
         CHECK(b[0].mirrored == !left);
         CHECK((Det(b[0].transform) < 0.0f) == !left);
         const auto fist = Point(b[0].transform, {0.899f, 0.076f, 0.0f});
-        CHECK(fist[0] == Approx(0.0f).margin(1e-4));
-        CHECK(fist[1] == Approx(-0.0525f).margin(1e-4));
-        CHECK(fist[2] == Approx(0.043f).margin(1e-4));
+        CHECK(fist[0] == Approx(left ? -Vis::kHandleCentre[0] : Vis::kHandleCentre[0]).margin(1e-4));
+        CHECK(fist[1] == Approx(Vis::kHandleCentre[1]).margin(1e-4));
+        CHECK(fist[2] == Approx(Vis::kHandleCentre[2]).margin(1e-4));
         const auto ahead = Dir(b[0].transform, {1, 0, 0});
         CHECK(ahead[2] / Len(ahead) < -0.99f);
         const auto limb = Dir(b[0].transform, {0, 0, 1});
@@ -356,17 +357,28 @@ TEST_CASE("Weapon fit: the game's hold, by class", "[kiuweap2]") {
     CHECK(Dir(cl[0].transform, {0, 1, 0})[0] < 0.0f);
     const auto forearm = Dir(cr[0].transform, {1, 0, 0}); // the forearm back from the hand
     CHECK(forearm[2] > 0.0f);
-    // Claws, palms, arms, orbitars: their own fits, a hold or not.
+    // Claws, palms, arms: their own fits' turn, a hold or not; AzaharFrame kiuinteg: with a
+    // hold, moved so Pit's fist (the hold's: at (1, 2, 3) in his hand, where the weapon's
+    // origin is) is on the handle, each hand's own side.
     for (const int cls : {2, 4, 8}) {
-        Vis::FitWeapon w{cls, {-1.3f, 0.0f, 0.0f}, true};
-        const auto sides = cls == 2 ? std::vector{Vis::FitSide::Right, Vis::FitSide::Left}
-                                    : std::vector{Vis::FitSide::Centre};
-        const auto before = Vis::FitWeaponToHand(w, false, sides);
-        w.hold = Vis::FitHold{TurnX(1.0f, {1, 2, 3}), {1, 2, 3}};
-        const auto after = Vis::FitWeaponToHand(w, false, sides);
-        REQUIRE(before.size() == after.size());
-        for (std::size_t i = 0; i < before.size(); i++) {
-            CHECK(before[i].transform == after[i].transform);
+        for (const bool left : {false, true}) {
+            INFO("class " << cls << (left ? ", left" : ", right"));
+            Vis::FitWeapon w{cls, {-1.3f, 0.0f, 0.0f}, true};
+            const auto sides = cls == 2 ? std::vector{Vis::FitSide::Right, Vis::FitSide::Left}
+                                        : std::vector{Vis::FitSide::Centre};
+            const auto before = Vis::FitWeaponToHand(w, left, sides);
+            w.hold = Vis::FitHold{TurnX(1.0f, {1, 2, 3}), {1, 2, 3}};
+            const auto after = Vis::FitWeaponToHand(w, left, sides);
+            REQUIRE(before.size() == after.size());
+            for (std::size_t i = 0; i < before.size(); i++) {
+                for (std::size_t k = 0; k < 12; k++) {
+                    CHECK(before[i].transform[k] == after[i].transform[k]);
+                }
+                const auto fist = Point(after[i].transform, {0.0f, 0.0f, 0.0f});
+                CHECK(fist[0] == Approx(left ? -Vis::kHandleCentre[0] : Vis::kHandleCentre[0]).margin(1e-4));
+                CHECK(fist[1] == Approx(Vis::kHandleCentre[1]).margin(1e-4));
+                CHECK(fist[2] == Approx(Vis::kHandleCentre[2]).margin(1e-4));
+            }
         }
     }
 }
@@ -873,4 +885,67 @@ TEST_CASE("Weapon glow: moving, the same at the same time, bounded", "[kiumodels
     const Vis::GlowMotion late = Vis::AnimateGlow(4, 1, frames, 0.0f, dv, 3599.99);
     CHECK(late.v <= 0.0f);
     CHECK(late.v >= dv);
+}
+
+// AzaharFrame kiuinteg: AZAHARFRAME_TEST_KIU_MODELS=<a weapons folder>
+// AZAHARFRAME_TEST_KIU_SURVEY=<out file>: for each converted weapon and hand, Pit's fist against
+// the controller's handle (kHandleCentre, mirrored for the left hand; metres, aim space) and the
+// weapon's axis (FitAxis) against the aim pose's -Z (degrees up and toward the hand's outside).
+TEST_CASE("Kid Icarus: the hand on the handle and the axis of converted weapons",
+          "[.kiuinteg_real]") {
+    const char* dir = std::getenv("AZAHARFRAME_TEST_KIU_MODELS");
+    const char* out = std::getenv("AZAHARFRAME_TEST_KIU_SURVEY");
+    REQUIRE(dir);
+    REQUIRE(out);
+    FrameWeapons::Manifest m;
+    std::string error;
+    REQUIRE(FrameWeapons::ReadManifest(std::string{dir} + "/weapons.txt", m, error));
+    std::ofstream o(out);
+    o << "# id cls hand map fist_dx fist_dy fist_dz fist_dist axis_up_deg axis_out_deg "
+         "muzzle_x muzzle_y muzzle_z\n";
+    for (const auto& w : m.weapons) {
+        std::vector<Vis::FitSide> sides;
+        for (const auto& p : w.parts) {
+            for (const auto s : p.sides) {
+                const auto fs = static_cast<Vis::FitSide>(static_cast<int>(s));
+                if (std::find(sides.begin(), sides.end(), fs) == sides.end()) {
+                    sides.push_back(fs);
+                }
+            }
+        }
+        for (const bool left : {false, true}) {
+            Vis::FitWeapon fw{w.cls, w.muzzle, w.muzzle_valid, std::nullopt};
+            if (w.hold.valid) {
+                const auto pick = Vis::HoldPickFor(w.cls, std::nullopt);
+                const auto& hp = pick == Vis::HoldPick::Shot ? w.hold.shot : w.hold.idle;
+                fw.hold = Vis::FitHold{hp.to_hand, hp.fist, w.hold.hand == "LHandN"};
+            }
+            const auto fist = Vis::FitFist(fw, left, sides);
+            const auto axis = Vis::FitAxis(fw, left, sides);
+            const auto muzzle = Vis::FitMuzzle(fw, left, sides);
+            const float hx = left ? -Vis::kHandleCentre[0] : Vis::kHandleCentre[0];
+            o << w.id << ' ' << w.cls << ' ' << (left ? 'L' : 'R') << ' '
+              << static_cast<int>(Vis::HoldMapFor(w.cls));
+            if (fist) {
+                const float dx = (*fist)[0] - hx, dy = (*fist)[1] - Vis::kHandleCentre[1],
+                            dz = (*fist)[2] - Vis::kHandleCentre[2];
+                o << ' ' << dx << ' ' << dy << ' ' << dz << ' '
+                  << std::sqrt(dx * dx + dy * dy + dz * dz);
+            } else {
+                o << " - - - -";
+            }
+            if (axis) {
+                const float up = std::asin(std::clamp((*axis)[1], -1.0f, 1.0f)) * 57.29578f;
+                const float side = std::atan2((*axis)[0], -(*axis)[2]) * 57.29578f;
+                o << ' ' << up << ' ' << (left ? -side : side);
+            } else {
+                o << " - -";
+            }
+            if (muzzle) {
+                o << ' ' << (*muzzle)[0] << ' ' << (*muzzle)[1] << ' ' << (*muzzle)[2];
+            }
+            o << '\n';
+        }
+    }
+    CHECK(m.weapons.size() > 0);
 }

@@ -203,8 +203,11 @@ M3 HoldHandFrame(HoldMap map) {
     return {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
 }
 
-V3 HoldFistAt(HoldMap map) {
-    return map == HoldMap::Grip ? kHandleCentre : kPalm;
+V3 HoldFistAt(HoldMap) {
+    // AzaharFrame kiuinteg: Pit's fist on the controller's handle for both maps (a bow's and a
+    // cannon's were at the pistol palm point kPalm, 4.7 cm off it: 4.4 cm ahead, 1.3 cm
+    // inward, 0.8 cm down).
+    return kHandleCentre;
 }
 
 /// The game's hold (weapon space to the holding hand's), as a right hand's: Pit's left hand's
@@ -561,6 +564,29 @@ std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
         }
         break;
     }
+    }
+    // AzaharFrame kiuinteg: claws, palms and arms with the game's hold: Pit's fist's centre (the
+    // hold's) on the controller's handle (kHandleCentre, the tune's offset kept), so his hand is
+    // where the player's is, the same for every weapon of the class. Their fits put the wrist
+    // behind the grip and raised the hand onto the ray at the muzzle, which left the fist 6 to
+    // 12 cm above and ahead of the handle, and sideways by the muzzle's own offset.
+    if (w.hold && (w.cls == 2 || w.cls == 4 || w.cls == 8)) {
+        if (const auto fist_w = FistInWeapon(*w.hold)) {
+            const float sx = left_hand ? -1.0f : 1.0f;
+            const V3 want{sx * (kHandleCentre[0] + offset[0]), kHandleCentre[1] + offset[1],
+                          kHandleCentre[2] + offset[2]};
+            for (FitPart& part : out) {
+                V3 f = *fist_w;
+                if (part.side == FitSide::Left && c.rule == Rule::Worn) {
+                    f[0] = -f[0]; // the left claw's own hand: the right one's mirrored
+                }
+                const V3 at_now = TransformPoint(part.transform, f);
+                for (int k = 0; k < 3; k++) {
+                    part.transform[static_cast<std::size_t>(12 + k)] +=
+                        want[static_cast<std::size_t>(k)] - at_now[static_cast<std::size_t>(k)];
+                }
+            }
+        }
     }
     return out;
 }
