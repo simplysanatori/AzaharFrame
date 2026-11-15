@@ -54,7 +54,7 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Left Stick") == "Circle Pad");
         REQUIRE(ActionFor(page.game, "Right Stick") == "C-Stick");
         REQUIRE(ActionFor(page.game, "Left Bumper") == "3DS L");
-        REQUIRE(ActionFor(page.game, "Left Trigger") == "3DS ZL, Touch on Bottom Screen");
+        REQUIRE(ActionFor(page.game, "Left Trigger") == "3DS ZL, Touch on Secondary Screen");
         REQUIRE(ActionFor(page.game, "Menu") == "3DS Start");
         REQUIRE(ActionFor(page.game, "View") == "3DS Select");
         REQUIRE(ActionFor(page.game, "Left Stick Click") == "Hide or Show Secondary Screen");
@@ -392,7 +392,7 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         REQUIRE(DiagramAction(g, 1, CtrlPart::Stick, "Hold Click (1 s)") == "Reset Screens and View");
         REQUIRE(DiagramAction(g, 0, CtrlPart::Bumper, "Left Bumper") == "3DS L");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Trigger, "Right Trigger") == "3DS ZR");
-        REQUIRE(DiagramAction(g, 1, CtrlPart::Trigger, "") == "Touch on Bottom Screen");
+        REQUIRE(DiagramAction(g, 1, CtrlPart::Trigger, "") == "Touch on Secondary Screen");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Menu, "Menu") == "3DS Start");
         REQUIRE(DiagramAction(g, 1, CtrlPart::Menu, "Hold (1 s)") == "In-Game Menu");
         // The holds and the chords, under View.
@@ -406,7 +406,7 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         REQUIRE(DiagramAction(g, 0, CtrlPart::View, "Right Trigger") == "Fast Forward On / Off");
         REQUIRE(LineFor(view, "Both Bumpers +"));
         REQUIRE(std::any_of(view->lines.begin(), view->lines.end(), [](const DiagramLine& l) {
-            return l.sub && l.key == "View" && l.action == "Show or Hide Bottom Screen";
+            return l.sub && l.key == "View" && l.action == "Show or Hide Secondary Screen";
         }));
         REQUIRE(DiagramAction(g, 0, CtrlPart::View, "View + Menu") == "Switch VR / Flat");
         // One label for both grips.

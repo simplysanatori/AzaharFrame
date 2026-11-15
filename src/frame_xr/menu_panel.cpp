@@ -1256,7 +1256,7 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::HideBottomScreen:
         Apply(v.vr_hide_bottom_screen, value != 0, per_game);
         r.setting = MenuSetting::HideBottomScreen;
-        ShowToastText("Hide Bottom Screen: From the Next Start", ToastTime::Long);
+        ShowToastText("Hide Secondary Screen: From the Next Start", ToastTime::Long);
         break;
     case Id::ScreenShape:
         Apply(v.vr_top_aspect, std::min<u32>(u, 6), per_game); // AzaharFrame fixes7: 6 Automatic
@@ -1647,7 +1647,7 @@ void MenuPanel::UseGlobal(Id id, Host& host) {
     if (id == Id::InternalResolution) {
         DynamicResolution::Reset(); // from the global value, no step off
     } else if (id == Id::HideBottomScreen && hide != v.vr_hide_bottom_screen.GetValue()) {
-        ShowToastText("Hide Bottom Screen: From the Next Start", ToastTime::Long);
+        ShowToastText("Hide Secondary Screen: From the Next Start", ToastTime::Long);
     } else if (id == Id::AsyncShaders && async != v.async_shader_compilation.GetValue()) {
         ShowToastText("Async Shader Compilation: From the Next Start", ToastTime::Long);
     }
@@ -2240,7 +2240,7 @@ void MenuPanel::Click(Target t, Host& host) {
         if (t.index >= 0 && t.index <= 1 && mm.mode != static_cast<uint8_t>(t.index)) {
             mm.mode = static_cast<uint8_t>(t.index);
             Input::Devices::SetMapping(Input::kMouseDeviceId, mm);
-            ShowToastText(t.index == 1 ? "Mouse: Pointer" : "Mouse: Bottom Screen");
+            ShowToastText(t.index == 1 ? "Mouse: Pointer" : "Mouse: Secondary Screen");
         }
         break;
     }

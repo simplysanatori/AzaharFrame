@@ -411,8 +411,8 @@ int main(int argc, char** argv) {
         ok &= toast_shot("toasts.png",
                          {Input::kReticleHint, Input::kMouseHint,
                           "Async Shader Compilation: From the Next Start",
-                          "Hide Bottom Screen: From the Next Start",
-                          "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle",
+                          "Hide Secondary Screen: From the Next Start",
+                          "Secondary Screen Reticle: Right Controller", "At Edge: Snap to Middle",
                           "Preparing Shaders 3 / 9", // AzaharFrame integ3: the stall lane's shader notice
                           VideoCore::PreloadBudget::kTooLargeToast, // AzaharFrame memguard
                           VideoCore::PreloadBudget::kStoppedToast, "Stopping...",

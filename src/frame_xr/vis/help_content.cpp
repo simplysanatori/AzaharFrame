@@ -196,9 +196,9 @@ void Label(DiagramPage& page, int hand, std::vector<CtrlPart> parts, std::vector
 // A trigger: the 3DS button it is, and the touch on the bottom screen, which it always is.
 std::vector<DiagramLine> TriggerLines(const char* name, const std::string& bound) {
     if (bound.empty()) {
-        return {Title(name, "Touch on Bottom Screen")};
+        return {Title(name, "Touch on Secondary Screen")};
     }
-    return {Title(name, bound), Line("", "Touch on Bottom Screen")};
+    return {Title(name, bound), Line("", "Touch on Secondary Screen")};
 }
 
 } // namespace
@@ -242,8 +242,8 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Left Bumper", OrNothing(ThreeDs(b, Control::BumperL)));
     Row(g, "Right Bumper", OrNothing(ThreeDs(b, Control::BumperR)));
     // The triggers touch when aimed at the shown bottom screen, whatever the profile says.
-    Row(g, "Left Trigger", With("Touch on Bottom Screen", ThreeDs(b, Control::TriggerL)));
-    Row(g, "Right Trigger", With("Touch on Bottom Screen", ThreeDs(b, Control::TriggerR)));
+    Row(g, "Left Trigger", With("Touch on Secondary Screen", ThreeDs(b, Control::TriggerL)));
+    Row(g, "Right Trigger", With("Touch on Secondary Screen", ThreeDs(b, Control::TriggerR)));
     Row(g, "Menu", OrNothing(ThreeDs(b, Control::Menu)));
     Row(g, "View", OrNothing(ThreeDs(b, Control::View)));
     // AzaharFrame screenswap: the stick clicks are taps (on release) and 1 s holds (mapper.cpp).
@@ -272,7 +272,7 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Hold View + Left Bumper (0.5 s)", "Quick Load");
     Row(g, "Hold View + Right Bumper", "Quick Save");
     Row(g, "Hold View + Right Trigger", "Fast Forward On / Off");
-    Row(g, "Both Bumpers + View", "Show or Hide Bottom Screen");
+    Row(g, "Both Bumpers + View", "Show or Hide Secondary Screen");
 
     // ---- Azahar's window (the home panel), the in-game menu, everywhere ----
     auto& w = page.window;
@@ -336,7 +336,7 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
           {Title("View", OrNothing(ThreeDs(b, Control::View))), Line("Hold (1.5 s)", "Stop Game"),
            SubHeading("Hold View +"), Sub("Hold Left Bumper (0.5 s)", "Quick Load"),
            Sub("Right Bumper", "Quick Save"), Sub("Right Trigger", "Fast Forward On / Off"),
-           SubHeading("Both Bumpers +"), Sub("View", "Show or Hide Bottom Screen"),
+           SubHeading("Both Bumpers +"), Sub("View", "Show or Hide Secondary Screen"),
            Sub("View + Menu", "Switch VR / Flat")});
     // AzaharFrame screenswap: the stick clicks are taps (on release) and 1 s holds (mapper.cpp).
     Label(g, kLeft, {CtrlPart::Stick},

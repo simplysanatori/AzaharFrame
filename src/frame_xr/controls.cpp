@@ -389,7 +389,7 @@ void VrUi::MouseTick(const FrameInfo& info, Input::InputFrame& in, bool have_inp
     if (mouse_frame.switch_mode) {
         LOG_INFO(Frontend, "xr: mouse: Left and Right Click held: Mouse Mode {}",
                  pointer_mode ? "Pointer" : "Bottom Screen");
-        ShowToastText(pointer_mode ? "Mouse: Pointer" : "Mouse: Bottom Screen");
+        ShowToastText(pointer_mode ? "Mouse: Pointer" : "Mouse: Secondary Screen");
         if (bridge_live) {
             bridge.Release(); // no touch carries over into the other mode
             bridge_live = false;

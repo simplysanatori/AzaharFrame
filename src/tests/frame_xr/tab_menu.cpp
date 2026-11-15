@@ -289,7 +289,7 @@ TEST_CASE("Tab menu: Move Screens, Touchpad, Edit Controls, Cheats", "[frame_xr]
     CHECK(has(Id::BottomScreenReticle, 3)); // AzaharFrame input2
     CHECK(OptionsFor(Id::BottomScreenReticle) ==
           std::vector<std::string>{"Off", "Left Controller", "Right Controller", "Headset"});
-    CHECK(LabelFor(Id::BottomScreenReticle) == "Bottom Screen Reticle");
+    CHECK(LabelFor(Id::BottomScreenReticle) == "Secondary Screen Reticle");
     // At Edge: only while the reticle is on.
     CHECK_FALSE(has(Id::ReticleAtEdge, 0));
     m.bottom_screen_reticle = 2;
@@ -3642,7 +3642,7 @@ TEST_CASE("Tab menu: Screen Shape has Automatic", "[frame_xr][tabmenu][autoshape
     CHECK(opts[0] == "3DS (5:3)");
     CHECK(opts[6] == "Automatic");
     CHECK(ExplainFor(Id::ScreenShape) ==
-          "The top screen's shape, for games or mods that change it. Automatic follows the "
+          "The Primary Screen's shape, for games or mods that change it. Automatic follows the "
           "game's camera.");
 }
 

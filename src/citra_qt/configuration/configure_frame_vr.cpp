@@ -95,11 +95,11 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     setTitle(tr("VR"));
     auto* layout = new QVBoxLayout(this);
 
-    hide_bottom_check = new QCheckBox(tr("Hide Bottom Screen"), this);
+    hide_bottom_check = new QCheckBox(tr("Hide Secondary Screen"), this);
     hide_bottom_check->setObjectName(QStringLiteral("frame_vr_hide_bottom_check"));
     hide_bottom_check->setToolTip(
-        tr("Shows only the top screen in VR. Press Left Bumper + Right Bumper + View to show or "
-           "hide the bottom screen. A tap of Left Stick Click shows or hides the other screen. "
+        tr("Shows only the Primary Screen in VR. Press Left Bumper + Right Bumper + View to show "
+           "or hide the Secondary Screen. A tap of Left Stick Click shows or hides it too. "
            "Takes effect when the game starts."));
     layout->addWidget(hide_bottom_check);
 
@@ -230,7 +230,7 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     shape_combo->addItem(tr("Automatic")); // AzaharFrame fixes7: 6, frame_xr/auto_shape.h
     shape_row = MakeRow(
         this, QStringLiteral("frame_vr_shape_row"), tr("Screen Shape"),
-        tr("The shape of the top screen in VR, for games or mods that change the aspect. "
+        tr("The shape of the Primary Screen in VR, for games or mods that change the aspect. "
            "Automatic follows the shape the game's camera draws with."),
         {shape_combo});
     layout->addWidget(shape_row);
@@ -245,7 +245,7 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
         this, QStringLiteral("frame_vr_mode_row"), tr("Immersive Mode"),
         tr("Draws a wider view of the game around you. Full also turns the game camera with "
            "your head. Many games show graphical glitches. Press Left Bumper + Right Bumper + "
-           "View to show the bottom screen."),
+           "View to show the Secondary Screen."),
         {mode_combo});
     layout->addWidget(mode_row);
 

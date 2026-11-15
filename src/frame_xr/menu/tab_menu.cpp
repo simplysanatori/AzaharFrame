@@ -443,7 +443,7 @@ const std::vector<std::string>& OptionsFor(Id id) {
     static const std::vector<std::string> kReticle{"Off", "Left Controller", "Right Controller",
                                                    "Headset"}; // AzaharFrame input2: Headset
     static const std::vector<std::string> kAtEdge{"Follow", "Snap to Middle"};
-    static const std::vector<std::string> kMouseMode{"Bottom Screen", "Pointer"}; // padsui
+    static const std::vector<std::string> kMouseMode{"Secondary Screen", "Pointer"}; // padsui
     static const std::vector<std::string> kStatsAt{"In Front", "On Wrist"}; // statspos
     static const std::vector<std::string> kPage{"In Game", "Azahar's Window"};
     static const std::vector<std::string> kModsSegments{"Cheats", "Mods", "Textures"}; // cheatstab
@@ -581,7 +581,7 @@ std::string LabelFor(Id id) {
     case Id::SwapScreens:
         return "Swap Screens";
     case Id::HideBottomScreen:
-        return "Hide Bottom Screen";
+        return "Hide Secondary Screen";
     case Id::ScreenShape:
         return "Screen Shape";
     case Id::ScreenCurve:
@@ -593,7 +593,7 @@ std::string LabelFor(Id id) {
     case Id::TouchpadTouch: // AzaharFrame menuux
         return "Touchpad";
     case Id::BottomScreenReticle: // AzaharFrame mouse
-        return "Bottom Screen Reticle";
+        return "Secondary Screen Reticle";
     case Id::ReticleAtEdge:
         return "At Edge";
     case Id::ReticleSpeed: // AzaharFrame reticle
@@ -906,13 +906,13 @@ std::string ExplainFor(Id id) {
     case Id::ReticleSpeed: // AzaharFrame reticle
         return "How far the reticle moves when you turn your head or the controller.";
     case Id::ReticleCenter: // AzaharFrame fixes7
-        return "Keeps the reticle centred on the bottom screen. It moves only while you hold the trigger or click, and returns to the centre when you let go.";
+        return "Keeps the reticle centred on the Secondary Screen. It moves only while you hold the trigger or click, and returns to the centre when you let go.";
     case Id::ReticleStick: // AzaharFrame kiu
-        return "The right stick moves the bottom screen's touch point, instead of the C-Stick.";
+        return "The right stick moves the Secondary Screen's touch point, instead of the C-Stick.";
     case Id::HideBottomScreen:
-        return "Shows only the top screen.";
+        return "Shows only the Primary Screen.";
     case Id::ScreenShape:
-        return "The top screen's shape, for games or mods that change it. Automatic follows the game's camera.";
+        return "The Primary Screen's shape, for games or mods that change it. Automatic follows the game's camera.";
     case Id::ScreenCurve:
         return "Bends the Primary Screen so its sides come toward you.";
     case Id::ScreenLayout:
@@ -1073,8 +1073,8 @@ void DrawAutosavedLabel(Kit& kit, const Rect& r) {
 
 // AzaharFrame menuux
 std::string TouchpadSupporting(int value) {
-    return value == 1 ? "Press the pad to touch the bottom screen. Hold it down to drag."
-                      : "Your finger on the pad touches the bottom screen.";
+    return value == 1 ? "Press the pad to touch the Secondary Screen. Hold it down to drag."
+                      : "Your finger on the pad touches the Secondary Screen.";
 }
 
 SliderRange SliderFor(Id id) {
