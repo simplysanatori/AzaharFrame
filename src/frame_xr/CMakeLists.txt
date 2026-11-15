@@ -144,6 +144,7 @@ add_library(frame_xr STATIC EXCLUDE_FROM_ALL
     vis/visuals.cpp
     vis/visuals.h
     vis/layer_plan.h # AzaharFrame vis
+    vis/proj_path.h # AzaharFrame projdef
     vis/proj_screen.h # AzaharFrame projscreen
     vis/proj_screen_layer.h
 )

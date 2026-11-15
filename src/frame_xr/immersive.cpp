@@ -2076,6 +2076,10 @@ ScreenLayers Screens(XrSpace local_space, XrSpace view_space, const ScreenPlacem
     return out;
 }
 
+PathState ScreensPathState() { // AzaharFrame projdef
+    return {g.live, IsViewMode(g.mode)};
+}
+
 bool CanToggleBottom() {
     return g.live && (g.mode != 0 || g.hide_bottom);
 }

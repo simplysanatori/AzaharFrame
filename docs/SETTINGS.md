@@ -54,7 +54,9 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Vertical Scale](#horizontal-scale-and-vertical-scale) | -30% to +30%, in 5% steps | 0% | global and per game | at once |
 | [World Scale](#world-scale) | 10% to 400%, 100% by default | 100% | global and per game | eased in |
 | [Follow Screen Size](#follow-screen-size) | on or off | on | global and per game | eased in |
-| [Motion Clarity](#motion-clarity) | on or off | on | global and per game | at once |
+| [Primary Screen as Panel](#primary-screen-as-panel) (Experimental) | on or off | off | global and per game | at once |
+| [Motion Clarity](#motion-clarity) (Experimental) | on or off | on | global and per game | at once |
+| [In Immersive Modes](#in-immersive-modes) (under Motion Clarity) | on or off | off | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
 
@@ -222,9 +224,25 @@ At every value, your head moves the game camera as far as the 3D shows. A game s
 
 Full modes only. When you resize the immersive screen (grip and stick left or right), the world grows or shrinks with it. Off keeps the world's size: a bigger screen then moves nearer.
 
+## Primary Screen as Panel
+
+Experimental. Full modes only. Off by default: the Primary screen is drawn in step with your head, together with the controllers, which reduces doubling on fast head turns. On, it's a separate panel, as in earlier versions. It's a little lighter on the headset's graphics power, but it may double on fast head turns. A message says so each time you change it.
+
+**Motion Clarity** with **In Immersive Modes** needs the panel, so while both are on the Primary screen is a panel in the Full modes whatever this says, and there the row reads **Used by Motion Clarity**. The normal and wide views always show the screen as a panel.
+
 ## Motion Clarity
 
-Full modes only. Shows each game picture once, for one refresh of the headset, and black until the next one. Turning your head, the world stays sharp and single instead of doubling. The screen is dimmer: at 60 fps it is lit half the time, which looks about three quarters as bright, and some people notice a slight flicker at the edges of their view. Games that run under 60 fps show as before. The VR menu, a paused game and a stall keep the same brightness.
+Experimental. Shows each game picture once, for one refresh of the headset, and black until the next one, for a clearer, more solid picture when you turn your head. It may flicker or double in demanding scenes. The screen is dimmer: at 60 fps it is lit half the time, which looks about three quarters as bright, and some people notice a slight flicker at the edges of their view. Games that run under 60 fps show as before. The VR menu, a paused game and a stall keep the same brightness.
+
+For now it works only in the Full modes, and only with **In Immersive Modes** on.
+
+## In Immersive Modes
+
+Experimental. Under **Motion Clarity**, while it's on. Off by default. On, Motion Clarity works in the Full modes. It may flicker, mostly in demanding games, and a message says so each time you turn it on.
+
+On, the Primary screen is a panel in the Full modes, whatever **Primary Screen as Panel** says (Motion Clarity needs it). Off, **Primary Screen as Panel** decides.
+
+Going back to a version before this setting: those versions read only **Motion Clarity**, so with it on they flash the screen in the Full modes again.
 
 ## View Matrix Register
 

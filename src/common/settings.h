@@ -803,6 +803,21 @@ struct Values {
     // with a black backing on the rest (frame_xr/motion_clarity.h). Read every frame. A new key:
     // older builds ignore it.
     SwitchableSetting<bool> vr_motion_clarity{true, "vr_motion_clarity"};
+    // AzaharFrame projdef: Motion Clarity's "In Immersive Modes" (per game and global, off by
+    // default), under Motion Clarity: Motion Clarity is in effect in the Full modes only with both
+    // keys on (frame_xr/motion_clarity.h WantedInFull); otherwise the top screen goes through the
+    // projection layer there (frame_xr/vis/proj_path.h). vr_motion_clarity keeps its key and its
+    // meaning for older builds, which read it alone (and flash in the Full modes while it is on).
+    // A new key: older builds ignore it.
+    SwitchableSetting<bool> vr_motion_clarity_immersive{false, "vr_motion_clarity_immersive"};
+    // AzaharFrame projdef: how the Primary screen is drawn in the Full modes (per game and global):
+    // true (the default) in the projection layer, false as a panel (a quad layer, the older
+    // route; experimental: it may double on fast head turns). The VR menu's "Primary Screen as
+    // Panel" is its opposite. Motion Clarity in the Full modes (vr_motion_clarity_immersive with
+    // vr_motion_clarity) needs the panel and takes it whatever this says
+    // (frame_xr/vis/proj_path.h); the normal and the wide view are always panels. Never locked. A
+    // new key: older builds ignore it, and a config without it reads the default.
+    SwitchableSetting<bool> vr_screens_in_projection{true, "vr_screens_in_projection"};
     SwitchableSetting<bool> vr_immersive_world_set{false, "vr_immersive_world_set"};
     SwitchableSetting<float> vr_immersive_eye_per_far{0.0f, "vr_immersive_eye_per_far"};
     // AzaharFrame: show only the top screen in VR (the bottom one comes back with the bumper

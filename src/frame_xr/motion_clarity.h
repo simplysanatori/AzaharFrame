@@ -77,6 +77,15 @@ inline bool InEffect(bool setting, std::optional<bool> override_on, bool full_mo
     return setting && full_mode;
 }
 
+/// AzaharFrame projdef: the setting InEffect takes in the Full modes: Motion Clarity
+/// (vr_motion_clarity) and its "In Immersive Modes" (vr_motion_clarity_immersive) both on. Older
+/// builds read vr_motion_clarity alone (on by default), so going back to one flashes in the Full
+/// modes while it is on, as before; nothing else changes meaning. Off here, the Full modes' top
+/// screen goes through the projection layer (vis/proj_path.h).
+inline bool WantedInFull(bool motion_clarity, bool in_immersive_modes) {
+    return motion_clarity && in_immersive_modes;
+}
+
 /// How a game under the full rate (30 or 20 pictures a second) is shown with Motion Clarity on.
 enum class Slow : uint8_t {
     Hold,  ///< as without it: every refresh (the default)

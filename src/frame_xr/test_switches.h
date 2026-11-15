@@ -39,6 +39,7 @@ inline Apply ApplyFor(std::string_view name) {
         // AzaharFrame projscreen (vis/proj_screen.h)
         "AZAHARFRAME_XR_SCREENS_IN_PROJECTION", "AZAHARFRAME_XR_PROJ_SCALE",
         "AZAHARFRAME_XR_PROJ_MARKS", "AZAHARFRAME_XR_PROJ_ALSO_QUADS",
+        "AZAHARFRAME_XR_PROJ_FILTER", // AzaharFrame projdef
         "AZAHARFRAME_XR_POSE_GUARD", "AZAHARFRAME_XR_CANVAS", // AzaharFrame ctrlglitch
     };
     // AzaharFrame imglag: replaced by AZAHARFRAME_XR_IMAGE_LAG.

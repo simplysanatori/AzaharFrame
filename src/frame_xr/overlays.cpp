@@ -6,6 +6,7 @@
 
 #include "common/logging/log.h"
 #include "frame_xr/overlays.h"
+#include "frame_xr/retired_swapchains.h" // AzaharFrame projdef
 #include "frame_xr/session.h"
 #include "frame_xr/xr_loader.h"
 
@@ -97,6 +98,7 @@ void OverlayUploader::DestroyChain(OverlayChain& chain) {
     if (chain.handle) {
         const auto destroy = [&] { return Xr().xrDestroySwapchain(chain.handle); };
         queue_lock ? queue_lock->With(destroy) : destroy();
+        RetiredSwapchains::Note(reinterpret_cast<uint64_t>(chain.handle)); // projdef
     }
     chain = {};
 }

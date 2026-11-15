@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "common/logging/log.h"
+#include "frame_xr/retired_swapchains.h" // AzaharFrame projdef
 #include "frame_xr/session.h"
 #include "frame_xr/vis/async_overlay.h"
 #include "frame_xr/xr_loader.h"
@@ -106,6 +107,7 @@ void AsyncOverlay::Destroy() {
     if (handle != XR_NULL_HANDLE) {
         const auto destroy = [&] { return Xr().xrDestroySwapchain(handle); };
         queue_lock ? queue_lock->With(destroy) : destroy();
+        RetiredSwapchains::Note(reinterpret_cast<uint64_t>(handle)); // AzaharFrame projdef
         handle = XR_NULL_HANDLE;
     }
     if (device) {

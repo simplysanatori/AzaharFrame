@@ -18,6 +18,8 @@
 #include "common/frame_test_switches.h" // AzaharFrame kiuguns
 #include "common/logging/log.h"
 #include "common/settings.h" // AzaharFrame kiufix: Weapon Size
+#include "common/stall_telemetry.h" // AzaharFrame projdef
+#include "frame_xr/retired_swapchains.h" // AzaharFrame projdef
 #include "frame_xr/session.h"
 #include "frame_xr/vis/controller_models.h"
 #include "frame_xr/vis/model_shaders.h"
@@ -712,6 +714,9 @@ void ControllerModels::DestroyXr() {
     if (g.swapchain != XR_NULL_HANDLE) {
         const auto destroy = [&] { return Xr().xrDestroySwapchain(g.swapchain); };
         g.queue_lock ? g.queue_lock->With(destroy) : destroy();
+        // AzaharFrame projdef: its eye quads' slots go before the next frame's list
+        // (retired_swapchains.h): a live switch to the projection layer sent the dead handle.
+        RetiredSwapchains::Note(reinterpret_cast<uint64_t>(g.swapchain));
     }
     gpu.reset();
 }
@@ -2102,6 +2107,9 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
     }
     const bool marks = draw_screens &&
                        Common::FrameTestSwitches::Value(kProjMarksSwitch).value_or("0") == "1";
+    // AzaharFrame projdef: Catmull-Rom unless AZAHARFRAME_XR_PROJ_FILTER=soft (live).
+    const float filter =
+        ProjFilterCode(ProjFilterFrom(Common::FrameTestSwitches::Value(kProjFilterSwitch)));
     std::array<vk::ClearValue, 3> clears{}; // colour: zero, nothing round the models
     clears[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
     c.beginRenderPass({.renderPass = g.render_pass,
@@ -2188,7 +2196,7 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
             sp.rect = {se->rect.offset.x / iw, se->rect.offset.y / ih, se->rect.extent.width / iw,
                        se->rect.extent.height / ih};
             sp.tex = {iw, ih, marks ? 1.0f : 0.0f, 0.0f};
-            sp.extra = {ProjDepthCode(se->depth), 0.0f, 0.0f, 0.0f}; // projb
+            sp.extra = {ProjDepthCode(se->depth), filter, 0.0f, 0.0f}; // projb; projdef: filter
             c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.screen_pipeline);
             c.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, g.screen_layout, 0,
                                  g.screen_sets[static_cast<std::size_t>(e)], {});
@@ -2313,6 +2321,11 @@ void ControllerModels::NoteGpuTime(int64_t now_ns) { // AzaharFrame ctrlfront
             g.gpu_images++;
             g.occluder_sum += g.drawn_occluders;
             g.stat_gpu_sum += ms; // AzaharFrame projscreen: the per-second line
+            // AzaharFrame projdef: the XR thread's GPU busy line (both paths)
+            auto& telemetry = Common::StallTelemetry::Get();
+            telemetry.xr_pass_gpu_ns.fetch_add(static_cast<uint64_t>(ms * 1e6),
+                                               std::memory_order_relaxed);
+            telemetry.xr_pass_gpu_n.fetch_add(1, std::memory_order_relaxed);
             g.stat_gpu_max = std::max(g.stat_gpu_max, ms);
             g.stat_gpu_n++;
         }

@@ -13,6 +13,7 @@
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
 #include "frame_xr/layer_slots.h"
+#include "frame_xr/retired_swapchains.h" // AzaharFrame projdef
 
 namespace {
 
@@ -273,4 +274,114 @@ TEST_CASE("Layer slots: the VR menu's list with Motion Clarity's backing fits 16
     const auto old = frame(2, 2, true);
     CHECK_FALSE(old.eyes);
     CHECK(old.beams == 0u);
+}
+
+// ---- projdef: a slot never keeps a destroyed swapchain ----
+
+namespace {
+
+/// What app.cpp does before each frame's list: the swapchains destroyed since, forgotten.
+std::size_t ForgetRetired(LS::Map<Q>& m) {
+    std::size_t n = 0;
+    for (const uint64_t h : FrameXr::RetiredSwapchains::Take()) {
+        n += m.Forget(h);
+    }
+    return n;
+}
+
+bool Carries(const std::vector<LS::Map<Q>::Out>& out, char swapchain) {
+    return std::any_of(out.begin(), out.end(),
+                       [&](const auto& o) { return !o.quad.name.empty() && o.quad.name[0] == swapchain; });
+}
+
+} // namespace
+
+TEST_CASE("Layer slots: a live switch to the projection layer never sends the models' old "
+          "swapchain",
+          "[frame_xr][projdef]") {
+    // 1.1.1-590, Kid Icarus in the normal view: the controllers as two eye quads of the models'
+    // swapchain 'e' (Top group) with a beam. The switch makes the models' pass again: 'e' is
+    // destroyed, and while the new pass has no image the top screen still goes out as quads, so
+    // the screens' layers keep their number and the list (its context) lives on.
+    FrameXr::RetiredSwapchains::Take(); // nothing left from another test
+    LS::Map<Q> m;
+    const std::vector<std::pair<G, std::string>> quads{
+        {G::Ui, "stats"}, {G::Top, "eye"}, {G::Top, "eye"}, {G::Top, "beam"}};
+    for (int f = 0; f < 3; f++) {
+        CHECK(Carries(HudFrame(m, 3, quads), 'e'));
+    }
+    // The switch: the models' swapchain destroyed (ControllerModels::DestroyXr notes it).
+    FrameXr::RetiredSwapchains::Note('e');
+    // Before the fix: the next frames carried the eye quads' slots, collapsed but with the dead
+    // handle, and SteamVR refused them (XR_ERROR_HANDLE_INVALID).
+    {
+        LS::Map<Q> old = m;
+        const auto stale = HudFrame(old, 3, {{G::Ui, "stats"}, {G::Top, "beam"}});
+        CHECK(Names(stale) == "stats res_ res_ res_ res_ eye_ eye_ beam");
+    }
+    CHECK(ForgetRetired(m) == 2);
+    CHECK(m.Forgotten() == 2);
+    for (int f = 0; f < 3; f++) {
+        const auto out = HudFrame(m, 3, {{G::Ui, "stats"}, {G::Top, "beam"}});
+        CHECK_FALSE(Carries(out, 'e'));
+        CHECK(Names(out) == "stats res_ res_ res_ res_ beam");
+    }
+    CHECK(m.Resets() == 1); // the same list: only the dead slots went
+    // And back (projection to quads): the new pass's swapchain 'f' as eye quads, then destroyed
+    // at the next switch; its slots go too.
+    for (int f = 0; f < 2; f++) {
+        HudFrame(m, 3, {{G::Ui, "stats"}, {G::Top, "f1"}, {G::Top, "f1"}, {G::Top, "beam"}});
+    }
+    FrameXr::RetiredSwapchains::Note('f');
+    CHECK(ForgetRetired(m) == 2);
+    CHECK_FALSE(Carries(HudFrame(m, 3, {{G::Ui, "stats"}, {G::Top, "beam"}}), 'f'));
+    // Taken once: nothing left for the next frame.
+    CHECK(FrameXr::RetiredSwapchains::Take().empty());
+    // A handle not in the list changes nothing.
+    FrameXr::RetiredSwapchains::Note('z');
+    CHECK(ForgetRetired(m) == 0);
+    FrameXr::RetiredSwapchains::Note(0); // ignored
+    CHECK(FrameXr::RetiredSwapchains::Take().empty());
+}
+
+TEST_CASE("Layer slots: a forgotten reserved key may be reserved again", "[frame_xr][projdef]") {
+    LS::Map<Q> m;
+    HudFrame(m, 3, {{G::Top, "eye"}});
+    CHECK(m.Forget('h') == 4); // the HUD's chain destroyed: its four reserved slots go
+    CHECK(Names(HudFrame(m, 3, {{G::Top, "eye"}})) == "res_ res_ res_ res_ eye");
+}
+
+TEST_CASE("Layer slots: every path switch starts a new list", "[frame_xr][projdef]") {
+    // 590b: Mario Kart 7 paused, Motion Clarity off: 2 screen layers before and after the flip to
+    // the projection layer (its fallback quads), so the count alone kept the list, and a slot kept
+    // the models' destroyed swapchain (XR_ERROR_LAYER_INVALID). Kid Icarus: Uprising's normal view
+    // in 590 likewise (3 -> 3). From Motion Clarity on (4: a backing and a screen per eye) to 2
+    // the count changed and nothing failed. Every case now gives a new key, and so a new list.
+    for (const std::size_t screens : {std::size_t{2}, std::size_t{3}}) {
+        CHECK(LS::ContextKey(3, true, false, screens) != LS::ContextKey(3, true, true, screens));
+    }
+    CHECK(LS::ContextKey(3, true, false, 4) != LS::ContextKey(3, true, true, 2));
+    // The other parts still count, and no two inputs share a key.
+    CHECK(LS::ContextKey(3, true, true, 2) != LS::ContextKey(3, false, true, 2));
+    CHECK(LS::ContextKey(3, true, true, 2) != LS::ContextKey(4, true, true, 2));
+    CHECK(LS::ContextKey(3, true, true, 20) == LS::ContextKey(3, true, true, 15)); // capped
+    // The sequence: the same screens' count over the flip, the eye quads of 'e' gone with it.
+    LS::Map<Q> m;
+    const std::vector<std::pair<G, std::string>> quads{
+        {G::Ui, "stats"}, {G::Top, "eye"}, {G::Top, "eye"}, {G::Top, "beam"}};
+    for (int f = 0; f < 3; f++) {
+        CHECK(Carries(HudFrame(m, LS::ContextKey(3, true, false, 2), quads), 'e'));
+    }
+    // No Forget here: the new list alone drops the dead slots.
+    for (int f = 0; f < 3; f++) {
+        const auto out =
+            HudFrame(m, LS::ContextKey(3, true, true, 2), {{G::Ui, "stats"}, {G::Top, "beam"}});
+        CHECK_FALSE(Carries(out, 'e'));
+    }
+    CHECK(m.Resets() == 2);
+    // And from Motion Clarity on (4 screen layers) to the projection layer (2).
+    LS::Map<Q> mc;
+    HudFrame(mc, LS::ContextKey(3, true, false, 4), quads);
+    CHECK_FALSE(Carries(
+        HudFrame(mc, LS::ContextKey(3, true, true, 2), {{G::Ui, "stats"}, {G::Top, "beam"}}), 'e'));
 }

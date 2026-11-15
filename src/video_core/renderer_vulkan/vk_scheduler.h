@@ -10,6 +10,7 @@
 #include "common/alignment.h"
 #include "common/common_funcs.h"
 #include "common/polyfill_thread.h"
+#include "video_core/renderer_vulkan/vk_gpu_busy.h" // AzaharFrame projdef
 #include "video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "video_core/renderer_vulkan/vk_resource_pool.h"
 
@@ -195,6 +196,7 @@ private:
 private:
     std::unique_ptr<MasterSemaphore> master_semaphore;
     CommandPool command_pool;
+    GpuBusyTimer gpu_busy; ///< AzaharFrame projdef: each command buffer's GPU time
     std::unique_ptr<CommandChunk> chunk;
     std::queue<std::unique_ptr<CommandChunk>> work_queue;
     std::vector<std::unique_ptr<CommandChunk>> chunk_reserve;

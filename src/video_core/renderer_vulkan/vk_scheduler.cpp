@@ -52,7 +52,8 @@ void Scheduler::CommandChunk::ExecuteAll(vk::CommandBuffer cmdbuf) {
 
 Scheduler::Scheduler(const Instance& instance)
     : master_semaphore{MakeMasterSemaphore(instance)},
-      command_pool{instance, master_semaphore.get()}, use_worker_thread{true} {
+      command_pool{instance, master_semaphore.get()}, gpu_busy{instance}, // AzaharFrame projdef
+      use_worker_thread{true} {
     AllocateWorkerCommandBuffers();
     if (use_worker_thread) {
         AcquireNewChunk();
@@ -177,6 +178,7 @@ void Scheduler::AllocateWorkerCommandBuffers() {
 
     current_cmdbuf = command_pool.Commit();
     current_cmdbuf.begin(begin_info);
+    gpu_busy.Begin(current_cmdbuf); // AzaharFrame projdef
 }
 
 void Scheduler::SubmitExecution(vk::Semaphore signal_semaphore, vk::Semaphore wait_semaphore) {
@@ -194,7 +196,9 @@ void Scheduler::SubmitExecution(vk::Semaphore signal_semaphore, vk::Semaphore wa
         std::scoped_lock lock{submit_mutex};
         const auto locked = SteadyClock::now();
         Common::DebugStall::Maybe(Common::DebugStall::Where::Submit);
+        gpu_busy.End(cmdbuf, signal_value); // AzaharFrame projdef: before SubmitWork ends it
         master_semaphore->SubmitWork(cmdbuf, wait_semaphore, signal_semaphore, signal_value);
+        gpu_busy.Collect(*master_semaphore); // the ones done by now (no wait)
         const auto us = [](SteadyClock::duration d) {
             return static_cast<u64>(std::chrono::duration_cast<std::chrono::microseconds>(d).count());
         };

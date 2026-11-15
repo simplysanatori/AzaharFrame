@@ -135,11 +135,31 @@ inline constexpr const char* kFollowScreenWindowTip =
     "the world's size.";
 /// AzaharFrame flash: Settings::values.vr_motion_clarity (frame_xr/motion_clarity.h).
 inline constexpr const char* kMotionClarity = "Motion Clarity";
+/// AzaharFrame projdef: experimental (the owner's A/B, 1.1.1-590); its tooltip says so.
 inline constexpr const char* kMotionClarityTip =
-    "Shows each game picture once for a sharp image when you turn your head. The screen is dimmer.";
-inline constexpr const char* kMotionClarityWindowTip =
-    "In the Full modes, shows each game picture once for a sharp image when you turn your head. "
-    "The screen is dimmer. Games that run under 60 fps show as before.";
+    "Experimental. A clearer, more solid picture, but it may flicker or double in demanding scenes.";
+inline constexpr const char* kMotionClarityWindowTip = kMotionClarityTip;
+/// AzaharFrame projdef: the chip beside Motion Clarity's label in the VR menu.
+inline constexpr const char* kExperimental = "Experimental";
+/// AzaharFrame projdef: Settings::values.vr_motion_clarity_immersive, the row under Motion Clarity
+/// (VR menu), its Configure box, its toast each time it is turned on.
+inline constexpr const char* kMotionClarityImmersive = "In Immersive Modes";
+inline constexpr const char* kMotionClarityImmersiveTip =
+    "Experimental. May flicker, mostly in demanding games.";
+inline constexpr const char* kMotionClarityImmersiveWindow = "Motion Clarity in Immersive Modes";
+inline constexpr const char* kMotionClarityImmersiveToast =
+    "Motion Clarity: Experimental \u00b7 May Flicker";
+/// AzaharFrame projdef: Settings::values.vr_screens_in_projection, as its opposite: the Primary
+/// screen drawn as a panel (a quad layer) in the Full modes. The VR menu's row (with the
+/// Experimental chip), its tooltip, its note while Motion Clarity takes the panel, its toasts;
+/// the Configure box uses the label and tooltip.
+inline constexpr const char* kScreenAsPanel = "Primary Screen as Panel";
+inline constexpr const char* kScreenAsPanelTip =
+    "Experimental. Draws the Primary screen as a separate panel in the Full modes. It may double "
+    "on fast head turns.";
+inline constexpr const char* kScreenAsPanelNote = "Used by Motion Clarity";
+inline constexpr const char* kScreenAsPanelOnToast = "Primary Screen as Panel: May Double";
+inline constexpr const char* kScreenAsPanelOffToast = "Primary Screen as Panel: Off";
 
 /// The toast after resizing the screen with Follow Screen Size on.
 inline constexpr const char* kWorldScaleFollowsToast = "Follow Screen Size: On";

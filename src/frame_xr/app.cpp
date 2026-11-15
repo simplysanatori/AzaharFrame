@@ -31,12 +31,14 @@
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/input/screen_rig.h" // AzaharFrame vrsize
 #include "frame_xr/layer_slots.h"     // AzaharFrame flash
+#include "frame_xr/retired_swapchains.h" // AzaharFrame projdef
 #include "frame_xr/motion_clarity.h"   // AzaharFrame flash
 #include "frame_xr/session.h"
 #include "frame_xr/test_switches.h" // AzaharFrame integ9: the switch file, live
 #include "frame_xr/toast_depth.h"   // AzaharFrame integ9: ScreenUse
 #include "frame_xr/ui_sound.h" // AzaharFrame menuux
 #include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
+#include "frame_xr/vis/proj_path.h"   // AzaharFrame projdef
 #include "frame_xr/vis/proj_screen.h" // AzaharFrame projscreen
 #include "frame_xr/vis/proj_screen_layer.h"
 #include "frame_xr/watchdog.h"
@@ -447,6 +449,27 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
     builds_queued_seen = builds_queued;
     builds_done_seen = builds_done;
     skips_seen = skips;
+    // AzaharFrame projdef: the GPU's real busy time a refresh (timestamps): the renderer's command
+    // buffers (the game, vk_gpu_busy.h) and the XR thread's controller and projection pass, against
+    // the refresh period (SteamVR's own work is not in it).
+    const std::string busy = [&] {
+        const uint64_t emu_ns = telemetry.gpu_busy_ns.exchange(0);
+        const uint64_t emu_n = telemetry.gpu_busy_buffers.exchange(0);
+        const uint64_t pass_ns = telemetry.xr_pass_gpu_ns.exchange(0);
+        const uint64_t pass_n = telemetry.xr_pass_gpu_n.exchange(0);
+        if (frames == 0 || (emu_n == 0 && pass_n == 0)) {
+            return std::string{};
+        }
+        const double per = 1e6 * static_cast<double>(frames);
+        const double emu_ms = static_cast<double>(emu_ns) / per;
+        const double pass_ms = static_cast<double>(pass_ns) / per;
+        const double period_ms = display_period_ns / 1e6;
+        return fmt::format(", GPU busy {:.2f} ms a refresh (emulator {:.2f} in {} command buffers, "
+                           "XR pass {:.2f} in {} draws; {:.0f} % of {:.2f} ms)",
+                           emu_ms + pass_ms, emu_ms, emu_n, pass_ms, pass_n,
+                           period_ms > 0.0 ? 100.0 * (emu_ms + pass_ms) / period_ms : 0.0,
+                           period_ms);
+    }();
     Vis::NoteXrSecond({seconds, frames, late[0], wait_max_ms}); // AzaharFrame vrvis: stats panel
     // AzaharFrame menuux: Dynamic Resolution judges the second (the headset's frames).
     const auto gpu = VideoCore::DynamicResolution::TakeGpuSecond();
@@ -476,7 +499,7 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
              StateName(state.load()), screens_live.load() ? "live" : "off", emu, window_presents,
              queue_wait_ms, emu_submit_ms, emu_submit_wait_ms, window_present_ms, alloc_ms, alloc_mib,
              worst.period_ms,
-             PhasesText(worst), eyes_mixed, builds);
+             PhasesText(worst), eyes_mixed, builds + busy);
 }
 
 void Runtime::LogFlatSummary(double seconds) {
@@ -568,18 +591,22 @@ void Runtime::FrameLoop() {
             Common::FrameTestSwitches::Value("AZAHARFRAME_XR_FLASH_BACKING"));
     };
     read_clarity_switches();
-    // AzaharFrame projscreen: AZAHARFRAME_XR_SCREENS_IN_PROJECTION and AZAHARFRAME_XR_PROJ_SCALE,
-    // live (vis/proj_screen.h): the top screen drawn into the projection layer, not sent as a quad.
+    // AzaharFrame projscreen: the top screen drawn into the projection layer, not sent as a quad
+    // (vis/proj_screen.h). projdef: the default in the Full modes with Motion Clarity off
+    // (vis/proj_path.h); AZAHARFRAME_XR_SCREENS_IN_PROJECTION (live) forces it on (1) or off (0)
+    // for an A/B; AZAHARFRAME_XR_PROJ_SCALE (live) sizes the pass.
     const auto read_proj = [] {
-        return TestSwitches::OnFrom(
+        return Vis::ProjForcedFrom(
             Common::FrameTestSwitches::Value(Vis::kScreensInProjectionSwitch));
     };
-    bool test_proj = read_proj();
+    std::optional<bool> proj_forced = read_proj();
     float test_proj_scale =
         Vis::ProjScaleFrom(Common::FrameTestSwitches::Value(Vis::kProjScaleSwitch));
-    if (test_proj) {
-        LOG_INFO(Frontend, "xr: projection screens on at start (scale {:.2f})", test_proj_scale);
+    if (proj_forced) {
+        LOG_INFO(Frontend, "xr: projection screens forced {} at start (scale {:.2f})",
+                 *proj_forced ? "on" : "off", test_proj_scale);
     }
+    Vis::PathChoice proj_choice; // AzaharFrame projdef
     Vis::ProjScreens proj;
     // The top screen's quads, sent instead while the projection layer has no image with it yet.
     struct TopFallback {
@@ -606,12 +633,15 @@ void Runtime::FrameLoop() {
                 read_clarity_switches(); // AzaharFrame flash
             } else if (c.name == Vis::kScreensInProjectionSwitch ||
                        c.name == Vis::kProjScaleSwitch) { // AzaharFrame projscreen
-                test_proj = read_proj();
+                proj_forced = read_proj();
                 test_proj_scale =
                     Vis::ProjScaleFrom(Common::FrameTestSwitches::Value(Vis::kProjScaleSwitch));
                 LOG_INFO(Frontend, "xr: projection screens {} (scale {:.2f})",
-                         test_proj ? "on" : "off", test_proj_scale);
-            } else if (c.name == Vis::kProjMarksSwitch || c.name == Vis::kProjAlsoQuadsSwitch) {
+                         proj_forced ? (*proj_forced ? "forced on" : "forced off")
+                                     : "by the settings",
+                         test_proj_scale);
+            } else if (c.name == Vis::kProjMarksSwitch || c.name == Vis::kProjAlsoQuadsSwitch ||
+                       c.name == Vis::kProjFilterSwitch) { // projdef: the filter too
                 // read by the pass every frame
             } else if (c.name == "AZAHARFRAME_XR_IMAGE_LAG") {
                 UpdateImageLag("test switch changed"); // AzaharFrame imglag
@@ -815,8 +845,32 @@ void Runtime::FrameLoop() {
             }
         }
         ui_quads.clear();
+        // AzaharFrame projdef: the top screen's path from the settings (vis/proj_path.h), after the
+        // callbacks (Immersive's state for this frame), before the panels and the models' pass.
+        bool want_proj = false;
+        {
+            const Immersive::PathState ps = Immersive::ScreensPathState();
+            Vis::PathInputs pin;
+            pin.forced = proj_forced;
+            pin.game_on_view = ps.game_on_view;
+            pin.full_mode = ps.full_mode;
+            // AZAHARFRAME_XR_SINGLE_FLASH (Motion Clarity's override) counts as the setting.
+            pin.clarity = clarity_override.value_or(MotionClarity::WantedInFull(
+                Settings::values.vr_motion_clarity.GetValue(),
+                Settings::values.vr_motion_clarity_immersive.GetValue()));
+            pin.in_projection = Settings::values.vr_screens_in_projection.GetValue();
+            pin.now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                             Clock::now().time_since_epoch())
+                             .count();
+            want_proj = proj_choice.Next(pin);
+            if (proj_choice.TakeChanged()) {
+                LOG_INFO(Frontend, "xr: top screen path: {} ({})",
+                         want_proj ? "the projection layer" : "quads",
+                         Vis::PathWhyText(proj_choice.Why()));
+            }
+        }
         if (ui) {
-            ui->SetScreensInProjection(test_proj, test_proj_scale); // AzaharFrame projscreen
+            ui->SetScreensInProjection(want_proj, test_proj_scale); // AzaharFrame projscreen
             ui->Frame(*this, info, ui_quads);
         }
 
@@ -886,7 +940,7 @@ void Runtime::FrameLoop() {
         proj_fallback.clear();
         std::size_t proj_at = 0;
         bool proj_placed = false;
-        const bool proj_mode = test_proj && ui && fs.shouldRender;
+        const bool proj_mode = want_proj && ui && fs.shouldRender; // AzaharFrame projdef
         const bool proj_also_quads = // AzaharFrame projscreen: a mock check only
             proj_mode && TestSwitches::OnFrom(Common::FrameTestSwitches::Value(Vis::kProjAlsoQuadsSwitch));
         if (fs.shouldRender && screens_live) {
@@ -923,8 +977,12 @@ void Runtime::FrameLoop() {
                 // never reaches the display with another picture's pose, which is what the
                 // flashing hid; nor would a flashed picture stay one: a refresh the pass is late
                 // shows the image before again.
-                rf.on = MotionClarity::InEffect(Settings::values.vr_motion_clarity.GetValue(),
-                                                clarity_override, shown.full_mode) &&
+                // projdef: in the Full modes with "In Immersive Modes" on too (WantedInFull).
+                rf.on = MotionClarity::InEffect(
+                            MotionClarity::WantedInFull(
+                                Settings::values.vr_motion_clarity.GetValue(),
+                                Settings::values.vr_motion_clarity_immersive.GetValue()),
+                            clarity_override, shown.full_mode) &&
                         !proj_mode;
                 // flash2: in a Full mode, played only while immersive is engaged (paused, the
                 // top screen is not the head-driven one: on the beat).
@@ -1217,13 +1275,22 @@ void Runtime::FrameLoop() {
                             one ? 0 : q.image_rect.extent.width,
                             one ? 0 : q.image_rect.extent.height, SlotQuad{space, q});
         };
+        {
+            // AzaharFrame projdef: no slot keeps a destroyed swapchain (retired_swapchains.h):
+            // with the screens' layers the same in number the list lives on, and a collapsed
+            // placeholder of the models' old eye quads made xrEndFrame fail (HANDLE_INVALID).
+            for (const uint64_t h : RetiredSwapchains::Take()) {
+                if (const std::size_t n = layer_slots.Forget(h)) {
+                    LOG_INFO(Frontend, "xr: layer slots: {} dropped with their destroyed swapchain",
+                             n);
+                }
+            }
+        }
         if (fs.shouldRender) {
-            // A new list when the panels' context changes or the screens' layers change in number
-            // (a game starting or stopping, Motion Clarity's backing coming or going): the slots
-            // after them would all move anyway.
-            const uint32_t screens_n = static_cast<uint32_t>(std::min<std::size_t>(screen_layers, 15));
-            layer_slots.Begin(((ui ? ui->LayerContext() : 0) * 2 + (screens_live ? 1 : 0)) * 16 +
-                              screens_n);
+            // A new list when the panels' context changes, the screens' layers change in number,
+            // or (projdef) the top screen's path changes (LayerSlots::ContextKey).
+            layer_slots.Begin(LayerSlots::ContextKey(ui ? ui->LayerContext() : 0, screens_live,
+                                                     want_proj, screen_layers));
             // integ13: the HUD's quads have their slots from the start of the list, in their draw
             // order (as slot_add keys them: their group and the HUD's one swapchain), so a toast
             // or a label that first shows mid-game fills its own slot and never moves the Top

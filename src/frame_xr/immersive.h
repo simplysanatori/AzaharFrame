@@ -94,6 +94,15 @@ void OnGameInput(Input::InputFrame& in);
 /// chord and keeps that View press from the game (PanelGeometry::bottom_toggle_enabled).
 bool CanToggleBottom();
 
+/// AzaharFrame projdef: the inputs of the top screen's path (vis/proj_path.h), after this frame's
+/// callbacks: a game's screens are on view (and the session visible), and its Immersive Mode is a
+/// Full mode (2 or 3), whether engaged or paused. XR thread.
+struct PathState {
+    bool game_on_view = false;
+    bool full_mode = false;
+};
+PathState ScreensPathState();
+
 /// The in-game menu (Azahar's window over the paused game) is open: immersive modes 2 and 3
 /// pause, as when the bottom screen is shown. XR thread.
 void SetMenuOpen(bool open);

@@ -18,6 +18,7 @@
 #include "frame_xr/input/mouse.h"   // AzaharFrame mouse
 #include "frame_xr/input/reticle.h" // AzaharFrame mouse
 #include "frame_xr/toast_fit.h"     // AzaharFrame menuux
+#include "frame_xr/immersive_names.h" // AzaharFrame projdef
 #include "frame_xr/ui/ui_canvas.h"
 
 using namespace FrameXr::Menu;
@@ -3793,6 +3794,153 @@ TEST_CASE("Tab menu: Controllers in Front of Screen", "[frame_xr][tabmenu]") {
                 CHECK(under_show);
                 CHECK(fits);
             }
+        }
+    }
+}
+
+// AzaharFrame projdef: Motion Clarity is experimental (a chip beside its label, its tooltip), and
+// In Immersive Modes is a per-game switch right under it, only while it is on; off by default;
+// its tooltip fits; the toast it shows when turned on fits one line.
+TEST_CASE("Tab menu: Motion Clarity's Experimental chip and In Immersive Modes",
+          "[frame_xr][tabmenu][projdef]") {
+    namespace Names = FrameXr::Immersive::Names;
+    CHECK(PerGameSetting(Id::MotionClarityImmersive));
+    CHECK(SectionOf(Id::MotionClarityImmersive) == SettingsSection::Immersive);
+    CHECK(LabelFor(Id::MotionClarity) == "Motion Clarity"); // unchanged
+    CHECK(LabelFor(Id::MotionClarityImmersive) == "In Immersive Modes");
+    CHECK(ExplainFor(Id::MotionClarity) ==
+          "Experimental. A clearer, more solid picture, but it may flicker or double in demanding "
+          "scenes.");
+    CHECK(ExplainFor(Id::MotionClarityImmersive) ==
+          "Experimental. May flicker, mostly in demanding games.");
+    CHECK(std::string{Names::kExperimental} == "Experimental");
+    CHECK_FALSE(MenuModel{}.motion_clarity_immersive); // off, the default
+    CHECK(MenuModel{}.motion_clarity);                 // Motion Clarity keeps its default
+    {
+        Kit kit{1.0f};
+        // In Immersive Modes' on one line; Motion Clarity's wraps to two (DrawTooltip).
+        CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::MotionClarityImmersive)) + 28.0f <=
+              kPanelW * 0.7f);
+        CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::MotionClarity)) + 28.0f <=
+              2.0f * kPanelW * 0.7f);
+    }
+    {
+        namespace ui = frame_xr::ui;
+        ui::InitFonts();
+        constexpr float kOneLine =
+            static_cast<float>(FrameXr::ToastFit::kAtlasW) - 2.0f * FrameXr::ToastFit::kPadPx;
+        CHECK(ui::TextWidth(ui::kFontLarge, Names::kMotionClarityImmersiveToast) <= kOneLine);
+        CHECK(std::string{Names::kMotionClarityImmersiveToast} ==
+              "Motion Clarity: Experimental \xC2\xB7 May Flicker");
+    }
+    for (const bool clarity : {true, false}) {
+        for (const bool on : {false, true}) {
+            Drawn d;
+            MenuModel m = Sample(); // mode 2: a Full mode, so neither row is locked
+            m.motion_clarity = clarity;
+            m.motion_clarity_immersive = on;
+            MenuView v;
+            v.tab = Tab::Settings;
+            v.section = SettingsSection::Immersive;
+            bool seen = false, under = false, mc_seen = false;
+            for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+                v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+                d.Draw(m, v);
+                const auto* row = FindHit(d, Id::MotionClarityImmersive, -1);
+                const auto* mc = FindHit(d, Id::MotionClarity, -1);
+                seen |= row != nullptr;
+                mc_seen |= mc != nullptr;
+                const auto mid = [](const auto* h) { return 0.5f * (h->r.y0 + h->r.y1); };
+                if (row && mc) {
+                    under |= std::abs(mid(row) - mid(mc) - kRowH) < 1.0f;
+                }
+            }
+            INFO("Motion Clarity " << clarity << ", In Immersive Modes " << on);
+            CHECK(mc_seen);
+            CHECK(seen == clarity);
+            if (clarity) {
+                CHECK(under);
+            }
+        }
+    }
+    // Outside the Full modes both rows are locked (Only in the Full Modes), as Motion Clarity was.
+    {
+        Drawn d;
+        MenuModel m = Sample();
+        m.immersive_mode = 0;
+        MenuView v;
+        v.tab = Tab::Settings;
+        v.section = SettingsSection::Immersive;
+        bool any = false;
+        for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            d.Draw(m, v);
+            any |= FindHit(d, Id::MotionClarityImmersive, -1) != nullptr;
+            any |= FindHit(d, Id::MotionClarity, -1) != nullptr;
+        }
+        CHECK_FALSE(any); // no switch hit: only their tooltips (kLabelIndex)
+    }
+}
+
+// AzaharFrame projdef: Primary Screen as Panel, a per-game switch with the Experimental chip right
+// before Motion Clarity, never locked (not even outside the Full modes); off by default; while
+// Motion Clarity in Immersive Modes is on it notes that Motion Clarity uses the panel; its
+// tooltip fits two lines and its toasts one.
+TEST_CASE("Tab menu: Primary Screen as Panel", "[frame_xr][tabmenu][projdef]") {
+    namespace Names = FrameXr::Immersive::Names;
+    CHECK(PerGameSetting(Id::ScreenAsPanel));
+    CHECK(SectionOf(Id::ScreenAsPanel) == SettingsSection::Immersive);
+    CHECK(LabelFor(Id::ScreenAsPanel) == "Primary Screen as Panel");
+    CHECK(ExplainFor(Id::ScreenAsPanel) ==
+          "Experimental. Draws the Primary screen as a separate panel in the Full modes. It may "
+          "double on fast head turns.");
+    CHECK_FALSE(MenuModel{}.screen_as_panel);
+    {
+        Kit kit{1.0f};
+        CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::ScreenAsPanel)) + 28.0f <=
+              2.0f * kPanelW * 0.7f);
+        namespace ui = frame_xr::ui;
+        ui::InitFonts();
+        constexpr float kOneLine =
+            static_cast<float>(FrameXr::ToastFit::kAtlasW) - 2.0f * FrameXr::ToastFit::kPadPx;
+        CHECK(ui::TextWidth(ui::kFontLarge, Names::kScreenAsPanelOnToast) <= kOneLine);
+        CHECK(ui::TextWidth(ui::kFontLarge, Names::kScreenAsPanelOffToast) <= kOneLine);
+    }
+    for (const int mode : {2, 0}) {
+        for (const bool clarity_immersive : {false, true}) {
+            Drawn d;
+            MenuModel m = Sample();
+            m.immersive_mode = mode;
+            m.motion_clarity = true;
+            m.motion_clarity_immersive = clarity_immersive;
+            MenuView v;
+            v.tab = Tab::Settings;
+            v.section = SettingsSection::Immersive;
+            bool seen = false, before_mc = false, note = false;
+            std::vector<DrawnText> texts;
+            d.kit.RecordText(&texts);
+            for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+                v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+                d.Draw(m, v);
+                const auto* row = FindHit(d, Id::ScreenAsPanel, -1); // a live switch: never locked
+                const auto* mc = FindHit(d, Id::MotionClarity, -1);
+                const auto* mc_label = FindHit(d, Id::MotionClarity, kLabelIndex);
+                seen |= row != nullptr;
+                const auto mid = [](const auto* h) { return 0.5f * (h->r.y0 + h->r.y1); };
+                const auto* below = mc ? mc : mc_label;
+                if (row && below) {
+                    before_mc |= std::abs(mid(below) - mid(row) - kRowH) < 1.0f;
+                }
+            }
+            d.kit.RecordText(nullptr);
+            for (const auto& t : texts) {
+                note |= t.text == Names::kScreenAsPanelNote;
+            }
+            INFO("mode " << mode << ", In Immersive Modes " << clarity_immersive);
+            CHECK(seen);
+            CHECK(before_mc);
+            // why it is a panel now, without a lock; only in a Full mode, where it is so
+            CHECK(note == (clarity_immersive && mode >= 2));
         }
     }
 }
