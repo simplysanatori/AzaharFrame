@@ -270,12 +270,13 @@ constexpr float kCanvasNearest = 0.08f;
 
 /// An eye's canvas when put down now: its view at `distance`, kCanvasMargin larger each side.
 inline EyePlane PlaceCanvas(const Input::Posef& eye, float angle_left, float angle_right,
-                            float angle_up, float angle_down, float distance) {
+                            float angle_up, float angle_down, float distance,
+                            float margin = kCanvasMargin) {
     constexpr float kMaxAngle = 1.45f; // 83 degrees: the tangent stays finite
-    return PlaneForEye(eye, std::max(angle_left - kCanvasMargin, -kMaxAngle),
-                       std::min(angle_right + kCanvasMargin, kMaxAngle),
-                       std::min(angle_up + kCanvasMargin, kMaxAngle),
-                       std::max(angle_down - kCanvasMargin, -kMaxAngle), distance);
+    return PlaneForEye(eye, std::max(angle_left - margin, -kMaxAngle),
+                       std::min(angle_right + margin, kMaxAngle),
+                       std::min(angle_up + margin, kMaxAngle),
+                       std::max(angle_down - margin, -kMaxAngle), distance);
 }
 
 /// The view an image of the canvas is drawn with, from `eye_position` (LOCAL): the eye where it

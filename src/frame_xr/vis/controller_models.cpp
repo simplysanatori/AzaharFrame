@@ -1087,10 +1087,23 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
             const float distance = ModelPlaneDistance(FromXr(views.head), at);
             Gpu::Canvas& c = g.canvases[g.next_canvas % g.canvases.size()];
             c.id = g.next_canvas++;
+            // 1.2.0 RC2 (the owner: the models flickered on every head turn; the log had up to
+            // 22 moves in 10 s): a larger canvas, 10 degrees round the view (was 4), so a head
+            // turn moves it far less often; a little less sharp. Live test switch
+            // AZAHARFRAME_XR_CANVAS_MARGIN_DEG (1 to 30) to tune it in the headset.
+            float margin_deg = 10.0f;
+            if (const auto v = Common::FrameTestSwitches::Value("AZAHARFRAME_XR_CANVAS_MARGIN_DEG")) {
+                char* end = nullptr;
+                const float f = std::strtof(v->c_str(), &end);
+                if (end != v->c_str() && f >= 1.0f && f <= 30.0f) {
+                    margin_deg = f;
+                }
+            }
+            const float margin = margin_deg * 3.14159265f / 180.0f;
             for (std::size_t e = 0; e < 2; e++) {
                 const XrFovf& fov = views.fov[e];
                 c.eye[e] = PlaceCanvas(FromXr(views.eye[e]), fov.angleLeft, fov.angleRight,
-                                       fov.angleUp, fov.angleDown, distance);
+                                       fov.angleUp, fov.angleDown, distance, margin);
             }
             g.handover.Request(c.id);
             g.canvas_moves++;
