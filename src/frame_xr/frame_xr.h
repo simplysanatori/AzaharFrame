@@ -357,7 +357,9 @@ enum class MenuSetting {
     GyroAim,         ///< AzaharFrame kiugyro: `value` 0 Off, 1 Gyro, 2 Light Gun (vr_gyro_aim)
     GyroSensitivity, ///< `value` tenths of 1x, 2 to 40 (vr_gyro_sensitivity)
     TurnZone,        ///< `value` percent, 0 to 30 (vr_light_gun_turn_zone)
-    TurnSpeed,       ///< `value` tenths of 1x, 2 to 40 (vr_light_gun_turn_speed)
+    TurnSpeed,       ///< `value` tenths of 1x, 2 to 40 (vr_light_gun_turn_speed: Horizontal)
+    /// AzaharFrame fixa: `value` tenths of 1x, 2 to 40 (vr_light_gun_turn_speed_vertical)
+    TurnSpeedVertical,
     Recoil,          ///< `value` 0 or 1 (vr_light_gun_recoil)
     WeaponInHand,    ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_weapon)
     LaserSight,      ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_laser)

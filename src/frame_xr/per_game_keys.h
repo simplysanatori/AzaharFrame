@@ -76,6 +76,7 @@ void ForEachMenuKey(F&& f) {
     f(v.vr_gyro_sensitivity);
     f(v.vr_light_gun_turn_zone);
     f(v.vr_light_gun_turn_speed);
+    f(v.vr_light_gun_turn_speed_vertical); // AzaharFrame fixa
     f(v.vr_light_gun_recoil);
     f(v.vr_light_gun_weapon); // AzaharFrame kiuguns
     f(v.vr_light_gun_laser);

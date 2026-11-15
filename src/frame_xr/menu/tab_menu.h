@@ -116,6 +116,9 @@ enum class Id : int {
     GyroSensitivity, ///< AzaharFrame kiugyro: a slider, 2 to 40 (tenths of 1x)
     TurnZone,        ///< AzaharFrame kiugyro: a slider, 0 to 30 (percent), Direct Aim only
     TurnSpeed,       ///< AzaharFrame kiugyro: a slider, 2 to 40 (tenths of 1x), Direct Aim only
+                     ///< (AzaharFrame fixa: Horizontal Turn Speed)
+    /// AzaharFrame fixa: Vertical Turn Speed, a slider, 2 to 40 (tenths of 1x), Direct Aim only
+    TurnSpeedVertical,
     Recoil,          ///< AzaharFrame kiugyro: a switch, while Aiming is not Off
     WeaponInHand,    ///< AzaharFrame kiuguns: a switch, while Aiming is not Off
     LaserSight,      ///< AzaharFrame kiuguns: a switch, with Direct Aim
@@ -389,6 +392,7 @@ struct MenuModel {
     int gyro_sensitivity = 10; ///< tenths of 1x (2 to 40)
     int turn_zone = 10;        ///< percent (0 to 30)
     int turn_speed = 10;       ///< tenths of 1x (2 to 40)
+    int turn_speed_vertical = 4; ///< AzaharFrame fixa: tenths of 1x (2 to 40)
     bool recoil = true;        ///< AzaharFrame kiugyro: vr_light_gun_recoil
     bool weapon_in_hand = true; ///< AzaharFrame kiuguns: vr_light_gun_weapon
     bool laser_sight = false;   ///< AzaharFrame kiuguns: vr_light_gun_laser

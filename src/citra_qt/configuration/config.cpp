@@ -641,6 +641,7 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_gyro_sensitivity);
     ReadGlobalSetting(Settings::values.vr_light_gun_turn_zone);
     ReadGlobalSetting(Settings::values.vr_light_gun_turn_speed);
+    ReadGlobalSetting(Settings::values.vr_light_gun_turn_speed_vertical); // AzaharFrame fixa
     ReadGlobalSetting(Settings::values.vr_light_gun_recoil);
     ReadGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     ReadGlobalSetting(Settings::values.vr_light_gun_laser);
@@ -1373,6 +1374,7 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_gyro_sensitivity);
     WriteGlobalSetting(Settings::values.vr_light_gun_turn_zone);
     WriteGlobalSetting(Settings::values.vr_light_gun_turn_speed);
+    WriteGlobalSetting(Settings::values.vr_light_gun_turn_speed_vertical); // AzaharFrame fixa
     WriteGlobalSetting(Settings::values.vr_light_gun_recoil);
     WriteGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     WriteGlobalSetting(Settings::values.vr_light_gun_laser);

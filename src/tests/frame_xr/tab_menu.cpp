@@ -2949,8 +2949,8 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
                           Id::WeaponInHand, Id::WeaponOpacity, Id::WeaponSize, Id::WeaponScale,
                           Id::MuzzleFlash, Id::MuzzleFlashSize, Id::Projectiles,
                           Id::ProjectileOpacity, Id::ProjectileSize, Id::ProjectileSpeed,
-                          Id::LaserSight, Id::TurnZone, Id::TurnSpeed, Id::KeepOnScreen,
-                          Id::GripFreesAim, Id::TurnZoneFrom});
+                          Id::LaserSight, Id::TurnZone, Id::TurnSpeed, Id::TurnSpeedVertical,
+                          Id::KeepOnScreen, Id::GripFreesAim, Id::TurnZoneFrom});
     MenuModel m = Sample();
     m.scope = 1;
     for (const Tab t : {Tab::Settings, Tab::Controls, Tab::Position}) {

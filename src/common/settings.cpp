@@ -339,6 +339,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_gyro_sensitivity.SetGlobal(true);
     values.vr_light_gun_turn_zone.SetGlobal(true);
     values.vr_light_gun_turn_speed.SetGlobal(true);
+    values.vr_light_gun_turn_speed_vertical.SetGlobal(true); // AzaharFrame fixa
     values.vr_light_gun_recoil.SetGlobal(true);
     values.vr_light_gun_weapon.SetGlobal(true); // AzaharFrame kiuguns
     values.vr_light_gun_laser.SetGlobal(true);

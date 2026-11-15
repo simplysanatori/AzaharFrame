@@ -987,8 +987,14 @@ struct Values {
     SwitchableSetting<u32, true> vr_gyro_aim{0, 0, 2, "vr_gyro_aim"};
     SwitchableSetting<float, true> vr_gyro_sensitivity{1.0f, 0.2f, 4.0f, "vr_gyro_sensitivity"};
     SwitchableSetting<u32, true> vr_light_gun_turn_zone{10, 0, 30, "vr_light_gun_turn_zone"};
+    // AzaharFrame fixa: vr_light_gun_turn_speed is Horizontal Turn Speed (older builds apply it
+    // to both axes, as before), vr_light_gun_turn_speed_vertical Vertical Turn Speed (0.4x by
+    // default: Kid Icarus: Uprising's aim box leaves far less room above and below than at the
+    // sides). A new plain key: older builds ignore it.
     SwitchableSetting<float, true> vr_light_gun_turn_speed{1.0f, 0.2f, 4.0f,
                                                            "vr_light_gun_turn_speed"};
+    SwitchableSetting<float, true> vr_light_gun_turn_speed_vertical{
+        0.4f, 0.2f, 4.0f, "vr_light_gun_turn_speed_vertical"};
     // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
     // steers (frame_xr/input/gyro_aim.h Recoil). Per game too. A new key: older builds ignore it.
     SwitchableSetting<bool> vr_light_gun_recoil{true, "vr_light_gun_recoil"};

@@ -89,7 +89,8 @@ std::string SliderText(Id id, float value) {
         return Immersive::Names::WorldScaleText(
             Immersive::Layout::kWorldScaleStops[static_cast<std::size_t>(i)]);
     }
-    if (id == Id::ReticleSpeed || id == Id::GyroSensitivity || id == Id::TurnSpeed) {
+    if (id == Id::ReticleSpeed || id == Id::GyroSensitivity || id == Id::TurnSpeed ||
+        id == Id::TurnSpeedVertical) { // AzaharFrame fixa
         // AzaharFrame reticle: tenths of 1x, "2.0x" (AzaharFrame kiugyro: the gyro's too)
         return Format("%.1fx", value / 10.0f);
     }
@@ -357,6 +358,7 @@ bool PerGameSetting(Id id) {
     case Id::GyroSensitivity:
     case Id::TurnZone:
     case Id::TurnSpeed:
+    case Id::TurnSpeedVertical: // AzaharFrame fixa
     case Id::Recoil:
     case Id::WeaponInHand: // AzaharFrame kiuguns
     case Id::LaserSight:
@@ -407,6 +409,7 @@ const std::vector<Id>& ControlsScopeRows() {
         Id::WeaponOpacity, Id::WeaponSize,          Id::WeaponScale,   Id::MuzzleFlash,
         Id::MuzzleFlashSize, Id::Projectiles,       Id::ProjectileOpacity, Id::ProjectileSize,
         Id::ProjectileSpeed, Id::LaserSight,        Id::TurnZone,      Id::TurnSpeed,
+        Id::TurnSpeedVertical, // AzaharFrame fixa
         Id::KeepOnScreen,  Id::GripFreesAim,        Id::TurnZoneFrom};
     // fixes7; AzaharFrame kiuflash: Muzzle Flash, Projectiles and theirs; kiuopacity: the
     // opacities, each first under its switch; kiuweap2: Muzzle Flash Size under its switch;
@@ -652,8 +655,10 @@ std::string LabelFor(Id id) {
         return "Gyro Sensitivity";
     case Id::TurnZone:
         return "Turn Zone";
-    case Id::TurnSpeed:
-        return "Turn Speed";
+    case Id::TurnSpeed: // AzaharFrame fixa: the left and right one
+        return "Horizontal Turn Speed";
+    case Id::TurnSpeedVertical:
+        return "Vertical Turn Speed";
     case Id::Recoil:
         return "Recoil";
     case Id::WeaponInHand: // AzaharFrame kiuguns
@@ -949,8 +954,10 @@ std::string ExplainFor(Id id) {
         return "Scales the gyroscope in every game.";
     case Id::TurnZone:
         return "How wide the band is where the camera turns, up to full speed.";
-    case Id::TurnSpeed:
-        return "How fast the camera turns in the Turn Zone.";
+    case Id::TurnSpeed: // AzaharFrame fixa
+        return "How fast the camera turns left and right in the Turn Zone.";
+    case Id::TurnSpeedVertical:
+        return "How fast the camera turns up and down in the Turn Zone.";
     case Id::Recoil:
         return "A short buzz in the aiming controller on each shot.";
     case Id::WeaponInHand: // AzaharFrame kiuguns
@@ -1120,7 +1127,8 @@ SliderRange SliderFor(Id id) {
     if (id == Id::ReticleSpeed) { // AzaharFrame reticle: 0.5x to 4.0x in tenths
         return {5.0f, 40.0f, 1.0f};
     }
-    if (id == Id::GyroSensitivity || id == Id::TurnSpeed) { // AzaharFrame kiugyro: 0.2x to 4.0x
+    if (id == Id::GyroSensitivity || id == Id::TurnSpeed ||
+        id == Id::TurnSpeedVertical) { // AzaharFrame kiugyro: 0.2x to 4.0x (fixa: both turns)
         return {2.0f, 40.0f, 1.0f};
     }
     if (id == Id::TurnZone) { // AzaharFrame kiugyro: 0 to 30 %
@@ -2085,6 +2093,7 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             aim_rows.push_back(Id::TurnZoneFrom);
             aim_rows.push_back(Id::TurnZone);
             aim_rows.push_back(Id::TurnSpeed);
+            aim_rows.push_back(Id::TurnSpeedVertical); // AzaharFrame fixa
             aim_rows.push_back(Id::CalibrateAim);
         }
     }
@@ -2279,6 +2288,9 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             break;
         case Id::TurnSpeed:
             slider_row(id, y, model.turn_speed);
+            break;
+        case Id::TurnSpeedVertical: // AzaharFrame fixa
+            slider_row(id, y, model.turn_speed_vertical);
             break;
         case Id::Recoil:
             switch_row(id, model.recoil);

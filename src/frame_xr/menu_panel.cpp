@@ -311,6 +311,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::TurnZone;
     case Id::TurnSpeed:
         return MenuSetting::TurnSpeed;
+    case Id::TurnSpeedVertical: // AzaharFrame fixa
+        return MenuSetting::TurnSpeedVertical;
     case Id::Recoil:
         return MenuSetting::Recoil;
     case Id::WeaponInHand: // AzaharFrame kiuguns
@@ -1037,6 +1039,8 @@ void MenuPanel::BuildModel(const Host& host) {
         std::min<u32>(v.vr_light_gun_turn_zone.GetValue(), Input::kTurnZoneMaxPercent));
     m.turn_speed = static_cast<int>(
         std::lround(Input::ClampTurnSpeed(v.vr_light_gun_turn_speed.GetValue()) * 10.0f));
+    m.turn_speed_vertical = static_cast<int>(std::lround( // AzaharFrame fixa
+        Input::ClampTurnSpeedVertical(v.vr_light_gun_turn_speed_vertical.GetValue()) * 10.0f));
     m.recoil = v.vr_light_gun_recoil.GetValue();
     m.weapon_in_hand = v.vr_light_gun_weapon.GetValue(); // AzaharFrame kiuguns
     m.laser_sight = v.vr_light_gun_laser.GetValue();
@@ -1436,10 +1440,15 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_light_gun_turn_zone, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::TurnZone;
         break;
-    case Id::TurnSpeed: // tenths of 1x
+    case Id::TurnSpeed: // tenths of 1x (AzaharFrame fixa: Horizontal Turn Speed)
         r.value = std::clamp(value, 2, 40);
         Apply(v.vr_light_gun_turn_speed, static_cast<float>(r.value) / 10.0f, per_game);
         r.setting = MenuSetting::TurnSpeed;
+        break;
+    case Id::TurnSpeedVertical: // AzaharFrame fixa: tenths of 1x
+        r.value = std::clamp(value, 2, 40);
+        Apply(v.vr_light_gun_turn_speed_vertical, static_cast<float>(r.value) / 10.0f, per_game);
+        r.setting = MenuSetting::TurnSpeedVertical;
         break;
     case Id::Recoil: // per game in Per-Game
         Apply(v.vr_light_gun_recoil, value != 0, per_game);

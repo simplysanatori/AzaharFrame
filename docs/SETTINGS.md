@@ -52,7 +52,8 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Grip Frees Aim](#angels-aim) | **Hold**, **Toggle** | Hold | global and per game | at once |
 | [Turn Zone From](#angels-aim) | **Screen Edge**, **Aim Box** | Aim Box | global and per game | at once |
 | [Turn Zone](#angels-aim) | 0% to 30% | 10% | global and per game | at once |
-| [Turn Speed](#angels-aim) | 0.2x to 4.0x | 1.0x | global and per game | at once |
+| [Horizontal Turn Speed](#angels-aim) | 0.2x to 4.0x | 1.0x | global and per game | at once |
+| [Vertical Turn Speed](#angels-aim) | 0.2x to 4.0x | 0.4x | global and per game | at once |
 | [Mouse Mode](#mouse-mode) | **Secondary Screen**, **Pointer** | Secondary Screen | the mouse | at once |
 | [Recentre at Edge](#recentre-at-edge) | on or off | on | the mouse, each touchpad | at once |
 | [Autosave](#autosave) | on or off | off | global and per game | at once |

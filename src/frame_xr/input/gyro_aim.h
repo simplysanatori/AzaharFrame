@@ -87,11 +87,18 @@ constexpr AimGripMode AimGripModeFrom(uint32_t value) {
     return value == 1 ? AimGripMode::Toggle : AimGripMode::Hold;
 }
 /// Turn Speed (Settings::values.vr_light_gun_turn_speed): at 1.0x, pointing at the screen's very
-/// edge pushes the reticle past the game's aim box by one screen width a second.
+/// edge pushes the reticle past the game's aim box by one screen width a second. AzaharFrame fixa:
+/// that key is Horizontal Turn Speed; Vertical Turn Speed (vr_light_gun_turn_speed_vertical,
+/// 0.4x by default) drives the up and down push. The Turn Zone is a share of each axis's own
+/// margin, and Kid Icarus: Uprising's aim box leaves 48 px above but 140 px at the sides, so one
+/// speed for both turned the camera up and down far faster than left and right (session 651).
 inline constexpr float kTurnSpeedMin = 0.2f;
 inline constexpr float kTurnSpeedMax = 4.0f;
 inline constexpr float kTurnSpeedDefault = 1.0f;
+inline constexpr float kTurnSpeedVerticalDefault = 0.4f;
 float ClampTurnSpeed(float value);
+/// AzaharFrame fixa: Vertical Turn Speed, clamped as Turn Speed (its own default when not finite).
+float ClampTurnSpeedVertical(float value);
 
 /// The motion source Gyro Aim uses (Settings::values.vr_motion_controls' numbering: 1 right,
 /// 2 left, 3 headset): Motion Controls' own, or the right controller when that is Off.
@@ -574,7 +581,10 @@ public:
     struct Turn {
         float zone_fraction = 0.0f;
         TurnZoneFrom from = TurnZoneFrom::AimBox;
-        float speed = 1.0f;
+        float speed = 1.0f; ///< Horizontal Turn Speed (AzaharFrame fixa)
+        /// AzaharFrame fixa: Vertical Turn Speed; below 0, `speed` (one speed for both, as the
+        /// builds before it).
+        float speed_vertical = -1.0f;
     };
     Out Update(int64_t time_ns, const ReticleReading& reading, const LightGunTarget& target,
                const Turn& turn, bool pause);

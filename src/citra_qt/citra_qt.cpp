@@ -514,6 +514,7 @@ struct FrameKeepControls {
           gyro_sensitivity{Settings::values.vr_gyro_sensitivity},
           turn_zone{Settings::values.vr_light_gun_turn_zone},
           turn_speed{Settings::values.vr_light_gun_turn_speed},
+          turn_speed_vertical{Settings::values.vr_light_gun_turn_speed_vertical}, // fixa
           recoil{Settings::values.vr_light_gun_recoil},
           weapon{Settings::values.vr_light_gun_weapon}, // AzaharFrame kiuguns
           laser{Settings::values.vr_light_gun_laser},
@@ -545,6 +546,7 @@ struct FrameKeepControls {
         gyro_sensitivity.Restore();
         turn_zone.Restore();
         turn_speed.Restore();
+        turn_speed_vertical.Restore(); // AzaharFrame fixa
         recoil.Restore();
         weapon.Restore();
         laser.Restore();
@@ -576,6 +578,7 @@ struct FrameKeepControls {
     FrameKeepSetting<float, true> gyro_sensitivity;
     FrameKeepSetting<u32, true> turn_zone;
     FrameKeepSetting<float, true> turn_speed;
+    FrameKeepSetting<float, true> turn_speed_vertical; // AzaharFrame fixa
     FrameKeepSetting<bool, false> recoil;
     FrameKeepSetting<bool, false> weapon; // AzaharFrame kiuguns
     FrameKeepSetting<bool, false> laser;
@@ -5602,8 +5605,12 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::TurnZone: // percent
         set(v.vr_light_gun_turn_zone, std::min<u32>(u, 30));
         break;
-    case S::TurnSpeed: // tenths of 1x
+    case S::TurnSpeed: // tenths of 1x (AzaharFrame fixa: Horizontal Turn Speed)
         set(v.vr_light_gun_turn_speed, static_cast<float>(std::clamp<u32>(u, 2, 40)) / 10.0f);
+        break;
+    case S::TurnSpeedVertical: // AzaharFrame fixa: tenths of 1x
+        set(v.vr_light_gun_turn_speed_vertical,
+            static_cast<float>(std::clamp<u32>(u, 2, 40)) / 10.0f);
         break;
     case S::Recoil:
         set(v.vr_light_gun_recoil, r.value != 0);

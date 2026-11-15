@@ -128,8 +128,11 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::TurnZone:
         f(v.vr_light_gun_turn_zone);
         return true;
-    case Id::TurnSpeed:
+    case Id::TurnSpeed: // AzaharFrame fixa: Horizontal Turn Speed
         f(v.vr_light_gun_turn_speed);
+        return true;
+    case Id::TurnSpeedVertical: // AzaharFrame fixa
+        f(v.vr_light_gun_turn_speed_vertical);
         return true;
     case Id::Recoil:
         f(v.vr_light_gun_recoil);

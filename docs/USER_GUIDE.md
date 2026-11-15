@@ -284,7 +284,7 @@ With **Direct Aim**, more rows show:
 - **Keep Reticle on Screen** (on by default): point off the Primary Screen and the reticle waits at its nearest edge. On the ground the camera turns at full speed, as with the C-Stick held all the way. Point more than 25 degrees past the edge, as when you lower your arm to rest, and the reticle stays at the edge without turning. While it is on, the aiming controller does not touch the Secondary Screen.
 - **Grip Frees Aim**: the aiming controller's grip frees your aim, so you can point at the Secondary Screen or a menu while the reticle stays put. **Hold** (default): free while you hold it. **Toggle**: press once to free your aim, again to lock it; a short message says which.
 - **Turn Zone From**: where turning starts on the ground. **Aim Box** (default) is the box the reticle stays in, where the C-Stick turns the camera too: point past it and the camera turns, faster the farther you point. **Screen Edge** turns only near the Primary Screen's edges.
-- **Turn Zone** and **Turn Speed**: how far past that edge you point for full speed, and how fast that is.
+- **Turn Zone**, **Horizontal Turn Speed** and **Vertical Turn Speed**: how far past that edge you point for full speed, and how fast the camera turns left and right, and up and down. Vertical Turn Speed starts slower, at 0.4x, because the game turns up and down much faster than left and right.
 - **Check Aim**: optional. Targets show on the Primary Screen one at a time; put the reticle on each and pull the trigger.
 
 ### Window Scale

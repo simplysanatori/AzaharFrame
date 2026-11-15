@@ -93,8 +93,11 @@ Settings, General, under Motion Controls: **Aiming** Off, Direct Aim, Gyro Aim (
 game too; stored as before: 0 Off, 1 Gyro Aim, 2 Direct Aim, so older builds read the same
 value; the code calls Direct Aim "Light Gun" and Gyro Aim "Gyro"; `Menu::AimingIndexOf`),
 **Recoil**, **Gyro Sensitivity**, and with Direct Aim **Turn Zone** (`vr_light_gun_turn_zone`, 0
-to 30 % of the screen, default 10 %) and **Turn Speed** (`vr_light_gun_turn_speed`, 0.2x to
-4.0x, default 1.0x), and (AzaharFrame kiuaim3) **Keep Reticle on Screen** (`vr_light_gun_lock`, on
+to 30 % of the screen, default 10 %), **Horizontal Turn Speed** (`vr_light_gun_turn_speed`, 0.2x
+to 4.0x, default 1.0x; "Turn Speed" before fixa, for both axes, as older builds still read it) and
+**Vertical Turn Speed** (AzaharFrame fixa: `vr_light_gun_turn_speed_vertical`, 0.2x to 4.0x,
+default 0.4x: the Turn Zone is a share of each axis's own margin, and the aim box leaves 48 px
+above but 140 px at the sides, so one speed turned up and down far faster), and (AzaharFrame kiuaim3) **Keep Reticle on Screen** (`vr_light_gun_lock`, on
 by default), **Grip Frees Aim** (`vr_light_gun_grip`: 0 Hold, the default, 1 Toggle) and **Turn
 Zone From** (`vr_light_gun_turn_zone_from`: 0 Screen Edge, 1 Aim Box, the default), all per game
 too; new keys, which older builds ignore. Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod (v172), in

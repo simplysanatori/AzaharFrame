@@ -40,6 +40,7 @@ struct Info {
     int weapon_opacity = 100, projectile_opacity = 100; ///< AzaharFrame kiuopacity: percent
     int flash_size = 100; ///< AzaharFrame kiuweap2: Muzzle Flash Size, percent
     int gyro_sensitivity = 0, turn_zone = 0, turn_speed = 0;
+    int turn_speed_vertical = 0; ///< AzaharFrame fixa: tenths of 1x (turn_speed: Horizontal)
     int turn_zone_from = 1;      ///< AzaharFrame kiuaim3: 0 Screen Edge, 1 Aim Box
     bool keep_on_screen = true;  ///< Keep Reticle on Screen
     bool grip_toggle = false;    ///< Grip Frees Aim: Toggle (else Hold)
