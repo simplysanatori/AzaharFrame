@@ -35,6 +35,7 @@
 #include "frame_xr/ipd_smoother.h" // AzaharFrame ipd
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/presets.h" // AzaharFrame immersive: preset screen sizes
+#include "frame_xr/render_margin.h" // AzaharFrame fovaxis
 #include "frame_xr/test_switches.h" // AzaharFrame integ9
 #include "video_core/vr_immersive.h"
 
@@ -374,6 +375,14 @@ struct State {
     /// Narrow Screen and Narrow Height), per game, every frame.
     L::Options options;
     u32 wider_level = 0; ///< AzaharFrame widerview: the level options.wider comes from
+    u32 wider_level_y = 0; ///< AzaharFrame fovaxis: and options.wider_y (Render Margin up and down)
+    /// AzaharFrame fovaxis: what the last head-locked solve had, for Fill View (FillView).
+    struct FillInputs {
+        bool valid = false;
+        float screen_fov = 60.0f;
+        float aspect = 5.0f / 3.0f;
+        float eye_shift = 0.0f;
+    } fill;
     int scale_x = 0;     ///< AzaharFrame kiu: the scales (percent) options.squeeze(_y) are
     int scale_y = 0;
     /// AzaharFrame fovscale: Stretch or Field of View (vr_immersive_scale_mode), per game, every
@@ -529,11 +538,41 @@ bool IsViewMode(u32 mode) {
 // with (it changes only for a new scene, never for a zoom) and the live angle the gain follows.
 // Gone for a second (a menu, the bottom screen in focus), the last one is kept until the next.
 // AzaharFrame widerview: the level in use (the setting, or AZAHARFRAME_IMMERSIVE_WIDER).
-u32 WiderLevel() {
+// AzaharFrame fovaxis: per axis (frame_xr/render_margin.h); the variable sets both.
+u32 WiderLevel(Margin::Axis axis = Margin::Axis::Horizontal) {
     if (g.tuning.wider_level >= 0) {
         return static_cast<u32>(g.tuning.wider_level);
     }
-    return std::min(Settings::values.vr_immersive_wider_view_level.GetValue(), L::kMaxWiderLevel);
+    return std::min(Margin::Level(axis), L::kMaxWiderLevel);
+}
+
+// AzaharFrame fovaxis: options.wider and wider_y from the levels (wider_y 0, "the same", when
+// equal: every build before's numbers).
+// AzaharFrame fovaxis: Render Margin applies with Stretch only (Layout::MarginFactor): in Field
+// of View both factors are 1.0x and the scales alone decide what is drawn. Again on a mode change.
+void ApplyMarginOptions() {
+    const float x = L::MarginFactor(g.wider_level, g.scale_mode);
+    const float y = L::MarginFactor(g.wider_level_y, g.scale_mode);
+    g.options.wider = x;
+    g.options.wider_y = x == y ? 0.0f : y;
+}
+
+void SetMarginOptions(u32 x, u32 y) {
+    g.wider_level = x;
+    g.wider_level_y = y;
+    ApplyMarginOptions();
+}
+
+// "Render Margin 1.4x" or "Render Margin 1.4x across, 1.2x up and down" (the log); in Field of
+// View with "(applies with Stretch)": not drawn then.
+std::string MarginLog() {
+    const char* note = g.scale_mode == L::ScaleMode::Stretch ? "" : " (applies with Stretch)";
+    if (g.wider_level == g.wider_level_y) {
+        return fmt::format("{} {:.1f}x{}", Names::kRenderMargin, L::WiderFactor(g.wider_level),
+                           note);
+    }
+    return fmt::format("{} {:.1f}x across, {:.1f}x up and down{}", Names::kRenderMargin,
+                       L::WiderFactor(g.wider_level), L::WiderFactor(g.wider_level_y), note);
 }
 
 // AzaharFrame fovscale: Horizontal and Vertical Scale as Stretch or Field of View (any value
@@ -1201,19 +1240,18 @@ void OnFrame(const FrameInfo& info) {
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
         // The screen shape and the game camera's angle (per game as well) are read below.
         g.shape_logged = false;
-        g.wider_level = WiderLevel();
-        g.options.wider = L::WiderFactor(g.wider_level);
+        g.scale_mode = ScaleModeSetting(); // AzaharFrame fovaxis: before the margins
+        SetMarginOptions(WiderLevel(Margin::Axis::Horizontal),
+                         WiderLevel(Margin::Axis::Vertical)); // AzaharFrame fovaxis
+        g.fill.valid = false;
         g.scale_x = L::ScalePercent(Settings::values.vr_immersive_scale_x.GetValue());
         g.scale_y = L::ScalePercent(Settings::values.vr_immersive_scale_y.GetValue());
         g.options.squeeze = L::SqueezeForScale(g.scale_x);
         g.options.squeeze_y = L::SqueezeForScale(g.scale_y);
-        g.scale_mode = ScaleModeSetting();
         std::fill(std::begin(g.split_logged), std::end(g.split_logged), -1.0f);
         g.gains_logged[0] = g.gains_logged[1] = -1.0f;
-        LOG_INFO(Frontend,
-                 "xr: immersive: Render Margin {:.1f}x, Horizontal Scale {}%, Vertical Scale {}% "
-                 "({})",
-                 g.options.wider, g.scale_x, g.scale_y, L::ScaleModeName(g.scale_mode));
+        LOG_INFO(Frontend, "xr: immersive: {}, Horizontal Scale {}%, Vertical Scale {}% ({})",
+                 MarginLog(), g.scale_x, g.scale_y, L::ScaleModeName(g.scale_mode));
         // The saved placement of this game.
         g.title_id = g_title_id.load();
         LoadStore();
@@ -1251,11 +1289,12 @@ void OnFrame(const FrameInfo& info) {
     }
     if (info.screens_live) {
         // AzaharFrame widerview: every frame too (Properties, or the D-pad in StepWiderView).
-        const u32 wider = WiderLevel();
-        if (wider != g.wider_level) {
-            g.wider_level = wider;
-            g.options.wider = L::WiderFactor(wider);
-            LOG_INFO(Frontend, "xr: immersive: Render Margin {:.1f}x (changed)", g.options.wider);
+        // AzaharFrame fovaxis: both axes.
+        const u32 wider = WiderLevel(Margin::Axis::Horizontal);
+        const u32 wider_y = WiderLevel(Margin::Axis::Vertical);
+        if (wider != g.wider_level || wider_y != g.wider_level_y) {
+            SetMarginOptions(wider, wider_y);
+            LOG_INFO(Frontend, "xr: immersive: {} (changed)", MarginLog());
         }
         // AzaharFrame immersive2: Narrow Screen and Narrow Height are live too (the menu, the
         // game's Properties, or both grips and the D-pad in StepScale): only the quad's shape
@@ -1275,8 +1314,9 @@ void OnFrame(const FrameInfo& info) {
         const L::ScaleMode scale_mode = ScaleModeSetting();
         if (scale_mode != g.scale_mode) {
             g.scale_mode = scale_mode;
-            LOG_INFO(Frontend, "xr: immersive: Horizontal and Vertical Scale as {} (changed)",
-                     L::ScaleModeName(scale_mode));
+            ApplyMarginOptions(); // AzaharFrame fovaxis: Render Margin with Stretch only
+            LOG_INFO(Frontend, "xr: immersive: Horizontal and Vertical Scale as {} (changed), {}",
+                     L::ScaleModeName(scale_mode), MarginLog());
         }
     }
     if (info.screens_live) {
@@ -1439,9 +1479,21 @@ void OnFrame(const FrameInfo& info) {
         }
         // AzaharFrame kiu2: the screen keeps the padded size meanwhile, so the game's own frame
         // (the menu) fills the same area, as big as gameplay; eased with the factor.
-        options.size_wider = options.wider;
+        // AzaharFrame fovaxis: with the axes' margins unequal, the smaller one on both
+        // (MenuSizeFactors), so that frame is not stretched; equal, the padded size as before.
         const float menu_weight = g.menu_exact.Update(menu, now);
-        options.wider = L::MenuExact::Factor(options.wider, menu_weight);
+        const float margin_x = options.wider;
+        const float margin_y = options.wider_y > 0.0f ? options.wider_y : options.wider;
+        const L::SizeFactors sized = L::MenuSizeFactors(margin_x, margin_y, menu_weight);
+        options.size_wider = sized.x;
+        options.size_wider_y = options.wider_y > 0.0f ? sized.y : 0.0f;
+        options.wider = L::MenuExact::Factor(margin_x, menu_weight);
+        if (options.wider_y > 0.0f) {
+            options.wider_y = L::MenuExact::Factor(margin_y, menu_weight);
+        }
+        // AzaharFrame fovaxis: the caps against warping, eased off with the menu rule's factor
+        // (its full-screen 2D needs equal factors).
+        options.caps = 1.0f - menu_weight;
         // AzaharFrame fovscale: the scales as field of view, but not in mode 2's menu rule: its
         // full-screen 2D (pinned to the edges) and the icons on it keep one scale only with equal
         // factors. Eased with the factor, so nothing jumps.
@@ -1462,6 +1514,7 @@ void OnFrame(const FrameInfo& info) {
         }
         g.solved = L::SolveHeadLocked(g.head_place, screen_fov, cam.aspect, g.view_fov,
                                       eye_shift, options, g.offset);
+        g.fill = {true, screen_fov, cam.aspect, eye_shift}; // AzaharFrame fovaxis: Fill View
         if (info.screens_live) {
             LogScaleSplit(menu_weight);
         }
@@ -2138,25 +2191,20 @@ WiderStep StepWiderView(int dir) {
         ShowToastText(std::string(Names::kRenderMargin) + ": Full Modes Only", ToastTime::Long);
         return WiderStep::None;
     }
-    const u32 before = g.wider_level;
-    const u32 after = static_cast<u32>(
-        std::clamp(static_cast<int>(before) + (dir > 0 ? 1 : -1), 0,
-                   static_cast<int>(L::kMaxWiderLevel)));
-    ShowToastText(L::WiderToast(after)); // also at the ends, so the press shows
-    if (after == before) {
+    // AzaharFrame fovaxis: both axes one level (Render Margin's own key while both follow it, as
+    // every build before; render_margin.h).
+    const Margin::Stepped step = Margin::StepBoth(dir > 0 ? 1 : -1);
+    // also at the ends, so the press shows; in Field of View it is kept for Stretch
+    ShowToastText(g.scale_mode == L::ScaleMode::Stretch
+                      ? L::MarginToast(step.x, step.y)
+                      : L::MarginToast(step.x, step.y) + " (" + Names::kAppliesWithStretch + ")");
+    if (!step.changed) {
         return WiderStep::None;
     }
     // AzaharFrame immersive2: the default size grows and shrinks with the view the game draws,
     // so the size stays: the picture keeps its scale.
-    const float to = L::WiderFactor(after);
-    g.wider_level = after;
-    g.options.wider = to;
-    auto& level = Settings::values.vr_immersive_wider_view_level;
-    if (level.UsingGlobal()) {
-        level.SetGlobal(false); // per game, as in the game's Properties
-    }
-    level.SetValue(after);
-    LOG_INFO(Frontend, "xr: immersive: Render Margin {:.1f}x by the D-pad, size {:.2f}", to,
+    SetMarginOptions(step.x, step.y);
+    LOG_INFO(Frontend, "xr: immersive: {} by the D-pad, size {:.2f}", MarginLog(),
              g.head_place.size);
     return WiderStep::Changed;
 }
@@ -2192,6 +2240,52 @@ WiderStep StepScale(int wider_steps, int taller_steps) {
     (vertical ? g.options.squeeze_y : g.options.squeeze) = L::SqueezeForScale(after);
     LOG_INFO(Frontend, "xr: immersive: {} by the D-pad", L::ScaleToast(after, vertical));
     return WiderStep::Changed;
+}
+
+// AzaharFrame fovaxis: Fill View, once: the size and both scales from Layout::FillView, with the
+// last solve's camera, shape and eye shift, the placement's pitch and distance, the margins and
+// the mode as they are now. Per game, like the grip + stick and the D-pad. Nothing re-applies
+// it: the values are ordinary from then on.
+bool FillView() {
+    const std::string full_only = std::string(Names::kFillView) + ": Full Modes Only";
+    if (!IsViewMode(g.mode) || !g.fill.valid) {
+        ShowToastText(full_only, ToastTime::Long);
+        return false;
+    }
+    L::Options o = g.options;
+    o.scale_fov = g.scale_mode == L::ScaleMode::FieldOfView ? 1.0f : 0.0f;
+    o.caps = 1.0f;
+    o.live_fov_y_deg = 0.0f;
+    const L::Filled f = L::FillView(g.head_place, g.fill.screen_fov, g.fill.aspect, g.view_fov,
+                                    g.fill.eye_shift, o, g.offset);
+    const L::WarpAxes warp =
+        L::ScalesMayWarp(g.wider_level, g.wider_level_y, f.scale_x, f.scale_y, g.scale_mode);
+    const std::string toast = L::FillToast(f, warp.x || warp.y);
+    ShowToastText(toast);
+    g.head_place.size = f.size;
+    if (g.title_id) {
+        g.store.Set(g.title_id, false, g.head_place);
+        SaveStore();
+    }
+    for (auto* setting : {&Settings::values.vr_immersive_scale_x,
+                          &Settings::values.vr_immersive_scale_y}) {
+        if (setting->UsingGlobal()) {
+            setting->SetGlobal(false); // per game, as the D-pad
+        }
+    }
+    Settings::values.vr_immersive_scale_x.SetValue(f.scale_x);
+    Settings::values.vr_immersive_scale_y.SetValue(f.scale_y);
+    g.scale_x = f.scale_x;
+    g.scale_y = f.scale_y;
+    g.options.squeeze = L::SqueezeForScale(f.scale_x);
+    g.options.squeeze_y = L::SqueezeForScale(f.scale_y);
+    LOG_INFO(Frontend,
+             "xr: immersive: Fill View: size {:.3f}, Horizontal Scale {}%, Vertical Scale {}% "
+             "({}), height {:.1f}% over{}{}",
+             f.size, f.scale_x, f.scale_y, L::ScaleModeName(g.scale_mode), f.over_y * 100.0f,
+             f.covers ? "" : ", at the end of a range: does not cover",
+             warp.x || warp.y ? ", May Warp" : "");
+    return true;
 }
 
 std::optional<float> SavedHeadSize(uint64_t title_id) {

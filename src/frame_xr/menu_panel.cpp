@@ -28,6 +28,7 @@
 #include "frame_xr/menu/md3.h"
 #include "frame_xr/menu_panel.h"
 #include "frame_xr/per_game.h" // AzaharFrame useglobal
+#include "frame_xr/render_margin.h" // AzaharFrame fovaxis
 #include "frame_xr/session.h"
 #include "frame_xr/ui_sound.h" // AzaharFrame menuux: Edit Controls' click
 #include "frame_xr/vis/controller_models.h"
@@ -243,8 +244,10 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::ScreenShape;
     case Id::ImmersiveMode:
         return MenuSetting::ImmersiveMode;
-    case Id::WiderView:
-        return MenuSetting::WiderView;
+    case Id::MarginX: // AzaharFrame fovaxis
+        return MenuSetting::MarginX;
+    case Id::MarginY:
+        return MenuSetting::MarginY;
     case Id::GameFov:
         return MenuSetting::GameFov;
     case Id::MatchCamera:
@@ -1138,7 +1141,9 @@ void MenuPanel::BuildModel(const Host& host) {
             66);
     }
     m.immersive_mode = static_cast<int>(std::min<u32>(v.vr_immersive_mode.GetValue(), 3));
-    m.wider_view = static_cast<int>(std::min<u32>(v.vr_immersive_wider_view_level.GetValue(), 4));
+    // AzaharFrame fovaxis: Render Margin per axis (the level each one shows: render_margin.h)
+    m.margin_x = static_cast<int>(Immersive::Margin::Level(Immersive::Margin::Axis::Horizontal));
+    m.margin_y = static_cast<int>(Immersive::Margin::Level(Immersive::Margin::Axis::Vertical));
     m.game_fov = v.vr_immersive_game_fov.GetValue();
     // AzaharFrame depth, fovonce: 0 Off, 1 Set Once, 2 Always
     m.match_camera =
@@ -1147,6 +1152,15 @@ void MenuPanel::BuildModel(const Host& host) {
     m.scale_x = FrameXr::Immersive::Layout::ScalePercent(v.vr_immersive_scale_x.GetValue());
     m.scale_y = FrameXr::Immersive::Layout::ScalePercent(v.vr_immersive_scale_y.GetValue());
     m.scale_mode = v.vr_immersive_scale_mode.GetValue() == 0 ? 0 : 1; // AzaharFrame fovscale
+    {
+        // AzaharFrame fovaxis: past the caps against warping: "May Warp" on the scale's row.
+        const auto warp = Immersive::Layout::ScalesMayWarp(
+            static_cast<u32>(m.margin_x), static_cast<u32>(m.margin_y), m.scale_x, m.scale_y,
+            m.scale_mode == 0 ? Immersive::Layout::ScaleMode::Stretch
+                              : Immersive::Layout::ScaleMode::FieldOfView);
+        m.scale_x_warp = warp.x;
+        m.scale_y_warp = warp.y;
+    }
     // AzaharFrame natural: World Scale's nearest stop, Follow Screen Size.
     m.world_scale_stop = Immersive::Layout::WorldScaleStop(v.vr_immersive_world_scale.GetValue());
     m.follow_screen = v.vr_immersive_follow_screen.GetValue();
@@ -1439,10 +1453,15 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_immersive_mode, u, per_game);
         r.setting = MenuSetting::ImmersiveMode;
         break;
-    case Id::WiderView:
-        Apply(v.vr_immersive_wider_view_level, u, per_game);
-        r.setting = MenuSetting::WiderView;
+    case Id::MarginX: // AzaharFrame fovaxis: Render Margin per axis (render_margin.h)
+    case Id::MarginY: {
+        const auto axis = id == Id::MarginX ? Immersive::Margin::Axis::Horizontal
+                                            : Immersive::Margin::Axis::Vertical;
+        r.value = static_cast<int>(std::min<u32>(u, 4));
+        Immersive::Margin::Set(axis, static_cast<u32>(r.value), per_game);
+        r.setting = id == Id::MarginX ? MenuSetting::MarginX : MenuSetting::MarginY;
         break;
+    }
     case Id::GameFov:
         Apply(v.vr_immersive_game_fov, static_cast<s32>(value), per_game);
         r.setting = MenuSetting::GameFov;
@@ -2171,6 +2190,11 @@ void MenuPanel::Click(Target t, Host& host) {
             host.reset_position();
         }
         break;
+    case Id::FillView: // AzaharFrame fovaxis
+        if (host.fill_view) {
+            host.fill_view();
+        }
+        break;
     case Id::SwapScreens:
         if (host.swap_screens) {
             host.swap_screens();
@@ -2290,7 +2314,8 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::GyroAim: // AzaharFrame kiugyro
     case Id::WeaponSize: // AzaharFrame kiufix
     case Id::WindowScale:
-    case Id::WiderView:
+    case Id::MarginX: // AzaharFrame fovaxis
+    case Id::MarginY:
     case Id::MatchCamera: // AzaharFrame fovonce: Off | Set Once | Always
     case Id::ScaleMode:   // AzaharFrame fovscale: Stretch | Field of View
     case Id::ControllersInFront: // AzaharFrame ctrlfront: Off | Primary | Secondary | Both

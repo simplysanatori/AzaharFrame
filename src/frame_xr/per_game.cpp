@@ -4,8 +4,11 @@
 
 // AzaharFrame useglobal: see per_game.h.
 
+#include <optional>
+
 #include "common/settings.h"
 #include "frame_xr/per_game.h"
+#include "frame_xr/render_margin.h" // AzaharFrame fovaxis
 
 namespace FrameXr::PerGame {
 
@@ -26,9 +29,6 @@ bool WithSetting(Menu::Id id, F&& f) {
         return true;
     case Id::ImmersiveMode:
         f(v.vr_immersive_mode);
-        return true;
-    case Id::WiderView:
-        f(v.vr_immersive_wider_view_level);
         return true;
     case Id::GameFov:
         f(v.vr_immersive_game_fov);
@@ -156,15 +156,32 @@ bool WithSetting(Menu::Id id, F&& f) {
     }
 }
 
+/// AzaharFrame fovaxis: Render Margin's rows are decided by two keys each (render_margin.h).
+std::optional<Immersive::Margin::Axis> MarginAxis(Menu::Id id) {
+    if (id == Menu::Id::MarginX) {
+        return Immersive::Margin::Axis::Horizontal;
+    }
+    if (id == Menu::Id::MarginY) {
+        return Immersive::Margin::Axis::Vertical;
+    }
+    return std::nullopt;
+}
+
 } // namespace
 
 bool UsesGlobal(Menu::Id id) {
+    if (const auto axis = MarginAxis(id)) {
+        return !Immersive::Margin::GameHasOwn(*axis);
+    }
     bool global = true;
     WithSetting(id, [&global](auto& s) { global = s.UsingGlobal(); });
     return global;
 }
 
 bool UseGlobalValue(Menu::Id id) {
+    if (const auto axis = MarginAxis(id)) {
+        return Immersive::Margin::UseGlobal(*axis);
+    }
     bool had = false;
     WithSetting(id, [&had](auto& s) {
         had = !s.UsingGlobal();
@@ -175,8 +192,13 @@ bool UseGlobalValue(Menu::Id id) {
 
 void FillGameValues(Menu::MenuModel& model) {
     for (int i = 0; i < Menu::kIdCount; i++) {
+        const Menu::Id id = static_cast<Menu::Id>(i);
         bool own = false;
-        WithSetting(static_cast<Menu::Id>(i), [&own](auto& s) { own = !s.UsingGlobal(); });
+        if (const auto axis = MarginAxis(id)) {
+            own = Immersive::Margin::GameHasOwn(*axis);
+        } else {
+            WithSetting(id, [&own](auto& s) { own = !s.UsingGlobal(); });
+        }
         model.game_value[static_cast<std::size_t>(i)] = own;
     }
 }

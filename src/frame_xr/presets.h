@@ -33,7 +33,7 @@ struct ImmersivePreset {
     /// -1 = the default, 1.4x).
     int32_t wider_level = -1;
     /// AzaharFrame kiu: Settings::values.vr_immersive_scale_x, Horizontal Scale in percent
-    /// (-30 to 30; 0 = keep: the default). Was Narrow Screen: Narrow Screen 30 % is -30.
+    /// (-100 to 100; 0 = keep: the default). Was Narrow Screen: Narrow Screen 30 % is -30.
     int32_t scale_x = 0;
     /// AzaharFrame immersive: the immersive screen's default size, times the true-scale default
     /// (0 = 1; immersive_layout.h). A placement the player saved wins.
@@ -60,6 +60,11 @@ struct ImmersivePreset {
     bool own_placement = false;
     float place_pitch_deg = 0.0f;
     float place_distance = 0.0f;
+    /// AzaharFrame fovaxis: Settings::values.vr_immersive_scale_mode (0 Stretch, 1 Field of
+    /// View; -1 = keep). Applied only with the preset's own scales: where the game has no
+    /// Horizontal or Vertical Scale of its own yet (a player's saved scales keep the mode they
+    /// were set under).
+    int32_t scale_mode = -1;
 };
 
 /// The preset for the game with this title id (any region), or null.

@@ -33,6 +33,8 @@ private:
     void SetupPerGameUI();
     void ShowOffset(float right_deg, float up_deg);
     void SetMatchCameraTips(); ///< AzaharFrame fovonce: each choice's own tooltip
+    /// AzaharFrame fovaxis: the scale rows' "May Warp" from what the rows show now.
+    void UpdateWarpNotes();
 
     QCheckBox* hide_bottom_check;
     /// Per application: the tristate tracker (Use global / on / off).
@@ -70,12 +72,22 @@ private:
     QWidget* fov_row;
     QComboBox* fov_scope; ///< per application only: global / this application
     QSpinBox* fov_spin;
-    QWidget* wider_row; ///< AzaharFrame widerview: Off, 1.1x to 1.4x
-    QComboBox* wider_combo;
-    QWidget* scale_x_row; ///< AzaharFrame kiu: Horizontal Scale, -30 % to +30 %
+    /// AzaharFrame fovaxis: Render Margin per axis, Off, 1.1x to 1.4x (frame_xr/render_margin.h;
+    /// one Render Margin row before)
+    QWidget* margin_x_row;
+    QComboBox* margin_x_combo;
+    QWidget* margin_y_row;
+    QComboBox* margin_y_combo;
+    QLabel* margin_x_note; ///< AzaharFrame fovaxis: "Applies with Stretch" in Field of View
+    QLabel* margin_y_note;
+    int margin_x_shown = 0; ///< the index each one showed when loaded (unchanged: not written)
+    int margin_y_shown = 0;
+    QWidget* scale_x_row; ///< AzaharFrame kiu, fov100: Horizontal Scale, -100 % to +100 %
     QComboBox* scale_x_combo;
+    QLabel* scale_x_warp; ///< AzaharFrame fovaxis: "May Warp", shown past the caps
     QWidget* scale_y_row; ///< Vertical Scale
     QComboBox* scale_y_combo;
+    QLabel* scale_y_warp;
     QWidget* scale_mode_row; ///< AzaharFrame fovscale: Scale Mode, Stretch or Field of View
     QComboBox* scale_mode_combo;
     QWidget* depth_row;     ///< AzaharFrame natural: World Scale (vr_immersive_world_scale)

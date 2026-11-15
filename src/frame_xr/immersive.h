@@ -144,6 +144,11 @@ WiderStep StepWiderView(int dir);
 /// toast shows the value. Changed: the caller has the game's config saved. XR thread.
 WiderStep StepScale(int wider_steps, int taller_steps);
 
+/// AzaharFrame fovaxis: Fill View (the VR menu's button): sets this game's head-locked size and
+/// both scales once so the screen covers the view (Layout::FillView), live, and shows the toast.
+/// True when it set them (the caller has the game's config saved). Full modes only. XR thread.
+bool FillView();
+
 /// AzaharFrame widerview: the saved head-locked size of a game (immersive-placement.txt), for
 /// converting the old Wider View switch (QtConfig). Nothing when none is saved. Any thread.
 std::optional<float> SavedHeadSize(uint64_t title_id);

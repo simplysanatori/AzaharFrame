@@ -858,20 +858,32 @@ struct Values {
     // immersive2: 1.4x by default (the owner's Majora's Mask 3D settings).
     SwitchableSetting<u32, true> vr_immersive_wider_view_level{4, 0, 4,
                                                                "vr_immersive_wider_view_level"};
+    // AzaharFrame fovaxis: Render Margin per axis, "Render Margin: Horizontal" and "Render
+    // Margin: Vertical": the level of that axis (0 Off to 4 = 1.4x, as above), or -1 = follow
+    // vr_immersive_wider_view_level (the default, and what every build before reads: that key
+    // keeps its meaning, both axes). Resolved scope first, a game's own value of either key
+    // before the global ones (frame_xr/render_margin.h). Read every frame.
+    SwitchableSetting<s32, true> vr_immersive_render_margin_x{-1, -1, 4,
+                                                              "vr_immersive_render_margin_x"};
+    SwitchableSetting<s32, true> vr_immersive_render_margin_y{-1, -1, 4,
+                                                              "vr_immersive_render_margin_y"};
     // AzaharFrame kiu: Horizontal Scale and Vertical Scale (Full (6DoF) only): the immersive
     // screen this many percent larger (positive) or smaller (negative) than the picture on that
-    // axis, -30 to +30 in 5 % steps, 0 by default, read every frame (frame_xr/immersive_layout.h
-    // ScalePercent). Both grips + D-pad left or right (up or down) set it for the game on view.
+    // axis, -100 to +100 in 5 % steps (AzaharFrame fov100; -30 to +30 before, and those keep
+    // their screen), 0 by default, read every frame (frame_xr/immersive_layout.h ScalePercent,
+    // ScaleFactor). Both grips + D-pad left or right (up or down) set it for the game on view.
     // They replace Narrow Screen and Narrow Height (vr_immersive_squeeze, _y, percent narrower):
     // a file with only those is converted once when read (FrameConfig::MigratedScale), so Narrow
     // Screen 10 % is -10 here.
-    SwitchableSetting<s32, true> vr_immersive_scale_x{0, -30, 30, "vr_immersive_scale_x"};
-    SwitchableSetting<s32, true> vr_immersive_scale_y{0, -30, 30, "vr_immersive_scale_y"};
+    SwitchableSetting<s32, true> vr_immersive_scale_x{0, -100, 100, "vr_immersive_scale_x"};
+    SwitchableSetting<s32, true> vr_immersive_scale_y{0, -100, 100, "vr_immersive_scale_y"};
     // AzaharFrame fovscale: how the scales act (Full (6DoF) only, per game, read every frame):
     // 0 = Stretch (the picture stretched on the larger or smaller screen, as every build before),
     // 1 = Field of View (the game draws that much more or less on that axis; the default). The
     // scales keep their meaning (the screen's size), so an older build reading the same file
-    // shows the same screen, stretched (frame_xr/immersive_layout.h ScaleSplit).
+    // shows the same screen, stretched (frame_xr/immersive_layout.h ScaleSplit). AzaharFrame
+    // fovaxis: Field of View crops below the game's own frame (fov100 and before: a squash
+    // there) and draws at most 1.6x; Stretch keeps the axes within 1.5 of each other.
     SwitchableSetting<u32, true> vr_immersive_scale_mode{1, 0, 1, "vr_immersive_scale_mode"};
     // AzaharFrame: how the Frame's A, B, X and Y map to the 3DS (global only): 0 = by position
     // (Frame A, at the bottom, is the 3DS B, ...), 1 = by label (A is A). Read every frame

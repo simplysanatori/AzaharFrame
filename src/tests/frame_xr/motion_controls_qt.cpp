@@ -110,19 +110,26 @@ TEST_CASE("VR group: no row is locked while the running game has its own value",
     auto& v = Settings::values;
     Keep<u32, false> k1{v.vr_immersive_mode};
     Keep<u32, true> k2{v.vr_immersive_wider_view_level};
+    Keep<s32, true> k2x{v.vr_immersive_render_margin_x}; // AzaharFrame fovaxis
+    Keep<s32, true> k2y{v.vr_immersive_render_margin_y};
     Keep<s32, true> k3{v.vr_immersive_scale_x};
     Keep<s32, true> k4{v.vr_immersive_game_fov};
     Keep<bool, false> k5{v.vr_hide_bottom_screen};
     Settings::SetConfiguringGlobal(true);
     Values(v.vr_immersive_mode, 0u, 2u);
     Values(v.vr_immersive_wider_view_level, 4u, 1u);
+    // AzaharFrame fovaxis: both axes follow Render Margin (the game's own 1.1x, the global 1.4x)
+    Values(v.vr_immersive_render_margin_x, -1, -1);
+    Values(v.vr_immersive_render_margin_y, -1, -1);
+    v.vr_immersive_render_margin_x.SetGlobal(true);
+    v.vr_immersive_render_margin_y.SetGlobal(true);
     Values(v.vr_immersive_scale_x, 0, -10);
     Values(v.vr_immersive_game_fov, 60, 55);
     Values(v.vr_hide_bottom_screen, false, true);
     {
         ConfigureFrameVr w;
         auto* mode = In<QComboBox>(w, "frame_vr_mode_row");
-        auto* wider = In<QComboBox>(w, "frame_vr_wider_row");
+        auto* wider = In<QComboBox>(w, "frame_vr_margin_x_row"); // AzaharFrame fovaxis
         auto* scale = In<QComboBox>(w, "frame_vr_scale_x_row");
         auto* fov = In<QSpinBox>(w, "frame_vr_fov_row");
         auto* hide = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_hide_bottom_check"));
@@ -138,20 +145,23 @@ TEST_CASE("VR group: no row is locked while the running game has its own value",
         // The global values show
         CHECK(mode->currentIndex() == 0);
         CHECK(wider->currentIndex() == 4);
-        CHECK(scale->currentIndex() == 6); // 0 %
+        CHECK(scale->currentIndex() == 20); // 0 % (AzaharFrame fov100: -100 % is item 0)
         CHECK(fov->value() == 60);
         CHECK(!hide->isChecked());
         Shot(w, "qt-vr-global-game-values.png");
         mode->setCurrentIndex(3);
         wider->setCurrentIndex(2);
-        scale->setCurrentIndex(8); // +10 %
+        scale->setCurrentIndex(22); // +10 %
         fov->setValue(70);
         hide->setChecked(true);
         w.ApplyConfiguration();
     }
     // The global values changed, the game's stayed
     CHECK(v.vr_immersive_mode.GetValue(true) == 3u);
-    CHECK(v.vr_immersive_wider_view_level.GetValue(true) == 2u);
+    // AzaharFrame fovaxis: Render Margin: Horizontal's own global value; the old key as it was
+    CHECK(v.vr_immersive_render_margin_x.GetValue(true) == 2);
+    CHECK(v.vr_immersive_render_margin_y.GetValue(true) == -1);
+    CHECK(v.vr_immersive_wider_view_level.GetValue(true) == 4u);
     CHECK(v.vr_immersive_scale_x.GetValue(true) == 10);
     CHECK(v.vr_immersive_game_fov.GetValue(true) == 70);
     CHECK(v.vr_hide_bottom_screen.GetValue(true));
@@ -173,8 +183,8 @@ TEST_CASE("VR group: no row is locked while the running game has its own value",
         REQUIRE(fov_scope);
         CHECK(mode->count() == 4 + ConfigurationShared::USE_GLOBAL_OFFSET);
         CHECK(mode->currentIndex() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
-        CHECK(scale->count() == 13 + ConfigurationShared::USE_GLOBAL_OFFSET);
-        CHECK(scale->currentIndex() == 4 + ConfigurationShared::USE_GLOBAL_OFFSET); // -10 %
+        CHECK(scale->count() == 41 + ConfigurationShared::USE_GLOBAL_OFFSET);
+        CHECK(scale->currentIndex() == 18 + ConfigurationShared::USE_GLOBAL_OFFSET); // -10 %
         CHECK(fov_scope->currentIndex() == 1); // its own
         Shot(w, "qt-vr-per-game-own-values.png");
         mode->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX);
@@ -421,5 +431,158 @@ TEST_CASE("VR group: Primary Screen as Panel", "[frame_xr][projdef]") {
     }
     CHECK_FALSE(v.vr_screens_in_projection.UsingGlobal());
     CHECK_FALSE(v.vr_screens_in_projection.GetValue());
+    Settings::SetConfiguringGlobal(true);
+}
+
+// AzaharFrame fov100: Horizontal and Vertical Scale offer -100 % to +100 % in 5 % steps (41
+// items, 0 % in the middle); a game's -100 % and a global +100 % show and are applied as such,
+// and a value of the old range (-30 to +30 %) keeps its item's meaning.
+TEST_CASE("VR group: the scales from -100 % to +100 %", "[frame_xr][fov100]") {
+    App();
+    auto& v = Settings::values;
+    Keep<s32, true> kx{v.vr_immersive_scale_x};
+    Keep<s32, true> ky{v.vr_immersive_scale_y};
+    // The setting's own range (what any reader clamps to).
+    CHECK(v.vr_immersive_scale_x.GetDefault() == 0);
+    Settings::SetConfiguringGlobal(true);
+    Values(v.vr_immersive_scale_x, 100, -100);
+    Values(v.vr_immersive_scale_y, -100, 100);
+    {
+        ConfigureFrameVr w;
+        for (const char* row : {"frame_vr_scale_x_row", "frame_vr_scale_y_row"}) {
+            auto* combo = In<QComboBox>(w, row);
+            REQUIRE(combo);
+            CHECK(combo->count() == 41);
+            CHECK(combo->itemText(0) == QStringLiteral("-100%"));
+            CHECK(combo->itemText(14) == QStringLiteral("-30%"));
+            CHECK(combo->itemText(20) == QStringLiteral("0%"));
+            CHECK(combo->itemText(26) == QStringLiteral("+30%"));
+            CHECK(combo->itemText(40) == QStringLiteral("+100%"));
+            CHECK(combo->isEnabled());
+        }
+        auto* x = In<QComboBox>(w, "frame_vr_scale_x_row");
+        auto* y = In<QComboBox>(w, "frame_vr_scale_y_row");
+        CHECK(x->currentIndex() == 40); // the global values
+        CHECK(y->currentIndex() == 0);
+        Shot(w, "qt-vr-scales-global-ends.png");
+        x->setCurrentIndex(0);
+        y->setCurrentIndex(40);
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_immersive_scale_x.GetValue(true) == -100);
+    CHECK(v.vr_immersive_scale_y.GetValue(true) == 100);
+    CHECK(v.vr_immersive_scale_x.GetValue() == -100); // the game's own stayed
+    CHECK(v.vr_immersive_scale_y.GetValue() == 100);
+    Settings::SetConfiguringGlobal(false);
+    {
+        ConfigureFrameVr w;
+        auto* x = In<QComboBox>(w, "frame_vr_scale_x_row");
+        auto* y = In<QComboBox>(w, "frame_vr_scale_y_row");
+        REQUIRE(x);
+        REQUIRE(y);
+        CHECK(x->count() == 41 + ConfigurationShared::USE_GLOBAL_OFFSET);
+        CHECK(x->currentIndex() == 0 + ConfigurationShared::USE_GLOBAL_OFFSET);  // -100 %
+        CHECK(y->currentIndex() == 40 + ConfigurationShared::USE_GLOBAL_OFFSET); // +100 %
+        Shot(w, "qt-vr-scales-per-game-ends.png");
+        x->setCurrentIndex(14 + ConfigurationShared::USE_GLOBAL_OFFSET); // -30 %, the old end
+        y->setCurrentIndex(26 + ConfigurationShared::USE_GLOBAL_OFFSET); // +30 %
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_immersive_scale_x.GetValue() == -30);
+    CHECK(v.vr_immersive_scale_y.GetValue() == 30);
+    Settings::SetConfiguringGlobal(true);
+}
+
+// AzaharFrame fovaxis: Render Margin's two rows in a game's Properties (each its own value or
+// Use global, the old key followed while untouched) and "May Warp" on a scale's row.
+TEST_CASE("VR group: Render Margin per axis and the May Warp note", "[frame_xr][fovaxis]") {
+    App();
+    auto& v = Settings::values;
+    Keep<u32, true> k1{v.vr_immersive_wider_view_level};
+    Keep<s32, true> k2{v.vr_immersive_render_margin_x};
+    Keep<s32, true> k3{v.vr_immersive_render_margin_y};
+    Keep<s32, true> k4{v.vr_immersive_scale_x};
+    Keep<s32, true> k5{v.vr_immersive_scale_y};
+    Keep<u32, true> k6{v.vr_immersive_scale_mode};
+    // The game's own Render Margin 1.2x (as an older build saved it), the axes following it.
+    Values(v.vr_immersive_wider_view_level, 4u, 2u);
+    Values(v.vr_immersive_render_margin_x, -1, -1);
+    Values(v.vr_immersive_render_margin_y, -1, -1);
+    v.vr_immersive_render_margin_x.SetGlobal(true);
+    v.vr_immersive_render_margin_y.SetGlobal(true);
+    Values(v.vr_immersive_scale_x, 0, 0);
+    Values(v.vr_immersive_scale_y, 0, 0);
+    Values(v.vr_immersive_scale_mode, 1u, 1u);
+    v.vr_immersive_scale_x.SetGlobal(true);
+    v.vr_immersive_scale_y.SetGlobal(true);
+    v.vr_immersive_scale_mode.SetGlobal(true);
+    Settings::SetConfiguringGlobal(false);
+    {
+        ConfigureFrameVr w;
+        auto* mx = In<QComboBox>(w, "frame_vr_margin_x_row");
+        auto* my = In<QComboBox>(w, "frame_vr_margin_y_row");
+        auto* sx = In<QComboBox>(w, "frame_vr_scale_x_row");
+        auto* warp_x = w.findChild<QWidget*>(QStringLiteral("frame_vr_scale_x_warp"));
+        auto* warp_y = w.findChild<QWidget*>(QStringLiteral("frame_vr_scale_y_warp"));
+        REQUIRE(mx);
+        REQUIRE(my);
+        REQUIRE(sx);
+        REQUIRE(warp_x);
+        REQUIRE(warp_y);
+        CHECK(mx->count() == 5 + ConfigurationShared::USE_GLOBAL_OFFSET);
+        // Both show the game's own 1.2x (its Render Margin decides them).
+        CHECK(mx->currentIndex() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
+        CHECK(my->currentIndex() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
+        CHECK(warp_x->isHidden());
+        CHECK(warp_y->isHidden());
+        // Field of View: both margin rows say they apply with Stretch, and stay editable.
+        auto* note_x = w.findChild<QWidget*>(QStringLiteral("frame_vr_margin_x_note"));
+        auto* note_y = w.findChild<QWidget*>(QStringLiteral("frame_vr_margin_y_note"));
+        REQUIRE(note_x);
+        REQUIRE(note_y);
+        CHECK(!note_x->isHidden());
+        CHECK(!note_y->isHidden());
+        CHECK(mx->isEnabled());
+        CHECK(my->isEnabled());
+        // +70 % is past Field of View's 1.6x (the scales alone; the margins apply with
+        // Stretch): the note shows, live.
+        mx->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX);
+        sx->setCurrentIndex(34 + ConfigurationShared::USE_GLOBAL_OFFSET); // +70 %
+        CHECK(!warp_x->isHidden());
+        CHECK(warp_y->isHidden());
+        // Stretch: the margin notes go, and so does May Warp: the caps take +70 % across
+        // with 0 % up and down (the game's frame draws 1.13x across, stretched 1.5).
+        auto* mode = In<QComboBox>(w, "frame_vr_scale_mode_row");
+        REQUIRE(mode);
+        mode->setCurrentIndex(0 + ConfigurationShared::USE_GLOBAL_OFFSET); // Stretch
+        CHECK(note_x->isHidden());
+        CHECK(note_y->isHidden());
+        CHECK(warp_x->isHidden());
+        mode->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX); // back to the global FoV
+        CHECK(!note_x->isHidden());
+        CHECK(!warp_x->isHidden());
+        Shot(w, "qt-vr-margin-axes-may-warp.png");
+        // Horizontal back to Use global: the game's Render Margin goes, Vertical keeps 1.2x.
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_immersive_wider_view_level.UsingGlobal());
+    CHECK(v.vr_immersive_render_margin_x.UsingGlobal());
+    CHECK(!v.vr_immersive_render_margin_y.UsingGlobal());
+    CHECK(v.vr_immersive_render_margin_y.GetValue() == 2);
+    CHECK(v.vr_immersive_scale_x.GetValue() == 70);
+    {
+        // Shown again: Horizontal on Use global (1.4x), Vertical its own 1.2x.
+        ConfigureFrameVr w;
+        auto* mx = In<QComboBox>(w, "frame_vr_margin_x_row");
+        auto* my = In<QComboBox>(w, "frame_vr_margin_y_row");
+        REQUIRE(mx);
+        REQUIRE(my);
+        CHECK(mx->currentIndex() == ConfigurationShared::USE_GLOBAL_INDEX);
+        CHECK(my->currentIndex() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
+        // Untouched rows write nothing.
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_immersive_render_margin_x.UsingGlobal());
+    CHECK(v.vr_immersive_render_margin_y.GetValue() == 2);
     Settings::SetConfiguringGlobal(true);
 }

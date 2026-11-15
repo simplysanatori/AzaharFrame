@@ -22,7 +22,9 @@
 #include "citra_qt/configuration/configuration_shared.h"
 #include "citra_qt/configuration/configure_frame_vr.h"
 #include "common/settings.h"
-#include "frame_xr/immersive_names.h" // AzaharFrame kiu
+#include "frame_xr/immersive_layout.h" // AzaharFrame fov100: the scales' range
+#include "frame_xr/immersive_names.h"  // AzaharFrame kiu
+#include "frame_xr/render_margin.h"    // AzaharFrame fovaxis
 
 namespace {
 
@@ -55,10 +57,10 @@ QComboBox* MakeScopeCombo(QWidget* parent) {
 // AzaharFrame curve: the Screen Curve item nearest to `deg` (the combo's order: 0, 15, 30, 45,
 // 60, 75, 90 degrees; frame_xr/input/screen_rig.h kCurveStepsDeg).
 // AzaharFrame kiu: Horizontal and Vertical Scale (Settings::values.vr_immersive_scale_x and _y)
-// are signed percent, -30 to +30 in 5 % steps (frame_xr/immersive_layout.h ScalePercent). The
-// combo's item n is -30 + n x 5 %, so item 6 is 0 %.
-constexpr s32 kScaleStep = 5;
-constexpr s32 kScaleMax = 30;
+// are signed percent, -100 to +100 in 5 % steps (frame_xr/immersive_layout.h ScalePercent;
+// AzaharFrame fov100, -30 to +30 before). The combo's item n is -100 + n x 5 %, so item 20 is 0 %.
+constexpr s32 kScaleStep = FrameXr::Immersive::Layout::kScaleStepPercent;
+constexpr s32 kScaleMax = FrameXr::Immersive::Layout::kMaxScalePercent;
 int ScaleIndex(s32 percent) {
     const s32 p = std::clamp(percent, -kScaleMax, kScaleMax) + kScaleMax;
     return static_cast<int>((p + kScaleStep / 2) / kScaleStep);
@@ -286,28 +288,62 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
                                {match_camera_combo});
     layout->addWidget(match_camera_row);
 
-    // AzaharFrame widerview: values 0..4 are Settings::values.vr_immersive_wider_view_level
-    // (frame_xr/immersive_layout.h).
-    wider_combo = new QComboBox(this);
-    wider_combo->addItem(tr("Off"));
-    for (const char* step : {"1.1x", "1.2x", "1.3x", "1.4x"}) {
-        wider_combo->addItem(QString::fromLatin1(step));
-    }
+    // AzaharFrame widerview: values 0..4 are Render Margin's levels (frame_xr/immersive_layout.h).
+    // AzaharFrame fovaxis: one row per axis (frame_xr/render_margin.h; one Render Margin row on
+    // vr_immersive_wider_view_level before, which an older build still reads).
+    const auto margin_combo = [this] {
+        auto* combo = new QComboBox(this);
+        combo->addItem(tr("Off"));
+        for (const char* step : {"1.1x", "1.2x", "1.3x", "1.4x"}) {
+            combo->addItem(QString::fromLatin1(step));
+        }
+        return combo;
+    };
     // AzaharFrame kiu: Render Margin (was Wider View); the names are in frame_xr/immersive_names.h.
     namespace Names = FrameXr::Immersive::Names;
-    wider_row = MakeRow(this, QStringLiteral("frame_vr_wider_row"), tr(Names::kRenderMargin),
-                        tr(Names::kRenderMarginTip), {wider_combo});
-    layout->addWidget(wider_row);
+    // AzaharFrame fovaxis: "Applies with Stretch" before the value while Scale Mode shows Field
+    // of View (UpdateWarpNotes); the row stays editable, its value kept for Stretch.
+    const auto stretch_note = [this](const QString& name) {
+        auto* label = new QLabel(tr(Names::kAppliesWithStretch), this);
+        label->setObjectName(name);
+        label->setEnabled(false); // the secondary text colour
+        label->setVisible(false);
+        return label;
+    };
+    margin_x_combo = margin_combo();
+    margin_x_combo->setObjectName(QStringLiteral("frame_vr_margin_x_combo"));
+    margin_x_note = stretch_note(QStringLiteral("frame_vr_margin_x_note"));
+    margin_x_row = MakeRow(this, QStringLiteral("frame_vr_margin_x_row"),
+                           tr(Names::kRenderMarginHorizontal),
+                           tr(Names::kRenderMarginHorizontalTip), {margin_x_note, margin_x_combo});
+    layout->addWidget(margin_x_row);
+    margin_y_combo = margin_combo();
+    margin_y_combo->setObjectName(QStringLiteral("frame_vr_margin_y_combo"));
+    margin_y_note = stretch_note(QStringLiteral("frame_vr_margin_y_note"));
+    margin_y_row = MakeRow(this, QStringLiteral("frame_vr_margin_y_row"),
+                           tr(Names::kRenderMarginVertical), tr(Names::kRenderMarginVerticalTip),
+                           {margin_y_note, margin_y_combo});
+    layout->addWidget(margin_y_row);
 
-    // AzaharFrame kiu: Horizontal and Vertical Scale (ScaleIndex).
+    // AzaharFrame kiu: Horizontal and Vertical Scale (ScaleIndex). AzaharFrame fovaxis: "May
+    // Warp" before the value past the caps against warping (UpdateWarpNotes).
+    const auto warp_label = [this](const QString& name) {
+        auto* label = new QLabel(tr(Names::kMayWarp), this);
+        label->setObjectName(name);
+        label->setStyleSheet(QStringLiteral("color: #d93025;"));
+        label->setVisible(false);
+        return label;
+    };
     scale_x_combo = MakeScaleCombo(this);
+    scale_x_warp = warp_label(QStringLiteral("frame_vr_scale_x_warp"));
     scale_x_row = MakeRow(this, QStringLiteral("frame_vr_scale_x_row"),
                           tr(Names::kHorizontalScale), tr(Names::kHorizontalScaleTip),
-                          {scale_x_combo});
+                          {scale_x_warp, scale_x_combo});
     layout->addWidget(scale_x_row);
     scale_y_combo = MakeScaleCombo(this);
+    scale_y_warp = warp_label(QStringLiteral("frame_vr_scale_y_warp"));
     scale_y_row = MakeRow(this, QStringLiteral("frame_vr_scale_y_row"), tr(Names::kVerticalScale),
-                          tr(Names::kVerticalScaleTip), {scale_y_combo});
+                          tr(Names::kVerticalScaleTip), {scale_y_warp, scale_y_combo});
     layout->addWidget(scale_y_row);
     // AzaharFrame fovscale: values 0..1 are Settings::values.vr_immersive_scale_mode (Stretch,
     // Field of View), live; each choice's tooltip on its item.
@@ -320,6 +356,12 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     scale_mode_row = MakeRow(this, QStringLiteral("frame_vr_scale_mode_row"),
                              tr(Names::kScaleMode), tr(Names::kScaleModeTip), {scale_mode_combo});
     layout->addWidget(scale_mode_row);
+    // AzaharFrame fovaxis: the scale rows' "May Warp" follows what the rows show.
+    for (QComboBox* combo :
+         {margin_x_combo, margin_y_combo, scale_x_combo, scale_y_combo, scale_mode_combo}) {
+        connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), this,
+                [this] { UpdateWarpNotes(); });
+    }
 
     // AzaharFrame natural: World Scale (Settings::values.vr_immersive_world_scale, percent): a
     // slider over Names::kWorldScaleStops with its value beside it ("100%" at 100); a
@@ -437,7 +479,11 @@ void ConfigureFrameVr::SetupPerGameUI() {
         hint(shape_combo, Settings::values.vr_top_aspect.UsingGlobal());
         hint(fov_spin, Settings::values.vr_immersive_game_fov.UsingGlobal());
         hint(match_camera_combo, Settings::values.vr_immersive_match_camera_mode.UsingGlobal());
-        hint(wider_combo, Settings::values.vr_immersive_wider_view_level.UsingGlobal());
+        // AzaharFrame fovaxis: Render Margin per axis (two keys each: render_margin.h)
+        hint(margin_x_combo, !FrameXr::Immersive::Margin::GameHasOwn(
+                                 FrameXr::Immersive::Margin::Axis::Horizontal));
+        hint(margin_y_combo, !FrameXr::Immersive::Margin::GameHasOwn(
+                                 FrameXr::Immersive::Margin::Axis::Vertical));
         hint(scale_x_combo, Settings::values.vr_immersive_scale_x.UsingGlobal());
         hint(scale_y_combo, Settings::values.vr_immersive_scale_y.UsingGlobal());
         hint(scale_mode_combo, Settings::values.vr_immersive_scale_mode.UsingGlobal());
@@ -463,9 +509,14 @@ void ConfigureFrameVr::SetupPerGameUI() {
             Settings::values.vr_immersive_match_camera_mode.GetValue(true), 2))); // fovonce
     ConfigurationShared::SetColoredComboBox(
         shape_combo, shape_row, static_cast<int>(Settings::values.vr_top_aspect.GetValue(true)));
+    ConfigurationShared::SetColoredComboBox( // AzaharFrame fovaxis
+        margin_x_combo, margin_x_row,
+        static_cast<int>(
+            FrameXr::Immersive::Margin::GlobalLevel(FrameXr::Immersive::Margin::Axis::Horizontal)));
     ConfigurationShared::SetColoredComboBox(
-        wider_combo, wider_row,
-        static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
+        margin_y_combo, margin_y_row,
+        static_cast<int>(
+            FrameXr::Immersive::Margin::GlobalLevel(FrameXr::Immersive::Margin::Axis::Vertical)));
     ConfigurationShared::SetColoredComboBox(
         scale_x_combo, scale_x_row,
         ScaleIndex(Settings::values.vr_immersive_scale_x.GetValue(true)));
@@ -561,8 +612,13 @@ void ConfigureFrameVr::SetConfiguration() {
             ScaleIndex(Settings::values.vr_immersive_scale_y.GetValue(true)));
         scale_mode_combo->setCurrentIndex(static_cast<int>( // AzaharFrame fovscale
             std::min<u32>(Settings::values.vr_immersive_scale_mode.GetValue(true), 1)));
-        wider_combo->setCurrentIndex(
-            static_cast<int>(Settings::values.vr_immersive_wider_view_level.GetValue(true)));
+        // AzaharFrame fovaxis: what each axis has in the global scope
+        margin_x_shown = static_cast<int>(
+            FrameXr::Immersive::Margin::GlobalLevel(FrameXr::Immersive::Margin::Axis::Horizontal));
+        margin_y_shown = static_cast<int>(
+            FrameXr::Immersive::Margin::GlobalLevel(FrameXr::Immersive::Margin::Axis::Vertical));
+        margin_x_combo->setCurrentIndex(margin_x_shown);
+        margin_y_combo->setCurrentIndex(margin_y_shown);
         mode_combo->setCurrentIndex(static_cast<int>(mode.GetValue(true)));
         match_camera_combo->setCurrentIndex(static_cast<int>(
             std::min<u32>(Settings::values.vr_immersive_match_camera_mode.GetValue(true), 2)));
@@ -585,6 +641,7 @@ void ConfigureFrameVr::SetConfiguration() {
         offset_reset_pending = false;
         ShowOffset(Settings::values.vr_immersive_offset_x.GetValue(),
                    Settings::values.vr_immersive_offset_y.GetValue());
+        UpdateWarpNotes(); // AzaharFrame fovaxis
         return;
     }
 
@@ -598,10 +655,22 @@ void ConfigureFrameVr::SetConfiguration() {
                                    : ScaleIndex(setting->GetValue()) +
                                          ConfigurationShared::USE_GLOBAL_OFFSET);
     }
-    ConfigurationShared::SetPerGameSetting(wider_combo,
-                                           &Settings::values.vr_immersive_wider_view_level);
-    ConfigurationShared::SetHighlight(
-        wider_row, !Settings::values.vr_immersive_wider_view_level.UsingGlobal());
+    {
+        // AzaharFrame fovaxis: the game's own level of an axis (its own axis value or its own
+        // Render Margin), else Use global.
+        namespace M = FrameXr::Immersive::Margin;
+        const auto show = [](QComboBox* combo, QWidget* row, M::Axis axis) {
+            const bool own = M::GameHasOwn(axis);
+            const int index = own ? static_cast<int>(M::Level(axis)) +
+                                        ConfigurationShared::USE_GLOBAL_OFFSET
+                                  : ConfigurationShared::USE_GLOBAL_INDEX;
+            combo->setCurrentIndex(index);
+            ConfigurationShared::SetHighlight(row, own);
+            return index;
+        };
+        margin_x_shown = show(margin_x_combo, margin_x_row, M::Axis::Horizontal);
+        margin_y_shown = show(margin_y_combo, margin_y_row, M::Axis::Vertical);
+    }
     ConfigurationShared::SetHighlight(scale_x_row,
                                       !Settings::values.vr_immersive_scale_x.UsingGlobal());
     ConfigurationShared::SetHighlight(scale_y_row,
@@ -640,6 +709,7 @@ void ConfigureFrameVr::SetConfiguration() {
     eye_scope->setCurrentIndex(eye.UsingGlobal() ? 0 : 1);
     eye_edit->setEnabled(!eye.UsingGlobal());
     ConfigurationShared::SetHighlight(eye_row, !eye.UsingGlobal());
+    UpdateWarpNotes(); // AzaharFrame fovaxis
 }
 
 void ConfigureFrameVr::ShowOffset(float right_deg, float up_deg) {
@@ -688,6 +758,38 @@ void ConfigureFrameVr::SetMatchCameraTips() {
     }
 }
 
+// AzaharFrame fovaxis: "May Warp" on a scale's row when what the rows show now goes past the
+// caps against warping (Layout::ScalesMayWarp); a row on Use global counts with the global
+// value.
+void ConfigureFrameVr::UpdateWarpNotes() {
+    namespace M = FrameXr::Immersive::Margin;
+    namespace L = FrameXr::Immersive::Layout;
+    const bool per_game = !Settings::IsConfiguringGlobal();
+    const auto picked = [per_game](const QComboBox* combo, int global) {
+        const int index = combo->currentIndex();
+        if (!per_game) {
+            return index;
+        }
+        return index == ConfigurationShared::USE_GLOBAL_INDEX
+                   ? global
+                   : index - ConfigurationShared::USE_GLOBAL_OFFSET;
+    };
+    const auto& v = Settings::values;
+    const int mx = picked(margin_x_combo, static_cast<int>(M::GlobalLevel(M::Axis::Horizontal)));
+    const int my = picked(margin_y_combo, static_cast<int>(M::GlobalLevel(M::Axis::Vertical)));
+    const int sx = ScaleOfIndex(picked(scale_x_combo, ScaleIndex(v.vr_immersive_scale_x.GetValue(true))));
+    const int sy = ScaleOfIndex(picked(scale_y_combo, ScaleIndex(v.vr_immersive_scale_y.GetValue(true))));
+    const int mode = picked(scale_mode_combo,
+                            static_cast<int>(std::min<u32>(v.vr_immersive_scale_mode.GetValue(true), 1)));
+    const L::WarpAxes warp = L::ScalesMayWarp(
+        static_cast<u32>(std::clamp(mx, 0, 4)), static_cast<u32>(std::clamp(my, 0, 4)), sx, sy,
+        mode == 0 ? L::ScaleMode::Stretch : L::ScaleMode::FieldOfView);
+    scale_x_warp->setVisible(warp.x);
+    scale_y_warp->setVisible(warp.y);
+    margin_x_note->setVisible(mode != 0); // Render Margin applies with Stretch only
+    margin_y_note->setVisible(mode != 0);
+}
+
 void ConfigureFrameVr::ApplyConfiguration() {
     if (Settings::IsConfiguringGlobal()) {
         if (offset_reset_pending) { // AzaharFrame vrsize
@@ -734,7 +836,6 @@ void ConfigureFrameVr::ApplyConfiguration() {
     as_global(Settings::values.vr_top_aspect);
     as_global(Settings::values.vr_motion_controls);
     as_global(Settings::values.vr_immersive_game_fov);
-    as_global(Settings::values.vr_immersive_wider_view_level);
     as_global(Settings::values.vr_immersive_scale_x);
     as_global(Settings::values.vr_immersive_scale_y);
     as_global(Settings::values.vr_immersive_scale_mode); // AzaharFrame fovscale
@@ -765,8 +866,36 @@ void ConfigureFrameVr::ApplyConfiguration() {
                                              motion_combo); // AzaharFrame kiu
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_game_fov, fov_scope,
                                              [this](s32) { return fov_spin->value(); });
-    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_wider_view_level,
-                                             wider_combo);
+    {
+        // AzaharFrame fovaxis: Render Margin per axis, written only when changed, so an axis
+        // that follows Render Margin keeps following it (render_margin.h).
+        namespace M = FrameXr::Immersive::Margin;
+        const auto apply = [](QComboBox* combo, int shown, M::Axis axis) {
+            const int index = combo->currentIndex();
+            if (index == shown) {
+                return;
+            }
+            if (Settings::IsConfiguringGlobal()) {
+                // The global value, also while the running game has its own.
+                auto& key = axis == M::Axis::Horizontal
+                                ? Settings::values.vr_immersive_render_margin_x
+                                : Settings::values.vr_immersive_render_margin_y;
+                const bool was_global = key.UsingGlobal();
+                key.SetGlobal(true);
+                key.SetValue(std::clamp(index, 0, 4));
+                key.SetGlobal(was_global);
+            } else if (index == ConfigurationShared::USE_GLOBAL_INDEX) {
+                M::UseGlobal(axis);
+            } else {
+                M::Set(axis,
+                       static_cast<u32>(std::clamp(
+                           index - ConfigurationShared::USE_GLOBAL_OFFSET, 0, 4)),
+                       true);
+            }
+        };
+        apply(margin_x_combo, margin_x_shown, M::Axis::Horizontal);
+        apply(margin_y_combo, margin_y_shown, M::Axis::Vertical);
+    }
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_scale_x, scale_x_combo,
                                              [](s32 index) { return ScaleOfIndex(index); });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_scale_y, scale_y_combo,

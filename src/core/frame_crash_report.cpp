@@ -1110,6 +1110,11 @@ std::string SettingsSummary() {
     s += fmt::format("Immersive Mode: {}\n", v.vr_immersive_mode.GetValue());
     namespace Names = FrameXr::Immersive::Names; // AzaharFrame kiu
     s += fmt::format("{}: {}\n", Names::kRenderMargin, v.vr_immersive_wider_view_level.GetValue());
+    // AzaharFrame fovaxis: the axes' own levels (-1: they follow Render Margin)
+    s += fmt::format("{}: {}\n", Names::kRenderMarginHorizontal,
+                     v.vr_immersive_render_margin_x.GetValue());
+    s += fmt::format("{}: {}\n", Names::kRenderMarginVertical,
+                     v.vr_immersive_render_margin_y.GetValue());
     s += fmt::format("{}: {}%\n", Names::kHorizontalScale, v.vr_immersive_scale_x.GetValue());
     s += fmt::format("{}: {}%\n", Names::kVerticalScale, v.vr_immersive_scale_y.GetValue());
     s += fmt::format("{}: {}\n", Names::kScaleMode, // AzaharFrame fovscale

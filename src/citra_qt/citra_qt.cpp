@@ -196,6 +196,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #include "frame_xr/kiu_scan.h"          // AzaharFrame kiuguns: IsKidIcarus
 #include "core/mods/aspect.h"           // AzaharFrame fixes7
 #include "frame_xr/presets.h" // AzaharFrame vrqol
+#include "frame_xr/render_margin.h" // AzaharFrame fovaxis
 #include "frame_xr/shader_notice.h" // AzaharFrame stall
 #include "common/stall_telemetry.h" // AzaharFrame stall
 #include "frame_xr/swkbd.h" // AzaharFrame kbd
@@ -1350,6 +1351,12 @@ GMainWindow::GMainWindow(Core::System& system_)
                             // + D-pad).
                             FrameKeepSetting keep_wider{
                                 Settings::values.vr_immersive_wider_view_level};
+                            // AzaharFrame fovaxis: Render Margin's axes (the gesture steps them
+                            // when they have levels of their own).
+                            FrameKeepSetting keep_margin_x{
+                                Settings::values.vr_immersive_render_margin_x};
+                            FrameKeepSetting keep_margin_y{
+                                Settings::values.vr_immersive_render_margin_y};
                             FrameKeepSetting keep_scale_x{Settings::values.vr_immersive_scale_x};
                             FrameKeepSetting keep_scale_y{Settings::values.vr_immersive_scale_y};
                             FrameKeepControls keep_controls; // AzaharFrame reticle
@@ -1357,6 +1364,8 @@ GMainWindow::GMainWindow(Core::System& system_)
                                                  QtConfig::ConfigType::PerGameConfig);
                             keep_controls.Restore();
                             keep_wider.Restore();
+                            keep_margin_x.Restore();
+                            keep_margin_y.Restore();
                             keep_scale_x.Restore();
                             keep_scale_y.Restore();
                             game_config.Save();
@@ -5345,6 +5354,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     // ---- A setting ----
     auto& v = Settings::values;
     bool per_game_setting = false;
+    constexpr int kScaleMax = FrameXr::Immersive::Layout::kMaxScalePercent; // AzaharFrame fov100
     // AzaharFrame useglobal: Use Global Value: the game's own value goes (the menu did it in the
     // settings already); its file is saved below, where WriteGlobalSetting takes the key out.
     const bool use_global = r.command == C::UseGlobalValue;
@@ -5411,6 +5421,21 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::WiderView:
         set(v.vr_immersive_wider_view_level, u);
         break;
+    case S::MarginX: // AzaharFrame fovaxis: Render Margin per axis (frame_xr/render_margin.h)
+    case S::MarginY: {
+        namespace M = FrameXr::Immersive::Margin;
+        const M::Axis axis = r.setting == S::MarginX ? M::Axis::Horizontal : M::Axis::Vertical;
+        if (use_global) {
+            M::UseGlobal(axis);
+            per_game_setting = true;
+        } else if (r.per_game) {
+            M::Set(axis, std::min<u32>(u, 4), true);
+            per_game_setting = true;
+        } else {
+            M::Set(axis, std::min<u32>(u, 4), false);
+        }
+        break;
+    }
     case S::GameFov:
         set(v.vr_immersive_game_fov, static_cast<s32>(r.value));
         break;
@@ -5433,11 +5458,11 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         LOG_INFO(Frontend, "xr: Detect Game FOV Once: Immersive Game FOV {} saved for {}",
                  r.value, g_frame_game_config_name);
         break;
-    case S::ScaleX: // AzaharFrame kiu: signed percent
-        set(v.vr_immersive_scale_x, static_cast<s32>(std::clamp(r.value, -30, 30)));
+    case S::ScaleX: // AzaharFrame kiu: signed percent (AzaharFrame fov100: -100 to +100)
+        set(v.vr_immersive_scale_x, static_cast<s32>(std::clamp(r.value, -kScaleMax, kScaleMax)));
         break;
     case S::ScaleY:
-        set(v.vr_immersive_scale_y, static_cast<s32>(std::clamp(r.value, -30, 30)));
+        set(v.vr_immersive_scale_y, static_cast<s32>(std::clamp(r.value, -kScaleMax, kScaleMax)));
         break;
     case S::ScaleMode: // AzaharFrame fovscale: Stretch, Field of View
         set(v.vr_immersive_scale_mode, r.value == 0 ? 0u : 1u);

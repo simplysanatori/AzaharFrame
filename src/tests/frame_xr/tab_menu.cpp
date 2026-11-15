@@ -163,7 +163,8 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
     d.Draw(m, v);
     CHECK(centre(Id::ScreenShape, 3) == Target{Id::ScreenShape, 3});
 
-    // The Render Margin row in an Off immersive mode: only its tooltip.
+    // The Render Margin row in an Off immersive mode: only its tooltip (AzaharFrame fovaxis:
+    // Render Margin: Horizontal, one of its two rows).
     v = {};
     v.tab = Tab::Settings;
     v.section = SettingsSection::Immersive; // AzaharFrame autosave
@@ -174,8 +175,9 @@ TEST_CASE("Tab menu: hit testing", "[frame_xr][tabmenu]") {
         v.scroll[static_cast<int>(Tab::Settings)] = scroll;
         d.Draw(m, v);
         for (const auto& h : d.menu.Hits()) {
-            CHECK(!(h.t.id == Id::WiderView && h.t.index >= 0));
-            label |= h.t.id == Id::WiderView && h.t.index == kLabelIndex;
+            CHECK(!(h.t.id == Id::MarginX && h.t.index >= 0));
+            CHECK(!(h.t.id == Id::MarginY && h.t.index >= 0));
+            label |= h.t.id == Id::MarginX && h.t.index == kLabelIndex;
         }
         if (scroll >= d.menu.MaxScroll()) {
             break;
@@ -217,7 +219,7 @@ TEST_CASE("Tab menu: sliders map the beam to their range", "[frame_xr][tabmenu]"
     const float mid = layout.SliderAt(Id::GameFov, (s.x0 + s.x1) * 0.5f);
     CHECK(mid > 0.45f);
     CHECK(mid < 0.55f);
-    CHECK(layout.SliderAt(Id::WiderView, s.x0) < 0.0f);
+    CHECK(layout.SliderAt(Id::MarginX, s.x0) < 0.0f);
 }
 
 // AzaharFrame depth3d
@@ -2924,7 +2926,7 @@ TEST_CASE("Tab menu: the Per-Game count and Use Global Values for All, per tab",
         CHECK(!PerGameSetting(id));
     }
     for (Id id : {Id::Depth3d, Id::InternalResolution, Id::TextureFilter, Id::AsyncShaders,
-                  Id::AccurateImageCopies, Id::ImmersiveMode, Id::WiderView, Id::GameFov,
+                  Id::AccurateImageCopies, Id::ImmersiveMode, Id::MarginX, Id::MarginY, Id::GameFov,
                   Id::MatchCamera, Id::ScaleX, Id::ScaleY, Id::WorldScale, Id::FollowScreen,
                   Id::MotionClarity, // AzaharFrame flash
                   Id::Autosave,
@@ -3308,7 +3310,7 @@ TEST_CASE("Tab menu: every selected segment keeps its check", "[frame_xr][tabmen
     kit.Begin(canvas);
     const std::vector<std::vector<std::string>> rows{
         OptionsFor(Id::MatchCamera), {"Off", "Once", "Always"}, {"Off", "10%", "20%", "30%"},
-        {"1x", "10x", "100x"}, OptionsFor(Id::WiderView)};
+        {"1x", "10x", "100x"}, OptionsFor(Id::MarginX)};
     for (const auto& opts : rows) {
         const float w = kit.SegmentedWidth(opts);
         for (float x1 = 300.0f; x1 < kPanelW; x1 += 1.37f) {
@@ -3514,6 +3516,45 @@ TEST_CASE("Tab menu: Scale Mode is Stretch or Field of View", "[frame_xr][tabmen
         INFO("picked " << pick);
         CHECK(seen[0]);
         CHECK(seen[1]);
+    }
+}
+
+// AzaharFrame fov100: Horizontal and Vertical Scale are sliders from -100 % to +100 % in 5 %
+// steps (-30 to +30 % before), with no tick marks (40 stops); the ends read "-100%" and "+100%"
+// and fit their row.
+TEST_CASE("Tab menu: the scales from -100 % to +100 %", "[frame_xr][tabmenu][fov100]") {
+    for (Id id : {Id::ScaleX, Id::ScaleY}) {
+        const SliderRange r = SliderFor(id);
+        CHECK(r.min == -100.0f);
+        CHECK(r.max == 100.0f);
+        CHECK(r.step == 5.0f);
+    }
+    const auto text = [](int p) { return (p > 0 ? "+" : "") + std::to_string(p) + "%"; };
+    for (const auto& [x, y] :
+         {std::pair{-100, 100}, std::pair{100, -100}, std::pair{-100, -100}, std::pair{100, 100}}) {
+        Audit a;
+        MenuModel m = Sample();
+        m.scale_x = x;
+        m.scale_y = y;
+        MenuView v;
+        v.tab = Tab::Settings;
+        v.section = SettingsSection::Immersive;
+        bool shown = false;
+        for (float scroll = 0.0f; scroll <= 3000.0f && !shown; scroll += kRowH) {
+            v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+            a.Draw(m, v);
+            bool sx = false, sy = false;
+            for (const auto& h : a.menu.Hits()) {
+                sx |= h.t.id == Id::ScaleX;
+                sy |= h.t.id == Id::ScaleY;
+            }
+            shown = sx && sy;
+        }
+        INFO("scales " << x << ", " << y);
+        REQUIRE(shown);
+        CHECK(a.Drew(text(x))); // "-100%", "+100%"
+        CHECK(a.Drew(text(y)));
+        a.Check("the scales at their ends");
     }
 }
 
@@ -3943,4 +3984,35 @@ TEST_CASE("Tab menu: Primary Screen as Panel", "[frame_xr][tabmenu][projdef]") {
             CHECK(note == (clarity_immersive && mode >= 2));
         }
     }
+}
+
+// AzaharFrame fovaxis: Render Margin applies with Stretch only: in Field of View its two rows
+// stay editable (their segments hit) with the note; Fill View is a button under Scale Mode in a
+// Full mode.
+TEST_CASE("Tab menu: Render Margin's note and Fill View", "[frame_xr][tabmenu][fovaxis]") {
+    CHECK(LabelFor(Id::FillView) == "Fill View");
+    CHECK(SectionOf(Id::FillView) == SettingsSection::Immersive);
+    CHECK(!PerGameSetting(Id::FillView));
+    CHECK(!ExplainFor(Id::FillView).empty());
+    Drawn d;
+    MenuModel m = Sample();
+    m.immersive_mode = 2;
+    m.scale_mode = 1; // Field of View
+    MenuView v;
+    v.tab = Tab::Settings;
+    v.section = SettingsSection::Immersive;
+    bool margin_segment = false, fill = false;
+    for (float scroll = 0.0f;; scroll += 32.0f) {
+        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+        d.Draw(m, v);
+        for (const auto& h : d.menu.Hits()) {
+            margin_segment |= (h.t.id == Id::MarginX || h.t.id == Id::MarginY) && h.t.index >= 0;
+            fill |= h.t.id == Id::FillView;
+        }
+        if (scroll >= d.menu.MaxScroll()) {
+            break;
+        }
+    }
+    CHECK(margin_segment); // never locked in Field of View
+    CHECK(fill);
 }

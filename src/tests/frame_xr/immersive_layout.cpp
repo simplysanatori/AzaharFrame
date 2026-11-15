@@ -232,9 +232,12 @@ TEST_CASE("FrameXr immersive: the default is the world at its own scale", "[fram
         wider.wider = WiderFactor(4);
         const HeadLocked s = SolveHeadLocked(Placement{}, 110.0f, 16.0f / 9.0f, frame, 0.0f, wider);
         // AzaharFrame oot: in the picture's own shape it fills the view across, at most.
+        // AzaharFrame fovaxis: the game's own frame does (the owner's rule: Render Margin never
+        // moves it); the margin's padding goes around it, past the view.
         const Cover cover = DefaultCover(frame, ViewMiddlePitch(frame), 0.0f);
-        REQUIRE(s.tan_half_y * s.aspect == Approx(cover.tan_x));
-        REQUIRE(s.tan_half_y <= cover.tan_y);
+        REQUIRE(s.tan_half_y * s.aspect / s.factor == Approx(cover.tan_x));
+        REQUIRE(s.tan_half_y / s.factor_y <= cover.tan_y);
+        REQUIRE(s.tan_half_y * s.aspect == Approx(cover.tan_x * WiderFactor(4)));
         REQUIRE(s.gain > 1.0f);
         REQUIRE(s.gain <= kMaxGain);
         REQUIRE(s.factor_y * std::tan(Rad(55)) / s.tan_half_y == Approx(s.gain));
@@ -1736,8 +1739,9 @@ TEST_CASE("FrameXr immersive: a picture shown again is held as the game would dr
                     uni(kMinSize, kMaxSize)};
         Options o;
         o.wider = WiderFactor(pick(kMaxWiderLevel + 1));
-        o.squeeze = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
-        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
+        // AzaharFrame fov100: the scales' whole range, -100 to +100 % (41 steps)
+        o.squeeze = SqueezeForScale(static_cast<int>(pick(41)) * 5 - 100);
+        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(41)) * 5 - 100);
         LensOffset offset{uni(-kMaxOffsetDeg, kMaxOffsetDeg), uni(-kMaxOffsetDeg, kMaxOffsetDeg)};
         if (kind == Yaw) { // a yaw in the quad's frame: the screen level
             offset.up_deg = 0.0f;
@@ -1960,7 +1964,9 @@ TEST_CASE("FrameXr immersive: a picture shown again is held as the game would dr
     std::printf("held picture sweep, gains 1: %.6f degrees from the rigid anchor; %ld points "
                 "compared, %ld past 80 degrees left out\n",
                 gain1_worst, points, skipped);
-    REQUIRE(skipped * 20 < points);
+    // AzaharFrame fovaxis: under 10 % (5 % before): the view-fill cap is taken on the game's
+    // own frame, so with a wide camera the Render Margin padding reaches past the view.
+    REQUIRE(skipped * 10 < points);
     REQUIRE(gain1_worst < 0.0001);
     // The case set can see the fault: rigid is off by tenths of a degree, the held quad is not.
     for (int k = 0; k < kKinds; k++) {
@@ -2109,8 +2115,9 @@ TEST_CASE("FrameXr immersive: a held picture with any World Scale, Follow Screen
                     uni(kMinDistance, kMaxDistance), uni(kMinSize, kMaxSize)};
         Options o;
         o.wider = WiderFactor(pick(kMaxWiderLevel + 1));
-        o.squeeze = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
-        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(13)) * 5 - 30);
+        // AzaharFrame fov100: the scales' whole range, -100 to +100 % (41 steps)
+        o.squeeze = SqueezeForScale(static_cast<int>(pick(41)) * 5 - 100);
+        o.squeeze_y = SqueezeForScale(static_cast<int>(pick(41)) * 5 - 100);
         LensOffset offset{yaw_only ? 0.0f : uni(-kMaxOffsetDeg, kMaxOffsetDeg),
                           yaw_only ? 0.0f : uni(-kMaxOffsetDeg, kMaxOffsetDeg)};
         HeadLocked s = SolveHeadLocked(p, uni(30, 110), kAspect3ds, view,
@@ -2294,7 +2301,9 @@ TEST_CASE("FrameXr immersive: a held picture with any World Scale, Follow Screen
                 "%.3f rigid\n",
                 near_count[0], near_held[0], near_rigid[0], near_count[1], near_held[1],
                 near_rigid[1]);
-    REQUIRE(skipped * 20 < points);
+    // AzaharFrame fovaxis: under 10 % (5 % before): the view-fill cap is taken on the game's
+    // own frame, so with a wide camera the Render Margin padding reaches past the view.
+    REQUIRE(skipped * 10 < points);
     REQUIRE(share_worst < 1e-3);
     REQUIRE(still_deg < 1e-4);
     REQUIRE(still_size < 1e-5);

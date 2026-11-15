@@ -40,6 +40,8 @@ TEST_CASE("FrameXr presets: the known games and their registers", "[frame_xr]") 
     REQUIRE(asphalt->depth_multiplier == 0);
     REQUIRE(asphalt->game_fov == 0);
     REQUIRE(asphalt->eye_indicator == nullptr);
+    REQUIRE(asphalt->scale_x == 40); // AzaharFrame fovaxis: as Super Mario 3D Land
+    REQUIRE(asphalt->scale_y == 40);
 }
 
 // AzaharFrame depth: the measured games (IMMERSIVE.md, "Tuned games").
@@ -54,13 +56,21 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     // AzaharFrame presets: the owner's tuned Mario Kart 7 and Super Mario 3D Land.
     REQUIRE(mk7->scale_x == -30); // AzaharFrame kiu: was Narrow Screen 30 %
     REQUIRE(mk7->scale_y == -15); // and Narrow Height 15 %
+    // AzaharFrame fovaxis: in Stretch, where its Render Margin 1.3x applies and the scales
+    // squeeze the side HUD in (Field of View would crop it).
+    REQUIRE(mk7->scale_mode == 0);
+    REQUIRE(mk7->wider_level == 3);
     REQUIRE(mk7->screen_size == 2.022f);
     REQUIRE(mk7->resolution == 3);
     REQUIRE(mk7->texture_filter == 3);
     REQUIRE(sm3dl->factor_3d == 100);
     REQUIRE(sm3dl->resolution == 4);
     REQUIRE(sm3dl->screen_size == 0.0f);
-    REQUIRE(sm3dl->scale_x == 0);
+    // AzaharFrame fovaxis: Render Margin applies with Stretch only; +40 % both ways is the 1.4x
+    // the default margin gave in Field of View.
+    REQUIRE(sm3dl->scale_x == 40);
+    REQUIRE(sm3dl->scale_y == 40);
+    REQUIRE(sm3dl->scale_mode == -1);
     // Ocarina of Time 3D and Majora's Mask 3D: mode 2, its own register (no register preset).
     for (const uint64_t id : {0x0004000000033500ull, 0x0004000000033600ull, 0x0004000000033400ull,
                               0x0004000000125500ull, 0x0004000000125600ull,
@@ -72,6 +82,8 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
         REQUIRE(zelda->eye_indicator == nullptr);
         REQUIRE(zelda->depth_multiplier == 1);
         REQUIRE(zelda->game_fov == 55);
+        REQUIRE(zelda->scale_x == 40); // AzaharFrame fovaxis: as Super Mario 3D Land
+        REQUIRE(zelda->scale_y == 40);
     }
     // AzaharFrame immersive2: Majora's Mask 3D's measured angle swings in play: its 55 degrees
     // hold (Match Game Camera off); Ocarina of Time 3D keeps the default (on).
@@ -90,8 +102,9 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     for (std::size_t i = 0; i < count; ++i) {
         const ImmersivePreset& p = *titles[i].preset;
         REQUIRE((p.wider_level >= -1 && p.wider_level <= 4));
-        REQUIRE((p.scale_x >= -30 && p.scale_x <= 30 && p.scale_x % 5 == 0)); // AzaharFrame kiu
-        REQUIRE((p.scale_y >= -30 && p.scale_y <= 30 && p.scale_y % 5 == 0));
+        // AzaharFrame kiu, fov100: the scales' range is -100 to +100 %
+        REQUIRE((p.scale_x >= -100 && p.scale_x <= 100 && p.scale_x % 5 == 0));
+        REQUIRE((p.scale_y >= -100 && p.scale_y <= 100 && p.scale_y % 5 == 0));
         REQUIRE((p.factor_3d >= -1 && p.factor_3d <= 100));
         REQUIRE((p.resolution >= -1 && p.resolution <= 18));
         REQUIRE((p.texture_filter >= -1 && p.texture_filter <= 5));
@@ -186,9 +199,11 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
         REQUIRE(v.vr_immersive_game_fov.GetValue() == 55);
         REQUIRE(v.vr_immersive_match_camera_mode.GetValue() == 0); // Off
         REQUIRE(v.vr_immersive_positional_game_scaler.GetValue() == 1);
-        // AzaharFrame kiu: no Horizontal Scale any more (was Narrow Screen 10 %): 0, global.
-        REQUIRE(v.vr_immersive_scale_x.GetValue() == 0);
-        REQUIRE(v.vr_immersive_scale_x.UsingGlobal());
+        // AzaharFrame kiu: no Horizontal Scale any more (was Narrow Screen 10 %). AzaharFrame
+        // fovaxis: +40 % both ways, the 1.4x the default Render Margin gave in Field of View.
+        REQUIRE(v.vr_immersive_scale_x.GetValue() == 40);
+        REQUIRE(!v.vr_immersive_scale_x.UsingGlobal());
+        REQUIRE(v.vr_immersive_scale_y.GetValue() == 40);
         REQUIRE(v.factor_3d.GetValue() == 30);
         REQUIRE(v.vr_si_mode_register_offset.GetValue() == -1);
     }

@@ -595,6 +595,10 @@ void QtConfig::ReadVrValues() {
             }
         }
     }
+    // AzaharFrame fovaxis: Render Margin per axis (-1, the default: follow the key above; no
+    // migration, so an older build's change to that key still shows here while these follow it).
+    ReadGlobalSetting(Settings::values.vr_immersive_render_margin_x);
+    ReadGlobalSetting(Settings::values.vr_immersive_render_margin_y);
     // AzaharFrame kiu: Horizontal and Vertical Scale; a file with only Narrow Screen or Narrow
     // Height keeps its choice once (FrameConfig::MigratedScale), then the old keys go on save.
     for (auto* scale : {&Settings::values.vr_immersive_scale_x,
@@ -1329,6 +1333,8 @@ void QtConfig::SaveVrValues() {
         WriteGlobalSetting(Settings::values.vr_immersive_fov_measured); // per game only
     }
     WriteGlobalSetting(Settings::values.vr_immersive_wider_view_level); // AzaharFrame widerview
+    WriteGlobalSetting(Settings::values.vr_immersive_render_margin_x);  // AzaharFrame fovaxis
+    WriteGlobalSetting(Settings::values.vr_immersive_render_margin_y);
     WriteGlobalSetting(Settings::values.vr_immersive_scale_x); // AzaharFrame kiu
     WriteGlobalSetting(Settings::values.vr_immersive_scale_y);
     WriteGlobalSetting(Settings::values.vr_immersive_scale_mode); // AzaharFrame fovscale

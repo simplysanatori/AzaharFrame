@@ -18,25 +18,48 @@ namespace FrameXr::Immersive::Names {
 
 /// Settings::values.vr_immersive_wider_view_level (was "Wider View").
 inline constexpr const char* kRenderMargin = "Render Margin";
-inline constexpr const char* kRenderMarginTip =
-    "Renders extra picture around the 3DS screen's edges so more of the game shows. Off shows "
-    "exactly the game's own picture.";
+/// AzaharFrame fovaxis: Render Margin per axis (Settings::values.vr_immersive_render_margin_x,
+/// _y; render_margin.h): the VR menu's and Azahar's window's rows, which replace the one Render
+/// Margin row (the toasts and logs keep kRenderMargin).
+inline constexpr const char* kRenderMarginHorizontal = "Render Margin: Horizontal";
+inline constexpr const char* kRenderMarginHorizontalTip =
+    "With Stretch, draws more of the game left and right of the 3DS screen, and the screen grows "
+    "with it. Off adds nothing.";
+inline constexpr const char* kRenderMarginVertical = "Render Margin: Vertical";
+inline constexpr const char* kRenderMarginVerticalTip =
+    "With Stretch, draws more of the game above and below the 3DS screen, and the screen grows "
+    "with it. Off adds nothing.";
+/// AzaharFrame fovaxis: Render Margin applies with Stretch only (Layout::MarginFactor): the
+/// note under both rows' labels (VR menu) and after their values (Azahar's window) while Scale
+/// Mode is Field of View, and on the grip + D-pad toast then.
+inline constexpr const char* kAppliesWithStretch = "Applies with Stretch";
 /// Settings::values.vr_immersive_scale_x and _y (were Narrow Screen and Narrow Height).
+/// AzaharFrame fovaxis: in Field of View a narrower screen crops; Stretch squeezes.
 inline constexpr const char* kHorizontalScale = "Horizontal Scale";
 inline constexpr const char* kHorizontalScaleTip =
-    "Makes the immersive screen wider or narrower. Narrower brings the side HUD into view.";
+    "Makes the screen wider or narrower. With Stretch, narrower brings the side HUD in.";
 inline constexpr const char* kVerticalScale = "Vertical Scale";
 inline constexpr const char* kVerticalScaleTip = "Makes the immersive screen taller or shorter.";
+/// AzaharFrame fovaxis: the note under Horizontal or Vertical Scale's label (VR menu) and after
+/// its value (Azahar's window) when the settings go past the caps against warping
+/// (Layout::ScalesMayWarp).
+inline constexpr const char* kMayWarp = "May Warp";
 /// AzaharFrame fovscale: Settings::values.vr_immersive_scale_mode (0 Stretch, 1 Field of View):
 /// how the two scales act. The VR menu's segmented row and Azahar's window.
 inline constexpr const char* kScaleMode = "Scale Mode";
 inline constexpr const char* kScaleModeTip = "How Horizontal and Vertical Scale change the picture.";
 inline constexpr const char* kScaleStretch = "Stretch";
 inline constexpr const char* kScaleStretchTip =
-    "Stretches the picture to the screen. The world looks wider or thinner.";
+    "Stretches the whole picture, HUD included. The world looks wider or thinner.";
 inline constexpr const char* kScaleFieldOfView = "Field of View";
 inline constexpr const char* kScaleFieldOfViewTip =
-    "Shows more or less of the game. The world keeps its shape.";
+    "Shows more or less of the game, cropping when smaller. The world keeps its shape.";
+/// AzaharFrame fovaxis: Fill View (VR menu, under Scale Mode): sets the screen's size and both
+/// scales once so the screen covers the view (Layout::FillView); the toast is Layout::FillToast.
+inline constexpr const char* kFillView = "Fill View";
+inline constexpr const char* kFillViewTip =
+    "Sets the screen's size and both scales once to cover your view, as far as they reach. "
+    "Adjust from there.";
 
 // AzaharFrame natural: 3D Depth in the Full modes, World Scale and Follow Screen Size. Material 3
 // Title Case for names and choices, sentence case for tooltips.
