@@ -4,9 +4,12 @@
 
 // AzaharFrame menuux: Dynamic Resolution's decisions (frame_xr/dynamic_resolution.h): only when
 // the GPU is the limit, one step at a time, only after seconds in a row, never up and down.
+// AzaharFrame fixd: up by the measured cost, longer cool-downs, the level remembered per game.
 
 #include <cmath>
 #include <cstddef>
+#include <map>
+#include <utility>
 #include <vector>
 #include <catch2/catch_test_macros.hpp>
 #include "common/settings.h"
@@ -14,6 +17,15 @@
 #include "video_core/vr_dynamic_resolution.h" // AzaharFrame ui2
 
 using namespace FrameXr::DynamicResolution;
+
+// AzaharFrame fixd: the tests link dynamic_resolution.cpp without the frame loop; the title ID it
+// asks for by default (frame_xr.h, immersive.cpp in the app) is none here. The remembered-level
+// tests set a LevelStore with their own.
+namespace FrameXr {
+uint64_t GameTitleId() {
+    return 0;
+}
+} // namespace FrameXr
 
 namespace {
 
@@ -49,34 +61,34 @@ TEST_CASE("Dynamic Resolution: what a bad and a good second are", "[frame_xr]") 
     CHECK(Controller::Bad({1.0, 120, kPeriod, 60, 60, 7.6, true}));
     CHECK_FALSE(Controller::Bad({1.0, 120, kPeriod, 60, 60, 7.0, true}));
     CHECK_FALSE(Controller::Bad(Fine()));
-    CHECK(Controller::Good(Fine(), 3));
-    CHECK_FALSE(Controller::Good(Neutral(), 3));
+    CHECK(Controller{}.Good(Fine(), 3));
+    CHECK_FALSE(Controller{}.Good(Neutral(), 3));
     // AzaharFrame flash3: room is the next factor's predicted cost, the time now times its pixels
     // over this factor's, under three quarters of the bad line (5.6 ms at 120 Hz). Session 573's
     // MK7 at 3x: 3.0 ms predicts 5.3 ms at 4x (room), 4.5 ms (its median) 8.0 ms (none).
-    CHECK(std::abs(Controller::PredictUp(3.0, 3) - 3.0 * 16.0 / 9.0) < 1e-9);
-    CHECK(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.0, true}, 3));
-    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.2, true}, 3));
-    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 4.5, true}, 3));
+    CHECK(std::abs(Controller{}.PredictUp(3.0, 3) - 3.0 * 16.0 / 9.0) < 1e-9);
+    CHECK(Controller{}.Good({1.0, 120, kPeriod, 60, 60, 3.0, true}, 3));
+    CHECK_FALSE(Controller{}.Good({1.0, 120, kPeriod, 60, 60, 3.2, true}, 3));
+    CHECK_FALSE(Controller{}.Good({1.0, 120, kPeriod, 60, 60, 4.5, true}, 3));
     // The higher the factor, the smaller the step: 3.5 ms is room at 5x (to 6x: 5.0 ms) and 4x
     // (5.5 ms), not at 2x (7.9 ms).
-    CHECK(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.5, true}, 5));
-    CHECK(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.5, true}, 4));
-    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 3.5, true}, 2));
+    CHECK(Controller{}.Good({1.0, 120, kPeriod, 60, 60, 3.5, true}, 5));
+    CHECK(Controller{}.Good({1.0, 120, kPeriod, 60, 60, 3.5, true}, 4));
+    CHECK_FALSE(Controller{}.Good({1.0, 120, kPeriod, 60, 60, 3.5, true}, 2));
     // 1x to 2x is four times the pixels.
-    CHECK(Controller::Good({1.0, 120, kPeriod, 60, 60, 1.3, true}, 1));
-    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 1.5, true}, 1));
-    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 60, 1.5, true}, 0)); // as 1x
+    CHECK(Controller{}.Good({1.0, 120, kPeriod, 60, 60, 1.3, true}, 1));
+    CHECK_FALSE(Controller{}.Good({1.0, 120, kPeriod, 60, 60, 1.5, true}, 1));
+    CHECK_FALSE(Controller{}.Good({1.0, 120, kPeriod, 60, 60, 1.5, true}, 0)); // as 1x
     CHECK_FALSE(Controller::Bad({1.0, 120, kPeriod, 60, 60, 2.9, true}));
     CHECK_FALSE(Controller::Bad(Neutral()));
     // The game's own rate does not count: a 30 fps game with the headset at full rate is fine.
     Second thirty = Fine();
     thirty.emu_frames = thirty.gpu_frames = 30;
-    CHECK(Controller::Good(thirty, 3));
+    CHECK(Controller{}.Good(thirty, 3));
     // 90 Hz: 90 frames are all of them.
-    CHECK(Controller::Good({1.0, 90, 1000.0 / 90.0, 30, 30, 2.0, true}, 3));
+    CHECK(Controller{}.Good({1.0, 90, 1000.0 / 90.0, 30, 30, 2.0, true}, 3));
     // Too few timed frames say nothing either way.
-    CHECK_FALSE(Controller::Good({1.0, 120, kPeriod, 60, 4, 1.0, true}, 3));
+    CHECK_FALSE(Controller{}.Good({1.0, 120, kPeriod, 60, 4, 1.0, true}, 3));
     CHECK(Controller::Bad({1.0, 90, 1000.0 / 90.0, 30, 30, 10.5, true}));
     // Too few timed frames to say the GPU is behind.
     CHECK_FALSE(Controller::Bad({1.0, 120, kPeriod, 60, 3, 30.0, true}));
@@ -148,10 +160,23 @@ TEST_CASE("Dynamic Resolution: a step up that cannot be held is not tried again 
     }
     CHECK(c.Drop() == 0);
     CHECK(waited <= 30);
-    // ...and when that fails too, not again in this game.
+    // ...AzaharFrame fixd: and when that fails too, it waits kRetryGrowth times as long...
     Run(c, GpuBehind(), Controller::kSettle + Controller::kDownAfter);
     REQUIRE(c.Drop() == 1);
-    CHECK(Run(c, Fine(), 2000) == 1);
+    CHECK(c.Blocked(0));
+    CHECK(Run(c, Fine(), Controller::kRetryWait * Controller::kRetryGrowth - 30) == 1);
+    waited = 0;
+    while (c.Drop() != 0 && waited < 100) {
+        c.Judge(Fine(), 3);
+        waited++;
+    }
+    CHECK(c.Drop() == 0);
+    CHECK(waited <= 30);
+    // ...and after the kFailsForGame-th failure not again in this game.
+    Run(c, GpuBehind(), Controller::kSettle + Controller::kDownAfter);
+    REQUIRE(c.Drop() == 1);
+    CHECK(Run(c, Fine(), 5000) == 1);
+    CHECK(c.Blocked(0));
     // A new game (no screens) starts from the setting.
     Second none = Fine();
     none.live = false;
@@ -205,7 +230,7 @@ TEST_CASE("Dynamic Resolution: paused seconds are not judged", "[frame_xr]") {
     c.Judge(paused, 3);
     CHECK(c.Judge(GpuBehind(), 3) == 0);
     // The factor went down under the steps taken: they follow it.
-    Run(c, GpuBehind(), 20);
+    Run(c, GpuBehind(), 3 * Controller::kDownAfter + 2 * Controller::kSettle);
     REQUIRE(c.Drop() == 3);
     CHECK(c.Judge(paused, 1) == 1);
     c.Reset();
@@ -313,7 +338,7 @@ TEST_CASE("Dynamic Resolution: bad seconds must come in a row", "[frame_xr]") {
         }
     }
     CHECK(d.Drop() == 0);
-    // Three in a row still step it down.
+    // kDownAfter in a row still step it down.
     for (int i = 0; i < Controller::kDownAfter; i++) {
         d.Judge({1.0, 120, kPeriod, 60, 60, 9.0, true, 4}, 5);
     }
@@ -364,19 +389,34 @@ TEST_CASE("Dynamic Resolution: it climbs back where the GPU allows, without boun
         CHECK(Changes(drawn) == 1);
     }
     {
-        // A GPU whose cost jumps past the prediction at 6x (5x has room by the rule, 6x is over
-        // the budget): it tries 6x, comes back down, waits kRetryWait, tries once more, and then
-        // stays at 5x for the rest of the game.
+        // A GPU whose cost jumps past the pixels' prediction at 6x (5x has room by the pixels,
+        // 6x is over the budget). flash3 tried 6x again after kRetryWait and once more (5
+        // changes). AzaharFrame fixd: the first step down's run was the GPU behind (an upper
+        // bound only), so 6x is tried once; that step up measures 6x against 5x, and it stays at
+        // 5x.
         const double jump[] = {0.0, 1.0, 1.5, 2.0, 2.5, 3.5, 10.0};
         Controller c;
         const auto drawn = Model(c, 6, jump, 2000);
         CHECK(drawn.back() == 5);
-        CHECK(Changes(drawn) == 5); // 6 -> 5, 5 -> 6, 6 -> 5, 5 -> 6, 6 -> 5
+        CHECK(Changes(drawn) == 3); // 6 -> 5, the one try: 5 -> 6 -> 5
+        CHECK(c.Ratio(5) > Controller::PixelRatio(5));
+        CHECK_FALSE(c.Good({1.0, 120, kPeriod, 60, 60, 3.5, true, 5}, 5));
+    }
+    {
+        // The same from 5x, where the pixels say there is room: one try, then the measured
+        // ratio keeps it at 5x (no second try, no bouncing).
+        const double jump[] = {0.0, 1.0, 1.5, 2.0, 2.5, 3.5, 10.0};
+        Controller c;
+        const double heavy[] = {0.0, 9, 9, 9, 9, 9, 9};
+        Model(c, 6, heavy, Controller::kDownAfter); // to 5x, measured at the bad line only
+        REQUIRE(6 - c.Drop() == 5);
+        const auto drawn = Model(c, 6, jump, 3000);
         int ups = 0;
         for (std::size_t i = 1; i < drawn.size(); i++) {
             ups += drawn[i] > drawn[i - 1];
         }
-        CHECK(ups == 2);
+        CHECK(ups <= 1);
+        CHECK(drawn.back() == 5);
     }
     {
         // A light game: back to the full factor and no change after.
@@ -441,6 +481,320 @@ TEST_CASE("Dynamic Resolution: never under the Internal Resolution setting", "[f
     CHECK(Drop() == 0);
     CHECK(V::Apply(4) == 4);
     Uninstall();
+    setting.SetValue(was);
+    factor.SetValue(was_factor);
+    V::g_base = 0;
+}
+
+// AzaharFrame fixd (session 651, the owner: it steps down too quickly): five bad seconds in a row,
+// not three.
+TEST_CASE("Dynamic Resolution: slower down", "[frame_xr][fixd]") {
+    CHECK(Controller::kDownAfter == 5);
+    Controller c;
+    CHECK(Run(c, GpuBehind(), 4) == 0);
+    CHECK(c.Judge(GpuBehind(), 3) == 1);
+    CHECK(c.LastStep() == 1);
+    // four bad seconds and an ordinary one, again and again: never
+    Controller d;
+    for (int i = 0; i < 40; i++) {
+        Run(d, GpuBehind(), 4);
+        d.Judge(Neutral(), 3);
+    }
+    CHECK(d.Drop() == 0);
+}
+
+// AzaharFrame fixd: the next factor's cost from the ratio measured in this game where it has
+// stepped between the two; the pixels before that.
+TEST_CASE("Dynamic Resolution: up on the measured cost", "[frame_xr][fixd]") {
+    Controller fresh;
+    CHECK(fresh.Ratio(3) == Controller::PixelRatio(3)); // nothing measured: the pixels
+    CHECK(fresh.MeasuredUp(3) == 0.0);
+    CHECK(fresh.Cost(3) == 0.0);
+    CHECK(std::abs(fresh.PredictUp(3.0, 3) - 3.0 * 16.0 / 9.0) < 1e-9);
+    CHECK(std::abs(Controller::PixelRatio(4) - 25.0 / 16.0) < 1e-9);
+
+    // A heavy scene: 4x at 8.0 ms (over the bad line), 3x at 7.0 ms: down to 3x after five bad
+    // seconds; the seconds after the settle measure 3x in the same scene: x1.14.
+    const auto at = [](double ms, int f) { return Second{1.0, 120, kPeriod, 60, 60, ms, true, f}; };
+    Controller c;
+    Run(c, at(8.0, 4), Controller::kDownAfter, 1);
+    REQUIRE(c.Drop() == 1);
+    Run(c, at(7.0, 3), Controller::kSettle + Controller::kMeasureSeconds, 1);
+    CHECK(std::abs(c.MeasuredDown(3) - 8.0 / 7.0) < 1e-6);
+    CHECK(std::abs(c.Ratio(3) - 8.0 / 7.0) < 1e-6);
+    // A light scene at 3x, 4.0 ms: the pixels predict 7.1 ms at 4x (no room), the measured ratio
+    // 4.6 ms (room): it climbs back.
+    CHECK_FALSE(fresh.Good(at(4.0, 3), 3));
+    CHECK(c.Good(at(4.0, 3), 3));
+    // (the hold's first seconds went by in the measurement)
+    CHECK(Run(c, at(4.0, 3),
+              Controller::kHoldAfterDown - Controller::kMeasureSeconds + Controller::kUpAfter, 1) == 0);
+    CHECK(c.LastStep() == -1);
+
+    // A step up measures both ways. MK7: 4x at 3.4 ms (5.3 ms by the pixels: room) up to 5x,
+    // which takes 6.0 ms there (under the line): x1.76, more than the pixels' x1.56, so the next
+    // time 4x at 3.4 ms has no room (6.0 ms), 3.0 ms still has.
+    Controller k;
+    k.Start(1);
+    Run(k, at(3.4, 4), Controller::kSettle + Controller::kHoldAfterDown + Controller::kUpAfter, 1);
+    REQUIRE(k.Drop() == 0);
+    REQUIRE(k.LastStep() == -1);
+    Run(k, at(6.0, 5), Controller::kSettle + Controller::kMeasureSeconds, 1);
+    CHECK(std::abs(k.MeasuredUp(4) - 6.0 / 3.4) < 1e-6);
+    CHECK(std::abs(k.Ratio(4) - 6.0 / 3.4) < 1e-6);
+    CHECK(fresh.Good(at(3.4, 4), 4));
+    CHECK_FALSE(k.Good(at(3.4, 4), 4));
+    CHECK(k.Good(at(3.0, 4), 4));
+    // ... up to 1.25 times the pixels' (a scene that got heavier under the measurement)
+    Controller u;
+    u.Start(1);
+    Run(u, at(2.0, 4), Controller::kSettle + Controller::kHoldAfterDown + Controller::kUpAfter, 1);
+    REQUIRE(u.Drop() == 0);
+    Run(u, at(7.0, 5), Controller::kSettle + Controller::kMeasureSeconds, 1);
+    CHECK(std::abs(u.MeasuredUp(4) - Controller::kRatioOverPixels * Controller::PixelRatio(4)) < 1e-6);
+
+    // A step down's run is the GPU behind (the cost plus the wait): a scene that got lighter
+    // right after it (the race ended) says nothing, it never makes the step up dearer than the
+    // pixels say.
+    Controller e;
+    Run(e, at(9.0, 5), Controller::kDownAfter, 1);
+    Run(e, at(1.0, 4), Controller::kSettle + Controller::kMeasureSeconds, 1);
+    CHECK(e.MeasuredDown(4) == 0.0);
+    CHECK(e.Ratio(4) == Controller::PixelRatio(4));
+    CHECK(e.Good(at(2.0, 4), 4)); // a light scene climbs as by the pixels
+    CHECK_FALSE(e.Good(at(3.8, 4), 4));
+    // ... and it never goes under a step up's own measurement: k measured x1.76 going up, then
+    // a step down whose 4x is 5.0 ms against 5x's 7.6 (x1.52 at most).
+    Run(k, at(7.6, 5), Controller::kDownAfter, 1);
+    REQUIRE(k.Drop() == 1);
+    Run(k, at(5.0, 4), Controller::kSettle + Controller::kMeasureSeconds, 1);
+    CHECK(std::abs(k.MeasuredDown(4) - 7.6 / 5.0) < 1e-6);
+    CHECK(std::abs(k.Ratio(4) - 6.0 / 3.4) < 1e-6);
+
+    // Both at the bad line says nothing: no ratio.
+    Controller b;
+    Run(b, at(9.0, 5), Controller::kDownAfter, 1);
+    Run(b, at(8.0, 4), Controller::kSettle + Controller::kMeasureSeconds, 1);
+    CHECK(b.MeasuredDown(4) == 0.0);
+    CHECK(b.MeasuredUp(4) == 0.0);
+}
+
+// AzaharFrame fixd: the medians per factor. Session 651's Majora's Mask: 6x at 3.4 ms most of the
+// time, a heavy stretch steps it down, then 5x at 5.4 ms: by the pixels 7.8 ms at 6x (no room,
+// so it stayed at 5x for good), by the medians 5.4 ms (room): it comes back.
+TEST_CASE("Dynamic Resolution: up on the medians per factor", "[frame_xr][fixd]") {
+    const auto at = [](double ms, int f) { return Second{1.0, 120, kPeriod, 60, 60, ms, true, f}; };
+    Controller c;
+    Run(c, at(3.4, 6), 60, 2);
+    CHECK(c.Cost(6) == static_cast<float>(3.4));
+    Run(c, at(9.0, 6), Controller::kDownAfter, 2);
+    REQUIRE(c.Drop() == 1);
+    CHECK(c.Cost(6) == static_cast<float>(3.4)); // a median: five heavy seconds do not move it
+    CHECK(c.MeasuredDown(5) == 0.0);             // 9.0 against 5.4: more than the pixels say
+    Controller pixels;
+    CHECK_FALSE(pixels.Good(at(5.4, 5), 5));
+    // its first seconds at 5x: not known yet (kCostSeconds), then the medians' x1 (never under 1)
+    int up_after = 0;
+    for (int t = 1; t <= 60 && c.Drop() == 1; t++) {
+        if (t == Controller::kSettle + Controller::kCostSeconds - 1) {
+            CHECK(c.Cost(5) == 0.0);
+        }
+        c.Judge(at(5.4, 5), 2);
+        up_after = t;
+    }
+    CHECK(c.Drop() == 0);
+    CHECK(c.LastStep() == -1);
+    CHECK(up_after == Controller::kSettle + Controller::kCostSeconds - 1 + Controller::kUpAfter);
+    CHECK(c.Ratio(5) == Controller::kRatioMin);
+    CHECK(c.RatioWhy(5) == "x1.00 by the medians of 5x and 6x");
+
+    // A Load in the same game (session 651 loaded a state 17 s after that step down) starts at
+    // the remembered 5x and keeps the medians: it comes back as soon as it may.
+    c.Start(1, true);
+    CHECK(c.Cost(6) == static_cast<float>(3.4));
+    CHECK(c.Ratio(5) == Controller::kRatioMin);
+    CHECK(Run(c, at(5.4, 5), Controller::kSettle + Controller::kHoldAfterDown + Controller::kUpAfter - 1, 2) == 1);
+    CHECK(c.Judge(at(5.4, 5), 2) == 0);
+    // another game starts from nothing
+    c.Start(1);
+    CHECK(c.Cost(6) == 0.0);
+    CHECK(c.Ratio(5) == Controller::PixelRatio(5));
+
+    // The medians never make it dearer than the pixels: 6x heavy all along (session 651's
+    // 0004000000054000: 14.8 ms at 6x, 4.1 ms at 5x).
+    Controller h;
+    Run(h, at(14.8, 6), Controller::kDownAfter, 2);
+    Run(h, at(3.0, 5), 30, 2);
+    CHECK(h.CostRatio(5) == 0.0); // 6x has five seconds: not known
+    CHECK(h.Ratio(5) == Controller::PixelRatio(5));
+}
+
+// AzaharFrame fixd: a failed level waits longer each time (no oscillation): kRetryWait, then
+// kRetryGrowth times that, then the rest of the game.
+TEST_CASE("Dynamic Resolution: a failed level waits longer each time", "[frame_xr][fixd]") {
+    CHECK(Controller::kRetryWait == 180);
+    CHECK(Controller::kFailWindow == 60);
+    // 5x is over the line in this scene, 4x at 2.5 ms; the measured ratio is kept at 1.25 times
+    // the pixels' (2.5 ms predicts 4.9 ms: room by the rule), so only the waits keep it from
+    // bouncing.
+    const auto at = [](double ms, int f) { return Second{1.0, 120, kPeriod, 60, 60, ms, true, f}; };
+    Controller c;
+    std::vector<int> ups_at;
+    int t = 0;
+    for (; t < 3000; t++) {
+        const int f = 5 - c.Drop();
+        const int before = c.Drop();
+        c.Judge(at(f == 5 ? 9.0 : 2.5, f), 1);
+        if (c.Drop() < before) {
+            ups_at.push_back(t);
+        }
+    }
+    REQUIRE(ups_at.size() == 3);
+    // the waits between the tries grow: 180 s, then 540 s; after the third failure none
+    const int gap1 = ups_at[1] - ups_at[0], gap2 = ups_at[2] - ups_at[1];
+    CHECK(gap1 >= Controller::kRetryWait);
+    CHECK(gap2 >= Controller::kRetryWait * Controller::kRetryGrowth);
+    CHECK(gap2 > gap1 * 2);
+    CHECK(c.Drop() == 1);
+    CHECK(c.Blocked(0));
+}
+
+// AzaharFrame fixd: where a game starts: the level remembered for it, never above the ceiling nor
+// under the floor.
+TEST_CASE("Dynamic Resolution: the start from a remembered level", "[frame_xr][fixd]") {
+    CHECK(StartDrop(6, 4, 2) == 2);
+    CHECK(StartDrop(6, 5, 2) == 1);
+    CHECK(StartDrop(6, 0, 2) == 0); // none remembered: the ceiling
+    CHECK(StartDrop(6, 6, 2) == 0);
+    CHECK(StartDrop(6, 7, 2) == 0); // remembered above today's ceiling
+    CHECK(StartDrop(6, 3, 2) == 2); // under today's floor (a higher setting now): the floor
+    CHECK(StartDrop(4, 3, 0) == 0); // outside the Full modes nothing comes off
+    CHECK(StartDrop(0, 4, 0) == 0); // the renderer's factor not known yet
+    Controller c;
+    c.Start(2);
+    CHECK(c.Drop() == 2);
+    CHECK(c.LastStep() == 0);
+    // its first seconds are not judged (the step's own hitch), and good ones wait a hold
+    CHECK(Run(c, GpuBehind(), Controller::kSettle) == 2);
+    CHECK(Run(c, Fine(), Controller::kHoldAfterDown + Controller::kUpAfter - 1) == 2);
+    CHECK(c.Judge(Fine(), 3) == 1);
+    c.Start(0);
+    CHECK(c.Drop() == 0);
+}
+
+TEST_CASE("Dynamic Resolution: the remembered levels' file", "[frame_xr][fixd]") {
+    const std::vector<std::pair<uint64_t, int>> levels{{0x0004000000030800ULL, 4},
+                                                       {0x0004000000125600ULL, 5}};
+    const std::string text = FormatStore(levels);
+    CHECK(text == "0004000000030800 4\n0004000000125600 5\n");
+    CHECK(ParseStore(text) == levels);
+    // lines this build cannot read are left out; the last line for a game wins
+    const auto parsed = ParseStore("# a comment\n0004000000030800 4\nzz 3\n0004000000030800 5\n"
+                                   "0000000000000000 4\n0004000000054000 0\n0004000000054000 99\n"
+                                   "0004000000054000 4 extra\n000400000003080 4\n\n");
+    CHECK(parsed == std::vector<std::pair<uint64_t, int>>{{0x0004000000030800ULL, 5}});
+    CHECK(FormatStore({{0, 4}}).empty());
+}
+
+// AzaharFrame fixd: through the frame loop's side: a level stepped down to is remembered for the
+// game, a Load (the game's screens off) starts there, not at the ceiling, and is no step up; the
+// next boot (a new frame loop) reads it back.
+TEST_CASE("Dynamic Resolution: the level remembered per game", "[frame_xr][fixd]") {
+    namespace V = VideoCore::DynamicResolution;
+    auto& setting = Settings::values.vr_dynamic_resolution;
+    auto& factor = Settings::values.resolution_factor;
+    const bool was = setting.GetValue();
+    const auto was_factor = factor.GetValue();
+    setting.SetValue(true);
+    factor.SetValue(4);
+    std::map<uint64_t, int> disk;
+    int saves = 0;
+    uint64_t title = 0x0004000000030800ULL;
+    const auto store = [&] {
+        LevelStore s;
+        s.load = [&] { return std::vector<std::pair<uint64_t, int>>(disk.begin(), disk.end()); };
+        s.save = [&](std::vector<std::pair<uint64_t, int>> levels) {
+            disk = std::map<uint64_t, int>(levels.begin(), levels.end());
+            saves++;
+        };
+        s.title = [&] { return title; };
+        return s;
+    };
+    SetLevelStore(store());
+    V::Apply(6); // a Full mode over 4x
+    Install();
+    const auto run = [](const Second& s, int n) {
+        for (int i = 0; i < n; i++) {
+            NoteSecond(s);
+        }
+    };
+    Second off = Fine();
+    off.live = false;
+    run(GpuBehind(), Controller::kDownAfter);
+    CHECK(Drop() == 1);
+    CHECK(RememberedFactor(title) == 5); // stepped down to it: remembered at once
+    CHECK(disk[title] == 5);
+    run(GpuBehind(), Controller::kSettle + Controller::kDownAfter);
+    CHECK(Drop() == 2);
+    CHECK(disk[title] == 4);
+    // A Load: the screens go off. It starts at 4x again, not at 6x.
+    run(off, 3);
+    CHECK(Drop() == 2);
+    CHECK(V::Apply(6) == 4);
+    run(Fine(), 1);
+    CHECK(Drop() == 2);
+    // Another game with nothing remembered starts at the ceiling.
+    title = 0x0004000000054000ULL;
+    run(off, 1);
+    CHECK(Drop() == 0);
+    // A level held kRememberAfter judged seconds is remembered too (6x here).
+    run(Neutral(), kRememberAfter + 1);
+    CHECK(RememberedFactor(title) == 6);
+    Uninstall();
+
+    // The next boot: a new frame loop reads the levels back, and a game already running when VR
+    // starts goes to its level at the first second.
+    title = 0x0004000000030800ULL;
+    SetLevelStore(store());
+    CHECK(RememberedFactor(title) == 4);
+    Install();
+    run(Neutral(), 1);
+    CHECK(Drop() == 2);
+    // A new Internal Resolution starts from the setting (the player's choice), not the level.
+    Reset();
+    CHECK(Drop() == 0);
+    run(Neutral(), 1);
+    CHECK(Drop() == 0);
+    Uninstall();
+
+    // Turned off in one game (6x), another game started meanwhile, turned on: the kept copy was
+    // the other game's: this game's remembered level (4x).
+    title = 0x0004000000054000ULL;
+    Install();
+    run(Neutral(), 1);
+    REQUIRE(Drop() == 0);
+    setting.SetValue(false);
+    SetEnabled(false);
+    run(off, 1);
+    title = 0x0004000000030800ULL;
+    run(off, 1);
+    run(Fine(), 1);
+    setting.SetValue(true);
+    SetEnabled(true);
+    run(Neutral(), 1);
+    CHECK(Drop() == 2);
+    Uninstall();
+
+    // No title ID (homebrew): nothing remembered, nothing read.
+    title = 0;
+    const int saved_before = saves;
+    Install();
+    run(GpuBehind(), Controller::kDownAfter);
+    CHECK(Drop() == 1);
+    CHECK(saves == saved_before);
+    Uninstall();
+
+    SetLevelStore({}); // nothing for the other tests
     setting.SetValue(was);
     factor.SetValue(was_factor);
     V::g_base = 0;

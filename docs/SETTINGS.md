@@ -206,6 +206,8 @@ The Full modes have their own 3D Depth: **Immersive 3D Depth** in Azahar's windo
 
 In the VR menu's **Settings** tab, in **Graphics**; global. While the GPU cannot keep up, it lowers the resolution a step at a time, and it raises it again once the GPU can. It never goes below your **Internal Resolution** setting. The immersive modes draw up to two steps above that setting, so that is where it has room; outside them, and at an Internal Resolution of 1x, it has nothing to do and the row is greyed out. It does not lower the resolution for slowdowns the GPU is not causing, and it is not judged while the game is paused or the menu is open.
 
+It steps down after 5 seconds in a row that the GPU cannot keep up, and up after 10 seconds with room for the next step. Whether there is room is judged from what each level has cost in this game so far, and what the step cost the last time it stepped up, so it comes back where the higher level fits. A Load keeps what it learned; another game starts afresh. If it has to step down again within a minute of a step up, that level waits 3 minutes before it is tried again, then 9 minutes, and after a third time not again in that game. It remembers the level each game settles at, so starting the game or loading a state starts there instead of at the highest level. The levels are kept in `user/dynamic-resolution.txt`; deleting it starts every game from the top again.
+
 ## Immersive Mode
 
 Puts you inside the game instead of in front of a floating screen.
