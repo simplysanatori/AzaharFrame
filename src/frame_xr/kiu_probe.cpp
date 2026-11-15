@@ -89,6 +89,10 @@ struct Probe {
     uint32_t ease_timer = 0;   ///< block +0x4C (float bits)
     uint32_t mod_hold = 0;     ///< the mod's state +0x2C
     uint32_t unstick_writes = 0;
+    // The mod's box hook (0xF5A118) stretches the box to the whole screen while its stick counter
+    // (+kModStickCounter) is set and any of these is non-zero: the state's +0x40, +0x44, +0x64.
+    // The stick it reads is +0x0C, +0x10 (floats).
+    uint32_t mod_40 = 0, mod_44 = 0, mod_64 = 0, mod_0c = 0, mod_10 = 0;
 };
 
 /// The reticle object's flags; kClampBit (value 8, MAPPING.md's "bit 8") is set by the game's clamp (0x6D2C08) when it pulls
@@ -374,6 +378,15 @@ void AimPoll(int64_t ticks) {
                     p.ease_timer = memory.Read32(*process, ease + 0x4C);
                 }
                 p.mod_hold = memory.Read32(*process, p.addr.state + kModHold);
+                const bool wide_ok =
+                    memory.IsValidVirtualAddress(*process, p.addr.state + 0x64 + 3);
+                if (wide_ok) {
+                    p.mod_0c = memory.Read32(*process, p.addr.state + 0x0C);
+                    p.mod_10 = memory.Read32(*process, p.addr.state + 0x10);
+                    p.mod_40 = memory.Read32(*process, p.addr.state + 0x40);
+                    p.mod_44 = memory.Read32(*process, p.addr.state + 0x44);
+                    p.mod_64 = memory.Read32(*process, p.addr.state + 0x64);
+                }
                 // Live test switches, each only while the Turn Zone turns with the C-Stick let go
                 // (the mod's flag 1 off): AZAHARFRAME_KIU_UNSTICK_BIT=1 clears the reticle's bit 2;
                 // AZAHARFRAME_KIU_UNSTICK_EASE=1 clears the easing block's on flags.
@@ -385,6 +398,17 @@ void AimPoll(int64_t ticks) {
                     (p.clamp_word & kReticleStickBit) != 0) {
                     memory.Write32(*process, p.object + kReticleClampFlags,
                                    p.clamp_word & ~kReticleStickBit);
+                    p.unstick_writes++;
+                }
+                // AZAHARFRAME_KIU_UNSTICK_MOD=1: zero the box hook's three values and the counter.
+                if (unstick_time && wide_ok &&
+                    Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_UNSTICK_MOD").value_or("") ==
+                        "1" &&
+                    (p.mod_40 != 0 || p.mod_44 != 0 || p.mod_64 != 0)) {
+                    memory.Write32(*process, p.addr.state + 0x40, 0);
+                    memory.Write32(*process, p.addr.state + 0x44, 0);
+                    memory.Write32(*process, p.addr.state + 0x64, 0);
+                    memory.Write32(*process, p.addr.state + kModStickCounter, 0);
                     p.unstick_writes++;
                 }
                 if (unstick_time && ease_ok &&
@@ -516,13 +540,16 @@ void AimPoll(int64_t ticks) {
                  // 1.2.0 RC2: the push and what the game's gyroscope was given
                  fmt::format("; {} push {:.1f} right {:.1f} down dps, gyro {:.1f} {:.1f} {:.1f} "
                              "(scale {:.2f}, {} polls); mod flags {:02X} stick {:08X}, {} cleared, clamp {:08X}{}; "
-                             "ease {:X} {:X} {:.3f}, hold {:X}, {} unstuck",
+                             "ease {:X} {:X} {:.3f}, hold {:X}, {} unstuck; mod stick {:.3f} {:.3f}, "
+                             "40 {:08X} 44 {:08X} 64 {:08X}",
                              p.direct_turn ? "direct" : "mod", out.right_dps, out.down_dps,
                              p.last_gyro.x, p.last_gyro.y,
                              p.last_gyro.z, p.last_scale, p.gyro_polls, p.mod_flags,
                              p.mod_counter, p.counter_resets, p.clamp_word,
                              p.stretched ? ", stretched" : "", p.ease_on_a, p.ease_on_b,
-                             std::bit_cast<float>(p.ease_timer), p.mod_hold, p.unstick_writes));
+                             std::bit_cast<float>(p.ease_timer), p.mod_hold, p.unstick_writes,
+                             std::bit_cast<float>(p.mod_0c), std::bit_cast<float>(p.mod_10),
+                             p.mod_40, p.mod_44, p.mod_64));
         p.unstick_writes = 0;
         p.gyro_polls = 0;
         p.counter_resets = 0;
