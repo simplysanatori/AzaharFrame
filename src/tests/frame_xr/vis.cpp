@@ -82,8 +82,11 @@ TEST_CASE("FrameXr vis: the help follows the profile and Face Buttons", "[frame_
         REQUIRE(ActionFor(page.game, "Left Bumper") == "Nothing");
         REQUIRE(ActionFor(page.game, "Grip on a Screen") == "3DS L, Move Screens");
         REQUIRE(ActionFor(page.game, "Grip (Immersive)") == "Move Immersive Screen");
-        REQUIRE(ActionFor(page.game, "Hold Grip + D-Pad Up or Down") ==
-                "Screen Curve or Render Margin"); // AzaharFrame kiu
+        // AzaharFrame fovaxis: Curve on the normal screens; on the immersive screen 3D Depth
+        // with Field of View, Render Margin with Stretch.
+        REQUIRE(ActionFor(page.game, "Hold Grip + D-Pad Up or Down") == "Screen Curve");
+        REQUIRE(ActionFor(page.game, "Same in Field of View") == "3D Depth");
+        REQUIRE(ActionFor(page.game, "Same in Stretch") == "Render Margin");
         REQUIRE(ActionFor(page.game, "Both Grips + D-Pad Left or Right") == "Horizontal Scale");
         REQUIRE(ActionFor(page.game, "Both Grips + D-Pad Up or Down") == "Vertical Scale");
         REQUIRE(ActionFor(page.game, "D-Pad Up") == "Nothing");
@@ -406,8 +409,7 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         // One label for both grips.
         REQUIRE(FindDiagramLabel(g, 0, CtrlPart::Grip) == FindDiagramLabel(g, 1, CtrlPart::Grip));
         REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "Grip on a Screen") == "Move Screens");
-        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "D-Pad Up or Down") ==
-                "Curve / Render Margin"); // AzaharFrame kiu
+        REQUIRE(DiagramAction(g, 0, CtrlPart::Grip, "D-Pad Up or Down") == "Curve");
         // AzaharFrame kiu: both grips' D-pad, a label of its own at the right grip
         const DiagramLabel* both_grips = nullptr;
         for (const DiagramLabel& l : g.labels) {
@@ -420,6 +422,11 @@ TEST_CASE("FrameXr vis: the diagram follows the profile and Face Buttons", "[fra
         REQUIRE(LineFor(both_grips, "Hold Both Grips +")->heading);
         REQUIRE(LineFor(both_grips, "D-Pad Left or Right")->action == "Horizontal Scale");
         REQUIRE(LineFor(both_grips, "D-Pad Up or Down")->action == "Vertical Scale");
+        // AzaharFrame fovaxis: and the immersive screen's one-grip D-pad up or down there.
+        REQUIRE(LineFor(both_grips, "Full Modes, Grip + D-Pad Up or Down"));
+        REQUIRE(LineFor(both_grips, "Full Modes, Grip + D-Pad Up or Down")->heading);
+        REQUIRE(LineFor(both_grips, "Field of View")->action == "3D Depth");
+        REQUIRE(LineFor(both_grips, "Stretch")->action == "Render Margin");
         // The window's page.
         const DiagramPage& w = d.pages[1];
         REQUIRE(DiagramAction(w, 1, CtrlPart::A, "A") == "Click");
