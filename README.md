@@ -42,7 +42,7 @@ Nothing is hosted by this project. The app only fetches files from their origina
 ## Game fixes
 
 - **Accurate Image Copies** (**Settings** > **Graphics**) fixes the shimmering glow in Fire Emblem Echoes and Fates at a raised resolution. Its default, **Automatic**, applies it only where a game needs it.
-- **Angel's Aim** (alpha) is a direct-aim, light-gun-style mode for Kid Icarus: Uprising. Its mod is in the [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes) catalogue; full write-up in the [user guide](docs/USER_GUIDE.md#angels-aim-kid-icarus-uprising).
+- **Angel's Aim** (alpha) is a direct-aim, light-gun-style mode for Kid Icarus: Uprising. Its mod is in the [3ds-game-fixes](https://github.com/simplysanatori/3ds-game-fixes) catalogue; full write-up on [its page](https://github.com/simplysanatori/3ds-game-fixes/blob/main/docs/angels-aim.md).
 
 ## Experimental
 
