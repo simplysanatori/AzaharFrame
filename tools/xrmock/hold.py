@@ -993,8 +993,9 @@ def gains_from_log(log, size=None, scale_x=None, scale_y=None, out=print):
     if last is None:
         return None
     t, g, gx, sz = last
-    # fovaxis: Fill View sets the size and both scales once ("xr: immersive: Fill View: size
-    # 1.034, Horizontal Scale 35%, Vertical Scale 60% (Field of View), ..."): the last one after
+    # fovaxis: Fill View sets the size and Horizontal Scale once (1.2.0: Vertical Scale kept,
+    # still logged; "xr: immersive: Fill View: size 1.034, Horizontal Scale 35%, Vertical Scale
+    # 60% (Field of View), ..."): the last one after
     # the "on" line is what the screen has, over what was given.
     fl = re.compile(r"^\[\s*([\d.]+)\].*immersive: Fill View: size ([\d.]+), Horizontal Scale "
                     r"(-?\d+)%, Vertical Scale (-?\d+)% \((Stretch|Field of View)\)")
@@ -1282,7 +1283,8 @@ def selftest():
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
         f.write("[  10.00] xr: immersive mode 3 on (test), gain 0.97, yaw gain 0.97, size 1.000\n")
         f.write("[  12.50] xr: immersive: Fill View: size 1.034, Horizontal Scale 35%, Vertical "
-                "Scale 60% (Field of View), height 2.0% over\n")
+                "Scale 60% (Field of View), across 75% of the view, Vertical Scale kept, the "
+                "height 81% of the view's\n")
         name = f.name
     saved = gains_from_log.mode
     got = gains_from_log(name, 1.0, 0, 0, out=lambda *_: None)

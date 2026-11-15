@@ -2269,10 +2269,11 @@ WiderStep StepDepth3d(int steps) {
     return WiderStep::Changed;
 }
 
-// AzaharFrame fovaxis: Fill View, once: the size and both scales from Layout::FillView, with the
-// last solve's camera, shape and eye shift, the placement's pitch and distance, the margins and
-// the mode as they are now. Per game, like the grip + stick and the D-pad. Nothing re-applies
-// it: the values are ordinary from then on.
+// AzaharFrame fovaxis: Fill View, once: the size and Horizontal Scale from Layout::FillView
+// (1.2.0: across only, at Layout::kFillAcrossShare of the view; Vertical Scale stays the
+// player's), with the last solve's camera, shape and eye shift, the placement's pitch and
+// distance, the margins and the mode as they are now. Per game, like the grip + stick and the
+// D-pad. Nothing re-applies it: the values are ordinary from then on.
 bool FillView() {
     const std::string full_only = std::string(Names::kFillView) + ": Full Modes Only";
     if (!IsViewMode(g.mode) || !g.fill.valid) {
@@ -2284,7 +2285,7 @@ bool FillView() {
     o.caps = 1.0f;
     o.live_fov_y_deg = 0.0f;
     const L::Filled f = L::FillView(g.head_place, g.fill.screen_fov, g.fill.aspect, g.view_fov,
-                                    g.fill.eye_shift, o, g.offset);
+                                    g.fill.eye_shift, g.scale_y, o, g.offset);
     const L::WarpAxes warp =
         L::ScalesMayWarp(g.wider_level, g.wider_level_y, f.scale_x, f.scale_y, g.scale_mode);
     const std::string toast = L::FillToast(f, warp.x || warp.y);
@@ -2294,23 +2295,20 @@ bool FillView() {
         g.store.Set(g.title_id, false, g.head_place);
         SaveStore();
     }
-    for (auto* setting : {&Settings::values.vr_immersive_scale_x,
-                          &Settings::values.vr_immersive_scale_y}) {
-        if (setting->UsingGlobal()) {
-            setting->SetGlobal(false); // per game, as the D-pad
-        }
+    auto& setting = Settings::values.vr_immersive_scale_x;
+    if (setting.UsingGlobal()) {
+        setting.SetGlobal(false); // per game, as the D-pad
     }
-    Settings::values.vr_immersive_scale_x.SetValue(f.scale_x);
-    Settings::values.vr_immersive_scale_y.SetValue(f.scale_y);
+    setting.SetValue(f.scale_x);
     g.scale_x = f.scale_x;
-    g.scale_y = f.scale_y;
     g.options.squeeze = L::SqueezeForScale(f.scale_x);
-    g.options.squeeze_y = L::SqueezeForScale(f.scale_y);
     LOG_INFO(Frontend,
              "xr: immersive: Fill View: size {:.3f}, Horizontal Scale {}%, Vertical Scale {}% "
-             "({}), height {:.1f}% over{}{}",
-             f.size, f.scale_x, f.scale_y, L::ScaleModeName(g.scale_mode), f.over_y * 100.0f,
-             f.covers ? "" : ", at the end of a range: does not cover",
+             "({}), across {:.0f}% of the view, Vertical Scale kept, the height {:.0f}% of the "
+             "view's{}{}",
+             f.size, f.scale_x, f.scale_y, L::ScaleModeName(g.scale_mode),
+             L::kFillAcrossShare * 100.0f, f.share_y * 100.0f,
+             f.covers ? "" : ", the size at the end of its range: the width not exact",
              warp.x || warp.y ? ", May Warp" : "");
     return true;
 }

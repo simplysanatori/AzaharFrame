@@ -370,21 +370,28 @@ Four per-game settings change this (**VR** group, logged as
   default Render Margin 1.4x in Field of View: their presets now have both scales at +40 %, the
   same picture and screen when the view-fill cap is not reached.
 - **Fill View** (AzaharFrame fovaxis; the VR menu's button under Scale Mode, `Immersive::FillView`,
-  `Layout::FillView`): once, never a mode. From the last solve's camera, shape and eye shift
-  (mode 2's half IPD over the distance) and the placement's pitch: the screen at size 1 and
-  scales 0 % (the fit taken first, so the screen then grows exactly with the size and each
-  scale), `DefaultCover` at the screen's pitch (what either eye sees plus `kFillMarginDeg`).
-  Horizontal Scale is the largest 5 % step at or under what the width needs and the size
-  (`kMinSize` to `kMaxSize`) makes the width exact (so the size is at least 1); Vertical Scale
-  is the smallest step that covers the height at that size, at most one step over (7.4 % below
-  -30 %, 5 / (100 + scale) above). Where no Vertical Scale step reaches the height at that size
-  (a narrow camera, a tall view, Stretch's trimmed padding), Horizontal Scale steps down and the
-  size up until one does; if none can (the size ends at 2.5), it fills as far as it goes and the
-  toast says `(Partial)`. Each step is solved (`SolveHeadLocked`), so the caps and the trimming
-  are taken as they are. Scales and size per game, as the D-pad and the grip; the
-  toast `Fill View: Horizontal +35%, Vertical +60%` with ` (May Warp)` when the result is past
-  the caps; logged as `xr: immersive: Fill View: size 1.034, Horizontal Scale 35%, Vertical
-  Scale 60% (Field of View), height 2.0% over`, which `hold.py --log` reads. Nothing re-applies
+  `Layout::FillView`): once, never a mode. 1.2.0 (session 651, triage item 2): across only.
+  From the last solve's camera, shape and eye shift (mode 2's half IPD over the distance) and
+  the placement's pitch: the screen at size 1 for each Horizontal Scale step with the player's
+  Vertical Scale (the fit taken first, so the screen then grows exactly with the size and each
+  scale), `DefaultCover` at the screen's pitch (what either eye sees plus `kFillMarginDeg`). The
+  width's target is `kFillAcrossShare` (0.75) of the cover's half-width tangent. Horizontal
+  Scale is `kFillScalePercent` (+50 %, the owner's "about 25 % more on each side"), or the
+  largest 5 % step under it whose width at size 1 is at or under the target, of the steps that
+  do not warp across at that Vertical Scale (`SplitScales`' `warp_x`; any step when none
+  avoids it); the size (`kMinSize` to `kMaxSize`) makes the width exact (so at least 1). If the
+  size ends first the toast says `(Partial)`. Vertical Scale is never written and nothing
+  searches the height (the old `cover_y` search, which lowered Horizontal Scale and raised the
+  size to reach the height, made every session-651 press 1.5 to 2.3 times the size and "May
+  Warp"). Calibration: the owner's settled screens were 0.58 to 0.93 (median about 0.74) as
+  wide as the old full cover; at +50 % the new size has no mean bias against the owner's sizes
+  (OoT 1.32 and 1.37 against 1.12, Majora's Mask 3D 1.19 against 1.39, Mario Kart 7 1.70 against
+  2.05). Each step is solved (`SolveHeadLocked`), so the caps and the trimming are taken as
+  they are. Size and Horizontal Scale per game, as the D-pad and the grip; the
+  toast `Fill View: Horizontal +35%, Vertical +60%` (Vertical: the player's, unchanged) with
+  ` (May Warp)` when the result is past the caps; logged as `xr: immersive: Fill View: size
+  1.034, Horizontal Scale 35%, Vertical Scale 60% (Field of View), across 75% of the view,
+  Vertical Scale kept, the height 81% of the view's`, which `hold.py --log` reads. Nothing re-applies
   it; the values are ordinary, so the next D-pad or menu step moves one step from them and the
   grip resizes from the filled size. It fills with the screen, not the game's own frame: in
   Field of View the frame does not grow with the scales (they draw more around it), and in

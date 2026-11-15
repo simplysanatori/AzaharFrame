@@ -762,28 +762,38 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
                            const ViewFov& view, float eye_shift = 0.0f,
                            const Options& options = {}, const LensOffset& offset = {});
 
-/// AzaharFrame fovaxis: Fill View, set once (no mode): the placement size and both scales that
-/// make the screen cover what either eye sees (DefaultCover at the screen's own pitch, with
-/// kFillMarginDeg to spare, and mode 2's `eye_shift`), from the screen as SolveHeadLocked gives
-/// it with `options` (its scales replaced; each step solved, the mode and the caps included).
-/// Horizontal Scale is the largest 5 % step at or under what the width needs and the size makes
-/// the width exact (so at least 1, a little magnified); Vertical Scale is the smallest 5 % step
-/// that covers the height at that size, so the height is over by less than one step. `covers`
-/// is false where the ranges (size kMinSize to kMaxSize, scales +-100 %) or Stretch's caps
-/// cannot reach the view (Stretch trims Render Margin's padding at 1.6x, so a margin leaves
-/// less room up and down): then the most they give, the smallest steps that give it.
+/// AzaharFrame fovaxis: Fill View, set once (no mode). 1.2.0: across only, at kFillAcrossShare
+/// of the view. The placement size and Horizontal Scale that make the screen's width exactly
+/// kFillAcrossShare of the half width (tangent) that would cover what either eye sees
+/// (DefaultCover at the screen's own pitch, with kFillMarginDeg to spare, and mode 2's
+/// `eye_shift`), from the screen as SolveHeadLocked gives it with `options` (its scales replaced;
+/// each step solved, the mode and the caps included). Vertical Scale stays the player's
+/// `scale_y` (on the grid); nothing searches the height. Horizontal Scale is kFillScalePercent,
+/// or the largest 5 % step under it whose width is at or under what the share needs, of the
+/// steps that do not warp across at that Vertical Scale (any step when every one would); the
+/// size then makes the width exact (so at least 1: the size, not the scale, makes up the rest).
+/// `covers` is false where the size's range (kMinSize to kMaxSize) cannot make it exact: then
+/// the size at its end.
+/// Session 651: covering the whole view (width and height, the height by lowering Horizontal
+/// Scale and raising the size) was far too big; the owner's settled screens were 0.58 to 0.93
+/// as wide as that (median about 0.74), the height 0.54 to 0.82 (triage item 2). The owner's
+/// rule (2026-11-15): a moderate Horizontal Scale, about 25 % more on each side, and the size
+/// raised until the width fits.
+inline constexpr float kFillAcrossShare = 0.75f;
+inline constexpr int kFillScalePercent = 50;
 struct Filled {
     float size = 1.0f;
     int scale_x = 0;
-    int scale_y = 0;
-    bool covers = true;
-    float over_y = 0.0f; ///< the height over what covers, as a share (0.03: 3 % taller)
+    int scale_y = 0; ///< the player's Vertical Scale, unchanged
+    bool covers = true; ///< the width exactly kFillAcrossShare of the view
+    /// The screen's height over the height that would cover the view (0.8: 80 % of it); logged.
+    float share_y = 0.0f;
 };
 Filled FillView(const Placement& placement, float game_fov_y_deg, float aspect,
-                const ViewFov& view, float eye_shift, const Options& options,
+                const ViewFov& view, float eye_shift, int scale_y, const Options& options,
                 const LensOffset& offset = {});
-/// "Fill View: Horizontal +35%, Vertical +60%", with " (Partial)" when it does not cover and
-/// " (May Warp)" when `warp`.
+/// "Fill View: Horizontal +35%, Vertical +60%" (Vertical: the player's, unchanged), with
+/// " (Partial)" when the width is not exact and " (May Warp)" when `warp`.
 std::string FillToast(const Filled& filled, bool warp);
 
 /// The head-locked quad's rotation about the eye: the offset's yaw, then the pitch.

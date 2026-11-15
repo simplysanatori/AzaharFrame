@@ -1380,22 +1380,26 @@ TEST_CASE("FrameXr fovaxis: a Render Margin step never moves the game's frame",
 
 namespace {
 // Fill View's result, solved: the screen's half width and height over its distance and the
-// cover it was filled to.
+// cover it was filled to (across at kFillAcrossShare of it).
 struct FilledScreen {
     Filled f;
     HeadLocked s;
     Cover cover;
 };
-FilledScreen FillAndSolve(const Placement& p, float cam, float aspect, const ViewFov& view,
-                          float eye_shift, ScaleMode mode, uint32_t level) {
+Options FillOptions(ScaleMode mode, uint32_t level) {
     Options o;
     o.wider = MarginFactor(level, mode);
     o.scale_fov = mode == ScaleMode::FieldOfView ? 1.0f : 0.0f;
     o.caps = 1.0f;
-    o.squeeze = SqueezeForScale(-35); // whatever the scales were: Fill View sets both
-    o.squeeze_y = SqueezeForScale(20);
+    return o;
+}
+FilledScreen FillAndSolve(const Placement& p, float cam, float aspect, const ViewFov& view,
+                          float eye_shift, ScaleMode mode, uint32_t level, int scale_y = 20) {
+    Options o = FillOptions(mode, level);
+    o.squeeze = SqueezeForScale(-35); // whatever Horizontal Scale was: Fill View sets it
+    o.squeeze_y = SqueezeForScale(scale_y);
     FilledScreen r;
-    r.f = FillView(p, cam, aspect, view, eye_shift, o);
+    r.f = FillView(p, cam, aspect, view, eye_shift, scale_y, o);
     Placement q = p;
     q.size = r.f.size;
     o.squeeze = SqueezeForScale(r.f.scale_x);
@@ -1406,11 +1410,14 @@ FilledScreen FillAndSolve(const Placement& p, float cam, float aspect, const Vie
 }
 } // namespace
 
-// Fill View covers what either eye sees (DefaultCover: kFillMarginDeg to spare), the width
-// exactly, the height to the next 5 % step; both scales on the grid.
-TEST_CASE("FrameXr fovaxis: Fill View covers the view", "[frame_xr][fovaxis]") {
-    float worst_over = 0.0f;
-    int n = 0, warps = 0, partial = 0, partial_fov = 0, partial_off = 0;
+// 1.2.0 (session 651, triage item 2): Fill View fills across only. The width is exactly
+// kFillAcrossShare of what covers either eye's view; Horizontal Scale is kFillScalePercent or
+// the largest step under it the width allows, not warping where a step that does not warp
+// exists; the size makes up the rest (at least 1); Vertical Scale and the height are the
+// player's, untouched.
+TEST_CASE("FrameXr fovaxis: Fill View fills across only", "[frame_xr][fovaxis]") {
+    int n = 0, at_rule = 0, lowered = 0, warps = 0, partial = 0;
+    float least_share_y = 10.0f, most_share_y = 0.0f;
     for (const ViewFov& view : {Symmetric(40), Symmetric(55), Lopsided()}) {
         for (const float eye_shift : {0.0f, 0.0107f, 0.086f}) { // mode 3; mode 2 at 3 m, 0.37 m
             for (const float pitch : {-20.0f, -9.21f, 0.0f, 10.0f}) {
@@ -1418,54 +1425,88 @@ TEST_CASE("FrameXr fovaxis: Fill View covers the view", "[frame_xr][fovaxis]") {
                     for (const float aspect : {kAspect3ds, 4.0f / 3.0f, 16.0f / 9.0f}) {
                         for (const ScaleMode mode : {ScaleMode::Stretch, ScaleMode::FieldOfView}) {
                             for (const uint32_t level : {0u, 4u}) {
-                                Placement p;
-                                p.pitch_deg = pitch;
-                                p.distance = eye_shift > 0.05f ? 0.37f : 3.0f;
-                                p.size = 1.7f; // whatever it was: Fill View sets it
-                                const FilledScreen r =
-                                    FillAndSolve(p, cam, aspect, view, eye_shift, mode, level);
-                                INFO("pitch " << pitch << " cam " << cam << " aspect " << aspect
-                                              << " eye " << eye_shift << " mode "
-                                              << static_cast<int>(mode) << " level " << level);
-                                REQUIRE(r.f.scale_x % kScaleStepPercent == 0);
-                                REQUIRE(r.f.scale_y % kScaleStepPercent == 0);
-                                REQUIRE(Finite(r.s));
-                                if (!r.f.covers) {
-                                    // Only where Stretch's margin trims the room up and down,
-                                    // or a range ends.
-                                    REQUIRE((mode == ScaleMode::Stretch || r.f.scale_y == 100 ||
-                                             r.f.size == kMaxSize || r.f.size == kMinSize));
-                                    partial++;
-                                    partial_fov += mode == ScaleMode::FieldOfView;
-                                    partial_off += mode == ScaleMode::Stretch && level == 0;
-                                    continue;
+                                for (const int scale_y : {-40, 0, 45, 100}) {
+                                    Placement p;
+                                    p.pitch_deg = pitch;
+                                    p.distance = eye_shift > 0.05f ? 0.37f : 3.0f;
+                                    p.size = 1.7f; // whatever it was: Fill View sets it
+                                    const FilledScreen r = FillAndSolve(
+                                        p, cam, aspect, view, eye_shift, mode, level, scale_y);
+                                    INFO("pitch " << pitch << " cam " << cam << " aspect "
+                                                  << aspect << " eye " << eye_shift << " mode "
+                                                  << static_cast<int>(mode) << " level " << level
+                                                  << " V " << scale_y << " -> H " << r.f.scale_x
+                                                  << " size " << r.f.size);
+                                    // Vertical Scale untouched.
+                                    REQUIRE(r.f.scale_y == scale_y);
+                                    REQUIRE(r.f.scale_x % kScaleStepPercent == 0);
+                                    REQUIRE(r.f.scale_x <= kFillScalePercent);
+                                    REQUIRE(Finite(r.s));
+                                    const Options o = FillOptions(mode, level);
+                                    Placement one = p;
+                                    one.size = 1.0f;
+                                    const auto x_at = [&](int sx) {
+                                        Options oo = o;
+                                        oo.squeeze = SqueezeForScale(sx);
+                                        oo.squeeze_y = SqueezeForScale(scale_y);
+                                        const HeadLocked h =
+                                            SolveHeadLocked(one, cam, aspect, view, eye_shift, oo);
+                                        return h.tan_half_y * h.aspect;
+                                    };
+                                    const float target = kFillAcrossShare * r.cover.tan_x;
+                                    const bool warp_x =
+                                        ScalesMayWarp(level, level, r.f.scale_x, scale_y, mode).x;
+                                    if (!r.f.covers) {
+                                        REQUIRE((r.f.size == kMaxSize || r.f.size == kMinSize));
+                                        partial++;
+                                        continue;
+                                    }
+                                    // The width exactly at the share, never by shrinking (size
+                                    // at least 1).
+                                    REQUIRE(r.s.tan_half_y * r.s.aspect ==
+                                            Approx(target).epsilon(1e-4));
+                                    REQUIRE(r.f.size >= 1.0f - 1e-5f);
+                                    // The height is the player's: the screen at Fill View's
+                                    // size with Vertical Scale as it was.
+                                    Options oy = o;
+                                    oy.squeeze = SqueezeForScale(r.f.scale_x);
+                                    oy.squeeze_y = SqueezeForScale(scale_y);
+                                    REQUIRE(r.s.tan_half_y ==
+                                            Approx(SolveHeadLocked(one, cam, aspect, view,
+                                                                   eye_shift, oy)
+                                                       .tan_half_y *
+                                                   r.f.size)
+                                                .epsilon(1e-4));
+                                    REQUIRE(r.f.share_y ==
+                                            Approx(r.s.tan_half_y / r.cover.tan_y).epsilon(1e-3));
+                                    // The largest: the next step up is past the rule, wider
+                                    // than the share, or warps where this one does not.
+                                    const int up = r.f.scale_x + kScaleStepPercent;
+                                    if (up <= kFillScalePercent &&
+                                        x_at(up) > x_at(r.f.scale_x) * (1.0f + 1e-5f)) {
+                                        REQUIRE((x_at(up) > target * (1.0f - 1e-5f) ||
+                                                 (!warp_x &&
+                                                  ScalesMayWarp(level, level, up, scale_y, mode)
+                                                      .x)));
+                                    }
+                                    if (warp_x) {
+                                        // Only when no step at or under the width avoids it.
+                                        for (int s = -kMaxScalePercent; s <= kFillScalePercent;
+                                             s += kScaleStepPercent) {
+                                            if (x_at(s) <= target) {
+                                                REQUIRE(ScalesMayWarp(level, level, s, scale_y,
+                                                                      mode)
+                                                            .x);
+                                            }
+                                        }
+                                        warps++;
+                                    }
+                                    at_rule += r.f.scale_x == kFillScalePercent;
+                                    lowered += r.f.scale_x < kFillScalePercent;
+                                    least_share_y = std::min(least_share_y, r.f.share_y);
+                                    most_share_y = std::max(most_share_y, r.f.share_y);
+                                    n++;
                                 }
-                                const float x = r.s.tan_half_y * r.s.aspect;
-                                const float y = r.s.tan_half_y;
-                                // The width exactly; the height covered, and one step less would
-                                // not cover (the smallest step that does).
-                                REQUIRE(x == Approx(r.cover.tan_x).epsilon(1e-4));
-                                REQUIRE(y >= r.cover.tan_y * (1.0f - 1e-4f));
-                                if (r.f.scale_y > -kMaxScalePercent) {
-                                    Options o;
-                                    o.wider = MarginFactor(level, mode);
-                                    o.scale_fov = mode == ScaleMode::FieldOfView ? 1.0f : 0.0f;
-                                    o.caps = 1.0f;
-                                    o.squeeze = SqueezeForScale(r.f.scale_x);
-                                    o.squeeze_y = SqueezeForScale(r.f.scale_y - kScaleStepPercent);
-                                    Placement q = p;
-                                    q.size = r.f.size;
-                                    const HeadLocked less =
-                                        SolveHeadLocked(q, cam, aspect, view, eye_shift, o);
-                                    REQUIRE(less.tan_half_y < r.cover.tan_y * (1.0f + 1e-5f));
-                                }
-                                // The size is at least 1 (the width's step at or under it).
-                                REQUIRE(r.f.size >= 1.0f - 1e-5f);
-                                worst_over = std::max(worst_over, r.f.over_y);
-                                warps += ScalesMayWarp(level, level, r.f.scale_x, r.f.scale_y,
-                                                       mode)
-                                             .x;
-                                n++;
                             }
                         }
                     }
@@ -1473,29 +1514,66 @@ TEST_CASE("FrameXr fovaxis: Fill View covers the view", "[frame_xr][fovaxis]") {
             }
         }
     }
-    std::printf("fovaxis Fill View: %d cases cover, the height at most %.1f%% over, %d past the "
-                "caps; %d partial (%d in Field of View, %d in Stretch at Render Margin Off)\n",
-                n, worst_over * 100.0f, warps, partial, partial_fov, partial_off);
-    REQUIRE(n > 300);
-    REQUIRE(worst_over < 0.08f); // under one step (7.4 % below -30 %, 5 / (100 + s) above)
-    REQUIRE(warps > 0);          // narrow cameras need more than 1.6x: still filled, May Warp
+    std::printf("Fill View across: %d cases exact (%d at +%d%%, %d lower, %d warp across with "
+                "no other choice), %d partial; the height %.0f%% to %.0f%% of the view's\n",
+                n, at_rule, kFillScalePercent, lowered, warps, partial, least_share_y * 100.0f,
+                most_share_y * 100.0f);
+    REQUIRE(n > 1000);
+    REQUIRE(at_rule > n / 2); // the rule itself is the usual result
 }
 
-// Symmetric view, level, mode 3: the screen's edges are at least kFillMarginDeg past the eye's
-// own edges (an independent check of DefaultCover's cover).
-TEST_CASE("FrameXr fovaxis: Fill View past the view's edges", "[frame_xr][fovaxis]") {
-    for (const float half : {40.0f, 50.0f}) {
-        for (const ScaleMode mode : {ScaleMode::Stretch, ScaleMode::FieldOfView}) {
+// Symmetric view as wide as the Frame's (either eye about 59 degrees to the side), level, mode
+// 3, Field of View: the screen's half width is kFillAcrossShare of the cover's (the view's edge
+// plus kFillMarginDeg), Horizontal Scale +50 % (no warp: Field of View draws up to 1.6x), and
+// the height exactly as Vertical Scale had it. (A narrow view with a wide camera needs less
+// across than the screen at its own scale: the scale steps down instead, the size stays 1 up.)
+TEST_CASE("FrameXr fovaxis: Fill View's width", "[frame_xr][fovaxis]") {
+    for (const float half : {55.0f, 60.0f}) {
+        for (const int scale_y : {0, 75}) {
             Placement p;
             p.pitch_deg = 0.0f;
-            // Render Margin Off (in Stretch a margin can leave the height short: Partial)
-            const FilledScreen r = FillAndSolve(p, 55.0f, kAspect3ds, Symmetric(half), 0.0f, mode, 0);
+            const FilledScreen r = FillAndSolve(p, 45.0f, kAspect3ds, Symmetric(half), 0.0f,
+                                                ScaleMode::FieldOfView, 0, scale_y);
             REQUIRE(r.f.covers);
-            const float x_deg = std::atan(r.s.tan_half_y * r.s.aspect) / kDegToRad;
-            const float y_deg = std::atan(r.s.tan_half_y) / kDegToRad;
-            REQUIRE(x_deg >= half + kFillMarginDeg - 0.01f);
-            REQUIRE(y_deg >= half + kFillMarginDeg - 0.01f);
+            REQUIRE(r.f.scale_x == kFillScalePercent);
+            REQUIRE(r.f.scale_y == scale_y);
+            REQUIRE(!ScalesMayWarp(0, 0, r.f.scale_x, 0, ScaleMode::FieldOfView).x);
+            const float x = r.s.tan_half_y * r.s.aspect;
+            REQUIRE(x == Approx(kFillAcrossShare *
+                                std::tan((half + kFillMarginDeg) * kDegToRad))
+                             .epsilon(1e-4));
+            REQUIRE(r.f.size > 1.0f);
         }
+    }
+}
+
+// Session 651's three Fill View presses, redone (triage item 2): in Field of View the quad's
+// width is the size times 1 + Horizontal Scale / 100 (ScaleFactor), so the old press's result
+// (width exactly the cover) gives the cover, and the new one takes kFillAcrossShare of it at
+// +50 %. The owner's settled screens are close; the press is a starting point.
+TEST_CASE("FrameXr fovaxis: Fill View against session 651", "[frame_xr][fovaxis]") {
+    struct Press {
+        const char* game;
+        float old_size;
+        int old_x;
+        float owner_size;
+        int owner_x;
+    };
+    for (const Press& press : {Press{"OoT", 1.646f, 60, 1.12f, 40},
+                               Press{"OoT", 1.827f, 50, 1.12f, 40},
+                               Press{"0004000000125600", 1.533f, 55, 1.39f, 20},
+                               Press{"MK7", 2.273f, 50, 2.05f, 55}}) {
+        const float cover = press.old_size * ScaleFactor(press.old_x);
+        const float size = kFillAcrossShare * cover / ScaleFactor(kFillScalePercent);
+        const float owner = press.owner_size * ScaleFactor(press.owner_x);
+        std::printf("Fill View, %s: was size %.3f at %+d%%; now size %.3f at %+d%% (width %.2f "
+                    "of the old); the owner's size %.2f at %+d%% (width %.2f of the old)\n",
+                    press.game, press.old_size, press.old_x, size, kFillScalePercent,
+                    kFillAcrossShare, press.owner_size, press.owner_x, owner / cover);
+        REQUIRE(size >= 1.0f);
+        REQUIRE(size <= kMaxSize);
+        // Within a third of the owner's size either way.
+        REQUIRE(std::abs(std::log(size / press.owner_size)) < std::log(1.34f));
     }
 }
 
