@@ -160,6 +160,25 @@ Ray AimRay(const Posef& aim, const std::optional<Vec3f>& muzzle) {
     return ray;
 }
 
+Ray AimRay(const Posef& aim, const std::optional<Vec3f>& muzzle,
+           const std::optional<Vec3f>& axis) { // AzaharFrame kiuinteg
+    if (!axis || !(Length(*axis) > 1e-6f)) {
+        return AimRay(aim, muzzle);
+    }
+    Ray ray = AimRay(aim, muzzle);
+    ray.direction = Normalized(Rotate(Normalized(aim.orientation), *axis));
+    return ray;
+}
+
+AimRayFrom AimRayFromSwitch(const std::optional<std::string>& value) {
+    return value && *value == "hand" ? AimRayFrom::Hand : AimRayFrom::Weapon;
+}
+
+Ray AngelsAimRay(const Posef& aim, const std::optional<Vec3f>& muzzle,
+                 const std::optional<Vec3f>& axis, AimRayFrom from) {
+    return from == AimRayFrom::Hand ? AimRay(aim, muzzle) : AimRay(aim, muzzle, axis);
+}
+
 LightGunTarget LightGunTargetFor(const Ray& ray, const PanelQuad& top, const PanelQuad* other) {
     LightGunTarget t;
     if (!top.visible) {

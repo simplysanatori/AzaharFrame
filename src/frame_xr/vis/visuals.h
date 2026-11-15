@@ -140,6 +140,9 @@ public:
     /// AzaharFrame kiuaim2: the weapon's muzzle in `hand`'s aim space while the weapon is drawn
     /// there (the last frame's fit), for Direct Aim's one ray (Input::AimRay).
     std::optional<Input::Vec3f> WeaponMuzzle(int hand) const;
+    /// AzaharFrame kiuinteg: the weapon's own axis as held, in `hand`'s aim space, with its
+    /// muzzle (ControllerModels::WeaponAxis); none for a class fitted along the ray.
+    std::optional<Input::Vec3f> WeaponAxis(int hand) const;
     /// AzaharFrame kiuguns: Kid Icarus: Uprising's equipped weapon (`id`, 0 to 107) is drawn in
     /// place of `hand`'s controller this frame (ControllerModels; the controller when the weapon
     /// is not ready). Cleared by TakeInput; GameFrame sets it. AzaharFrame kiuopacity:

@@ -135,7 +135,18 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
 - **Light Gun (Direct Aim), absolute** (AzaharFrame kiuaim2): one ray aims and draws
   (`AimRay`): from the weapon's muzzle while the weapon is drawn in the hand
   (`Vis::Visuals::WeaponMuzzle`, the fit's point in the aim pose's space), else from the aim pose
-  (the head's with Headset), along the pose's pointing direction. Where it hits the top screen
+  (the head's with Headset), along the pose's pointing direction. AzaharFrame kiuinteg (the
+  owner's option A): with a blade, staff, club, bow or cannon in the hand, along the weapon's own
+  axis as held instead (`AngelsAimRay`, `Vis::Visuals::WeaponAxis`, `vis/weapon_fit.h` FitAxis:
+  from Pit's fist to the muzzle for blades, staffs and clubs; the arrow's or the forearm's line
+  for bows and cannons, which is the controller's), so a blade aims where it points: measured on
+  the 108 weapons, blades 14.6 to 19.6 degrees above the controller's line, staffs 1.7 to 6.9,
+  clubs 47.7, bows and cannons 0. The tilt is fixed in the hand: rolling the wrist moves the aim
+  (accepted). Claws, palms, arms and orbitars are fitted along the ray and keep the controller's
+  direction. The laser, the reticle, Keep Reticle on Screen and its resting guard, the Turn Zone,
+  Check Aim and the C-Stick's hand-over all take this one ray. Live test switch
+  `AZAHARFRAME_ANGELS_AIM_RAY=hand`: the controller's direction (kiuaim2's ray, bit for bit).
+  Where it hits the top screen
   (`LightGunTargetFor`, the screen as drawn, `PanelGeometry::top`, curve, size and World Scale
   included; on the bottom screen it is a touch, no target; a screen that cannot be pointed at, such
   as the immersive one, gives no target) is the pixel the reticle goes to: x = u x 400, y = v x

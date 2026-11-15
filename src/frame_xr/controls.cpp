@@ -1789,8 +1789,13 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
                 const bool lock =
                     Settings::values.vr_light_gun_lock.GetValue() && !gyro_aim_frame.clutch;
                 if (hand.active) {
-                    const Input::Ray ray =
-                        Input::AimRay(hand.aim, visuals.WeaponMuzzle(gyro_aim_hand));
+                    // AzaharFrame kiuinteg: along the weapon's own axis as held (the owner's
+                    // option A), or the controller's line with AZAHARFRAME_ANGELS_AIM_RAY=hand.
+                    const Input::Ray ray = Input::AngelsAimRay(
+                        hand.aim, visuals.WeaponMuzzle(gyro_aim_hand),
+                        visuals.WeaponAxis(gyro_aim_hand),
+                        Input::AimRayFromSwitch(
+                            Common::FrameTestSwitches::Value(Input::kAimRaySwitch)));
                     aim_hit = lock ? Input::LockedTargetFor(ray, panels.top)
                                    : Input::LightGunTargetFor(ray, panels.top, &panels.bottom);
                 }

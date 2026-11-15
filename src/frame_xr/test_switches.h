@@ -40,6 +40,7 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_XR_SCREENS_IN_PROJECTION", "AZAHARFRAME_XR_PROJ_SCALE",
         "AZAHARFRAME_XR_PROJ_MARKS", "AZAHARFRAME_XR_PROJ_ALSO_QUADS",
         "AZAHARFRAME_XR_POSE_GUARD", "AZAHARFRAME_XR_CANVAS", // AzaharFrame ctrlglitch
+        "AZAHARFRAME_ANGELS_AIM_RAY", // AzaharFrame kiuinteg (input/gyro_aim.h AimRay)
     };
     // AzaharFrame imglag: replaced by AZAHARFRAME_XR_IMAGE_LAG.
     constexpr std::string_view kRetired[] = {"AZAHARFRAME_IMMERSIVE_ANCHOR_LAG"};

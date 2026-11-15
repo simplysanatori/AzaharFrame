@@ -2205,6 +2205,7 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
     weapon_fits.clear();
     muzzle_hand = -1;
     muzzle.reset();
+    axis.reset();
     weapon_clip = 0.0f;
     palm_elbow = false;
     if (!gpu) {
@@ -2246,6 +2247,7 @@ void ControllerModels::FitWeapon(const ViewPose& views, const std::array<Hand, 2
             weapon_scale = FitClassScale(info.cls) * tune.scale; // AzaharFrame kiuflash
             muzzle_hand = h;
             muzzle = FitMuzzle(fw, left, sides, tune);
+            axis = FitAxis(fw, left, sides, tune); // AzaharFrame kiuinteg
 
             const auto forearm = Common::FrameTestSwitches::Value(kPalmForearmSwitch);
             const PalmMode mode =

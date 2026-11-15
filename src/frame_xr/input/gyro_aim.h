@@ -173,6 +173,23 @@ private:
 /// is the pose's own; a muzzle beside the pose's axis moves the start (and so the hit) a little
 /// as the hand rolls, and the reticle follows that hit, which is the beam's.
 Ray AimRay(const Posef& aim, const std::optional<Vec3f>& muzzle);
+/// AzaharFrame kiuinteg (the owner's "option A"): Angel's Aim's one ray along the weapon. With
+/// `axis` (the weapon's own axis as held, aim space: vis/weapon_fit.h FitAxis) the ray starts at
+/// the muzzle and runs along that axis, so a blade aims where it points (Pit's grip tilts it
+/// about 10 to 16 degrees up from the controller's line); rolling the wrist turns it with the
+/// hand. Without one (a class fitted along the ray, no weapon drawn, or the test switch) it is
+/// AimRay above, unchanged. The laser, Direct Aim's reticle, Keep Reticle on Screen and its
+/// resting guard, the Turn Zone, Check Aim and the C-Stick's hand-over all take this one ray.
+Ray AimRay(const Posef& aim, const std::optional<Vec3f>& muzzle,
+           const std::optional<Vec3f>& axis);
+/// AzaharFrame kiuinteg: live test switch AZAHARFRAME_ANGELS_AIM_RAY: `hand` the controller's
+/// pointing direction (kiuaim2's ray, bit for bit); anything else or unset, the weapon's axis.
+enum class AimRayFrom : uint8_t { Weapon, Hand };
+inline constexpr const char* kAimRaySwitch = "AZAHARFRAME_ANGELS_AIM_RAY";
+AimRayFrom AimRayFromSwitch(const std::optional<std::string>& value);
+/// The ray Angel's Aim takes this frame: Hand, AimRay(aim, muzzle) itself; Weapon, along `axis`.
+Ray AngelsAimRay(const Posef& aim, const std::optional<Vec3f>& muzzle,
+                 const std::optional<Vec3f>& axis, AimRayFrom from);
 
 /// Light Gun's target: where the ray hits the top screen, as a share of its width (u, from the
 /// left) and height (v, from the top); outside the screen the values go below 0 or above 1 and

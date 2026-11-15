@@ -433,6 +433,34 @@ FitOverride ParseFitOverride(const std::optional<std::string>& value) {
     return o;
 }
 
+namespace {
+
+/// The fist's centre in weapon space: the hold's (in Pit's hand's space) taken back through the
+/// hold (weapon space to the hand's, a rotation and a translation).
+std::optional<V3> FistInWeapon(const FitHold& h) {
+    const auto& a = h.to_hand;
+    const M3 r{a[0], a[1], a[2], a[4], a[5], a[6], a[8], a[9], a[10]};
+    const V3 t{a[3], a[7], a[11]};
+    const float det = r[0] * (r[4] * r[8] - r[5] * r[7]) - r[1] * (r[3] * r[8] - r[5] * r[6]) +
+                      r[2] * (r[3] * r[7] - r[4] * r[6]);
+    if (!(std::fabs(det) > 1e-9f)) {
+        return std::nullopt;
+    }
+    const M3 inv{(r[4] * r[8] - r[5] * r[7]) / det, (r[2] * r[7] - r[1] * r[8]) / det,
+                 (r[1] * r[5] - r[2] * r[4]) / det, (r[5] * r[6] - r[3] * r[8]) / det,
+                 (r[0] * r[8] - r[2] * r[6]) / det, (r[2] * r[3] - r[0] * r[5]) / det,
+                 (r[3] * r[7] - r[4] * r[6]) / det, (r[1] * r[6] - r[0] * r[7]) / det,
+                 (r[0] * r[4] - r[1] * r[3]) / det};
+    return Apply(inv, Sub(h.fist, t));
+}
+
+V3 TransformDir(const FitMat& m, const V3& d) {
+    return {m[0] * d[0] + m[4] * d[1] + m[8] * d[2], m[1] * d[0] + m[5] * d[1] + m[9] * d[2],
+            m[2] * d[0] + m[6] * d[1] + m[10] * d[2]};
+}
+
+} // namespace
+
 std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
                                      const std::vector<FitSide>& sides, const FitOverride& tune) {
     std::vector<FitPart> out;
@@ -558,6 +586,62 @@ std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand
         sum = {sum[0] + q[0], sum[1] + q[1], sum[2] + q[2]};
     }
     return Scale(sum, 1.0f / static_cast<float>(parts.size()));
+}
+
+
+std::optional<std::array<float, 3>> FitFist(const FitWeapon& w, bool left_hand,
+                                            const std::vector<FitSide>& sides,
+                                            const FitOverride& tune) {
+    if (!w.hold || w.cls < 0 || w.cls >= 9) {
+        return std::nullopt;
+    }
+    const auto fist = FistInWeapon(*w.hold);
+    const auto parts = FitWeaponToHand(w, left_hand, sides, tune);
+    if (!fist || parts.empty()) {
+        return std::nullopt;
+    }
+    V3 f = *fist;
+    if (parts.front().side == FitSide::Left && kFits[w.cls].rule == Rule::Worn) {
+        f[0] = -f[0];
+    }
+    return TransformPoint(parts.front().transform, f);
+}
+
+std::optional<std::array<float, 3>> FitAxis(const FitWeapon& w, bool left_hand,
+                                            const std::vector<FitSide>& sides,
+                                            const FitOverride& tune) {
+    if (!w.hold || w.cls < 0 || w.cls >= 9 || HoldMapFor(w.cls) == HoldMap::None) {
+        return std::nullopt;
+    }
+    const auto fist = FistInWeapon(*w.hold);
+    const auto parts = FitWeaponToHand(w, left_hand, sides, tune);
+    if (!fist || parts.empty()) {
+        return std::nullopt;
+    }
+    const FitMat& m = parts.front().transform;
+    V3 axis{};
+    if (HoldMapFor(w.cls) == HoldMap::Grip && w.muzzle_valid) {
+        // A hilt or a shaft in the fist: from the fist to the muzzle (the blade, the staff, the
+        // club as his hand holds it).
+        axis = Sub(TransformPoint(m, w.muzzle), TransformPoint(m, *fist));
+        if (axis[2] >= 0.0f) {
+            // Held pointing back (a staff in Pit's idle grip, AZAHARFRAME_KIU_HOLD=idle): no
+            // aim along it; the controller's line.
+            return std::nullopt;
+        }
+    }
+    if (Length(axis) < 0.03f) {
+        // Held by the hand's line (a bow's arrow, a cannon's forearm: their muzzles sit beside
+        // it), or a muzzle in the fist: the class's forward as held, away from the player.
+        axis = TransformDir(m, kFits[w.cls].forward);
+        if (axis[2] > 0.0f) {
+            axis = Scale(axis, -1.0f);
+        }
+    }
+    if (!(Length(axis) > 1e-6f)) {
+        return std::nullopt;
+    }
+    return Normal(axis);
 }
 
 } // namespace FrameXr::Vis

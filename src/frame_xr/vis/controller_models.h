@@ -98,6 +98,11 @@ public:
     std::optional<std::array<float, 3>> WeaponMuzzle(int hand) const {
         return hand == muzzle_hand ? muzzle : std::nullopt;
     }
+    /// AzaharFrame kiuinteg: the weapon's own axis as held (weapon_fit.h FitAxis), in `hand`'s
+    /// aim space, while the weapon is drawn there; none for a class fitted along the ray.
+    std::optional<std::array<float, 3>> WeaponAxis(int hand) const {
+        return hand == muzzle_hand ? axis : std::nullopt;
+    }
     /// The layer for this frame's xrEndFrame, or null (also when the image goes out as the eye
     /// quads). Valid until the next Frame.
     const XrCompositionLayerBaseHeader* Layer() const;
@@ -153,6 +158,7 @@ private:
     int64_t palm_time_ns = 0;
     int muzzle_hand = -1;
     std::optional<std::array<float, 3>> muzzle;
+    std::optional<std::array<float, 3>> axis; ///< AzaharFrame kiuinteg: FitAxis, with muzzle
 
     struct Files;
     struct Gpu;

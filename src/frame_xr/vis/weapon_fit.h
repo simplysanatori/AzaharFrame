@@ -121,6 +121,25 @@ std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand
                                               const std::vector<FitSide>& sides,
                                               const FitOverride& tune = {});
 
+/// AzaharFrame kiuinteg: the weapon's own axis as held, in aim space (a unit direction), for the
+/// classes that take the game's hold (HoldMapFor: blades, staffs, clubs, bows, cannons) when the
+/// weapon has one: from Pit's fist to the muzzle (the blade, the shaft, the barrel as his hand
+/// holds it), or for a weapon whose muzzle is in the fist (a bow) the class's forward (the
+/// arrow's line, kFits) as held, turned to point away from the player; none when a blade, staff
+/// or club is held pointing back toward the player. None for the others
+/// (claws, palms, arms, orbitars, a weapon without a hold): their fits are made along the ray,
+/// so the aim pose's own direction is theirs. Angel's Aim's ray runs along it from the muzzle
+/// (input/gyro_aim.h AimRay).
+std::optional<std::array<float, 3>> FitAxis(const FitWeapon& w, bool left_hand,
+                                            const std::vector<FitSide>& sides,
+                                            const FitOverride& tune = {});
+/// AzaharFrame kiuinteg: Pit's fist's centre (the hold's), in aim space, as fitted: where his
+/// hand is drawn, for the check that it sits on the controller's handle (kHandleCentre). None
+/// without a hold.
+std::optional<std::array<float, 3>> FitFist(const FitWeapon& w, bool left_hand,
+                                            const std::vector<FitSide>& sides,
+                                            const FitOverride& tune = {});
+
 /// AzaharFrame kiuguns: a palm is a whole forearm and hand. Two ways to wear it, a live test
 /// switch (AZAHARFRAME_KIU_PALM_MODE=wrist|elbow, wrist by default):
 ///   Wrist: the hand on the controller and a short stub of the forearm (kPalmStubCm).

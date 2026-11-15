@@ -1141,6 +1141,14 @@ void Visuals::SetAimTarget(const Input::Vec3f& point, float size_m) {
     impl->aim_target_size = size_m;
 }
 
+std::optional<Input::Vec3f> Visuals::WeaponAxis(int hand) const { // AzaharFrame kiuinteg
+    const auto ax = impl->models.WeaponAxis(hand);
+    if (!ax) {
+        return std::nullopt;
+    }
+    return Input::Vec3f{(*ax)[0], (*ax)[1], (*ax)[2]};
+}
+
 std::optional<Input::Vec3f> Visuals::WeaponMuzzle(int hand) const {
     const auto mz = impl->models.WeaponMuzzle(hand);
     if (!mz) {
