@@ -220,6 +220,11 @@ TEST_CASE("Dynamic Resolution: off and on again in a game", "[frame_xr]") {
     auto& setting = Settings::values.vr_dynamic_resolution;
     const bool was = setting.GetValue();
     setting.SetValue(true);
+    // AzaharFrame fixa: Internal Resolution Auto, as this case was written for (the default is 4x
+    // now, which would be the floor: no step under 4x).
+    auto& factor = Settings::values.resolution_factor;
+    const auto was_factor = factor.GetValue();
+    factor.SetValue(0);
     V::Apply(6); // the renderer's factor: up to 5 steps
     Install();
     const auto run = [](const Second& s, int n) {
@@ -278,6 +283,7 @@ TEST_CASE("Dynamic Resolution: off and on again in a game", "[frame_xr]") {
 
     Uninstall();
     setting.SetValue(was);
+    factor.SetValue(was_factor);
     V::g_base = 0;
 }
 
