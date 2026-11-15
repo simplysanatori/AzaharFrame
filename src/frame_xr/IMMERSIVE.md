@@ -247,6 +247,39 @@ Four per-game settings change this (**VR** group, logged as
   (0.78 x size, 1.4x when no size is saved), off becomes Off; a global switch never set keeps the
   default. Mock runs of 1.2.0 at 1.4x: Ocarina of Time 3D, Majora's Mask 3D and Super Mario 3D
   Land draw correctly, but Super Mario 3D Land's levels are black below the floor.
+  AzaharFrame fovaxis: per axis. **Render Margin: Horizontal** (`vr_immersive_render_margin_x`)
+  and **Render Margin: Vertical** (`_y`), s32 -1 to 4, -1 by default = follow the old key, which
+  keeps its meaning and is never rewritten by the rows (`frame_xr/render_margin.h`). An axis
+  resolves scope first: its own per-game value (0 to 4), then the game's own old key, then its
+  own global value, then the old global key, so an older build's Render Margin, saved for the
+  game, still reaches every axis this build left following. Use Global Value on an axis clears
+  its per-game value; if the game's old key decided it, that key goes back to global and the
+  other axis keeps the level it showed as its own value. The grip + D-pad step moves both
+  axes: while both follow the old key it steps that key per game, exactly as before;
+  otherwise each axis gets its own per-game value. Unequal levels: `Options::wider_y` (0 =
+  the same as across); the quad's height grows by `size_factor_y / size_factor` and
+  `factor_y` follows the quad's shape, so the picture keeps one scale both ways and the gains
+  are unchanged. Mode 2's menu rule eases both to the smaller one's padding
+  (`Layout::MenuSizeFactors`). Logged as `Render Margin 1.4x across, 1.2x up and down`; the
+  toast is `Render Margin: H 1.4x, V 1.1x` (`Layout::MarginToast`), `Render Margin: 1.2x` when
+  equal. The margin never changes the game's render target (Internal Resolution decides that):
+  the wider view fills the same pixels, so a 1.4x axis has 1 / 1.4 the detail per degree.
+  With Stretch only (the owner's decision, `Layout::MarginFactor`): in Field of View both
+  factors are 1.0x and the scales alone decide what is drawn; the rows stay editable with the
+  note **Applies with Stretch** (VR menu: under the label; Azahar's window: before the value),
+  the toast adds `(Applies with Stretch)`, the log `(applies with Stretch)`, and the levels are
+  used again when Stretch is picked (`ApplyMarginOptions` on a mode change). An older build
+  reading the same file applies the margin in Field of View as it always did. The frame stays:
+  the view-fill cap (`fit`) is taken on the game's own frame (`a t` by `t`), not the padded
+  screen, so a margin step only adds picture around the frame; with a wide camera the padding
+  then reaches past the view (drawn, unseen: GPU spent on nothing). The test "a Render Margin
+  step never moves the game's frame" checks the frame's corners and the gains at every level,
+  both modes, modes 2 and 3, past the caps too: in Stretch the caps act on the game's own frame
+  (`SplitScales` with factor 1) and the margin's padding goes around what that gives; where the
+  padding would take the draw past 1.6x it is trimmed there and the screen is that much smaller
+  on that axis (`AxisSplit::screen`), so the frame, its stretch and the gains never change with
+  the margin (and May Warp never does either). Cost: a margin with a scale far past +50 % in
+  Stretch gives a shorter screen than the scale alone asks for.
 - **Horizontal Scale** (`vr_immersive_scale_x`, AzaharFrame kiu; it replaces Narrow Screen,
   `vr_immersive_squeeze`, called Squeeze Width in 1.0.0): signed percent, -100 to +100 in 5 %
   steps (AzaharFrame fov100; -30 to +30 before), 0 by default, read every frame
@@ -298,19 +331,27 @@ Four per-game settings change this (**VR** group, logged as
   with a roll), the HUD stays where it is at 0 % (a negative scale trims the margin instead of
   pulling the HUD in), and Natural 3D's far scenery, its slider limit and mode 3's eye quads no
   longer change with Horizontal Scale (they take the drawn factor over the quad's width, and the
-  scale cancels). The limits: below the game's own frame (`kFactorMin`; at 1.4x Horizontal Scale
-  down to -28.6 % is all field of view, at Render Margin Off any negative scale is a stretch, as
-  before) the HUD inside the frame would be pushed off the picture; `kFovFactorMax` = 1.4 x 2 =
-  2.8 (AzaharFrame fov100; 1.82 with the old +30 %, which no old value came near, so their
-  pictures are the same) is only a guard (the settings cannot pass it). The shader divides clip x
-  and y by the factor, so the tangents of the game's view widen by it: never 180 degrees or more
-  (a 90-degree camera drawn at 2.8x is 141 degrees), never inverted. At the ends: +100 % in Field
-  of View draws `2 b` with no stretch and the base gains (fully locked); -100 % draws the game's
-  own frame (1.0x) with the stretch `0.26 b` left, so the HUD is at a quarter of the width and
-  the gain `base / (0.26 b)` reaches `kMaxGain` (2.0) from a base gain of 0.72 at 1.4x (the world
-  then drifts a little against the head, as at every gain limit). In Stretch, -100 % on one axis and +100 % on the other is a
-  picture 7.8 times as stretched one way as the other: finite, and a head roll shears it. What a factor cannot take stays a stretch,
-  continuous in the setting. Mode 2's menu rule (`MenuExact`) eases the split off with the
+  scale cancels). The limits (AzaharFrame fovaxis, the owner's option B and session 590's item
+  7): below the game's own frame Field of View now crops, down to `kCropFactorMin` (0.25), so
+  the HUD at the edges is cut (before: it stopped at `kFactorMin` and stretched the rest, so at
+  Render Margin Off any negative scale squeezed); above, `kFovFactorMax` is 1.6 (was 2.8), and
+  the rest is a stretch. The shader divides clip x and y by the factor, so the tangents of the
+  game's view widen by it: never 180 degrees, never inverted. Then the caps against warping
+  (`Layout::SplitScales`, `Options::caps`, 1 except under mode 2's menu rule, which eases them
+  off): each axis's stretch within `1 / kScaleGainMax` to `1 / kScaleGainMin` (0.625 to 1.667,
+  so the scales change a gain by 0.6 to 1.6 times), and the two within `kMaxStretchRatio` (1.5)
+  of each other, half the excess taken on each axis, by drawing more or less on it (Stretch:
+  never below the game's own frame, or the factor already drawn if less, never past 1.6x or the
+  factor already drawn if more). What that cannot take stays a stretch and sets `warp_x` /
+  `warp_y` (also any stretch left in Field of View), shown as **May Warp** under the scale's
+  label in the VR menu and after its value in Azahar's window (`Layout::ScalesMayWarp`, from
+  what the rows show). The total gain keeps `kMinGain` to `kMaxGain` (0.4 to 2.0): the owner's
+  Ocarina of Time 3D runs at a base gain near 0.48. Values that map to the same picture as
+  before: Field of View with `b x k` within 1.0 to 1.6 (Render Margin 1.4x: -28.6 % to +14 %);
+  Stretch with each axis 0.625 to 1.667 and the ratio within 1.5. Examples at 1.4x, base gain 1:
+  Field of View -30 % / -15 % draws 0.98x / 1.19x (crop), gains 1; +30 % draws 1.6x with stretch
+  1.14, gain 0.88, May Warp; Stretch -30 % / -15 % unchanged (gains 1.43 / 1.18); Stretch -30 %
+  / +30 % (ratio 1.86) is held to 1.5 (draws 1.26x / 1.56x). Mode 2's menu rule (`MenuExact`) eases the split off with the
   factor (`Options::scale_fov` = 1 - its weight): a full-screen 2D screen pinned to the edges and
   the icons on it keep one scale only with equal factors. Mode 1 is untouched (factor 3.0). The
   cost: the picture keeps its pixels, so a widened axis has `1 / k` the detail per degree (as
@@ -321,7 +362,36 @@ Four per-game settings change this (**VR** group, logged as
   second; `xr: immersive: gains 0.7143 across, 0.7143 up and down`), which `hold.py` reads.
   Rollback: the scale keys keep their meaning (the screen's size), so an older build reading the
   same file shows the same screen, stretched; nothing is converted, no marker. Presets keep their
-  scales; they are starting values under either mode.
+  scales; they are starting values under either mode. AzaharFrame fovaxis: a preset may set Scale
+  Mode (`Preset::scale_mode`, -1 = not), filled only while the game has neither scale of its
+  own, so a player who already saved scales keeps the mode they had; Mario Kart 7's is Stretch
+  (its -30 % / -15 % bring the side HUD in, which Field of View would crop, and its Render
+  Margin 1.3x applies there). Super Mario 3D Land, the Zelda games and Asphalt 3D relied on the
+  default Render Margin 1.4x in Field of View: their presets now have both scales at +40 %, the
+  same picture and screen when the view-fill cap is not reached.
+- **Fill View** (AzaharFrame fovaxis; the VR menu's button under Scale Mode, `Immersive::FillView`,
+  `Layout::FillView`): once, never a mode. From the last solve's camera, shape and eye shift
+  (mode 2's half IPD over the distance) and the placement's pitch: the screen at size 1 and
+  scales 0 % (the fit taken first, so the screen then grows exactly with the size and each
+  scale), `DefaultCover` at the screen's pitch (what either eye sees plus `kFillMarginDeg`).
+  Horizontal Scale is the largest 5 % step at or under what the width needs and the size
+  (`kMinSize` to `kMaxSize`) makes the width exact (so the size is at least 1); Vertical Scale
+  is the smallest step that covers the height at that size, at most one step over (7.4 % below
+  -30 %, 5 / (100 + scale) above). Where no Vertical Scale step reaches the height at that size
+  (a narrow camera, a tall view, Stretch's trimmed padding), Horizontal Scale steps down and the
+  size up until one does; if none can (the size ends at 2.5), it fills as far as it goes and the
+  toast says `(Partial)`. Each step is solved (`SolveHeadLocked`), so the caps and the trimming
+  are taken as they are. Scales and size per game, as the D-pad and the grip; the
+  toast `Fill View: Horizontal +35%, Vertical +60%` with ` (May Warp)` when the result is past
+  the caps; logged as `xr: immersive: Fill View: size 1.034, Horizontal Scale 35%, Vertical
+  Scale 60% (Field of View), height 2.0% over`, which `hold.py --log` reads. Nothing re-applies
+  it; the values are ordinary, so the next D-pad or menu step moves one step from them and the
+  grip resizes from the filled size. It fills with the screen, not the game's own frame: in
+  Field of View the frame does not grow with the scales (they draw more around it), and in
+  Stretch filling with the frame would push the HUD to the view's edges and leave the margins
+  unseen. Not in Azahar's window (it has no view to fill); no controller chord taken
+  (proposed, not made: a tap of the right stick click while both grips hold the screen, which
+  does nothing now).
 
 Saved sizes are relative to that default. The file's `world` lines are written by this build;
 `screen` and `view` lines (1.2.0 test builds) and `head` lines (1.0, 1.1) had sizes against other
