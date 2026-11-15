@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <iterator>
 
 #include "common/logging/log.h"
@@ -39,11 +40,16 @@ namespace {
 // than wide 35 degrees to the side) and with Narrow Screen 20 % (20 % thinner still); 10 % was
 // "okay-ish". So no narrowing, and the screen 10 % smaller instead: the HUD sits where 10 % put
 // it across, and the world keeps its shape (gain 1.11 both ways).
-// AzaharFrame jump: those notes are older than the values below, which are the owner's own of
-// 2026-11-12 (set in the in-game menu): Immersive Game FOV 40, Match Game Camera off, Narrow
-// Screen 30 %, Narrow Height 15 %, size 2.02 at 0.37 m. Match Game Camera is set off here too,
-// so a player on the defaults gets the gain the owner tuned (with it on, the gain would follow
-// the 52-degree racing camera instead).
+// AzaharFrame jump: those notes are older than the values below.
+// 1.2.0 fix lane B (session 651, triage item 16): the owner's own settings of 2026-11-15, from
+// the game's file (config/custom/0004000000030800.ini) and its last placement (log: "-5.6
+// degrees from the view's middle, 3.00 m, size 2.05"): Internal Resolution 4x, Texture Filter
+// Bicubic, Detect Game FOV Always, Scale Mode Field of View with Horizontal Scale +55 % and
+// Vertical Scale +70 %, Immersive Game FOV 40, Render Margin 1.3x (Stretch's; kept), the
+// screen at 2.05 and -5.6 degrees, the placement's distance 3.00 m with World Scale 10 % (the
+// screen 0.30 m away in the Full modes, close to the 0.37 m before), and the Full modes' 3D
+// Depth 85. (Before: Stretch, -30 % and -15 %, size 2.022 at 0.371 m, Detect Game FOV off,
+// Internal Resolution 3x, Texture Filter ScaleForce.)
 constexpr ImmersivePreset kMarioKart7{.name = "Mario Kart 7",
                                       .mode = 3,
                                       .register_offset = 90,
@@ -51,21 +57,18 @@ constexpr ImmersivePreset kMarioKart7{.name = "Mario Kart 7",
                                       .game_fov = 40,
                                       .eye_indicator = "87,2",
                                       .wider_level = 3,
-                                      .scale_x = -30, // AzaharFrame kiu: was Narrow Screen 30 %
-                                      .screen_size = 2.022f,
-                                      .match_camera = 0,
-                                      .resolution = 3,
-                                      .texture_filter = 3,
-                                      .scale_y = -15, // and Narrow Height 15 %
+                                      .scale_x = 55,
+                                      .screen_size = 2.05f,
+                                      .match_camera = 2, // Always
+                                      .resolution = 4,
+                                      .texture_filter = 2, // Bicubic
+                                      .scale_y = 70,
                                       .own_placement = true,
-                                      .place_pitch_deg = -4.95f,
-                                      .place_distance = 0.371f,
-                                      // AzaharFrame fovaxis: the scales above were tuned as a
-                                      // squeeze that brings the side HUD in (every build before
-                                      // fovscale). Field of View now crops below the game's
-                                      // frame, which would cut that HUD; Stretch keeps the
-                                      // picture the owner tuned (ratio 1.21, within the caps).
-                                      .scale_mode = 0};
+                                      .place_pitch_deg = -5.6f,
+                                      .place_distance = 3.0f,
+                                      .scale_mode = 1, // Field of View
+                                      .world_scale = 10.0f,
+                                      .immersive_depth = 85};
 // Super Mario 3D Land: 45 degrees on the title and in the levels; the 3DS's eyes 58 units
 // apart in a level (the title camera is about 1500 units away): 100x. At 1x its 3D could not
 // be seen. Mock runs at 1.4x showed black below the floor of its levels; the owner plays it at
@@ -185,7 +188,9 @@ void ApplyPresetSettings(const ImmersivePreset& preset) {
             setting.SetGlobal(false);
             setting.SetValue(value);
             LOG_INFO(Frontend, "xr: {}: {} preset applied", preset.name, what);
+            return true;
         }
+        return false;
     };
     if (preset.register_offset != -1 && fits && offset.UsingGlobal() &&
         offset.GetValue() == -1) {
@@ -249,6 +254,19 @@ void ApplyPresetSettings(const ImmersivePreset& preset) {
     if (preset.texture_filter >= 0) {
         fill(v.texture_filter, static_cast<Settings::TextureFilter>(preset.texture_filter),
              "Texture Filter");
+    }
+    // 1.2.0 fix lane B: World Scale and the Full modes' 3D Depth. World Scale filled marks the
+    // game as having its own (vr_immersive_world_set, as the grip and the migration write it),
+    // so the 1.2.0 migration does not replace it.
+    if (preset.world_scale > 0.0f && fits &&
+        fill(v.vr_immersive_world_scale, std::clamp(preset.world_scale, 10.0f, 400.0f),
+             "World Scale")) {
+        v.vr_immersive_world_set.SetGlobal(false);
+        v.vr_immersive_world_set.SetValue(true);
+    }
+    if (preset.immersive_depth >= 0 && fits) {
+        fill(v.vr_immersive_depth, static_cast<u32>(preset.immersive_depth),
+             "3D Depth (Full modes)");
     }
 }
 

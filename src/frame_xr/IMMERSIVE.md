@@ -364,9 +364,9 @@ Four per-game settings change this (**VR** group, logged as
   same file shows the same screen, stretched; nothing is converted, no marker. Presets keep their
   scales; they are starting values under either mode. AzaharFrame fovaxis: a preset may set Scale
   Mode (`Preset::scale_mode`, -1 = not), filled only while the game has neither scale of its
-  own, so a player who already saved scales keeps the mode they had; Mario Kart 7's is Stretch
-  (its -30 % / -15 % bring the side HUD in, which Field of View would crop, and its Render
-  Margin 1.3x applies there). Super Mario 3D Land, the Zelda games and Asphalt 3D relied on the
+  own, so a player who already saved scales keeps the mode they had; Mario Kart 7's was Stretch
+  (its -30 % / -15 % brought the side HUD in, which Field of View would crop); 1.2.0 fix lane B
+  made it the owner's session-651 Field of View +55 % / +70 % (presets.cpp). Super Mario 3D Land, the Zelda games and Asphalt 3D relied on the
   default Render Margin 1.4x in Field of View: their presets now have both scales at +40 %, the
   same picture and screen when the view-fill cap is not reached.
 - **Fill View** (AzaharFrame fovaxis; the VR menu's button under Scale Mode, `Immersive::FillView`,
@@ -563,16 +563,21 @@ headset rather than to the 65 mm the numbers below assume.
 
 AzaharFrame presets: the table above is what was measured. The values the presets ship are the
 owner's own tuned per-game settings of 2026-11-12 (`frame_xr/presets.cpp`; each applies only
-where a game has no value of its own and the global one is still the default): Mario Kart 7 FOV
-40, Render Margin 1.3x, Horizontal Scale -30 % and Vertical Scale -15 %, Internal Resolution 3x, ScaleForce, the
-screen 4.95 degrees below the middle, 0.37 m, size 2.02; Super Mario 3D Land 10x, 3D Depth 100,
+where a game has no value of its own and the global one is still the default): Mario Kart 7
+(1.2.0 fix lane B: the owner's session-651 file and placement) FOV 40, Detect Game FOV Always,
+Render Margin 1.3x (Stretch's), Field of View with Horizontal Scale +55 % and Vertical Scale
++70 %, Internal Resolution 4x, Bicubic, the screen 5.6 degrees below the middle, the
+placement 3 m with World Scale 10 % (`Preset::world_scale`, which also marks the game's World
+Scale as its own, `vr_immersive_world_set`, so the 1.2.0 migration leaves it: the screen 0.30 m
+away), size 2.05, and the Full modes' 3D Depth 85 (`Preset::immersive_depth`,
+`vr_immersive_depth`); Super Mario 3D Land 10x, 3D Depth 100,
 4x, screen 7.15 degrees below the middle, size 1.06; Kid Icarus: Uprising (normal view; Immersive stays Off by default, the player can turn it on) Internal Resolution 4x and Bicubic only; Ocarina of Time 3D and Majora's Mask 3D (every region, identical) FOV 55, Match
 Game Camera off, 3D Depth 30 (no Horizontal Scale of their own since AzaharFrame oot), screen 9.21 degrees below the middle, 3 m.
 
 ### The immersive screen per game
 
 AzaharFrame immersive2, on the Frame (its view from the headset log), at the defaults and presets
-(a game's own values win). Vertical Scale is 0 % (but in Mario Kart 7's preset) and the screen's pitch is the middle of the view
+(a game's own values win). Vertical Scale is 0 % (but in the presets) and the screen's pitch is the middle of the view
 in all of them. Size 1 is the world at its own scale; the angles are the screen's.
 
 | Game | Screen Shape | Horizontal Scale | Render Margin | Up and down | Distance | Size |
@@ -581,7 +586,7 @@ in all of them. Size 1 is the world at its own scale; the angles are the screen'
 | Ocarina of Time 3D | 3DS (5:3); with SSE as measured | 0 % (-10 % before) | 1.4x | 1.4x (1.76x to 2.0x before) | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
 | Majora's Mask 3D | 3DS (5:3) | 0 % (-10 % before) | 1.4x | 1.4x (1.76x before) | 3 m | 1 (95 x 85) |
 | Super Mario 3D Land | 3DS (5:3) | 0 % (-10 % before) | 1.4x | 1.4x (1.77x before) | 3 m | 1 (82 x 73) |
-| Mario Kart 7 | 3DS (5:3) | 0 % (its preset now starts at -30 %, Vertical Scale -15 %) | 1.4x | 1.4x (1.77x before) | 3 m | 0.9 (91 x 76, gain 1.11) |
+| Mario Kart 7 | 3DS (5:3) | 0 % (its preset now starts at +55 %, Vertical Scale +70 %, Field of View, size 2.05) | 1.4x | 1.4x (1.77x before) | 3 m | 0.9 (91 x 76, gain 1.11) |
 
 The Size column's heights are from before AzaharFrame oot (the view's shape); the screen is now
 as high as the picture's shape gives at that width. The widths were worked out at Horizontal Scale -10 %, the default before

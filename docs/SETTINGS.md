@@ -70,7 +70,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Render Margin: Vertical](#render-margin) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
 | [Horizontal Scale](#horizontal-scale-and-vertical-scale) | -100% to +100%, in 5% steps | +40% | global and per game | at once |
 | [Vertical Scale](#horizontal-scale-and-vertical-scale) | -100% to +100%, in 5% steps | +40% | global and per game | at once |
-| [Scale Mode](#scale-mode) | **Stretch**, **Field of View** | Field of View (Mario Kart 7: Stretch) | global and per game | at once |
+| [Scale Mode](#scale-mode) | **Stretch**, **Field of View** | Field of View | global and per game | at once |
 | [Fill View](#fill-view) | a button | | per game (the size and Horizontal Scale) | at once |
 | [World Scale](#world-scale) | 10% to 400%, 100% by default | 100% | global and per game | eased in |
 | [Follow Screen Size](#follow-screen-size) | on or off | on | global and per game | eased in |

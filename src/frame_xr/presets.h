@@ -65,6 +65,15 @@ struct ImmersivePreset {
     /// Horizontal or Vertical Scale of its own yet (a player's saved scales keep the mode they
     /// were set under).
     int32_t scale_mode = -1;
+    /// 1.2.0 fix lane B: Settings::values.vr_immersive_world_scale, World Scale in percent (10 to
+    /// 400; 0 = keep). Filled as the other values (only where the game has none of its own and the
+    /// global one is the default, 100 Automatic); where it is, the game is also marked as having
+    /// its own World Scale (vr_immersive_world_set), as the grip and the migration do, so the
+    /// 1.2.0 migration leaves it. Both keys exist already: no key changes meaning.
+    float world_scale = 0.0f;
+    /// 1.2.0 fix lane B: Settings::values.vr_immersive_depth, the Full modes' 3D Depth (0 to 100;
+    /// -1 = keep). Not `factor_3d`, which is the 3DS's 3D Depth (Normal and Wide).
+    int32_t immersive_depth = -1;
 };
 
 /// The preset for the game with this title id (any region), or null.
