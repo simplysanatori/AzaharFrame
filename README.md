@@ -12,7 +12,7 @@ It is my unofficial fork of [Azahar](https://github.com/azahar-emu/azahar), with
 - Immersive Mode with Natural 3D, matched to your IPD
 - A redesigned VR menu with save states and autosave
 - In-app cheat, mod and texture pack downloader
-- Homebrew and mod packs, including Angel's Aim for Kid Icarus: Uprising
+- Homebrew and mod pack support, including Angel's Aim for Kid Icarus: Uprising
 - Edit the controls of any gamepad or mouse
 
 ## 3D and immersion
