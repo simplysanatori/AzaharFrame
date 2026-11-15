@@ -50,7 +50,7 @@ inline constexpr const char* kScaleStretchTip =
     "Stretches the whole picture, HUD included. The world looks wider or thinner.";
 inline constexpr const char* kScaleFieldOfView = "Field of View";
 inline constexpr const char* kScaleFieldOfViewTip =
-    "Shows more or less of the game, cropping when smaller. The world keeps its shape up to +60%.";
+    "Shows more or less of the game, cropping when smaller. No warping up to +60%.";
 /// AzaharFrame fovaxis: Fill View (VR menu, under Scale Mode): sets the screen's size and both
 /// scales once so the screen covers the view (Layout::FillView); the toast is Layout::FillToast.
 inline constexpr const char* kFillView = "Fill View";
