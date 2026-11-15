@@ -1166,22 +1166,30 @@ int main(int argc, char** argv) {
         ok &= shot("fa-margin-vertical-tooltip", ax, v);
         v = settings(SettingsSection::Immersive);
         v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
-        ax.scale_x = 30; // Field of View: 1.4x x 1.3 = 1.82x wanted, 1.6x drawn
+        ax.scale_x = 70; // Field of View: the scales alone, 1.7x wanted, 1.6x drawn
         ax.scale_x_warp = true;
         ok &= shot("fa-fov-wider-may-warp", ax, v);
+        // Field of View: the margin rows say they apply with Stretch.
+        MenuModel fv = ax;
+        fv.scale_x = 40;
+        fv.scale_y = 40;
+        fv.scale_x_warp = false;
+        v = settings(SettingsSection::Immersive);
+        ok &= shot("fa-margins-applies-with-stretch", fv, v);
+        v = settings(SettingsSection::Immersive);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
         ax.scale_mode = 0; // Stretch at the ends: past the ratio and the gains on both axes
         ax.margin_y = 4;
         ax.scale_x = -100;
-        ax.scale_y = 100;
-        ax.scale_y_warp = true;
+        ax.scale_y = 100; // the tall axis draws more instead: no note (ScalesMayWarp)
         ok &= shot("fa-stretch-mixed-may-warp", ax, v);
         ax.scale_x = -30; // Mario Kart 7's preset in Stretch: inside the caps, no note
         ax.scale_y = -15;
-        ax.scale_x_warp = ax.scale_y_warp = false;
+        ax.scale_x_warp = false;
         ok &= shot("fa-stretch-mk7-no-note", ax, v);
         v.hover = {Id::ScaleX, kLabelIndex};
         v.tooltip = Id::ScaleX;
-        ax.scale_x = 30;
+        ax.scale_x = 70;
         ax.scale_y = 0;
         ax.scale_mode = 1;
         ax.scale_x_warp = true;

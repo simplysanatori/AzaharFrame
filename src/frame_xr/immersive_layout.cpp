@@ -283,8 +283,9 @@ float GainStretch(float stretch, float caps) {
     return to == l ? stretch : std::exp(l + c * (to - l));
 }
 
-ScalePicture SplitScales(float factor_x, float k_x, float factor_y, float k_y, float fov,
-                         float caps) {
+namespace {
+ScalePicture SplitScalesOn(float factor_x, float k_x, float factor_y, float k_y, float fov,
+                           float caps) {
     ScalePicture p;
     p.x = ScaleSplit(factor_x, k_x, fov);
     p.y = ScaleSplit(factor_y, k_y, fov);
@@ -354,13 +355,45 @@ ScalePicture SplitScales(float factor_x, float k_x, float factor_y, float k_y, f
                (share >= 1.0f && std::abs(ly) > kWarpSlack);
     return p;
 }
+} // namespace
+
+ScalePicture SplitScales(float factor_x, float k_x, float factor_y, float k_y, float fov,
+                         float caps) {
+    const bool stretch = std::isfinite(fov) && fov <= 0.0f;
+    if (!stretch || (factor_x == kFactorMin && factor_y == kFactorMin) ||
+        !std::isfinite(factor_x * factor_y)) {
+        return SplitScalesOn(factor_x, k_x, factor_y, k_y, fov, caps);
+    }
+    // AzaharFrame fovaxis: Stretch caps the game's own frame (factor 1), and Render Margin's
+    // padding goes around what that gives, so a margin step never moves the frame (the owner's
+    // rule). Where the padding would take the draw past kFovFactorMax (or the factor itself,
+    // when larger), the padding is trimmed: the draw stops there and the screen is that much
+    // smaller on the axis (`screen`); the frame, its stretch and the gain stay.
+    const ScalePicture frame = SplitScalesOn(kFactorMin, k_x, kFactorMin, k_y, fov, caps);
+    ScalePicture p = frame;
+    const auto pad = [](AxisSplit& a, float factor) {
+        const float f = std::clamp(factor, kFactorMin, kFactorMax);
+        const float want = f * a.drawn;
+        const float hi = std::max(kFovFactorMax, f);
+        a.drawn = std::min(want, hi);
+        a.screen = a.drawn / want;
+    };
+    pad(p.x, factor_x);
+    pad(p.y, factor_y);
+    return p;
+}
 
 WarpAxes ScalesMayWarp(uint32_t level_x, uint32_t level_y, int scale_x, int scale_y,
                        ScaleMode mode) {
     const ScalePicture p =
-        SplitScales(WiderFactor(level_x), ScaleFactor(scale_x), WiderFactor(level_y),
-                    ScaleFactor(scale_y), mode == ScaleMode::FieldOfView ? 1.0f : 0.0f, 1.0f);
+        SplitScales(MarginFactor(level_x, mode), ScaleFactor(scale_x),
+                    MarginFactor(level_y, mode), ScaleFactor(scale_y),
+                    mode == ScaleMode::FieldOfView ? 1.0f : 0.0f, 1.0f);
     return {p.warp_x, p.warp_y};
+}
+
+float MarginFactor(uint32_t level, ScaleMode mode) {
+    return mode == ScaleMode::Stretch ? WiderFactor(level) : kFactorMin;
 }
 
 const char* ScaleModeName(ScaleMode mode) {
@@ -586,7 +619,10 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
         qy *= size_factor_y / size_factor;
     }
     // Never bigger than filling the view (a very wide game camera): smaller, gain above 1.
-    const float fit = std::min({1.0f, cover.tan_x / qx, cover.tan_y / qy});
+    // AzaharFrame fovaxis: the game's own frame is fitted (factor 1: a t across, t up and down),
+    // and Render Margin's padding goes around it after, so a margin step never moves or resizes
+    // the frame (and the HUD on it); the padding may then reach past the view (drawn, unseen).
+    const float fit = std::min({1.0f, cover.tan_x / (a * t), cover.tan_y / t});
     qx *= fit * p.size;
     qy *= fit * p.size;
     // The game draws factor_y times its own height into the screen's height, so the picture
@@ -620,6 +656,12 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
     s.factor_y = up.drawn;
     s.stretch_x = across.stretch;
     s.stretch_y = up.stretch;
+    // AzaharFrame fovaxis: Stretch's padding trimmed at the draw's limit (SplitScales): the
+    // screen that much smaller on that axis, the frame where it was.
+    if (across.screen != 1.0f || up.screen != 1.0f) {
+        s.aspect *= across.screen / up.screen;
+        s.tan_half_y *= up.screen;
+    }
     // The scales' part of each gain within kScaleGainMin to kScaleGainMax (GainStretch); the
     // gain itself within kMinGain to kMaxGain, as before.
     s.gain = std::clamp(base / GainStretch(up.stretch, options.caps), kMinGain, kMaxGain);

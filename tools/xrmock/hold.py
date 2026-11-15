@@ -34,7 +34,8 @@ swim: 100 % of the step).
           fovaxis: [--margin-x 4 --margin-y 4 --scale-mode stretch|fov]: the Render Margin
           levels per axis and the Scale Mode, for the split and the caps against warping
           (Layout::SplitScales: the scales' part of a gain within 0.6 to 1.6, Stretch's two
-          axes within 1.5 of each other); stretch with 4/4 is every build before.
+          axes within 1.5 of each other); stretch with 4/4 is every build before. Render
+          Margin applies with Stretch only (fov: the scales alone).
   hold.py --selftest      (synthetic traces: rigid fails at gain 0.6 and passes at gain 1;
                            warp passes at both; imglag: on a compositor that shows an image a
                            refresh late, an app anchored to the picture it sends fails and one
@@ -572,8 +573,10 @@ def gain_stretch(r, caps):
 def scale_gains(base, sx, sy, margin_x=4, margin_y=4, mode="stretch", caps=1.0):
     """The gains (across, up and down) of a screen whose base gain is `base` (1 / size at fit 1,
     Detect Game FOV settled), as SolveHeadLocked gives them."""
-    fx, fy = 1.0 + 0.1 * margin_x, 1.0 + 0.1 * margin_y
-    x, y = split_scales(fx, scale_factor(sx), fy, scale_factor(sy),
+    # Render Margin applies with Stretch only (Layout::MarginFactor), and there the caps act on
+    # the game's own frame with the margin's padding around it (SplitScales), so the stretches,
+    # and with them the gains, are the margin-free split's in both modes.
+    x, y = split_scales(1.0, scale_factor(sx), 1.0, scale_factor(sy),
                         1.0 if mode == "fov" else 0.0, caps)
     gx = min(max(base / gain_stretch(x[1], caps), 0.4), 2.0)
     gy = min(max(base / gain_stretch(y[1], caps), 0.4), 2.0)
@@ -774,24 +777,27 @@ def selftest():
           % (scale_factor(-100), scale_factor(-30), scale_factor(100), "PASS" if good else "FAIL"))
     ok &= good
     # fovaxis: the gains with the caps, against the same cases as the unit test
-    # ("FrameXr fovaxis: hold.py's table", immersive_scale.cpp): base 1, Render Margin 1.4x.
+    # ("FrameXr fovaxis: hold.py's table", immersive_scale.cpp): base 1, Render Margin 1.4x (no
+    # change to the gains: the caps act on the game's own frame).
     table = [  # (sx, sy, mode, gain across, gain up and down)
         (-30, -15, "stretch", 1.0 / 0.7, 1.0 / 0.85),  # Mario Kart 7's preset: inside the caps
         (-30, 0, "stretch", 1.0 / 0.7, 1.0),
         (-30, -15, "fov", 1.0, 1.0),                   # crops: true shape, the base gain
         (-100, -100, "fov", 1.0, 1.0),
         (0, 0, "stretch", 1.0, 1.0),
-        (30, 0, "fov", 1.6 / 1.82, 1.0),               # 1.82x wanted, 1.6x drawn, the rest a stretch
-        (100, 100, "fov", 0.6, 0.6),                   # 2.8x wanted: stretch 1.75, gain held at 0.6
-        (-100, 0, "stretch", 1.6, 1.0 / 0.875),        # the ratio past what the draws can take
-        (100, 0, "stretch", 0.6, 1.0 / (1.75 / 1.5)),
-        (-30, 30, "stretch", None, None),               # ratio 1.86 before: now 1.5
+        (30, 0, "fov", 1.0, 1.0),                      # the scales alone (no margin): 1.3x drawn
+        (70, 0, "fov", 1.6 / 1.7, 1.0),                # 1.7x wanted, 1.6x drawn, the rest a stretch
+        (100, 100, "fov", 0.8, 0.8),                   # 2x wanted: 1.6x drawn, stretch 1.25
+        (-100, 0, "stretch", 1.6, 1.6),                # the frame cannot draw less: the tall axis draws 1.6x
+        (100, 0, "stretch", 1.0 / 1.5, 1.0),           # the frame drawn 1.33x: the ratio 1.5
+        (-30, 30, "stretch", 1.0 / 0.7, 1.0 / 1.05),   # ratio 1.86 before: now 1.5, on the tall axis
         (-100, -100, "stretch", 1.6, 1.6),
     ]
     good = True
     for sx, sy, mode, wx, wy in table:
         gx, gy = scale_gains(1.0, sx, sy, 4, 4, mode)
-        x, y = split_scales(1.4, scale_factor(sx), 1.4, scale_factor(sy), 1.0 if mode == "fov" else 0.0, 1.0)
+        # the frame's split (Render Margin's padding goes around it in Stretch; none in fov)
+        x, y = split_scales(1.0, scale_factor(sx), 1.0, scale_factor(sy), 1.0 if mode == "fov" else 0.0, 1.0)
         fine = (0.6 - 1e-6 <= gx <= 1.6 + 1e-6 and 0.6 - 1e-6 <= gy <= 1.6 + 1e-6
                 and all(math.isfinite(v) and v > 0 for v in x + y)
                 and x[0] <= FOV_FACTOR_MAX + 1e-6 and y[0] <= FOV_FACTOR_MAX + 1e-6)

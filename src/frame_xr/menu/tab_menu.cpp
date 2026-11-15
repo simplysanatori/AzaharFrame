@@ -58,8 +58,10 @@ struct Row {
     float t = 0.0f;    ///< Slider
     int stops = 0;     ///< Slider
     std::string value; ///< Slider, Offset; a MenuButton's value when it is none of its options
-    /// AzaharFrame fovaxis: a short note under the label ("May Warp"), in the error colour
+    /// AzaharFrame fovaxis: a short note under the label: "May Warp" in the error colour
+    /// (`note_warn`), "Applies with Stretch" in the label's secondary colour
     std::string note;
+    bool note_warn = false;
     bool Enabled() const {
         return lock == Lock::None;
     }
@@ -202,8 +204,15 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         }
         rows.push_back(row(Id::ImmersiveMode, RowKind::MenuButton, m.immersive_mode));
         // AzaharFrame fovaxis: Render Margin per axis (one row before)
-        rows.push_back(full(row(Id::MarginX, RowKind::Segmented, m.margin_x)));
-        rows.push_back(full(row(Id::MarginY, RowKind::Segmented, m.margin_y)));
+        // Applies with Stretch only: never locked in Field of View, a note says so.
+        for (const auto& [id, level] : {std::pair{Id::MarginX, m.margin_x},
+                                        std::pair{Id::MarginY, m.margin_y}}) {
+            Row r = full(row(id, RowKind::Segmented, level));
+            if (m.scale_mode == 1) {
+                r.note = ::FrameXr::Immersive::Names::kAppliesWithStretch;
+            }
+            rows.push_back(r);
+        }
         Row fov = full(row(Id::GameFov, RowKind::Slider));
         const SliderRange fr = SliderFor(Id::GameFov);
         fov.t = (static_cast<float>(m.game_fov) - fr.min) / (fr.max - fr.min);
@@ -223,6 +232,7 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             r.value = SliderText(id, v);
             if (warp) {
                 r.note = ::FrameXr::Immersive::Names::kMayWarp;
+                r.note_warn = true;
             }
             rows.push_back(r);
         };
@@ -2318,7 +2328,8 @@ void TabMenu::DrawRows(Kit& kit, const MenuModel& model, const MenuView& view, c
             // item's supporting text), in the error colour.
             kit.TextMid(c.x0, cy - 11.0f, Type::Body, Tok::kOnSurface, LabelFor(r.id), 0,
                         enabled ? 1.0f : kDisabledContent);
-            kit.TextSized(c.x0, cy + 20.0f, 14.0f, false, Tok::kError, r.note, 0,
+            kit.TextSized(c.x0, cy + 20.0f, 14.0f, false,
+                          r.note_warn ? Tok::kError : Tok::kOnSurfaceVariant, r.note, 0,
                           enabled ? 1.0f : kDisabledContent);
         }
         const Rect ctl{control_x0, cy - kControlH * 0.5f, c.x1, cy + kControlH * 0.5f};

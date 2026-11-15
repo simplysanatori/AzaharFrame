@@ -541,20 +541,31 @@ u32 WiderLevel(Margin::Axis axis = Margin::Axis::Horizontal) {
 
 // AzaharFrame fovaxis: options.wider and wider_y from the levels (wider_y 0, "the same", when
 // equal: every build before's numbers).
+// AzaharFrame fovaxis: Render Margin applies with Stretch only (Layout::MarginFactor): in Field
+// of View both factors are 1.0x and the scales alone decide what is drawn. Again on a mode change.
+void ApplyMarginOptions() {
+    const float x = L::MarginFactor(g.wider_level, g.scale_mode);
+    const float y = L::MarginFactor(g.wider_level_y, g.scale_mode);
+    g.options.wider = x;
+    g.options.wider_y = x == y ? 0.0f : y;
+}
+
 void SetMarginOptions(u32 x, u32 y) {
     g.wider_level = x;
     g.wider_level_y = y;
-    g.options.wider = L::WiderFactor(x);
-    g.options.wider_y = x == y ? 0.0f : L::WiderFactor(y);
+    ApplyMarginOptions();
 }
 
-// "Render Margin 1.4x" or "Render Margin 1.4x across, 1.2x up and down" (the log).
+// "Render Margin 1.4x" or "Render Margin 1.4x across, 1.2x up and down" (the log); in Field of
+// View with "(applies with Stretch)": not drawn then.
 std::string MarginLog() {
+    const char* note = g.scale_mode == L::ScaleMode::Stretch ? "" : " (applies with Stretch)";
     if (g.wider_level == g.wider_level_y) {
-        return fmt::format("{} {:.1f}x", Names::kRenderMargin, L::WiderFactor(g.wider_level));
+        return fmt::format("{} {:.1f}x{}", Names::kRenderMargin, L::WiderFactor(g.wider_level),
+                           note);
     }
-    return fmt::format("{} {:.1f}x across, {:.1f}x up and down", Names::kRenderMargin,
-                       L::WiderFactor(g.wider_level), L::WiderFactor(g.wider_level_y));
+    return fmt::format("{} {:.1f}x across, {:.1f}x up and down{}", Names::kRenderMargin,
+                       L::WiderFactor(g.wider_level), L::WiderFactor(g.wider_level_y), note);
 }
 
 // AzaharFrame fovscale: Horizontal and Vertical Scale as Stretch or Field of View (any value
@@ -1222,13 +1233,13 @@ void OnFrame(const FrameInfo& info) {
         LOG_INFO(Frontend, "xr: bottom screen {} at start", g.hide_bottom ? "hidden" : "shown");
         // The screen shape and the game camera's angle (per game as well) are read below.
         g.shape_logged = false;
+        g.scale_mode = ScaleModeSetting(); // AzaharFrame fovaxis: before the margins
         SetMarginOptions(WiderLevel(Margin::Axis::Horizontal),
                          WiderLevel(Margin::Axis::Vertical)); // AzaharFrame fovaxis
         g.scale_x = L::ScalePercent(Settings::values.vr_immersive_scale_x.GetValue());
         g.scale_y = L::ScalePercent(Settings::values.vr_immersive_scale_y.GetValue());
         g.options.squeeze = L::SqueezeForScale(g.scale_x);
         g.options.squeeze_y = L::SqueezeForScale(g.scale_y);
-        g.scale_mode = ScaleModeSetting();
         std::fill(std::begin(g.split_logged), std::end(g.split_logged), -1.0f);
         g.gains_logged[0] = g.gains_logged[1] = -1.0f;
         LOG_INFO(Frontend, "xr: immersive: {}, Horizontal Scale {}%, Vertical Scale {}% ({})",
@@ -1295,8 +1306,9 @@ void OnFrame(const FrameInfo& info) {
         const L::ScaleMode scale_mode = ScaleModeSetting();
         if (scale_mode != g.scale_mode) {
             g.scale_mode = scale_mode;
-            LOG_INFO(Frontend, "xr: immersive: Horizontal and Vertical Scale as {} (changed)",
-                     L::ScaleModeName(scale_mode));
+            ApplyMarginOptions(); // AzaharFrame fovaxis: Render Margin with Stretch only
+            LOG_INFO(Frontend, "xr: immersive: Horizontal and Vertical Scale as {} (changed), {}",
+                     L::ScaleModeName(scale_mode), MarginLog());
         }
     }
     if (info.screens_live) {
@@ -2168,7 +2180,10 @@ WiderStep StepWiderView(int dir) {
     // AzaharFrame fovaxis: both axes one level (Render Margin's own key while both follow it, as
     // every build before; render_margin.h).
     const Margin::Stepped step = Margin::StepBoth(dir > 0 ? 1 : -1);
-    ShowToastText(L::MarginToast(step.x, step.y)); // also at the ends, so the press shows
+    // also at the ends, so the press shows; in Field of View it is kept for Stretch
+    ShowToastText(g.scale_mode == L::ScaleMode::Stretch
+                      ? L::MarginToast(step.x, step.y)
+                      : L::MarginToast(step.x, step.y) + " (" + Names::kAppliesWithStretch + ")");
     if (!step.changed) {
         return WiderStep::None;
     }

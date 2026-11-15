@@ -862,10 +862,11 @@ TEST_CASE("FrameXr fovaxis: Field of View crops and keeps the true shape", "[fra
                             Approx(z.height() / z.factor_y).epsilon(1e-4));
                     crops += s.factor < kFactorMin;
                 }
+                // The note (Render Margin does not apply in Field of View: the scales alone):
+                // exactly where Field of View cannot keep the true shape (1 % slack).
                 const WarpAxes w = ScalesMayWarp(level, level, sx, sy, ScaleMode::FieldOfView);
-                // The note: exactly where Field of View cannot keep the true shape (1 % slack).
-                REQUIRE(w.x == (bx > kFovFactorMax * 1.0101f));
-                REQUIRE(w.y == (by > kFovFactorMax * 1.0101f));
+                REQUIRE(w.x == (ScaleFactor(sx) > kFovFactorMax * 1.0101f));
+                REQUIRE(w.y == (ScaleFactor(sy) > kFovFactorMax * 1.0101f));
             }
         }
     }
@@ -905,9 +906,27 @@ TEST_CASE("FrameXr fovaxis: the caps against warping", "[frame_xr][fovaxis]") {
                             REQUIRE(g >= kScaleGainMin * 0.9999f);
                             REQUIRE(g <= kScaleGainMax * 1.0001f);
                         }
-                        // drawn x stretch is the factor x the size on each axis.
-                        REQUIRE(p.x.drawn * p.x.stretch == Approx(fx * kx).epsilon(1e-5));
-                        REQUIRE(p.y.drawn * p.y.stretch == Approx(fy * ky).epsilon(1e-5));
+                        // drawn x stretch is the factor x the size on each axis (x the screen
+                        // left where Stretch trims the margin's padding at the draw's limit).
+                        REQUIRE(p.x.drawn * p.x.stretch ==
+                                Approx(fx * kx * p.x.screen).epsilon(1e-5));
+                        REQUIRE(p.y.drawn * p.y.stretch ==
+                                Approx(fy * ky * p.y.screen).epsilon(1e-5));
+                        for (const AxisSplit* a : {&p.x, &p.y}) {
+                            REQUIRE(a->screen <= 1.0f);
+                            if (a->screen < 1.0f) {
+                                REQUIRE(fov == 0.0f);
+                                REQUIRE(a->drawn == Approx(kFovFactorMax));
+                            }
+                        }
+                        // Stretch: the frame's split is the margin-free one (the owner's rule).
+                        if (fov == 0.0f) {
+                            const ScalePicture f = SplitScales(1.0f, kx, 1.0f, ky, 0.0f, 1.0f);
+                            REQUIRE(p.x.stretch == f.x.stretch);
+                            REQUIRE(p.y.stretch == f.y.stretch);
+                            REQUIRE(p.warp_x == f.warp_x);
+                            REQUIRE(p.warp_y == f.warp_y);
+                        }
                         const float ratio = std::abs(std::log(p.x.stretch / p.y.stretch));
                         const bool past_ratio = ratio > std::log(kMaxStretchRatio) + 0.0101f;
                         const auto out = [](float r) {
@@ -934,13 +953,15 @@ TEST_CASE("FrameXr fovaxis: the caps against warping", "[frame_xr][fovaxis]") {
                             } else {
                                 capped++;
                             }
-                            // Past the ratio only where both draws are at a limit.
+                            // Past the ratio only where a frame's draw is at a limit (the
+                            // margin-free split: the margins go around it).
                             if (past_ratio) {
+                                const ScalePicture f = SplitScales(1.0f, kx, 1.0f, ky, 0.0f, 1.0f);
                                 const auto at_limit = [](float d) {
                                     return d <= kFactorMin * 1.0001f ||
                                            d >= kFovFactorMax * 0.9999f;
                                 };
-                                REQUIRE((at_limit(p.x.drawn) || at_limit(p.y.drawn)));
+                                REQUIRE((at_limit(f.x.drawn) || at_limit(f.y.drawn)));
                             }
                         }
                         // The note: past what the caps took, on that axis.
@@ -954,11 +975,13 @@ TEST_CASE("FrameXr fovaxis: the caps against warping", "[frame_xr][fovaxis]") {
                         if (out(p.y.stretch)) {
                             REQUIRE(p.warp_y);
                         }
-                        // ScalesMayWarp is this split with the caps on.
-                        const WarpAxes w = ScalesMayWarp(
-                            lx, ly, sx, sy, fov == 0.0f ? ScaleMode::Stretch : ScaleMode::FieldOfView);
-                        REQUIRE(w.x == p.warp_x);
-                        REQUIRE(w.y == p.warp_y);
+                        // ScalesMayWarp is this split with the caps on (in Stretch: Field of
+                        // View draws without the margins, the crop test checks it).
+                        if (fov == 0.0f) {
+                            const WarpAxes w = ScalesMayWarp(lx, ly, sx, sy, ScaleMode::Stretch);
+                            REQUIRE(w.x == p.warp_x);
+                            REQUIRE(w.y == p.warp_y);
+                        }
                     }
                 }
             }
@@ -985,7 +1008,7 @@ TEST_CASE("FrameXr fovaxis: the caps against warping", "[frame_xr][fovaxis]") {
 }
 
 // hold.py ports SplitScales and GainStretch for its gain prediction: the same table here and in
-// its selftest (base gain 1, Render Margin 1.4x both ways).
+// its selftest (base gain 1, Render Margin 1.4x both ways, which applies with Stretch only).
 TEST_CASE("FrameXr fovaxis: hold.py's table", "[frame_xr][fovaxis]") {
     struct Row {
         int sx, sy;
@@ -998,17 +1021,19 @@ TEST_CASE("FrameXr fovaxis: hold.py's table", "[frame_xr][fovaxis]") {
         {-30, -15, true, 1.0f, 1.0f}, // crops: true shape
         {-100, -100, true, 1.0f, 1.0f},
         {0, 0, false, 1.0f, 1.0f},
-        {30, 0, true, 1.6f / 1.82f, 1.0f},
-        {100, 100, true, 0.6f, 0.6f},
-        {-100, 0, false, 1.6f, 1.0f / 0.875f},
-        {100, 0, false, 0.6f, 1.5f / 1.75f},
+        {30, 0, true, 1.0f, 1.0f},          // the scales alone: 1.3x drawn
+        {70, 0, true, 1.6f / 1.7f, 1.0f},   // 1.7x wanted, 1.6x drawn, the rest a stretch
+        {100, 100, true, 0.8f, 0.8f},       // 2x wanted: 1.6x drawn, stretch 1.25
+        {-100, 0, false, 1.6f, 1.6f},       // the frame cannot draw less: the tall axis 1.6x
+        {100, 0, false, 1.0f / 1.5f, 1.0f}, // the frame drawn 1.33x: the ratio 1.5
+        {-30, 30, false, 1.0f / 0.7f, 1.0f / 1.05f},
         {-100, -100, false, 1.6f, 1.6f},
     };
     const ViewFov view = Symmetric(60); // fits: the base gain is 1, no gain limit near
 
     for (const Row& r : rows) {
         Options o;
-        o.wider = kFactorMax;
+        o.wider = MarginFactor(kMaxWiderLevel, r.fov ? ScaleMode::FieldOfView : ScaleMode::Stretch);
         o.squeeze = SqueezeForScale(r.sx);
         o.squeeze_y = SqueezeForScale(r.sy);
         o.scale_fov = r.fov ? 1.0f : 0.0f;
@@ -1023,6 +1048,10 @@ TEST_CASE("FrameXr fovaxis: hold.py's table", "[frame_xr][fovaxis]") {
     }
     // Stretch at -30 % and +30 % (the old range's widest): the ratio 1.86 capped to 1.5.
     const ScalePicture p = SplitScales(1.4f, 0.7f, 1.4f, 1.3f, 0.0f, 1.0f);
+    REQUIRE(p.x.drawn == Approx(1.4f)); // the margin around the frame, which keeps its draw
+    // the frame draws 1.24x up and down; with the margin that is 1.73x: trimmed to 1.6x
+    REQUIRE(p.y.drawn == Approx(kFovFactorMax));
+    REQUIRE(p.y.screen == Approx(kFovFactorMax / (1.4f * 1.3f / 1.05f)));
     REQUIRE(p.y.stretch / p.x.stretch == Approx(1.5f).epsilon(1e-4));
     REQUIRE(!p.warp_x);
     REQUIRE(!p.warp_y);
@@ -1030,12 +1059,17 @@ TEST_CASE("FrameXr fovaxis: hold.py's table", "[frame_xr][fovaxis]") {
 
 // The menu dump's notes are what ScalesMayWarp gives for its settings.
 TEST_CASE("FrameXr fovaxis: May Warp for the menu dump's settings", "[frame_xr][fovaxis]") {
-    // Field of View, Render Margin 1.4x across: +30 % wants 1.82x.
-    REQUIRE(ScalesMayWarp(4, 1, 30, 0, ScaleMode::FieldOfView) == WarpAxes{true, false});
-    REQUIRE(ScalesMayWarp(4, 1, 10, 0, ScaleMode::FieldOfView) == WarpAxes{false, false});
+    // Field of View: the scales alone (Render Margin applies with Stretch): +70 % wants 1.7x,
+    // +60 % is 1.6x, whatever the margins.
+    REQUIRE(ScalesMayWarp(4, 1, 70, 0, ScaleMode::FieldOfView) == WarpAxes{true, false});
+    REQUIRE(ScalesMayWarp(4, 1, 60, 0, ScaleMode::FieldOfView) == WarpAxes{false, false});
+    REQUIRE(ScalesMayWarp(4, 1, 30, 0, ScaleMode::FieldOfView) == WarpAxes{false, false});
     REQUIRE(ScalesMayWarp(4, 1, 0, 0, ScaleMode::FieldOfView) == WarpAxes{false, false});
-    // Stretch at -100 % and +100 %: both past the gains' room.
-    REQUIRE(ScalesMayWarp(4, 4, -100, 100, ScaleMode::Stretch) == WarpAxes{true, true});
+    // Stretch, Render Margin 1.4x: +30 % on one axis, 0 % on the other is within the caps.
+    REQUIRE(ScalesMayWarp(4, 1, 30, 0, ScaleMode::Stretch) == WarpAxes{false, false});
+    // Stretch at -100 % and +100 %: the narrow axis past the gains' room (the caps act on the
+    // game's own frame, which cannot be drawn smaller; the tall one draws more instead).
+    REQUIRE(ScalesMayWarp(4, 4, -100, 100, ScaleMode::Stretch) == WarpAxes{true, false});
     // Mario Kart 7's preset in Stretch (Render Margin 1.3x): no note.
     REQUIRE(ScalesMayWarp(3, 3, -30, -15, ScaleMode::Stretch) == WarpAxes{false, false});
     // Crops never warp.
@@ -1099,9 +1133,13 @@ TEST_CASE("FrameXr fovaxis: Render Margin per axis on the screen", "[frame_xr][f
             REQUIRE(frame_w / frame_h == Approx(a).epsilon(1e-4));
             // The gains the same both ways at 0 % (the base gain).
             REQUIRE(z.gain_x == Approx(z.gain).epsilon(1e-5));
-            // The scaled screen: the scale's size.
-            REQUIRE(s.width() == Approx(z.width() * ScaleFactor(sx)).epsilon(1e-4));
-            REQUIRE(s.height() == Approx(z.height() * ScaleFactor(sy)).epsilon(1e-4));
+            // The scaled screen: the scale's size (in Stretch, times what is left of the
+            // margin's padding where it is trimmed at 1.6x: SplitScales' `screen`).
+            const ScalePicture sp =
+                SplitScales(WiderFactor(lx), ScaleFactor(sx), WiderFactor(ly), ScaleFactor(sy),
+                            share, 1.0f);
+            REQUIRE(s.width() == Approx(z.width() * ScaleFactor(sx) * sp.x.screen).epsilon(1e-4));
+            REQUIRE(s.height() == Approx(z.height() * ScaleFactor(sy) * sp.y.screen).epsilon(1e-4));
             REQUIRE(s.gain >= kMinGain);
             REQUIRE(s.gain <= kMaxGain);
             REQUIRE(s.gain_x >= kMinGain);
@@ -1206,4 +1244,135 @@ TEST_CASE("FrameXr fovaxis: the solver over the ranges", "[frame_xr][fovaxis]") 
         n++;
     }
     REQUIRE(n == 6000);
+}
+
+// ---- AzaharFrame fovaxis: Render Margin with Stretch only, the frame kept ----
+
+TEST_CASE("FrameXr fovaxis: Render Margin applies with Stretch only", "[frame_xr][fovaxis]") {
+    for (uint32_t level = 0; level <= kMaxWiderLevel; ++level) {
+        REQUIRE(MarginFactor(level, ScaleMode::Stretch) == WiderFactor(level));
+        REQUIRE(MarginFactor(level, ScaleMode::FieldOfView) == kFactorMin);
+    }
+    // Field of View: the scales alone decide what is drawn; Render Margin changes nothing.
+    const ViewFov view = Symmetric(50);
+    for (const int sx : {-100, -30, 0, 40, 100}) {
+        Options o;
+        o.squeeze = SqueezeForScale(sx);
+        o.squeeze_y = SqueezeForScale(-sx / 2);
+        o.scale_fov = 1.0f;
+        o.caps = 1.0f;
+        o.wider = MarginFactor(0, ScaleMode::FieldOfView);
+        const HeadLocked off = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o);
+        o.wider = MarginFactor(4, ScaleMode::FieldOfView);
+        const HeadLocked m = SolveHeadLocked(Placement{}, 55.0f, kAspect3ds, view, 0.0f, o);
+        REQUIRE(m.factor == off.factor);
+        REQUIRE(m.factor_y == off.factor_y);
+        REQUIRE(m.width() == off.width());
+        REQUIRE(m.gain_x == off.gain_x);
+        // +40 % draws the 1.4x the default Render Margin gave (the presets' value).
+        if (sx == 40) {
+            REQUIRE(m.factor == Approx(1.4f));
+        }
+    }
+}
+
+namespace {
+// The game's own frame (where the HUD is drawn) on view: half its width and height over the
+// screen's distance (the quad over what the game draws on it).
+struct FrameTans {
+    float x;
+    float y;
+};
+FrameTans GameFrame(const HeadLocked& s) {
+    return {s.tan_half_y * s.aspect / s.factor, s.tan_half_y / s.factor_y};
+}
+ViewFov Lopsided() { // canted, uneven, as a headset's eyes are
+    ViewFov v;
+    v.left = -52.0f * kDegToRad;
+    v.right = 44.0f * kDegToRad;
+    v.up = 43.0f * kDegToRad;
+    v.down = -53.0f * kDegToRad;
+    v.outer_left = -56.0f * kDegToRad;
+    v.outer_right = 56.0f * kDegToRad;
+    v.outer_up = 43.0f * kDegToRad;
+    v.outer_down = -53.0f * kDegToRad;
+    return v;
+}
+} // namespace
+
+// The owner's rule: a larger Render Margin never moves or resizes the game's own frame (and the
+// HUD on it) on view, it only adds picture around it. The frame's four corners are at
+// (pitch, +-atan(x)), (+-atan(y)): the pitch, the yaw and both tangents must stay, and so must
+// the gains. The view-fill cap is taken on the frame, so wide cameras (110 degrees) too.
+TEST_CASE("FrameXr fovaxis: a Render Margin step never moves the game's frame",
+          "[frame_xr][fovaxis]") {
+    int checked = 0, at_caps = 0, trimmed = 0;
+    for (const ViewFov& view : {Symmetric(40), Symmetric(55), Lopsided()}) {
+        for (const float eye_shift : {0.0f, 0.0107f}) { // mode 3, mode 2 at 3 m
+            for (const float cam : {30.0f, 55.0f, 90.0f, 110.0f}) {
+                for (const float size : {0.6f, 1.0f, 2.5f}) {
+                    for (const int sx : {-100, -30, 0, 25, 100}) {
+                        for (const int sy : {-60, 0, 40}) {
+                            for (const ScaleMode mode :
+                                 {ScaleMode::Stretch, ScaleMode::FieldOfView}) {
+                                for (int axis = 0; axis < 2; ++axis) {
+                                    Placement p;
+                                    p.size = size;
+                                    p.pitch_deg = -8.0f;
+                                    const auto solve = [&](uint32_t level) {
+                                        const uint32_t lx = axis == 0 ? level : 2;
+                                        const uint32_t ly = axis == 1 ? level : 2;
+                                        Options o;
+                                        o.wider = MarginFactor(lx, mode);
+                                        const float fy = MarginFactor(ly, mode);
+                                        o.wider_y = fy == o.wider ? 0.0f : fy;
+                                        o.squeeze = SqueezeForScale(sx);
+                                        o.squeeze_y = SqueezeForScale(sy);
+                                        o.scale_fov = mode == ScaleMode::FieldOfView ? 1.0f : 0.0f;
+                                        o.caps = 1.0f;
+                                        return SolveHeadLocked(p, cam, kAspect3ds, view, eye_shift,
+                                                               o);
+                                    };
+                                    const HeadLocked off = solve(0);
+                                    const FrameTans f0 = GameFrame(off);
+                                    for (uint32_t level = 1; level <= kMaxWiderLevel; ++level) {
+                                        const uint32_t lx = axis == 0 ? level : 2;
+                                        const uint32_t ly = axis == 1 ? level : 2;
+                                        const WarpAxes w = ScalesMayWarp(lx, ly, sx, sy, mode);
+                                        at_caps += w.x || w.y; // checked all the same
+                                        const HeadLocked s = solve(level);
+                                        const FrameTans f = GameFrame(s);
+                                        INFO("cam " << cam << " size " << size << " scales "
+                                                    << sx << ", " << sy << " axis " << axis
+                                                    << " level " << level << " mode "
+                                                    << static_cast<int>(mode));
+                                        REQUIRE(f.x == Approx(f0.x).epsilon(1e-5));
+                                        REQUIRE(f.y == Approx(f0.y).epsilon(1e-5));
+                                        REQUIRE(s.pitch_rad == Approx(off.pitch_rad).margin(1e-7));
+                                        REQUIRE(s.yaw_rad == off.yaw_rad);
+                                        REQUIRE(s.gain == Approx(off.gain).epsilon(1e-5));
+                                        REQUIRE(s.gain_x == Approx(off.gain_x).epsilon(1e-5));
+                                        // The padding goes outward: the screen never shrinks on
+                                        // that axis (it stops growing where it is trimmed).
+                                        if (mode == ScaleMode::Stretch) {
+                                            REQUIRE((axis == 0 ? s.width() >= off.width() * 0.99999f
+                                                               : s.height() >= off.height() * 0.99999f));
+                                            trimmed += (axis == 0 ? s.width() : s.height()) <
+                                                       (axis == 0 ? off.width() : off.height()) *
+                                                           WiderFactor(level) * 0.9999f;
+                                        }
+                                        checked++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    std::printf("fovaxis frame: %d margin steps keep the frame (%d of them past the caps, %d with "
+                "the padding trimmed at 1.6x)\n",
+                checked, at_caps, trimmed);
+    REQUIRE(checked > 3000);
 }

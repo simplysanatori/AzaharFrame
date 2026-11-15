@@ -421,11 +421,32 @@ TEST_CASE("VR group: Render Margin per axis and the May Warp note", "[frame_xr][
         CHECK(my->currentIndex() == 2 + ConfigurationShared::USE_GLOBAL_OFFSET);
         CHECK(warp_x->isHidden());
         CHECK(warp_y->isHidden());
-        // +30 % at the global 1.4x is past Field of View's 1.6x: the note shows, live.
+        // Field of View: both margin rows say they apply with Stretch, and stay editable.
+        auto* note_x = w.findChild<QWidget*>(QStringLiteral("frame_vr_margin_x_note"));
+        auto* note_y = w.findChild<QWidget*>(QStringLiteral("frame_vr_margin_y_note"));
+        REQUIRE(note_x);
+        REQUIRE(note_y);
+        CHECK(!note_x->isHidden());
+        CHECK(!note_y->isHidden());
+        CHECK(mx->isEnabled());
+        CHECK(my->isEnabled());
+        // +70 % is past Field of View's 1.6x (the scales alone; the margins apply with
+        // Stretch): the note shows, live.
         mx->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX);
-        sx->setCurrentIndex(26 + ConfigurationShared::USE_GLOBAL_OFFSET); // +30 %
+        sx->setCurrentIndex(34 + ConfigurationShared::USE_GLOBAL_OFFSET); // +70 %
         CHECK(!warp_x->isHidden());
         CHECK(warp_y->isHidden());
+        // Stretch: the margin notes go, and so does May Warp: the caps take +70 % across
+        // with 0 % up and down (the game's frame draws 1.13x across, stretched 1.5).
+        auto* mode = In<QComboBox>(w, "frame_vr_scale_mode_row");
+        REQUIRE(mode);
+        mode->setCurrentIndex(0 + ConfigurationShared::USE_GLOBAL_OFFSET); // Stretch
+        CHECK(note_x->isHidden());
+        CHECK(note_y->isHidden());
+        CHECK(warp_x->isHidden());
+        mode->setCurrentIndex(ConfigurationShared::USE_GLOBAL_INDEX); // back to the global FoV
+        CHECK(!note_x->isHidden());
+        CHECK(!warp_x->isHidden());
         Shot(w, "qt-vr-margin-axes-may-warp.png");
         // Horizontal back to Use global: the game's Render Margin goes, Vertical keeps 1.2x.
         w.ApplyConfiguration();
@@ -434,7 +455,7 @@ TEST_CASE("VR group: Render Margin per axis and the May Warp note", "[frame_xr][
     CHECK(v.vr_immersive_render_margin_x.UsingGlobal());
     CHECK(!v.vr_immersive_render_margin_y.UsingGlobal());
     CHECK(v.vr_immersive_render_margin_y.GetValue() == 2);
-    CHECK(v.vr_immersive_scale_x.GetValue() == 30);
+    CHECK(v.vr_immersive_scale_x.GetValue() == 70);
     {
         // Shown again: Horizontal on Use global (1.4x), Vertical its own 1.2x.
         ConfigureFrameVr w;

@@ -23,12 +23,16 @@ inline constexpr const char* kRenderMargin = "Render Margin";
 /// Margin row (the toasts and logs keep kRenderMargin).
 inline constexpr const char* kRenderMarginHorizontal = "Render Margin: Horizontal";
 inline constexpr const char* kRenderMarginHorizontalTip =
-    "Renders extra picture left and right of the 3DS screen. The world keeps its shape. Off "
-    "shows exactly the game's own width.";
+    "With Stretch, draws more of the game left and right of the 3DS screen, and the screen grows "
+    "with it. Off adds nothing.";
 inline constexpr const char* kRenderMarginVertical = "Render Margin: Vertical";
 inline constexpr const char* kRenderMarginVerticalTip =
-    "Renders extra picture above and below the 3DS screen. The world keeps its shape. Off shows "
-    "exactly the game's own height.";
+    "With Stretch, draws more of the game above and below the 3DS screen, and the screen grows "
+    "with it. Off adds nothing.";
+/// AzaharFrame fovaxis: Render Margin applies with Stretch only (Layout::MarginFactor): the
+/// note under both rows' labels (VR menu) and after their values (Azahar's window) while Scale
+/// Mode is Field of View, and on the grip + D-pad toast then.
+inline constexpr const char* kAppliesWithStretch = "Applies with Stretch";
 /// Settings::values.vr_immersive_scale_x and _y (were Narrow Screen and Narrow Height).
 /// AzaharFrame fovaxis: in Field of View a narrower screen crops; Stretch squeezes.
 inline constexpr const char* kHorizontalScale = "Horizontal Scale";

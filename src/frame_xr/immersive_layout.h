@@ -331,6 +331,10 @@ inline constexpr float kScaleGainMax = 1.6f;
 struct AxisSplit {
     float drawn = kFactorMin; ///< the periphery factor the game draws with on this axis
     float stretch = 1.0f;     ///< the picture shown this much larger on this axis (1: true)
+    /// AzaharFrame fovaxis: the screen this much of what the scale asks on this axis: 1, but
+    /// under 1 where Stretch's Render Margin padding is trimmed at the draw's limit
+    /// (SplitScales). drawn x stretch = factor x k x screen.
+    float screen = 1.0f;
 };
 /// AzaharFrame fovscale: the scale `k` (1 + scale / 100; the quad's size on this axis over the
 /// picture's) of an axis whose Render Margin factor is `factor`, taken as field of view by the
@@ -340,7 +344,10 @@ struct AxisSplit {
 /// what it cannot take stays a stretch, so drawn x stretch = factor x k always, with no jump at
 /// a limit. Stretch: {factor, k} exactly.
 AxisSplit ScaleSplit(float factor, float k, float fov);
-/// AzaharFrame fovaxis: both axes (ScaleSplit each), then the caps by the weight `caps`
+/// AzaharFrame fovaxis: in Stretch the caps act on the game's own frame (factor 1) and the
+/// Render Margin padding is put around that, so a margin step never moves the frame; the
+/// padding is trimmed where the draw would pass kFovFactorMax (AxisSplit::screen).
+/// Both axes (ScaleSplit each), then the caps by the weight `caps`
 /// (Options::caps) on what Stretch leaves (the share 1 - `fov`): the stretch on each axis within
 /// 1/kScaleGainMax to 1/kScaleGainMin and the two within kMaxStretchRatio, by drawing more or
 /// less on an axis (within kFactorMin and kFovFactorMax, or the factor already drawn), so
@@ -368,6 +375,10 @@ struct WarpAxes {
 };
 WarpAxes ScalesMayWarp(uint32_t level_x, uint32_t level_y, int scale_x, int scale_y,
                        ScaleMode mode);
+/// AzaharFrame fovaxis: the periphery factor a Render Margin level gives in `mode`: Render
+/// Margin applies with Stretch only (WiderFactor); in Field of View the scales alone decide what
+/// is drawn, so the margin is 1.0x there (its setting kept for Stretch).
+float MarginFactor(uint32_t level, ScaleMode mode);
 /// The mode's name: "Stretch", "Field of View".
 const char* ScaleModeName(ScaleMode mode);
 

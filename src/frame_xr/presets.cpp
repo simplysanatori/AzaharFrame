@@ -69,16 +69,19 @@ constexpr ImmersivePreset kMarioKart7{.name = "Mario Kart 7",
 // Super Mario 3D Land: 45 degrees on the title and in the levels; the 3DS's eyes 58 units
 // apart in a level (the title camera is about 1500 units away): 100x. At 1x its 3D could not
 // be seen. Mock runs at 1.4x showed black below the floor of its levels; the owner plays it at
-// 1.4x, so the default stays.
+// 1.4x, so the default stays. AzaharFrame fovaxis: Render Margin applies with Stretch only, so
+// in Field of View (the default) Horizontal and Vertical Scale +40 % draw that 1.4x.
 constexpr ImmersivePreset kSuperMario3DLand{.name = "Super Mario 3D Land",
                                             .mode = 3,
                                             .register_offset = 90,
                                             .depth_multiplier = 1,
                                             .game_fov = 45,
                                             .eye_indicator = "87,2",
+                                            .scale_x = 40,
                                             .match_camera = 2,
                                             .factor_3d = 100,
                                             .resolution = 4,
+                                            .scale_y = 40,
                                             .own_placement = true,
                                             .place_pitch_deg = -7.15f,
                                             .place_distance = 3.0f};
@@ -90,18 +93,24 @@ constexpr ImmersivePreset kSuperMario3DLand{.name = "Super Mario 3D Land",
 // request). Its measured angle swings between 30 and 55 degrees in play, so Match Game Camera is
 // off and the 55 degrees hold; 3D Depth 30, the screen 9.21 degrees below the view's middle, 3 m
 // away. AzaharFrame kiu: no Horizontal Scale (it had Narrow Screen 10 %; the owner wants the
-// default, 0, here too; a value a player saved stays).
+// default, 0, here too; a value a player saved stays). AzaharFrame fovaxis: Render Margin
+// applies with Stretch only, so the 1.4x the default margin gave in Field of View is now
+// Horizontal and Vertical Scale +40 % (the same picture and screen).
 constexpr ImmersivePreset kZelda3D{.name = "Ocarina of Time 3D / Majora's Mask 3D",
                                    .mode = 2,
                                    .register_offset = -1,
                                    .depth_multiplier = 1,
                                    .game_fov = 55,
+                                   .scale_x = 40,
                                    .match_camera = 0,
                                    .factor_3d = 30,
+                                   .scale_y = 40,
                                    .own_placement = true,
                                    .place_pitch_deg = -9.21f,
                                    .place_distance = 3.0f};
-constexpr ImmersivePreset kAsphalt3D{.name = "Asphalt 3D", .mode = 3, .register_offset = 8};
+// AzaharFrame fovaxis: +40 % both ways, the 1.4x the default Render Margin gave in Field of View.
+constexpr ImmersivePreset kAsphalt3D{
+    .name = "Asphalt 3D", .mode = 3, .register_offset = 8, .scale_x = 40, .scale_y = 40};
 // Kid Icarus: Uprising aims with a reticle the game draws on the screen (2D) and shoots along
 // its own camera; in the Full modes the world is drawn from a camera turned with the head, which
 // the game does not know about, so its shots fly off where the unturned camera looked while the

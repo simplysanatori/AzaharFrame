@@ -78,6 +78,8 @@ private:
     QComboBox* margin_x_combo;
     QWidget* margin_y_row;
     QComboBox* margin_y_combo;
+    QLabel* margin_x_note; ///< AzaharFrame fovaxis: "Applies with Stretch" in Field of View
+    QLabel* margin_y_note;
     int margin_x_shown = 0; ///< the index each one showed when loaded (unchanged: not written)
     int margin_y_shown = 0;
     QWidget* scale_x_row; ///< AzaharFrame kiu, fov100: Horizontal Scale, -100 % to +100 %

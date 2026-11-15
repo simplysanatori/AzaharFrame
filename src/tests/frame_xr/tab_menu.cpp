@@ -3837,3 +3837,27 @@ TEST_CASE("Tab menu: Controllers in Front of Screen", "[frame_xr][tabmenu]") {
         }
     }
 }
+
+// AzaharFrame fovaxis: Render Margin applies with Stretch only: in Field of View its two rows
+// stay editable (their segments hit) with the note.
+TEST_CASE("Tab menu: Render Margin's note", "[frame_xr][tabmenu][fovaxis]") {
+    Drawn d;
+    MenuModel m = Sample();
+    m.immersive_mode = 2;
+    m.scale_mode = 1; // Field of View
+    MenuView v;
+    v.tab = Tab::Settings;
+    v.section = SettingsSection::Immersive;
+    bool margin_segment = false;
+    for (float scroll = 0.0f;; scroll += 32.0f) {
+        v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+        d.Draw(m, v);
+        for (const auto& h : d.menu.Hits()) {
+            margin_segment |= (h.t.id == Id::MarginX || h.t.id == Id::MarginY) && h.t.index >= 0;
+        }
+        if (scroll >= d.menu.MaxScroll()) {
+            break;
+        }
+    }
+    CHECK(margin_segment); // never locked in Field of View
+}
