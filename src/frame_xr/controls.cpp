@@ -121,6 +121,9 @@ constexpr const char* kHintSecond = "D-Pad \xE2\x86\x94 Nudge\nStick: Size, Dist
 // AzaharFrame kiu: Render Margin was Wider View (Immersive::Names::kRenderMargin; keep in step).
 constexpr const char* kHintImmersive =
     "D-Pad \xE2\x86\x95 Render Margin   \xE2\x86\x94 Offset\nStick: Size, Distance";
+// AzaharFrame fovaxis: with Field of View, up and down are 3D Depth (Immersive::Names::kDepth3d).
+constexpr const char* kHintImmersiveDepth =
+    "D-Pad \xE2\x86\x95 3D Depth   \xE2\x86\x94 Offset\nStick: Size, Distance";
 constexpr int64_t kHintQuietNs = 10'000'000'000;
 constexpr uint8_t kDimAlpha = 150;
 constexpr XrTime kMenuHoldNs = 1'000'000'000;
@@ -1374,7 +1377,9 @@ void VrUi::ShowGripHint(bool immersive, const Input::ScreenQuads& quads, bool sw
     // Below the screen and a little nearer, so it never hides inside a curved one.
     at = at + Input::Normalized(head - at) * std::min(0.1f, distance * 0.1f);
     const Input::Posef pose{Input::FaceViewer(at, head, {0, 1, 0}), at};
-    ShowHint(immersive ? kHintImmersive : curve ? kHintNormal : kHintSecond, ToXr(pose),
+    const char* immersive_hint =
+        Immersive::GripUpDownSteps3dDepth() ? kHintImmersiveDepth : kHintImmersive;
+    ShowHint(immersive ? immersive_hint : curve ? kHintNormal : kHintSecond, ToXr(pose),
              0.32f * distance);
     LOG_INFO(Frontend, "xr: grip hint shown ({})", immersive ? "immersive" : "screens");
 }
@@ -2364,14 +2369,21 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         if (holding_immersive) {
             // Left and right: the lens offset; up and down: Render Margin (AzaharFrame widerview;
             // the vertical offset stays in the settings). Both show their own toast.
+            // AzaharFrame fovaxis: with Field of View (Full modes) up and down are 3D Depth
+            // instead, held to repeat as the scales; Render Margin is Stretch's.
             if (nudge.right != 0 && Immersive::NudgeOffset(nudge.right, 0)) {
                 std::scoped_lock lock{hooks_mutex};
                 if (hooks.vr_setting_changed) {
                     hooks.vr_setting_changed();
                 }
             }
-            if (nudge.up_presses != 0 &&
-                Immersive::StepWiderView(nudge.up_presses) == Immersive::WiderStep::Changed) {
+            const bool depth = Immersive::GripUpDownSteps3dDepth();
+            const bool stepped =
+                depth ? nudge.up != 0 &&
+                            Immersive::StepDepth3d(nudge.up) == Immersive::WiderStep::Changed
+                      : nudge.up_presses != 0 && Immersive::StepWiderView(nudge.up_presses) ==
+                                                     Immersive::WiderStep::Changed;
+            if (stepped) {
                 std::scoped_lock lock{hooks_mutex};
                 if (hooks.game_setting_changed) {
                     hooks.game_setting_changed();

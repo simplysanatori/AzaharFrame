@@ -2194,10 +2194,7 @@ WiderStep StepWiderView(int dir) {
     // AzaharFrame fovaxis: both axes one level (Render Margin's own key while both follow it, as
     // every build before; render_margin.h).
     const Margin::Stepped step = Margin::StepBoth(dir > 0 ? 1 : -1);
-    // also at the ends, so the press shows; in Field of View it is kept for Stretch
-    ShowToastText(g.scale_mode == L::ScaleMode::Stretch
-                      ? L::MarginToast(step.x, step.y)
-                      : L::MarginToast(step.x, step.y) + " (" + Names::kAppliesWithStretch + ")");
+    ShowToastText(L::MarginToast(step.x, step.y)); // also at the ends, so the press shows
     if (!step.changed) {
         return WiderStep::None;
     }
@@ -2239,6 +2236,36 @@ WiderStep StepScale(int wider_steps, int taller_steps) {
     (vertical ? g.scale_y : g.scale_x) = after;
     (vertical ? g.options.squeeze_y : g.options.squeeze) = L::SqueezeForScale(after);
     LOG_INFO(Frontend, "xr: immersive: {} by the D-pad", L::ScaleToast(after, vertical));
+    return WiderStep::Changed;
+}
+
+bool GripUpDownSteps3dDepth() {
+    return IsViewMode(g.mode) && L::GripUpDownFor(g.scale_mode) == L::GripUpDown::Depth3d;
+}
+
+// AzaharFrame fovaxis: 3D Depth by grip + D-pad with Field of View: from what the Full modes show
+// now (NaturalDepth: a game's own 3DS 3D Depth of 0 keeps them flat until a value of their own),
+// one row step each, per game as the in-game menu writes it (it opens on Per-Game), live
+// (OnFrame reads it every frame).
+WiderStep StepDepth3d(int steps) {
+    if (!g.adjuster.Active() || !g.engaged || steps == 0) {
+        return WiderStep::None;
+    }
+    auto& setting = Settings::values.vr_immersive_depth;
+    const int before = static_cast<int>(NaturalDepth());
+    const int after = L::SteppedDepth(before, steps);
+    ShowToastText(Names::DepthToast(static_cast<unsigned>(after))); // also at the ends
+    if (after == before) { // at 0 or 100 % already: nothing written
+        LOG_INFO(Frontend, "xr: immersive: {} by the D-pad, at its limit",
+                 Names::DepthToast(static_cast<unsigned>(after)));
+        return WiderStep::None;
+    }
+    if (setting.UsingGlobal()) {
+        setting.SetGlobal(false); // per game, as the in-game menu's row
+    }
+    setting.SetValue(static_cast<u32>(after));
+    LOG_INFO(Frontend, "xr: immersive: {} by the D-pad",
+             Names::DepthToast(static_cast<unsigned>(after)));
     return WiderStep::Changed;
 }
 

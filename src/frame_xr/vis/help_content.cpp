@@ -257,9 +257,12 @@ HelpPage BuildHelp(const HelpBindings& given, const HelpContext& ctx) {
     Row(g, "Hold Grip + Stick Up or Down", std::string("Distance or ") + ImNames::kWorldScale);
     Row(g, "Hold Grip + Stick Sideways", "Screen Size");
     Row(g, "Hold Grip + D-Pad Left or Right", "Nudge Screen"); // AzaharFrame vrsize
-    // AzaharFrame curve; kiu: Render Margin (was Wider View), and both grips' two scales
-    Row(g, "Hold Grip + D-Pad Up or Down",
-        std::string("Screen Curve or ") + ImNames::kRenderMargin);
+    // AzaharFrame curve; kiu: Render Margin (was Wider View), and both grips' two scales.
+    // AzaharFrame fovaxis: on the immersive screen it follows Scale Mode (Full modes only):
+    // 3D Depth with Field of View, Render Margin with Stretch (Layout::GripUpDownFor).
+    Row(g, "Hold Grip + D-Pad Up or Down", "Screen Curve");
+    Row(g, "Same in Field of View", ImNames::kDepth3d);
+    Row(g, "Same in Stretch", ImNames::kRenderMargin);
     Row(g, "Both Grips + D-Pad Left or Right", ImNames::kHorizontalScale);
     Row(g, "Both Grips + D-Pad Up or Down", ImNames::kVerticalScale);
     Row(g, "Hold Menu (1 s)", "In-Game Menu");
@@ -358,13 +361,18 @@ HelpDiagram BuildHelpDiagram(const HelpBindings& given, const HelpContext& ctx) 
            Sub("Stick Up or Down", std::string("Nearer / ") + ImNames::kWorldScale),
            Sub("Stick Sideways", "Screen Size"),
            Sub("D-Pad Left or Right", "Nudge"), // AzaharFrame vrsize
-           // AzaharFrame kiu: "/", as wide as fits between the stick labels
-           Sub("D-Pad Up or Down", std::string("Curve / ") + ImNames::kRenderMargin)}); // curve
+           // AzaharFrame fovaxis: the normal screens' Curve; the immersive screen's is in the
+           // right grip's label (under the drawings there is no room for more lines).
+           Sub("D-Pad Up or Down", "Curve")}); // AzaharFrame curve
     // AzaharFrame kiu: both grips' D-pad, in the right column (under the drawings there is no
     // room left for it).
+    // AzaharFrame fovaxis: and one grip's D-pad up or down on the immersive screen (Full modes),
+    // which Scale Mode decides: 3D Depth with Field of View, Render Margin with Stretch.
     Label(g, kRight, {CtrlPart::Grip},
           {SubHeading("Hold Both Grips +"), Sub("D-Pad Left or Right", ImNames::kHorizontalScale),
-           Sub("D-Pad Up or Down", ImNames::kVerticalScale)});
+           Sub("D-Pad Up or Down", ImNames::kVerticalScale),
+           SubHeading("Full Modes, Grip + D-Pad Up or Down"),
+           Sub("Field of View", ImNames::kDepth3d), Sub("Stretch", ImNames::kRenderMargin)});
 
     // ---- Azahar's window (the home panel), the in-game menu, everywhere ----
     DiagramPage& w = d.pages[static_cast<std::size_t>(DiagramPageId::Window)];

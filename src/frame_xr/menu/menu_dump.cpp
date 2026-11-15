@@ -1194,10 +1194,12 @@ int main(int argc, char** argv) {
         ok &= shot("5c3-settings-vertical-scale-tooltip", sc, v);
         sc.scale_x = 30;
         sc.scale_y = 0;
-        v.scroll[static_cast<int>(Tab::Settings)] = 0.0f;
+        sc.scale_mode = 0; // AzaharFrame fovaxis: Render Margin's rows show with Stretch only
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
         v.hover = {Id::MarginX, kLabelIndex};
         v.tooltip = Id::MarginX;
         ok &= shot("5c4-settings-render-margin-tooltip", sc, v);
+        sc.scale_mode = 1;
         // AzaharFrame fovscale: Scale Mode, Stretch | Field of View, each picked with its
         // tooltip under the beam, and the label's.
         sc.scale_x = -30;
@@ -1239,16 +1241,18 @@ int main(int argc, char** argv) {
             ok &= shot(t == 0.0f ? "f100-scale-x-held-min" : "f100-scale-x-held-max", sc, v);
         }
         v.dragging = Id::None;
-        // AzaharFrame fovaxis: Render Margin's two rows at different levels, their tooltips, and
-        // "May Warp" under a scale's label past the caps (the flags as Layout::ScalesMayWarp
-        // gives them for these settings: immersive_scale.cpp checks them).
+        // AzaharFrame fovaxis: Render Margin's two rows at different levels (Stretch: they show
+        // under Scale Mode), their tooltips, and "May Warp" under a scale's label past the caps
+        // (the flags as Layout::ScalesMayWarp gives them for these settings: immersive_scale.cpp
+        // checks them).
         MenuModel ax = sc;
         ax.margin_x = 4;
         ax.margin_y = 1;
-        ax.scale_mode = 1;
+        ax.scale_mode = 0;
         ax.scale_x = 0;
         ax.scale_y = 0;
         v = settings(SettingsSection::Immersive);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
         ok &= shot("fa-margins-per-axis", ax, v);
         v.hover = {Id::MarginX, kLabelIndex};
         v.tooltip = Id::MarginX;
@@ -1258,17 +1262,19 @@ int main(int argc, char** argv) {
         ok &= shot("fa-margin-vertical-tooltip", ax, v);
         v = settings(SettingsSection::Immersive);
         v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        ax.scale_mode = 1;
         ax.scale_x = 70; // Field of View: the scales alone, 1.7x wanted, 1.6x drawn
         ax.scale_x_warp = true;
         ok &= shot("fa-fov-wider-may-warp", ax, v);
-        // Field of View: the margin rows say they apply with Stretch; Fill View under Scale Mode
-        // (scrolled to it, and with the beam on it).
+        // Field of View: no Render Margin rows; Fill View right under Scale Mode (scrolled to it,
+        // and with the beam on it).
         MenuModel fv = ax;
         fv.scale_x = 40;
         fv.scale_y = 40;
         fv.scale_x_warp = false;
         v = settings(SettingsSection::Immersive);
-        ok &= shot("fa-margins-applies-with-stretch", fv, v);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        ok &= shot("fa-fov-margins-hidden", fv, v);
         v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
         v.hover = {Id::FillView};
         ok &= shot("fa-fill-view", fv, v);
@@ -1467,7 +1473,9 @@ int main(int argc, char** argv) {
         ugi.game_fov = 85;
         ugi.margin_x = 3;
         ugi.margin_y = 3;
+        ugi.scale_mode = 0; // AzaharFrame fovaxis: Render Margin's rows show with Stretch only
         v = settings(SettingsSection::Immersive);
+        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
         ok &= shot("sc5-settings-immersive-per-game",
                    own(ugi, {Id::MarginX, Id::MarginY, Id::GameFov, Id::MatchCamera}, 1), v);
         // Position: Hide Bottom Screen and Screen Shape follow the toggle too

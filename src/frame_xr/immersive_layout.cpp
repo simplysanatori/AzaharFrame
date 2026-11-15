@@ -400,6 +400,24 @@ const char* ScaleModeName(ScaleMode mode) {
     return mode == ScaleMode::Stretch ? "Stretch" : "Field of View";
 }
 
+GripUpDown GripUpDownFor(ScaleMode mode) {
+    return mode == ScaleMode::Stretch ? GripUpDown::RenderMargin : GripUpDown::Depth3d;
+}
+
+int SteppedDepth(int percent, int steps) {
+    int p = std::clamp(percent, 0, 100);
+    for (int i = 0; i < std::abs(steps); ++i) {
+        const int off = p % kDepthStepPercent;
+        if (steps > 0) {
+            p += kDepthStepPercent - off;
+        } else {
+            p -= off != 0 ? off : kDepthStepPercent;
+        }
+        p = std::clamp(p, 0, 100);
+    }
+    return p;
+}
+
 int SteppedScale(int setting, int steps) {
     return std::clamp(ScalePercent(setting) + steps * kScaleStepPercent, -kMaxScalePercent,
                       kMaxScalePercent);

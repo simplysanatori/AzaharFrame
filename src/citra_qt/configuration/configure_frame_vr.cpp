@@ -301,29 +301,18 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     };
     // AzaharFrame kiu: Render Margin (was Wider View); the names are in frame_xr/immersive_names.h.
     namespace Names = FrameXr::Immersive::Names;
-    // AzaharFrame fovaxis: "Applies with Stretch" before the value while Scale Mode shows Field
-    // of View (UpdateWarpNotes); the row stays editable, its value kept for Stretch.
-    const auto stretch_note = [this](const QString& name) {
-        auto* label = new QLabel(tr(Names::kAppliesWithStretch), this);
-        label->setObjectName(name);
-        label->setEnabled(false); // the secondary text colour
-        label->setVisible(false);
-        return label;
-    };
+    // AzaharFrame fovaxis: shown with Stretch only, under Scale Mode (UpdateWarpNotes; the rows
+    // are added after it below), their values kept while hidden.
     margin_x_combo = margin_combo();
     margin_x_combo->setObjectName(QStringLiteral("frame_vr_margin_x_combo"));
-    margin_x_note = stretch_note(QStringLiteral("frame_vr_margin_x_note"));
     margin_x_row = MakeRow(this, QStringLiteral("frame_vr_margin_x_row"),
                            tr(Names::kRenderMarginHorizontal),
-                           tr(Names::kRenderMarginHorizontalTip), {margin_x_note, margin_x_combo});
-    layout->addWidget(margin_x_row);
+                           tr(Names::kRenderMarginHorizontalTip), {margin_x_combo});
     margin_y_combo = margin_combo();
     margin_y_combo->setObjectName(QStringLiteral("frame_vr_margin_y_combo"));
-    margin_y_note = stretch_note(QStringLiteral("frame_vr_margin_y_note"));
     margin_y_row = MakeRow(this, QStringLiteral("frame_vr_margin_y_row"),
                            tr(Names::kRenderMarginVertical), tr(Names::kRenderMarginVerticalTip),
-                           {margin_y_note, margin_y_combo});
-    layout->addWidget(margin_y_row);
+                           {margin_y_combo});
 
     // AzaharFrame kiu: Horizontal and Vertical Scale (ScaleIndex). AzaharFrame fovaxis: "May
     // Warp" before the value past the caps against warping (UpdateWarpNotes).
@@ -356,7 +345,10 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     scale_mode_row = MakeRow(this, QStringLiteral("frame_vr_scale_mode_row"),
                              tr(Names::kScaleMode), tr(Names::kScaleModeTip), {scale_mode_combo});
     layout->addWidget(scale_mode_row);
-    // AzaharFrame fovaxis: the scale rows' "May Warp" follows what the rows show.
+    layout->addWidget(margin_x_row); // AzaharFrame fovaxis: Render Margin, Stretch only
+    layout->addWidget(margin_y_row);
+    // AzaharFrame fovaxis: the scale rows' "May Warp" and Render Margin's rows follow what the
+    // rows show.
     for (QComboBox* combo :
          {margin_x_combo, margin_y_combo, scale_x_combo, scale_y_combo, scale_mode_combo}) {
         connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), this,
@@ -786,8 +778,8 @@ void ConfigureFrameVr::UpdateWarpNotes() {
         mode == 0 ? L::ScaleMode::Stretch : L::ScaleMode::FieldOfView);
     scale_x_warp->setVisible(warp.x);
     scale_y_warp->setVisible(warp.y);
-    margin_x_note->setVisible(mode != 0); // Render Margin applies with Stretch only
-    margin_y_note->setVisible(mode != 0);
+    margin_x_row->setVisible(mode == 0); // Render Margin: Stretch only, values kept
+    margin_y_row->setVisible(mode == 0);
 }
 
 void ConfigureFrameVr::ApplyConfiguration() {

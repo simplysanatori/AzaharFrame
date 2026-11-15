@@ -382,6 +382,17 @@ float MarginFactor(uint32_t level, ScaleMode mode);
 /// The mode's name: "Stretch", "Field of View".
 const char* ScaleModeName(ScaleMode mode);
 
+/// AzaharFrame fovaxis: what grip + D-pad up or down does while one grip holds the immersive
+/// screen in a Full mode: Render Margin's two axes with Stretch, 3D Depth with Field of View
+/// (where Render Margin's rows are hidden; the owner's rule).
+enum class GripUpDown { RenderMargin, Depth3d };
+GripUpDown GripUpDownFor(ScaleMode mode);
+/// The 3D Depth row's step (Menu::SliderFor(Id::Depth3d)): 5 % from 0 to 100 %.
+inline constexpr int kDepthStepPercent = 5;
+/// `percent` (0 to 100) moved `steps` steps (up +, down -): the first step goes to the next
+/// multiple of kDepthStepPercent, as the 3D Factor shortcuts do; within 0 to 100.
+int SteppedDepth(int percent, int steps);
+
 /// Modes 2 and 3, solved for one frame.
 struct HeadLocked {
     float factor = kFactorMax; ///< the game draws this much wider (gl_Position.y /= factor)

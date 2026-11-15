@@ -14,6 +14,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "common/settings.h" // AzaharFrame fov100: the setting's range
 #include "frame_xr/immersive_layout.h"
+#include "frame_xr/immersive_names.h" // AzaharFrame fovaxis: 3D Depth's toast
 #include "video_core/shader/generator/glsl_shader_gen.h" // AzaharFrame fovscale
 
 using Catch::Approx;
@@ -1569,4 +1570,47 @@ TEST_CASE("FrameXr fovaxis: adjusting after Fill View", "[frame_xr][fovaxis]") {
     f.scale_y = -5;
     REQUIRE(FillToast(f, false) == "Fill View: Horizontal +35%, Vertical -5%");
     REQUIRE(FillToast(f, true) == "Fill View: Horizontal +35%, Vertical -5% (May Warp)");
+}
+
+// AzaharFrame fovaxis: grip + D-pad up or down in the Full modes: Render Margin with Stretch,
+// 3D Depth with Field of View (Render Margin's rows are hidden there), the 3D Depth row's 5 %
+// steps from 0 to 100 %.
+TEST_CASE("FrameXr fovaxis: grip + D-pad up and down by Scale Mode", "[frame_xr][fovaxis]") {
+    CHECK(GripUpDownFor(ScaleMode::Stretch) == GripUpDown::RenderMargin);
+    CHECK(GripUpDownFor(ScaleMode::FieldOfView) == GripUpDown::Depth3d);
+    CHECK(kDepthStepPercent == 5);
+    // One step each way, on the grid.
+    CHECK(SteppedDepth(80, 1) == 85);
+    CHECK(SteppedDepth(80, -1) == 75);
+    CHECK(SteppedDepth(50, 3) == 65);
+    CHECK(SteppedDepth(50, -3) == 35);
+    // Off the grid (Azahar's window takes any value): the first step goes to the next multiple.
+    CHECK(SteppedDepth(42, 1) == 45);
+    CHECK(SteppedDepth(42, -1) == 40);
+    CHECK(SteppedDepth(42, 2) == 50);
+    // At the limits: nothing past them.
+    CHECK(SteppedDepth(100, 1) == 100);
+    CHECK(SteppedDepth(0, -1) == 0);
+    CHECK(SteppedDepth(97, 1) == 100);
+    CHECK(SteppedDepth(3, -1) == 0);
+    CHECK(SteppedDepth(95, 4) == 100);
+    CHECK(SteppedDepth(5, -4) == 0);
+    CHECK(SteppedDepth(150, -1) == 95); // out of range: from 100
+    CHECK(SteppedDepth(-20, 1) == 5);   // from 0
+    CHECK(SteppedDepth(60, 0) == 60);
+    // Every value, both ways: within range, on the grid after a step, monotonic.
+    for (int p = 0; p <= 100; ++p) {
+        const int up = SteppedDepth(p, 1), down = SteppedDepth(p, -1);
+        CHECK(up >= p);
+        CHECK(down <= p);
+        CHECK(up % kDepthStepPercent == 0);
+        CHECK(down % kDepthStepPercent == 0);
+        CHECK((up > p || p == 100));
+        CHECK((down < p || p == 0));
+        CHECK(up - p <= kDepthStepPercent);
+        CHECK(p - down <= kDepthStepPercent);
+    }
+    // The toast is 3D Depth's own: "3D Depth: 80%".
+    CHECK(FrameXr::Immersive::Names::DepthToast(80) == "3D Depth: 80%");
+    CHECK(FrameXr::Immersive::Names::DepthToast(0) == "3D Depth: 0%");
 }
