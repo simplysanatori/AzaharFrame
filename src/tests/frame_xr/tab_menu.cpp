@@ -289,7 +289,7 @@ TEST_CASE("Tab menu: Move Screens, Touchpad, Edit Controls, Cheats", "[frame_xr]
     CHECK(has(Id::BottomScreenReticle, 3)); // AzaharFrame input2
     CHECK(OptionsFor(Id::BottomScreenReticle) ==
           std::vector<std::string>{"Off", "Left Controller", "Right Controller", "Headset"});
-    CHECK(LabelFor(Id::BottomScreenReticle) == "Secondary Screen Reticle");
+    CHECK(LabelFor(Id::BottomScreenReticle) == "Bottom Screen Reticle");
     // At Edge: only while the reticle is on.
     CHECK_FALSE(has(Id::ReticleAtEdge, 0));
     m.bottom_screen_reticle = 2;

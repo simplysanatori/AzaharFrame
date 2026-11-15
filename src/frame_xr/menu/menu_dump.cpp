@@ -412,7 +412,7 @@ int main(int argc, char** argv) {
                          {Input::kReticleHint, Input::kMouseHint,
                           "Async Shader Compilation: From the Next Start",
                           "Hide Secondary Screen: From the Next Start",
-                          "Secondary Screen Reticle: Right Controller", "At Edge: Snap to Middle",
+                          "Bottom Screen Reticle: Right Controller", "At Edge: Snap to Middle",
                           "Preparing Shaders 3 / 9", // AzaharFrame integ3: the stall lane's shader notice
                           VideoCore::PreloadBudget::kTooLargeToast, // AzaharFrame memguard
                           VideoCore::PreloadBudget::kStoppedToast, "Stopping...",

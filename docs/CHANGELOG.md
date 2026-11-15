@@ -75,7 +75,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - **Settings**, **Controls** and **Position** have a **Global | Per-Game** switch at the top right. The menu opens on **Per-Game** while a game runs. Choose **Global** to change every game.
 - Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game, for example "2 Per-Game Values Set".
 - **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
-- **Secondary Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Secondary Screen Reticle** on **Headset** and **Motion Controls** off. These are only starting values: anything you set for the game, or for all games, stays.
+- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset** and **Motion Controls** off. These are only starting values: anything you set for the game, or for all games, stays.
 
 ### Crash reports
 
@@ -95,7 +95,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - **Edit Controls** shows a New 3DS XL.
 - Use several controllers at once, for example the left Frame controller and a mouse as a pointer.
-- **Secondary Screen Reticle**: a controller or your head aims at the Secondary Screen, for games that aim with the touch screen. That controller shows no beam while it aims.
+- **Bottom Screen Reticle**: a controller or your head aims at the Secondary Screen, for games that aim with the touch screen. That controller shows no beam while it aims.
 - **Reticle Speed**: how far the reticle moves when you turn. At the default 2.0x your head turns half as far as before to cross the screen, about 15 degrees side to side.
 - **Aim Only While Pressed** keeps the reticle in the middle until the trigger touches. **Right Stick Moves Touch** lets the right stick move the touch point too, instead of being the C-Stick.
 
@@ -119,7 +119,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - **Detach Screens**: Off, Secondary or Both. Detached screens keep their place per game.
 - **Touchpad**: a gamepad's touchpad works as the Secondary Screen.
-- Screens are named by slot: **Hide Bottom Screen** is now **Hide Secondary Screen**, **Bottom Screen Reticle** is now **Secondary Screen Reticle**, and **Mouse Mode**'s **Bottom Screen** is now **Secondary Screen**. Your settings are kept.
+- Screens are named by slot: **Hide Bottom Screen** is now **Hide Secondary Screen** and **Mouse Mode**'s **Bottom Screen** is now **Secondary Screen**. Your settings are kept.
 
 ### Game keyboard
 

@@ -593,7 +593,7 @@ std::string LabelFor(Id id) {
     case Id::TouchpadTouch: // AzaharFrame menuux
         return "Touchpad";
     case Id::BottomScreenReticle: // AzaharFrame mouse
-        return "Secondary Screen Reticle";
+        return "Bottom Screen Reticle";
     case Id::ReticleAtEdge:
         return "At Edge";
     case Id::ReticleSpeed: // AzaharFrame reticle
@@ -906,7 +906,7 @@ std::string ExplainFor(Id id) {
     case Id::ReticleSpeed: // AzaharFrame reticle
         return "How far the reticle moves when you turn your head or the controller.";
     case Id::ReticleCenter: // AzaharFrame fixes7
-        return "Keeps the reticle centred on the Secondary Screen. It moves only while you hold the trigger or click, and returns to the centre when you let go.";
+        return "Keeps the reticle centred on the Bottom Screen. It moves only while you hold the trigger or click, and returns to the centre when you let go.";
     case Id::ReticleStick: // AzaharFrame kiu
         return "The right stick moves the Secondary Screen's touch point, instead of the C-Stick.";
     case Id::HideBottomScreen:

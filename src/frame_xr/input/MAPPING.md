@@ -366,7 +366,7 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   CLAWS, BOW, PALM, CLUB, CANNON, ORBITARS, ARM) `=dx,dy,dz,yaw,pitch,roll,scale` (cm, degrees,
   a factor), `AZAHARFRAME_KIU_WEAPON=<id>` (0 to 107: show that weapon), and
   `AZAHARFRAME_KIU_WEAPON_GLOW=1` (draw the effect cards too).
-- **Trigger:** while Gyro Aim is on, the Secondary Screen Reticle steps aside (its setting is kept;
+- **Trigger:** while Gyro Aim is on, the Bottom Screen Reticle steps aside (its setting is kept;
   the shelved C-Stick at Edge with it), so the trigger is ZL/ZR, which the mod fires with, and never a touch,
   which would stop the mod's aim. The controller keeps its beam; pointed at the bottom screen its
   trigger touches there as usual.
@@ -692,7 +692,7 @@ Azahar's Debug (O), Gpio14 (P) and Power (V) keys are left out: nothing in VR re
 
 Logic: `key_device.*` (pure: `KeyboardLogic`, `KeyStickValue`), `key_names.h`, the hub (`GamepadHub::PollKeyboard`, `Merge`), `VrUi::KeyboardTick` in `controls.cpp`. Tests: `src/tests/frame_xr/keys.cpp`; Edit Controls' in `remap.cpp`.
 
-## Secondary Screen Reticle (AzaharFrame mouse)
+## Bottom Screen Reticle (AzaharFrame mouse)
 
 Controls tab, under Touchpad Touch: Off, Left Controller, Right Controller, Headset (`vr_bottom_screen_reticle`, global, 0 to 3; Headset is AzaharFrame input2). The chosen controller (its aim pose) or the head aims a point on the bottom screen the way a stylus would, without pointing at the bottom screen: for the reticle of Kid Icarus: Uprising. In a game with the menu closed:
 
