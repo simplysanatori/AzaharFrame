@@ -18,7 +18,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 - New **Mods** tab in the VR menu, with **Cheats**, **Mods** and **Textures**.
 - **Cheats**: **Download** fetches the game's cheats from Sharkive and from my own repository.
-- Cheats, patches, mods and textures known to work on Azahar for Frame (or made by me) show a **Verified** chip after their name, and texture packs and mods that are verified are listed first, above the most downloaded.
+- Cheats, patches, mods and textures known to work on Azahar for Frame show a **Verified** chip after their name. My own picks show a check-mark badge instead, and are listed first, then the verified ones, then the most downloaded.
 - Cheats made for a different version of the game show which version. The version is the one the game itself shows, so Mario Kart 7 Ver. 1.2 and Fire Emblem Echoes 1.1 are no longer mistaken for other versions. A version I don't know yet shows as **Update Installed** or the cartridge's revision.
 - Code patches are matched to the game's own code. The European Fire Emblem Echoes with its update gets the 1.1 patches, not the 1.0 Ghosting Shader Fix, which makes the picture flash there. True 60 FPS says it can't be combined with the Ghosting Shader Fix.
 - Cheats, mods and texture packs from outside sources link to their author's page, for credit.
@@ -107,6 +107,8 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Each shot shows a flash at the weapon's tip (**Muzzle Flash**, with **Muzzle Flash Size**), and your shots fly from the weapon into the screen (**Projectiles**, with their opacity, size and speed). Each real shot buzzes the controller (**Recoil**).
 - With **Direct Aim**: **Laser Sight**, **Keep Reticle on Screen**, **Grip Frees Aim** (**Hold** or **Toggle**), **Turn Zone From**, **Turn Zone**, **Horizontal Turn Speed**, **Vertical Turn Speed**, and **Check Aim**, which shows targets one at a time so you can check your aim.
 - The first time you turn **Aiming** on, **Angel's Aim Is On** lists what is on.
+- Turning at the screen's edge keeps working after you use the C-Stick. Before, it stopped until you left the battle.
+- Kid Icarus: Uprising starts on the settings I play with (see [Angel's Aim](https://github.com/simplysanatori/3ds-game-fixes/blob/main/docs/angels-aim.md)). Anything you've already set for the game stays.
 - The **Angel's Aim** segment on the **Mods** tab shows the mod it needs and the suggested texture packs, with **Report an Issue** and **Send Report**.
 
 ### Mouse and Pointer Controls
@@ -154,16 +156,19 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - New **World Scale** (10% to 400%, 100% by default) for the Full modes: how big the game world feels, below 100% like a diorama. Hold the screen with a grip and push the stick up or down to change it; the screen moves farther or nearer and keeps its size in your view. It replaces **Depth Factor Multiplier**, and your head moves the game camera as far as the 3D shows.
 - New **Follow Screen Size** (on by default) for the Full modes: when you make the screen bigger or smaller with the stick, the world grows or shrinks with it. Off keeps the world's size, and a bigger screen then moves nearer. Resizing shows the size (**Screen Size: 137%**); on release it adds **World Scale Follows** when Follow Screen Size is on, and **May Feel Locked** when the screen is so big that head turns barely turn the game's camera.
 - New **Dynamic Resolution** (**Settings** > **Graphics** in VR, off by default, for every game): while the GPU cannot keep up it lowers the resolution a step at a time, and raises it again once the GPU can. It never goes below your **Internal Resolution** setting, so it only has room in the immersive modes, which draw up to two steps above it. It steps down after 5 seconds the GPU cannot keep up, steps back up when what the higher level has cost in this game says it fits, waits longer each time a level fails (3 minutes, then 9, then not again in that game), and remembers the level each game settles at for its next start or Load.
-- The game's two eyes now follow your IPD as the headset measures it, so turning the IPD dial during play takes effect at once. Before, **Full (6DoF): Other Games** always used 65 mm. The last IPD read is kept for the next start, and only if none was ever read does a message ask you to turn the IPD dial.
+- **Natural 3D**: the game's two eyes now follow your IPD as the headset measures it, so turning the IPD dial during play takes effect at once. Before, **Full (6DoF): Other Games** always used 65 mm. The last IPD read is kept for the next start, and only if none was ever read does a message ask you to turn the IPD dial.
 
 ### Smaller changes
 
+- New **Accurate Image Copies** (**Settings** > **Graphics**, **Automatic** by default) fixes flickering, shimmering or glow glitches in some games, such as the glow in Fire Emblem Echoes and Fates at higher resolutions. **On** fixes more and costs more; **Off** is as before.
 - The 3DS microphone works through the Frame's microphone, with Azahar's microphone input on **Auto**.
 - While a game waits for its shaders, a small **Preparing Shaders** badge with a progress ring shows in the top-right corner of the main screen, or at the top right of what you see in immersive view. I made it fade in and out and stay up through short gaps between stalls, so it no longer pops up in the middle of your view every few seconds when async shaders are off. On a curved screen it stays in front of the curve. In Flat it is in the status bar.
 - In VR, Azahar's window has a **FLAT** button on its status bar.
 - In VR and Game Mode, the game list's **Open** entries, **File** > **Open Azahar Folder** and **Open Log Folder** now open Azahar's own file dialog, where the desktop file manager never showed. It lists files with size and date, and can rename, delete and make folders.
 - Messages in the headset stay for 5 seconds.
 - A controller you hold up in front of a screen or menu now shows in front of it, and so does a weapon in your hand. Before, the screens always covered them. **Controllers in Front of Screen**, under **Show Controllers** on the VR **Settings** tab and in **Configure**, chooses the screens: **Off**, **Primary**, **Secondary** or **Both**.
+- Controllers and the weapon in your hand no longer blink when you turn your head, and look sharper.
+- **Show Controllers** and **Controllers in Front of Screen** can be set per game.
 - Installing needs no Python: the Steam entry and its art, the dock icon, the controller models and Emerald 3DS's build are part of the program.
 - The bundled 7-Zip is now 26.06 and LibreSSL 4.4.1. Downloads stop when they grow well past their expected size.
 
