@@ -369,3 +369,57 @@ TEST_CASE("VR group: Motion Clarity in Immersive Modes", "[frame_xr][projdef]") 
     CHECK(v.vr_motion_clarity_immersive.GetValue());
     Settings::SetConfiguringGlobal(true);
 }
+
+// AzaharFrame projdef: Primary Screen as Panel, the opposite of vr_screens_in_projection, right
+// before Motion Clarity, never disabled (whatever Motion Clarity says), per game in Properties.
+TEST_CASE("VR group: Primary Screen as Panel", "[frame_xr][projdef]") {
+    App();
+    auto& v = Settings::values;
+    Keep<bool, false> k1{v.vr_screens_in_projection};
+    Keep<bool, false> k2{v.vr_motion_clarity_immersive};
+    Settings::SetConfiguringGlobal(true);
+    v.vr_screens_in_projection.SetGlobal(true);
+    v.vr_screens_in_projection.SetValue(true); // the default: the projection layer
+    v.vr_motion_clarity_immersive.SetGlobal(true);
+    v.vr_motion_clarity_immersive.SetValue(true);
+    {
+        ConfigureFrameVr w;
+        auto* box = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_screen_as_panel_check"));
+        auto* mc = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_check"));
+        REQUIRE(box);
+        REQUIRE(mc);
+        CHECK(box->text() == QStringLiteral("Primary Screen as Panel"));
+        CHECK(box->toolTip().startsWith(QStringLiteral("Experimental. ")));
+        auto* layout = w.layout();
+        REQUIRE(layout);
+        CHECK(layout->indexOf(mc) == layout->indexOf(box) + 1);
+        CHECK_FALSE(box->isChecked()); // the projection layer
+        CHECK(box->isEnabled());       // never locked, Motion Clarity in Immersive Modes on or not
+        Shot(w, "qt-vr-screen-as-panel.png");
+        box->setChecked(true);
+        w.ApplyConfiguration();
+    }
+    CHECK_FALSE(v.vr_screens_in_projection.GetValue(true)); // a panel
+    {
+        ConfigureFrameVr w;
+        auto* box = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_screen_as_panel_check"));
+        REQUIRE(box);
+        CHECK(box->isChecked());
+        box->setChecked(false);
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_screens_in_projection.GetValue(true));
+    // A game's Properties: its own value (the panel), then back to Use global.
+    Settings::SetConfiguringGlobal(false);
+    Values(v.vr_screens_in_projection, true, false);
+    {
+        ConfigureFrameVr w;
+        auto* box = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_screen_as_panel_check"));
+        REQUIRE(box);
+        CHECK(box->isChecked()); // the game's own panel
+        w.ApplyConfiguration();
+    }
+    CHECK_FALSE(v.vr_screens_in_projection.UsingGlobal());
+    CHECK_FALSE(v.vr_screens_in_projection.GetValue());
+    Settings::SetConfiguringGlobal(true);
+}

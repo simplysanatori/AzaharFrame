@@ -5455,6 +5455,9 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::MotionClarityImmersive: // AzaharFrame projdef
         set(v.vr_motion_clarity_immersive, r.value != 0);
         break;
+    case S::ScreensInProjection: // AzaharFrame projdef: `value` 1 = the projection layer
+        set(v.vr_screens_in_projection, r.value != 0);
+        break;
     case S::WorldScaleSaved: { // AzaharFrame natural: the game's own file, while it plays
         if (r.value > 0) {
             v.vr_immersive_world_scale.SetGlobal(false);
@@ -5618,6 +5621,7 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     FrameKeepSetting keep_follow_screen{v.vr_immersive_follow_screen};
     FrameKeepSetting keep_motion_clarity{v.vr_motion_clarity}; // AzaharFrame flash
     FrameKeepSetting keep_clarity_immersive{v.vr_motion_clarity_immersive}; // AzaharFrame projdef
+    FrameKeepSetting keep_in_projection{v.vr_screens_in_projection};        // AzaharFrame projdef
     FrameKeepSetting keep_world_set{v.vr_immersive_world_set};
     FrameKeepSetting keep_eye_per_far{v.vr_immersive_eye_per_far};
     FrameKeepSetting keep_hide{v.vr_hide_bottom_screen};

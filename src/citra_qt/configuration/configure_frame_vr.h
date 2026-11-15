@@ -90,6 +90,8 @@ private:
     QCheckBox* clarity_immersive_check; ///< AzaharFrame projdef: Motion Clarity in Immersive Modes
     ConfigurationShared::CheckState clarity_immersive_state =
         ConfigurationShared::CheckState::Global;
+    QCheckBox* panel_check; ///< AzaharFrame projdef: Primary Screen as Panel (!vr_screens_in_projection)
+    ConfigurationShared::CheckState panel_state = ConfigurationShared::CheckState::Global;
     QWidget* immersive_depth_row; ///< AzaharFrame natural: the Full modes' 3D Depth
     QComboBox* immersive_depth_scope; ///< per application only: global / this application
     QSpinBox* immersive_depth_spin;

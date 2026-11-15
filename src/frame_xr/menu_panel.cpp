@@ -263,6 +263,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::MotionClarity;
     case Id::MotionClarityImmersive: // AzaharFrame projdef
         return MenuSetting::MotionClarityImmersive;
+    case Id::ScreenAsPanel: // AzaharFrame projdef
+        return MenuSetting::ScreensInProjection;
     case Id::Depth3d:
         return MenuSetting::Depth3d;
     case Id::InternalResolution:
@@ -1150,6 +1152,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.follow_screen = v.vr_immersive_follow_screen.GetValue();
     m.motion_clarity = v.vr_motion_clarity.GetValue(); // AzaharFrame flash
     m.motion_clarity_immersive = v.vr_motion_clarity_immersive.GetValue(); // AzaharFrame projdef
+    m.screen_as_panel = !v.vr_screens_in_projection.GetValue();            // AzaharFrame projdef
     // AzaharFrame autosave: the running game's values (its own, else the global ones)
     m.autosave = v.autosave_enabled.GetValue();
     m.autosave_every = 0;
@@ -1494,6 +1497,18 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_motion_clarity_immersive, value != 0, per_game);
         r.setting = MenuSetting::MotionClarityImmersive;
         break;
+    case Id::ScreenAsPanel: { // AzaharFrame projdef: live (the path follows it); `value` 1 = panel
+        const bool in_projection = value == 0;
+        if (in_projection != v.vr_screens_in_projection.GetValue()) {
+            ShowToastText(in_projection ? Immersive::Names::kScreenAsPanelOffToast
+                                        : Immersive::Names::kScreenAsPanelOnToast,
+                          ToastTime::Long);
+        }
+        Apply(v.vr_screens_in_projection, in_projection, per_game);
+        r.setting = MenuSetting::ScreensInProjection;
+        r.value = in_projection ? 1 : 0;
+        break;
+    }
     case Id::Depth3d: // AzaharFrame depth3d: the HID's 3D slider reads it on every pad update
         // AzaharFrame natural: in the Full modes their own 3D Depth (percent of the natural 3D).
         if (v.vr_immersive_mode.GetValue() >= 2) {
@@ -2227,6 +2242,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::MotionClarityImmersive: // AzaharFrame projdef
         SetSetting(t.id, model.motion_clarity_immersive ? 0 : 1, host);
+        break;
+    case Id::ScreenAsPanel: // AzaharFrame projdef
+        SetSetting(t.id, model.screen_as_panel ? 0 : 1, host);
         break;
     case Id::AsyncShaders:
         SetSetting(t.id, model.async_shaders ? 0 : 1, host);

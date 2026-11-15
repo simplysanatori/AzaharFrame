@@ -12,6 +12,10 @@
 // The normal and the wide view (modes 0 and 1) stay quads: a screen fixed in the room is not exposed
 // to the overlay race, and quads are sharper and cheaper there (Kid Icarus: Uprising, A vs B).
 //
+// The setting vr_screens_in_projection ("Primary Screen as Panel" off, the default) chooses it in
+// the Full modes; Motion Clarity there takes the quads whatever it says (it needs them), and the
+// row then shows why. Precedence: the test switch, then Motion Clarity, then the setting.
+//
 // The choice follows the settings, never a frame's state: a pause, the VR menu or the bottom screen
 // in focus keeps it (a change makes the models' pass again). With no game on view (a Quick Load,
 // a boot, the session hidden) the last choice holds for kNoGameHoldNs, then the quads (the home
@@ -48,6 +52,8 @@ struct PathInputs {
     bool full_mode = false;     ///< the game's Immersive Mode is 2 or 3
     /// Motion Clarity wanted in the Full modes (MotionClarity::WantedInFull: the settings)
     bool clarity = false;
+    /// The setting vr_screens_in_projection (on by default; off: "Primary Screen as Panel")
+    bool in_projection = true;
     int64_t now_ns = 0;
 };
 
@@ -56,6 +62,7 @@ enum class PathWhy : uint8_t {
     Forced,     ///< the test switch
     Full,       ///< a Full mode, Motion Clarity off: the projection layer
     Clarity,    ///< a Full mode with Motion Clarity: the quads, flashed
+    Panel,      ///< a Full mode, "Primary Screen as Panel": the quads
     NotFull,    ///< the normal or the wide view: the quads
     Held,       ///< no game on view: the last choice, for a while
     NoGame,     ///< no game on view for kNoGameHoldNs: the quads
@@ -71,6 +78,8 @@ inline const char* PathWhyText(PathWhy w) {
         return "a Full mode, Motion Clarity off";
     case PathWhy::Clarity:
         return "a Full mode with Motion Clarity";
+    case PathWhy::Panel:
+        return "a Full mode, Primary Screen as Panel";
     case PathWhy::NotFull:
         return "not a Full mode";
     case PathWhy::Held:
@@ -95,7 +104,9 @@ public:
             if (!in.full_mode) {
                 Set(false, PathWhy::NotFull);
             } else if (in.clarity) {
-                Set(false, PathWhy::Clarity);
+                Set(false, PathWhy::Clarity); // Motion Clarity needs the quads, whatever the setting
+            } else if (!in.in_projection) {
+                Set(false, PathWhy::Panel);
             } else {
                 Set(true, PathWhy::Full);
             }

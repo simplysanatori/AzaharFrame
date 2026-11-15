@@ -149,6 +149,18 @@ inline constexpr const char* kMotionClarityImmersiveTip =
 inline constexpr const char* kMotionClarityImmersiveWindow = "Motion Clarity in Immersive Modes";
 inline constexpr const char* kMotionClarityImmersiveToast =
     "Motion Clarity: Experimental \u00b7 May Flicker";
+/// AzaharFrame projdef: Settings::values.vr_screens_in_projection, as its opposite: the Primary
+/// screen drawn as a panel (a quad layer) in the Full modes. The VR menu's row (with the
+/// Experimental chip), its tooltip, its note while Motion Clarity takes the panel, its toasts;
+/// the Configure box uses the label and tooltip.
+inline constexpr const char* kScreenAsPanel = "Primary Screen as Panel";
+inline constexpr const char* kScreenAsPanelTip =
+    "Experimental. Draws the Primary screen as a separate panel in the Full modes. It may double "
+    "on fast head turns.";
+inline constexpr const char* kScreenAsPanelNote = "Used by Motion Clarity";
+inline constexpr const char* kScreenAsPanelOnToast =
+    "Primary Screen as Panel: Experimental \u00b7 May Double";
+inline constexpr const char* kScreenAsPanelOffToast = "Primary Screen as Panel: Off";
 
 /// The toast after resizing the screen with Follow Screen Size on.
 inline constexpr const char* kWorldScaleFollowsToast = "Follow Screen Size: On";

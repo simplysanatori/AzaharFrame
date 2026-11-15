@@ -147,6 +147,9 @@ enum class Id : int {
     /// AzaharFrame projdef: In Immersive Modes, a switch under Motion Clarity while it is on
     /// (vr_motion_clarity_immersive), per game
     MotionClarityImmersive,
+    /// AzaharFrame projdef: Primary Screen as Panel, a switch with the Experimental chip right
+    /// before Motion Clarity (the opposite of vr_screens_in_projection), per game, never locked
+    ScreenAsPanel,
     MoreSettings,
     HelpHeader,    ///< AzaharFrame crashreport: General's "Help" subheader (no action)
     ReportProblem, ///< AzaharFrame crashreport: Report a Problem (a dialog in Azahar's window)
@@ -388,6 +391,7 @@ struct MenuModel {
     bool follow_screen = true;
     bool motion_clarity = true; ///< AzaharFrame flash: vr_motion_clarity
     bool motion_clarity_immersive = false; ///< AzaharFrame projdef: vr_motion_clarity_immersive
+    bool screen_as_panel = false; ///< AzaharFrame projdef: !vr_screens_in_projection
     // AzaharFrame autosave: the running game's values (Per-Game, else Global)
     bool autosave = false;
     int autosave_every = 2; ///< index into kAutosaveEvery

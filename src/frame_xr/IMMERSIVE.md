@@ -770,8 +770,12 @@ The projection layer is the one submit that carries image and views together.
 Which path the top screen takes (projdef, `vis/proj_path.h`, after the owner's A/B in 1.1.1-590):
 
 - In the Full modes (2 and 3) with Motion Clarity not wanted there (`vr_motion_clarity` and
-  `vr_motion_clarity_immersive` not both on), the projection layer. With it, the quads, flashed
-  (Motion Clarity needs them: a dark refresh is a quad shrunk to nothing).
+  `vr_motion_clarity_immersive` not both on), the setting `vr_screens_in_projection` (per game,
+  on by default; the VR menu's "Primary Screen as Panel" is its opposite, experimental, never
+  locked): on, the projection layer; off, the quads. With Motion Clarity wanted there, the quads,
+  flashed, whatever the setting says (Motion Clarity needs them: a dark refresh is a quad shrunk
+  to nothing); the row then reads "Used by Motion Clarity". Precedence: the test switch, Motion
+  Clarity, the setting.
 - In the normal and the wide view (modes 0 and 1), the quads: a screen fixed in the room is not
   exposed to the overlay race, and the quads are sharper and cheaper there (one resample, no pass).
 - The choice follows the settings, not a frame's state: a pause, the VR menu or the bottom screen

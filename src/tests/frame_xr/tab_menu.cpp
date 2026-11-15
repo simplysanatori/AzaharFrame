@@ -3818,9 +3818,11 @@ TEST_CASE("Tab menu: Motion Clarity's Experimental chip and In Immersive Modes",
     CHECK(MenuModel{}.motion_clarity);                 // Motion Clarity keeps its default
     {
         Kit kit{1.0f};
-        for (const Id id : {Id::MotionClarity, Id::MotionClarityImmersive}) {
-            CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(id)) + 28.0f <= kPanelW * 0.7f);
-        }
+        // In Immersive Modes' on one line; Motion Clarity's wraps to two (DrawTooltip).
+        CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::MotionClarityImmersive)) + 28.0f <=
+              kPanelW * 0.7f);
+        CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::MotionClarity)) + 28.0f <=
+              2.0f * kPanelW * 0.7f);
     }
     {
         namespace ui = frame_xr::ui;
@@ -3877,5 +3879,68 @@ TEST_CASE("Tab menu: Motion Clarity's Experimental chip and In Immersive Modes",
             any |= FindHit(d, Id::MotionClarity, -1) != nullptr;
         }
         CHECK_FALSE(any); // no switch hit: only their tooltips (kLabelIndex)
+    }
+}
+
+// AzaharFrame projdef: Primary Screen as Panel, a per-game switch with the Experimental chip right
+// before Motion Clarity, never locked (not even outside the Full modes); off by default; while
+// Motion Clarity in Immersive Modes is on it notes that Motion Clarity uses the panel; its
+// tooltip fits two lines and its toasts one.
+TEST_CASE("Tab menu: Primary Screen as Panel", "[frame_xr][tabmenu][projdef]") {
+    namespace Names = FrameXr::Immersive::Names;
+    CHECK(PerGameSetting(Id::ScreenAsPanel));
+    CHECK(SectionOf(Id::ScreenAsPanel) == SettingsSection::Immersive);
+    CHECK(LabelFor(Id::ScreenAsPanel) == "Primary Screen as Panel");
+    CHECK(ExplainFor(Id::ScreenAsPanel) ==
+          "Experimental. Draws the Primary screen as a separate panel in the Full modes. It may "
+          "double on fast head turns.");
+    CHECK_FALSE(MenuModel{}.screen_as_panel);
+    {
+        Kit kit{1.0f};
+        CHECK(kit.TextWidth(Type::Tooltip, ExplainFor(Id::ScreenAsPanel)) + 28.0f <=
+              2.0f * kPanelW * 0.7f);
+        namespace ui = frame_xr::ui;
+        ui::InitFonts();
+        constexpr float kOneLine =
+            static_cast<float>(FrameXr::ToastFit::kAtlasW) - 2.0f * FrameXr::ToastFit::kPadPx;
+        CHECK(ui::TextWidth(ui::kFontLarge, Names::kScreenAsPanelOnToast) <= kOneLine);
+        CHECK(ui::TextWidth(ui::kFontLarge, Names::kScreenAsPanelOffToast) <= kOneLine);
+    }
+    for (const int mode : {2, 0}) {
+        for (const bool clarity_immersive : {false, true}) {
+            Drawn d;
+            MenuModel m = Sample();
+            m.immersive_mode = mode;
+            m.motion_clarity = true;
+            m.motion_clarity_immersive = clarity_immersive;
+            MenuView v;
+            v.tab = Tab::Settings;
+            v.section = SettingsSection::Immersive;
+            bool seen = false, before_mc = false, note = false;
+            std::vector<DrawnText> texts;
+            d.kit.RecordText(&texts);
+            for (float scroll = 0.0f; scroll <= 3000.0f; scroll += kRowH) {
+                v.scroll[static_cast<int>(Tab::Settings)] = scroll;
+                d.Draw(m, v);
+                const auto* row = FindHit(d, Id::ScreenAsPanel, -1); // a live switch: never locked
+                const auto* mc = FindHit(d, Id::MotionClarity, -1);
+                const auto* mc_label = FindHit(d, Id::MotionClarity, kLabelIndex);
+                seen |= row != nullptr;
+                const auto mid = [](const auto* h) { return 0.5f * (h->r.y0 + h->r.y1); };
+                const auto* below = mc ? mc : mc_label;
+                if (row && below) {
+                    before_mc |= std::abs(mid(below) - mid(row) - kRowH) < 1.0f;
+                }
+            }
+            d.kit.RecordText(nullptr);
+            for (const auto& t : texts) {
+                note |= t.text == Names::kScreenAsPanelNote;
+            }
+            INFO("mode " << mode << ", In Immersive Modes " << clarity_immersive);
+            CHECK(seen);
+            CHECK(before_mc);
+            // why it is a panel now, without a lock; only in a Full mode, where it is so
+            CHECK(note == (clarity_immersive && mode >= 2));
+        }
     }
 }

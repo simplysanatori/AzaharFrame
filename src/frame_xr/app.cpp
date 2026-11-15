@@ -858,6 +858,7 @@ void Runtime::FrameLoop() {
             pin.clarity = clarity_override.value_or(MotionClarity::WantedInFull(
                 Settings::values.vr_motion_clarity.GetValue(),
                 Settings::values.vr_motion_clarity_immersive.GetValue()));
+            pin.in_projection = Settings::values.vr_screens_in_projection.GetValue();
             pin.now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                              Clock::now().time_since_epoch())
                              .count();

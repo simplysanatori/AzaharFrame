@@ -57,6 +57,9 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::MotionClarityImmersive: // AzaharFrame projdef
         f(v.vr_motion_clarity_immersive);
         return true;
+    case Id::ScreenAsPanel: // AzaharFrame projdef
+        f(v.vr_screens_in_projection);
+        return true;
     case Id::Depth3d: // AzaharFrame natural: the Full modes' own in them
         if (v.vr_immersive_mode.GetValue() >= 2) {
             f(v.vr_immersive_depth);

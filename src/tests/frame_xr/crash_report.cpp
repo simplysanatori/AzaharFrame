@@ -544,3 +544,13 @@ TEST_CASE("Crash report: the settings list Motion Clarity in Immersive Modes", "
     CHECK(text.find("Motion Clarity in Immersive Modes: On\n") != std::string::npos);
     s.SetValue(was);
 }
+
+TEST_CASE("Crash report: the settings list Primary Screen as Panel", "[frame_xr][projdef]") {
+    auto& s = Settings::values.vr_screens_in_projection;
+    const bool was = s.GetValue();
+    s.SetValue(true);
+    CHECK(CR::SettingsSummary().find("Primary Screen as Panel: Off\n") != std::string::npos);
+    s.SetValue(false);
+    CHECK(CR::SettingsSummary().find("Primary Screen as Panel: On\n") != std::string::npos);
+    s.SetValue(was);
+}

@@ -1150,6 +1150,27 @@ int main(int argc, char** argv) {
         ok &= shot("pd-5-locked-outside-full-modes", flat, mv);
         ok &= toast_shot("motion-clarity-immersive-toast.png",
                          {::FrameXr::Immersive::Names::kMotionClarityImmersiveToast});
+        // Primary Screen as Panel: off (the default) with its tooltip, on, its note while Motion
+        // Clarity in Immersive Modes is on, outside the Full modes (never locked), its toasts.
+        MenuModel pn = pg;
+        MenuView pv = settings(SettingsSection::Immersive);
+        pv.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        pv.hover = {Id::ScreenAsPanel, kLabelIndex};
+        pv.tooltip = Id::ScreenAsPanel;
+        ok &= shot("pd-6-screen-as-panel-off-tooltip", pn, pv);
+        pn.screen_as_panel = true;
+        pv.hover = {Id::ScreenAsPanel};
+        pv.tooltip = Id::None;
+        ok &= shot("pd-7-screen-as-panel-on", pn, pv);
+        pn.screen_as_panel = false;
+        pn.motion_clarity_immersive = true;
+        ok &= shot("pd-8-screen-as-panel-motion-clarity-note", pn, pv);
+        MenuModel pf = pg;
+        pf.immersive_mode = 0;
+        ok &= shot("pd-9-screen-as-panel-outside-full-modes", pf, pv);
+        ok &= toast_shot("screen-as-panel-toasts.png",
+                         {::FrameXr::Immersive::Names::kScreenAsPanelOnToast,
+                          ::FrameXr::Immersive::Names::kScreenAsPanelOffToast});
     }
     MenuModel gv = m; // Global chosen, the game has its own Immersive Mode
     gv.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::GameValue;

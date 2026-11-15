@@ -7,6 +7,7 @@
 // change for a pause or a Quick Load.
 
 #include <catch2/catch_test_macros.hpp>
+#include "common/settings.h"
 #include "frame_xr/vis/proj_path.h"
 
 namespace {
@@ -106,4 +107,67 @@ TEST_CASE("Projection path: every reason has a log text", "[frame_xr][projdef]")
                             PathWhy::NotFull, PathWhy::Held, PathWhy::NoGame}) {
         CHECK(std::string{FrameXr::Vis::PathWhyText(w)}.size() > 3);
     }
+}
+
+// ---- The setting "Primary Screen as Panel" (vr_screens_in_projection) ----
+
+
+TEST_CASE("Projection path: the setting, Motion Clarity and the switch, in that order",
+          "[frame_xr][projdef]") {
+    PathChoice p;
+    // The setting's default: the projection layer.
+    CHECK(PathInputs{}.in_projection);
+    CHECK(p.Next(Game(true, false, 0)));
+    // Primary Screen as Panel: the quads in the Full modes.
+    PathInputs in = Game(true, false, 1);
+    in.in_projection = false;
+    CHECK_FALSE(p.Next(in));
+    CHECK(p.Why() == PathWhy::Panel);
+    // Motion Clarity in the Full modes takes the quads whatever the setting says.
+    in = Game(true, true, 2);
+    in.in_projection = true;
+    CHECK_FALSE(p.Next(in));
+    CHECK(p.Why() == PathWhy::Clarity);
+    in.in_projection = false;
+    CHECK_FALSE(p.Next(in));
+    CHECK(p.Why() == PathWhy::Clarity);
+    // The normal and the wide view: the quads whatever the setting says.
+    in = Game(false, false, 3);
+    in.in_projection = true;
+    CHECK_FALSE(p.Next(in));
+    CHECK(p.Why() == PathWhy::NotFull);
+    // The test switch over both: =1 the projection layer with the panel chosen and Motion
+    // Clarity on, =0 the quads with the projection layer chosen.
+    in = Game(true, true, 4);
+    in.in_projection = false;
+    in.forced = true;
+    CHECK(p.Next(in));
+    CHECK(p.Why() == PathWhy::Forced);
+    in = Game(true, false, 5);
+    in.in_projection = true;
+    in.forced = false;
+    CHECK_FALSE(p.Next(in));
+    // A live change of the setting is a change of path (TakeChanged: the log, a new layer list).
+    p.TakeChanged();
+    in.forced.reset();
+    CHECK(p.Next(in));
+    CHECK(p.TakeChanged());
+    in.in_projection = false;
+    CHECK_FALSE(p.Next(in));
+    CHECK(p.TakeChanged());
+}
+
+TEST_CASE("Projection path: the setting's key, and a config without it", "[frame_xr][projdef]") {
+    auto& s = Settings::values.vr_screens_in_projection;
+    CHECK(s.GetDefault()); // the projection layer
+    CHECK(s.GetLabel() == "vr_screens_in_projection");
+    // A config written by an older build has no such key: QtConfig::ReadBasicSetting then keeps
+    // the default, so it reads as the projection layer; older builds never read the key.
+    Settings::SwitchableSetting<bool> fresh{true, "vr_screens_in_projection"};
+    CHECK(fresh.GetValue());
+    CHECK(fresh.GetValue(true));
+    PathChoice p;
+    PathInputs in = Game(true, false, 0);
+    in.in_projection = fresh.GetValue();
+    CHECK(p.Next(in));
 }
