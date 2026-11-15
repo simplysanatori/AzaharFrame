@@ -73,7 +73,7 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 - Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game, for example "2 Per-Game Values Set".
 - **Use Global Values for All**, in the **⋮** menu next to the switch, puts the tab back on the global values.
 - **Internal Resolution** starts at **4x**. It was **Auto**, which follows Azahar's window, so games drew at 1x in the headset (3x in the Full modes). A resolution you picked other than Auto stays.
-- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset** and **Motion Controls** off. These are only starting values: anything you set for the game, or for all games, stays.
+- **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Touchpad** and **Motion Controls** can be set per game, so Kid Icarus: Uprising can have the reticle while Super Mario 3D Land doesn't. Kid Icarus: Uprising starts with **Bottom Screen Reticle** on **Headset** and **Motion Controls** off, or with Angel's Aim when its mod is installed. These are only starting values: anything you set for the game, or for all games, stays.
 - **Accurate Image Copies**, in **Graphics**, has three choices. **Automatic**, the default, fixes glitches only where a game needs it. **On** makes every image copy exact but lowers performance a lot, and **Off** works the way Azahar always has. Pointing at each choice in the headset or in Azahar's window explains it.
 
 ### Crash reports
