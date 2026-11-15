@@ -245,6 +245,87 @@ void DrawMouseOverlay(frame_xr::ui::Canvas& cv, const MouseOverlay& o, float px_
     }
 }
 
+// AzaharFrame docs: the README's three pictures, Ocarina of Time 3D (USA) as the catalog and
+// Sharkive have it.
+// generated from 3ds-game-fixes catalog/mods.json, textures.json (USA, 1.0)
+inline ModsListModel ReadmeModsOot3d() {
+    ModsListModel mm;
+    mm.catalog = CatalogState::Ready;
+    { ModOffer o; o.id = "ocarina-single-screen-experience"; o.name = "Single Screen Experience"; o.author = "M-1"; o.url = "https://gamebanana.com/members/1544353"; o.updated = "Updated Nov 2026"; o.verified = true; o.version = "1.0"; o.version_tip = "For the game as released (1.0), without an update."; o.version_match = true; o.downloads = DownloadsText(53068); mm.available.push_back(o); }
+    { ModOffer o; o.id = "ocarina-reframed-single-screen"; o.name = "Ocarina ReFramed (Single Screen)"; o.author = "OTPR26"; o.url = "https://github.com/OTPR26/OOT3DHud"; o.updated = "Updated Oct 2026"; o.verified = false; o.version = "1.0"; o.version_tip = "For the game as released (1.0), without an update."; o.version_match = true; o.downloads = DownloadsText(193); mm.available.push_back(o); }
+    { ModOffer o; o.id = "ocarina-reframed-dual-screen"; o.name = "Ocarina ReFramed (Dual Screen)"; o.author = "OTPR26"; o.url = "https://github.com/OTPR26/OOT3DHud"; o.updated = "Updated Oct 2026"; o.verified = false; o.version = "1.0"; o.version_tip = "For the game as released (1.0), without an update."; o.version_match = true; o.downloads = DownloadsText(82); mm.available.push_back(o); }
+    { ModOffer o; o.id = "oot3d-vanilla-plus-link-remodel"; o.name = "Vanilla+ Link Remodel"; o.author = "HugAMuffin"; o.url = "https://gamebanana.com/members/1608504"; o.updated = "Updated Sep 2026"; o.verified = false; o.version = ""; o.version_tip = ""; o.version_match = false; o.downloads = DownloadsText(9089); mm.available.push_back(o); }
+    { ModOffer o; o.id = "oot3d-better-link-v3"; o.name = "Better Link v3"; o.author = "skilarbabcock"; o.url = "https://gamebanana.com/members/1672388"; o.updated = "Updated Nov 2022"; o.verified = false; o.version = ""; o.version_tip = ""; o.version_match = false; o.downloads = DownloadsText(8770); mm.available.push_back(o); }
+    { ModOffer o; o.id = "oot3d-better-link-v3-longer-sword"; o.name = "Better Link v3 (Longer Sword Hitbox)"; o.author = "skilarbabcock"; o.url = "https://gamebanana.com/members/1672388"; o.updated = "Updated Nov 2022"; o.verified = false; o.version = ""; o.version_tip = ""; o.version_match = false; o.downloads = DownloadsText(8770); mm.available.push_back(o); }
+    return mm;
+}
+inline TexturesModel ReadmePacksOot3d() {
+    TexturesModel t;
+    t.custom_textures = true;
+    { PackOffer o; o.id = "oot3d-1080p-henriko"; o.name = "Ocarina of Time 3D 1080p"; o.author = "Henriko Magnifico"; o.url = "https://www.henrikomagnifico.com/zelda-ocarina-of-time-3d-4k"; o.size_text = "1.8 GB"; o.updated = "Updated Sep 2026"; o.verified = true; o.downloads = ""; t.downloads.push_back(o); }
+    { PackOffer o; o.id = "oot3d-4k-henriko"; o.name = "Ocarina of Time 3D 4K"; o.author = "Henriko Magnifico"; o.url = "https://www.henrikomagnifico.com/zelda-ocarina-of-time-3d-4k"; o.size_text = ""; o.updated = "Updated Sep 2026"; o.verified = true; o.downloads = ""; t.downloads.push_back(o); }
+    { PackOffer o; o.id = "oot3d-sse-controller-ui-switch"; o.name = "SSE Controller UI (Switch)"; o.author = "chubbycubby"; o.url = "https://gamebanana.com/members/5093056"; o.size_text = "431 MB"; o.updated = "Updated Oct 2026"; o.verified = false; o.downloads = DownloadsText(14303); t.downloads.push_back(o); }
+    { PackOffer o; o.id = "oot3d-sse-controller-ui-vanilla"; o.name = "SSE Controller UI (Vanilla)"; o.author = "chubbycubby"; o.url = "https://gamebanana.com/members/5093056"; o.size_text = "431 MB"; o.updated = "Updated Oct 2026"; o.verified = false; o.downloads = DownloadsText(14303); t.downloads.push_back(o); }
+    { PackOffer o; o.id = "oot3d-sse-controller-ui-xbox"; o.name = "SSE Controller UI (Xbox)"; o.author = "chubbycubby"; o.url = "https://gamebanana.com/members/5093056"; o.size_text = "432 MB"; o.updated = "Updated Oct 2026"; o.verified = false; o.downloads = DownloadsText(14303); t.downloads.push_back(o); }
+    { PackOffer o; o.id = "oot3d-link-skin-pack"; o.name = "Link Skin Pack"; o.author = "Art-Does-Not-Compute"; o.url = "https://gamebanana.com/members/1716642"; o.size_text = "24 MB"; o.updated = "Updated Jun 2020"; o.verified = false; o.downloads = DownloadsText(6172); t.downloads.push_back(o); }
+    return t;
+}
+inline CheatsModel ReadmeCheatsOot3d() { // Sharkive 0004000000033500.txt, file order
+    CheatsModel c;
+    c.cheats.push_back({"500 Rupees", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"0 Rupees", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Always max health", CheatSource::Sharkive, true, ""});
+    c.cheats.push_back({"Magic bar always full", CheatSource::Sharkive, true, ""});
+    c.cheats.push_back({"6AM (R+D-Pad Up)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Midnight (R+D-Pad Left)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"6PM (R+D-Pad Right)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Noon (R+D-Pad Down)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Infinite Bombchus (Bombchu Bowling Alley)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Max bombs", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Max bombchu", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Max slingshot ammo", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Max deku sticks", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Max deku nuts", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Max Beans", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Max arrows", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"BotW-style remote bombs (R = Detonate)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Always have deku shield", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Unlock all shields/swords/suits", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Unlock largest quiver/largest bomb bag/best powerglove/golden scale", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Unlock all stones/stone of wisdom/Gerudopass", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Unlock all medallions", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"100 golden Skulltulas", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"3 Heartpieces (Press L)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Unlock Enhanced Defense", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Unlock Small Magicbar (Press L)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Unlock Large Magicbar (Press R)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Infinite Small Keys (All Dungeons)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Have Map, Compass And Boss Key (All Dungeons)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Freeze timers", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Infinite time in heat", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Redeads can't immobilize you", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Deku Sticks Are Always On Fire", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Always Have Nayru's Love Activated", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Never Take Damage From Falling", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Giant's Knife Never Breaks", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Have all Songs", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Have Ocarina of Time", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Spin Attack Instantly Charged", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Moon Jump (Hold X)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Epona Moon Jump (X+A)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Epona Infinite Carrots (All Areas)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Always Have Adult Link's Voice", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Always Have Child Link's Voice", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Hold X To Run Fast", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Activate Infinite Sword Glitch (Press L)", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Open Any Chest In The Game As Many Times As You Want", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Collect Heart Pieces In Overworld As Many Times As You Want", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Always Raining", CheatSource::Sharkive, false, ""});
+    c.cheats.push_back({"Change Quest Mode", CheatSource::Sharkive, false, ""});
+    c.download = DownloadState::Done;
+    c.status = "50 cheats added";
+    return c;
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -2792,13 +2873,9 @@ int main(int argc, char** argv) {
         kp.mods.angels_aim.textures_pack = true;
         kv.scroll[static_cast<int>(Tab::Mods)] = 1.0e5f;
         ok &= shot("aa-5-packs-installed-end", kp, kv);
-        MenuModel kw = kp;
-        kw.mods.angels_aim.effects_pack = false;
-        ok &= shot("aa-5b-weapons-pack-only-end", kw, kv);
         // Everything installed
         MenuModel kall = ki;
-        kall.mods.angels_aim.weapons_pack = true;
-        kall.mods.angels_aim.effects_pack = true;
+        kall.mods.angels_aim.textures_pack = true; // one pack since the two were merged
         ok &= shot("aa-6-all-installed-end", kall, kv);
         // CTGP-7 shown too: five segments
         MenuModel k5 = ka;
@@ -2809,6 +2886,23 @@ int main(int argc, char** argv) {
         MenuModel kn = ka;
         kn.mods.angels_aim.report_url.clear();
         ok &= shot("aa-8-report-unavailable", kn, kv);
+    }
+    { // AzaharFrame docs: the README's pictures (--only readme-)
+        MenuModel rm = m;
+        rm.mods.cheats = ReadmeCheatsOot3d();
+        MenuView rv{};
+        rv.tab = Tab::Mods;
+        ok &= shot("readme-cheats", rm, rv);
+        rm.mods.mods = ReadmeModsOot3d();
+        rv.mods_segment = ModsSegment::Mods;
+        rv.mods_page = ModsPage::Install;
+        ok &= shot("readme-mods", rm, rv);
+        rm.mods.textures = ReadmePacksOot3d();
+        rv = {};
+        rv.tab = Tab::Mods;
+        rv.mods_segment = ModsSegment::Textures;
+        rv.textures_page = TexturesPage::Download;
+        ok &= shot("readme-textures", rm, rv);
     }
     v = {};
     v.tab = Tab::Main;
