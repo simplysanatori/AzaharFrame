@@ -785,7 +785,7 @@ TEST_CASE("FrameXr fov100: the setting's range and a round trip through an older
         const s32 before = s->GetValue();
         s->SetGlobal(true);
         const s32 global_before = s->GetValue(true);
-        REQUIRE(s->GetDefault() == 0);
+        REQUIRE(s->GetDefault() == 40); // 1.2.0; 0 before, which an older build still reads
         s->SetValue(-100);
         REQUIRE(s->GetValue() == -100);
         s->SetValue(100);
