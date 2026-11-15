@@ -278,6 +278,33 @@ void AimPoll(int64_t ticks) {
         LOG_DEBUG(Frontend, "xr: Light Gun: {}",
                   frame.stick ? "the C-Stick steers" : "the C-Stick let go, easing back in");
     }
+    // 1.2.0 RC2 (the owner: Direct Aim cannot aim at the ground as the C-Stick can): live test
+    // switch AZAHARFRAME_KIU_GROUND_AIM=<factor> (0.3 to 1.0, e.g. 0.9; "1" means 0.9): on the
+    // ground, the aim box's bottom (+kReticleBoxBottom, of the centre's y, which the game writes
+    // for its state, 0.25 to 0.8) is written at least this low, so pointing low on the screen aims
+    // there and only past the screen's bottom edge turns the camera down. Whether the game keeps
+    // the value between its frames is what the trace's box shows.
+    if (reading.ground) {
+        if (const auto v = Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_GROUND_AIM")) {
+            char* end = nullptr;
+            float f = std::strtof(v->c_str(), &end);
+            if (*v == "1") {
+                f = 0.9f;
+            }
+            if (end != v->c_str() && f >= 0.3f && f <= 1.0f && reading.box_bottom < f) {
+                Core::System& system = Core::System::GetInstance();
+                for (const std::shared_ptr<Kernel::Process>& process :
+                     system.Kernel().GetProcessList()) {
+                    if (process.get() == p.process) {
+                        system.Memory().Write32(*process, p.object + kReticleBoxBottom,
+                                                FloatBits(f));
+                        reading.box_bottom = f;
+                        break;
+                    }
+                }
+            }
+        }
+    }
     const int64_t now = static_cast<int64_t>(static_cast<double>(ticks) * 1'000'000'000.0 /
                                              static_cast<double>(BASE_CLOCK_RATE_ARM11));
     const Input::DirectAim::Out out =
