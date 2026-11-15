@@ -2174,13 +2174,14 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // owner's session: the laser never showed).
     if (gyro_aim_hand >= 0) {
         // AzaharFrame kiuaim2: the laser along Direct Aim's one ray, to where it hits the top
-        // screen, which is where the reticle is put. During Check Aim neither the laser nor the
-        // beam shows over the top screen: the reticle is what goes on the target.
+        // screen, which is where the reticle is put. During Check Aim the laser shows whether or
+        // not Laser Sight is on (the owner, 1.2.0 RC2: the ray must come out while checking), and
+        // no other beam over the top screen.
         Input::AimBeam beam =
             Input::AimBeamFor(gyro_aim_frame.mode, Settings::values.vr_light_gun_laser.GetValue(),
                               weapon_shown, aim_hit);
         if (gyro_aim_frame.checking) {
-            beam = {false, true};
+            beam = {Input::LaserSight(gyro_aim_frame.mode, true, aim_hit), true};
         } else if (gyro_aim_frame.clutch &&
                    gyro_aim_frame.mode == Input::GyroAimMode::LightGun) {
             beam = {}; // AzaharFrame kiuaim3: aim freed: the usual beam, to point anywhere
