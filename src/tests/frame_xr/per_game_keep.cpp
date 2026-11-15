@@ -293,3 +293,25 @@ TEST_CASE("Defaults: Screen Shape is Automatic, rollback-safe", "[fixa]") {
         top.SetValue(was);
     }
 }
+
+// AzaharFrame fixa: Internal Resolution starts at 4x (Auto followed Azahar's window: 1x in the
+// headset). An unchanged global value ("\default=true") follows each build's default, so older
+// builds read Auto; a value picked other than Auto is saved and read as itself.
+TEST_CASE("Defaults: Internal Resolution is 4x, rollback-safe", "[fixa]") {
+    auto& res = Settings::values.resolution_factor;
+    CHECK(res.GetDefault() == 4u);
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QSettings ini(dir.filePath(QStringLiteral("qt-config.ini")), QSettings::IniFormat);
+    ini.setValue(QStringLiteral("resolution_factor/default"), true); // an older build's Auto
+    ini.setValue(QStringLiteral("resolution_factor"), 0);
+    CHECK(ReadGlobalFile(ini, res) == 4u);
+    WriteGlobalFile(ini, res, 4u);
+    CHECK(ini.value(QStringLiteral("resolution_factor/default")).toBool());
+    WriteGlobalFile(ini, res, 3u);
+    CHECK_FALSE(ini.value(QStringLiteral("resolution_factor/default")).toBool());
+    CHECK(ReadGlobalFile(ini, res) == 3u);
+    WriteGlobalFile(ini, res, 0u); // Auto picked in this build: saved as itself
+    CHECK_FALSE(ini.value(QStringLiteral("resolution_factor/default")).toBool());
+    CHECK(ReadGlobalFile(ini, res) == 0u);
+}

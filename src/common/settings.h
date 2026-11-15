@@ -621,7 +621,10 @@ struct Values {
         true, Keys::use_display_refresh_rate_detection};
     Setting<bool> use_shader_jit{true, Keys::use_shader_jit};
     // CitraVR: default 0 (auto) so the VR layer picks the per-HMD scale factor
-    SwitchableSetting<u32, true> resolution_factor{0, 0, 18, Keys::resolution_factor};
+    // AzaharFrame fixa: 4x by default (Auto followed the desktop window, not the headset).
+    // Rollback-safe: the global file marks a value never changed with "\default=true", which each
+    // build reads as its own default (older builds: Auto); a game's own value is read as written.
+    SwitchableSetting<u32, true> resolution_factor{4, 0, 18, Keys::resolution_factor};
     SwitchableSetting<bool> use_integer_scaling{false, Keys::use_integer_scaling};
     SwitchableSetting<double, true> frame_limit{100, 0, 1000, Keys::frame_limit};
     SwitchableSetting<double, true> turbo_limit{200, 0, 1000, Keys::turbo_limit};
