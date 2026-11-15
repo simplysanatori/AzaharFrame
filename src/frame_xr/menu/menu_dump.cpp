@@ -1303,8 +1303,8 @@ int main(int argc, char** argv) {
         v.hover = {Id::FillView, kLabelIndex};
         v.tooltip = Id::FillView;
         ok &= shot("fa-fill-view-tooltip", fv, v);
-        ax.scale_mode = 0; // Stretch at the ends
-        v = immersive_at(ax, Id::ScaleX);: past the ratio and the gains on both axes
+        ax.scale_mode = 0; // Stretch at the ends: past the ratio and the gains on both axes
+        v = immersive_at(ax, Id::ScaleX);
         ax.margin_y = 4;
         ax.scale_x = -100;
         ax.scale_y = 100; // the tall axis draws more instead: no note (ScalesMayWarp)
