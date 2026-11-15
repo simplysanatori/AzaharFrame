@@ -1181,13 +1181,41 @@ int main(int argc, char** argv) {
     v.hover = {Id::ScaleX, kLabelIndex};
     v.tooltip = Id::ScaleX;
     ok &= shot("5c-settings-tooltip-option", pg, v);
+    // rel120: the Immersive section scrolled so `row` is the second row from the top (one row
+    // above it, for a tooltip). The scale rows' shots scrolled to the list's end before; with
+    // projdef's rows at the end that end no longer shows them.
+    const auto immersive_at = [&](const MenuModel& model, Id row) {
+        frame_xr::ui::Canvas scratch;
+        scratch.Init(static_cast<int>(kPanelW * px_per_dp + 0.5f),
+                     static_cast<int>(kPanelH * px_per_dp + 0.5f));
+        MenuView sv = settings(SettingsSection::Immersive);
+        float top = -1.0f;
+        for (float s = 0.0f; s <= 6000.0f; s += kRowH) {
+            sv.scroll[static_cast<int>(Tab::Settings)] = s;
+            kit.Begin(scratch);
+            menu.Draw(kit, model, sv);
+            bool seen = false;
+            for (const auto& hit : menu.Hits()) {
+                seen |= hit.t.id == row;
+            }
+            if (seen) {
+                top = s; // the last scroll that still shows it: the row at the top
+            } else if (top >= 0.0f) {
+                break;
+            }
+            if (s >= menu.MaxScroll()) {
+                break;
+            }
+        }
+        sv.scroll[static_cast<int>(Tab::Settings)] = std::max(0.0f, top - kRowH);
+        return sv;
+    };
     {
         // AzaharFrame kiu: Horizontal and Vertical Scale, both signs and 0; Render Margin's tip
         MenuModel sc = pg;
         sc.scale_x = -10;
         sc.scale_y = 15;
-        v = settings(SettingsSection::Immersive);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        v = immersive_at(sc, Id::ScaleX);
         ok &= shot("5c2-settings-scales", sc, v);
         v.hover = {Id::ScaleY, kLabelIndex};
         v.tooltip = Id::ScaleY;
@@ -1195,7 +1223,7 @@ int main(int argc, char** argv) {
         sc.scale_x = 30;
         sc.scale_y = 0;
         sc.scale_mode = 0; // AzaharFrame fovaxis: Render Margin's rows show with Stretch only
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        v.scroll = immersive_at(sc, Id::MarginX).scroll;
         v.hover = {Id::MarginX, kLabelIndex};
         v.tooltip = Id::MarginX;
         ok &= shot("5c4-settings-render-margin-tooltip", sc, v);
@@ -1204,8 +1232,7 @@ int main(int argc, char** argv) {
         // tooltip under the beam, and the label's.
         sc.scale_x = -30;
         sc.scale_y = -15;
-        v = settings(SettingsSection::Immersive);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        v = immersive_at(sc, Id::ScaleX);
         static constexpr const char* kModes[] = {"stretch", "fov"};
         for (int i = 0; i < 2; i++) {
             sc.scale_mode = i;
@@ -1219,8 +1246,7 @@ int main(int argc, char** argv) {
         ok &= shot("fs-scale-mode-tip-label", sc, v);
         // AzaharFrame fov100: the scales at their ends, -100 % and +100 %, both and mixed, and
         // Horizontal Scale held at each end (the value under the beam).
-        v = settings(SettingsSection::Immersive);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        v = immersive_at(sc, Id::ScaleX);
         sc.scale_mode = 1;
         sc.scale_x = -100;
         sc.scale_y = -100;
@@ -1251,8 +1277,7 @@ int main(int argc, char** argv) {
         ax.scale_mode = 0;
         ax.scale_x = 0;
         ax.scale_y = 0;
-        v = settings(SettingsSection::Immersive);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        v = immersive_at(ax, Id::ScaleX);
         ok &= shot("fa-margins-per-axis", ax, v);
         v.hover = {Id::MarginX, kLabelIndex};
         v.tooltip = Id::MarginX;
@@ -1260,9 +1285,8 @@ int main(int argc, char** argv) {
         v.hover = {Id::MarginY, kLabelIndex};
         v.tooltip = Id::MarginY;
         ok &= shot("fa-margin-vertical-tooltip", ax, v);
-        v = settings(SettingsSection::Immersive);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
         ax.scale_mode = 1;
+        v = immersive_at(ax, Id::ScaleX);
         ax.scale_x = 70; // Field of View: the scales alone, 1.7x wanted, 1.6x drawn
         ax.scale_x_warp = true;
         ok &= shot("fa-fov-wider-may-warp", ax, v);
@@ -1272,18 +1296,15 @@ int main(int argc, char** argv) {
         fv.scale_x = 40;
         fv.scale_y = 40;
         fv.scale_x_warp = false;
-        v = settings(SettingsSection::Immersive);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        v = immersive_at(fv, Id::ScaleX);
         ok &= shot("fa-fov-margins-hidden", fv, v);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
         v.hover = {Id::FillView};
         ok &= shot("fa-fill-view", fv, v);
         v.hover = {Id::FillView, kLabelIndex};
         v.tooltip = Id::FillView;
         ok &= shot("fa-fill-view-tooltip", fv, v);
-        v = settings(SettingsSection::Immersive);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
-        ax.scale_mode = 0; // Stretch at the ends: past the ratio and the gains on both axes
+        ax.scale_mode = 0; // Stretch at the ends
+        v = immersive_at(ax, Id::ScaleX);: past the ratio and the gains on both axes
         ax.margin_y = 4;
         ax.scale_x = -100;
         ax.scale_y = 100; // the tall axis draws more instead: no note (ScalesMayWarp)
@@ -1298,6 +1319,7 @@ int main(int argc, char** argv) {
         ax.scale_y = 0;
         ax.scale_mode = 1;
         ax.scale_x_warp = true;
+        v.scroll = immersive_at(ax, Id::ScaleX).scroll;
         ok &= shot("fa-may-warp-tooltip", ax, v);
     }
     {
@@ -1474,8 +1496,7 @@ int main(int argc, char** argv) {
         ugi.margin_x = 3;
         ugi.margin_y = 3;
         ugi.scale_mode = 0; // AzaharFrame fovaxis: Render Margin's rows show with Stretch only
-        v = settings(SettingsSection::Immersive);
-        v.scroll[static_cast<int>(Tab::Settings)] = -1.0f;
+        v = immersive_at(ugi, Id::MarginX); // rel120: the margin rows, not the list's end
         ok &= shot("sc5-settings-immersive-per-game",
                    own(ugi, {Id::MarginX, Id::MarginY, Id::GameFov, Id::MatchCamera}, 1), v);
         // Position: Hide Bottom Screen and Screen Shape follow the toggle too
