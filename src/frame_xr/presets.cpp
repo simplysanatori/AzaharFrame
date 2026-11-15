@@ -59,7 +59,13 @@ constexpr ImmersivePreset kMarioKart7{.name = "Mario Kart 7",
                                       .scale_y = -15, // and Narrow Height 15 %
                                       .own_placement = true,
                                       .place_pitch_deg = -4.95f,
-                                      .place_distance = 0.371f};
+                                      .place_distance = 0.371f,
+                                      // AzaharFrame fovaxis: the scales above were tuned as a
+                                      // squeeze that brings the side HUD in (every build before
+                                      // fovscale). Field of View now crops below the game's
+                                      // frame, which would cut that HUD; Stretch keeps the
+                                      // picture the owner tuned (ratio 1.21, within the caps).
+                                      .scale_mode = 0};
 // Super Mario 3D Land: 45 degrees on the title and in the levels; the 3DS's eyes 58 units
 // apart in a level (the title camera is about 1500 units away): 100x. At 1x its 3D could not
 // be seen. Mock runs at 1.4x showed black below the floor of its levels; the owner plays it at
@@ -202,6 +208,15 @@ void ApplyPresetSettings(const ImmersivePreset& preset) {
         eye.SetValue(preset.eye_indicator);
         LOG_INFO(Frontend, "xr: {}: Eye Indicator Register preset {}", preset.name,
                  preset.eye_indicator);
+    }
+    // AzaharFrame fovaxis: Scale Mode with the preset's scales only (before they are filled):
+    // a game with scales of its own keeps whatever mode it has.
+    const auto unset = [](const auto& setting) {
+        return setting.UsingGlobal() && setting.GetValue() == setting.GetDefault();
+    };
+    if (preset.scale_mode >= 0 && fits && unset(v.vr_immersive_scale_x) &&
+        unset(v.vr_immersive_scale_y)) {
+        fill(v.vr_immersive_scale_mode, static_cast<u32>(preset.scale_mode), "Scale Mode");
     }
     if (preset.scale_x != 0 && fits) { // AzaharFrame kiu: was Narrow Screen
         fill(v.vr_immersive_scale_x, static_cast<s32>(preset.scale_x), "Horizontal Scale");

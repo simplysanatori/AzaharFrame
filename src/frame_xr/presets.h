@@ -60,6 +60,11 @@ struct ImmersivePreset {
     bool own_placement = false;
     float place_pitch_deg = 0.0f;
     float place_distance = 0.0f;
+    /// AzaharFrame fovaxis: Settings::values.vr_immersive_scale_mode (0 Stretch, 1 Field of
+    /// View; -1 = keep). Applied only with the preset's own scales: where the game has no
+    /// Horizontal or Vertical Scale of its own yet (a player's saved scales keep the mode they
+    /// were set under).
+    int32_t scale_mode = -1;
 };
 
 /// The preset for the game with this title id (any region), or null.
