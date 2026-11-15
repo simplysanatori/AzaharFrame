@@ -54,15 +54,23 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
     REQUIRE(sm3dl->game_fov == 45);
     REQUIRE(std::string(sm3dl->eye_indicator) == "87,2");
     // AzaharFrame presets: the owner's tuned Mario Kart 7 and Super Mario 3D Land.
-    REQUIRE(mk7->scale_x == -30); // AzaharFrame kiu: was Narrow Screen 30 %
-    REQUIRE(mk7->scale_y == -15); // and Narrow Height 15 %
-    // AzaharFrame fovaxis: in Stretch, where its Render Margin 1.3x applies and the scales
-    // squeeze the side HUD in (Field of View would crop it).
-    REQUIRE(mk7->scale_mode == 0);
+    // 1.2.0 fix lane B (triage item 16): Mario Kart 7 as the owner set it in session 651 (the
+    // game's file and its last placement).
+    REQUIRE(mk7->scale_x == 55);
+    REQUIRE(mk7->scale_y == 70);
+    REQUIRE(mk7->scale_mode == 1); // Field of View
     REQUIRE(mk7->wider_level == 3);
-    REQUIRE(mk7->screen_size == 2.022f);
-    REQUIRE(mk7->resolution == 3);
-    REQUIRE(mk7->texture_filter == 3);
+    REQUIRE(mk7->screen_size == 2.05f);
+    REQUIRE(mk7->resolution == 4);
+    REQUIRE(mk7->texture_filter == static_cast<int>(Settings::TextureFilter::Bicubic));
+    REQUIRE(mk7->match_camera == 2); // Detect Game FOV Always
+    REQUIRE(mk7->own_placement);
+    REQUIRE(mk7->place_pitch_deg == -5.6f);
+    REQUIRE(mk7->place_distance == 3.0f);
+    REQUIRE(mk7->world_scale == 10.0f);
+    REQUIRE(mk7->immersive_depth == 85);
+    REQUIRE(sm3dl->world_scale == 0.0f); // the others keep World Scale and 3D Depth
+    REQUIRE(sm3dl->immersive_depth == -1);
     REQUIRE(sm3dl->factor_3d == 100);
     REQUIRE(sm3dl->resolution == 4);
     REQUIRE(sm3dl->screen_size == 0.0f);
@@ -112,6 +120,9 @@ TEST_CASE("FrameXr presets: measured angles, eyes and depth", "[frame_xr]") {
         REQUIRE(p.game_fov <= 110); // the setting's range
         REQUIRE((p.screen_size == 0.0f || (p.screen_size >= 0.6f && p.screen_size <= 2.5f)));
         REQUIRE((p.match_camera >= -1 && p.match_camera <= 2)); // AzaharFrame fovonce
+        // 1.2.0 fix lane B: World Scale's range (0 = keep), the Full modes' 3D Depth.
+        REQUIRE((p.world_scale == 0.0f || (p.world_scale >= 10.0f && p.world_scale <= 400.0f)));
+        REQUIRE((p.immersive_depth >= -1 && p.immersive_depth <= 100));
     }
 }
 
@@ -170,6 +181,15 @@ void ResetPresetSettings() {
     v.factor_3d.SetGlobal(true);
     v.resolution_factor.SetGlobal(true);
     v.texture_filter.SetGlobal(true);
+    // 1.2.0 fix lane B: Scale Mode, World Scale (and its "own" mark), the Full modes' 3D Depth.
+    v.vr_immersive_scale_mode.SetGlobal(true);
+    v.vr_immersive_scale_mode.SetValue(v.vr_immersive_scale_mode.GetDefault());
+    v.vr_immersive_world_scale.SetGlobal(true);
+    v.vr_immersive_world_scale.SetValue(v.vr_immersive_world_scale.GetDefault());
+    v.vr_immersive_world_set.SetGlobal(true);
+    v.vr_immersive_world_set.SetValue(false);
+    v.vr_immersive_depth.SetGlobal(true);
+    v.vr_immersive_depth.SetValue(v.vr_immersive_depth.GetDefault());
     v.vr_immersive_wider_view_level.SetValue(v.vr_immersive_wider_view_level.GetDefault());
     v.vr_immersive_match_camera_mode.SetValue(v.vr_immersive_match_camera_mode.GetDefault());
     v.vr_immersive_positional_game_scaler.SetValue(0);
@@ -211,12 +231,23 @@ TEST_CASE("FrameXr presets: a fresh user gets the preset of the game", "[frame_x
     ApplyPresetSettings(*FindImmersivePreset(0x0004000000030800ull)); // Mario Kart 7
     REQUIRE(Settings::values.vr_immersive_mode.GetValue() == 3);
     REQUIRE(Settings::values.vr_si_mode_register_offset.GetValue() == 90);
-    REQUIRE(Settings::values.resolution_factor.GetValue() == 3);
-    REQUIRE(Settings::values.vr_immersive_scale_x.GetValue() == -30); // was Narrow Screen 30 %
-    REQUIRE(Settings::values.vr_immersive_scale_y.GetValue() == -15); // and Narrow Height 15 %
     REQUIRE(Settings::values.vr_immersive_eye_indicator.GetValue() == "87,2");
-    // AzaharFrame jump: the owner's tuning had Match Game Camera off (the gain from 40 degrees).
-    REQUIRE(Settings::values.vr_immersive_match_camera_mode.GetValue() == 0); // Off
+    // 1.2.0 fix lane B (triage item 16): the owner's session-651 values.
+    REQUIRE(Settings::values.resolution_factor.GetValue() == 4);
+    REQUIRE(Settings::values.texture_filter.GetValue() == Settings::TextureFilter::Bicubic);
+    REQUIRE(Settings::values.vr_immersive_scale_x.GetValue() == 55);
+    REQUIRE(Settings::values.vr_immersive_scale_y.GetValue() == 70);
+    REQUIRE(Settings::values.vr_immersive_scale_mode.GetValue() == 1); // Field of View
+    REQUIRE(Settings::values.vr_immersive_match_camera_mode.GetValue() == 2); // Always
+    REQUIRE(Settings::values.vr_immersive_world_scale.GetValue() == 10.0f);
+    REQUIRE(!Settings::values.vr_immersive_world_scale.UsingGlobal());
+    REQUIRE(Settings::values.vr_immersive_world_set.GetValue());
+    REQUIRE(!Settings::values.vr_immersive_world_set.UsingGlobal());
+    REQUIRE(Settings::values.vr_immersive_depth.GetValue() == 85u);
+    REQUIRE(!Settings::values.vr_immersive_depth.UsingGlobal());
+    // The globals untouched.
+    REQUIRE(Settings::values.vr_immersive_world_scale.GetValue(true) == 100.0f);
+    REQUIRE(Settings::values.vr_immersive_depth.GetValue(true) == 100u);
     // AzaharFrame fovonce: Super Mario 3D Land keeps its "on": Always.
     ResetPresetSettings();
     ApplyPresetSettings(*FindImmersivePreset(0x0004000000054100ull));
@@ -592,4 +623,46 @@ TEST_CASE("FrameXr CStickModInstalled: catalogue ids and files", "[frame_xr][kiu
     CHECK(CStickModInstalled({MakeMod("unmanaged:kiu-cstick-aim", false, ModState::Active,
                                       {"kiu-cstick-aim/code.ips"})}));
     CHECK(CStickModInstalled({MakeMod("zip-C-Stick Aim", true)}));
+}
+
+// 1.2.0 fix lane B (triage item 16): World Scale and the Full modes' 3D Depth are starting values
+// as the rest: a game's own World Scale (the grip's, or the migration's), its own 3D Depth, or a
+// global value the player chose stay, and then the "own World Scale" mark is not written either.
+TEST_CASE("FrameXr presets: World Scale and 3D Depth only where unset", "[frame_xr][fixb]") {
+    auto& v = Settings::values;
+    const ImmersivePreset& mk7 = *FindImmersivePreset(0x0004000000030800ull);
+    SECTION("the game's own World Scale and 3D Depth") {
+        ResetPresetSettings();
+        v.vr_immersive_world_scale.SetGlobal(false);
+        v.vr_immersive_world_scale.SetValue(45.0f);
+        v.vr_immersive_world_set.SetGlobal(false);
+        v.vr_immersive_world_set.SetValue(true);
+        v.vr_immersive_depth.SetGlobal(false);
+        v.vr_immersive_depth.SetValue(100);
+        ApplyPresetSettings(mk7);
+        CHECK(v.vr_immersive_world_scale.GetValue() == 45.0f);
+        CHECK(v.vr_immersive_depth.GetValue() == 100u);
+        CHECK(!v.vr_immersive_depth.UsingGlobal());
+    }
+    SECTION("a global World Scale and 3D Depth the player chose") {
+        ResetPresetSettings();
+        v.vr_immersive_world_scale.SetValue(150.0f);
+        v.vr_immersive_depth.SetValue(60);
+        ApplyPresetSettings(mk7);
+        CHECK(v.vr_immersive_world_scale.UsingGlobal());
+        CHECK(v.vr_immersive_world_scale.GetValue() == 150.0f);
+        CHECK(v.vr_immersive_world_set.UsingGlobal()); // not marked: the migration decides
+        CHECK(!v.vr_immersive_world_set.GetValue());
+        CHECK(v.vr_immersive_depth.UsingGlobal());
+        CHECK(v.vr_immersive_depth.GetValue() == 60u);
+    }
+    SECTION("not in another mode") {
+        ResetPresetSettings();
+        v.vr_immersive_mode.SetGlobal(false);
+        v.vr_immersive_mode.SetValue(2); // the player's own mode 2 for this game
+        ApplyPresetSettings(mk7);
+        CHECK(v.vr_immersive_world_scale.UsingGlobal());
+        CHECK(v.vr_immersive_depth.UsingGlobal());
+    }
+    ResetPresetSettings();
 }

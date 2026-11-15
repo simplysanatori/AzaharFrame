@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "frame_xr/frame_xr.h"
+#include "frame_xr/immersive_layout.h" // 1.2.0 fix lane B: Layout::ScaleChord
 #include "frame_xr/input/actions.h"
 #include "frame_xr/input/chord_latch.h"
 #include "frame_xr/input/flat_vr_hold.h" // AzaharFrame flat
@@ -332,8 +333,9 @@ private:
     bool stop_hold_logged = false;  // "xr: View hold started" logged for this press
     bool stopping_shown = false;    ///< AzaharFrame controls: "Stopping..." shown for this hold
     bool was_holding = false;       ///< a grip held a screen last game frame (the hint chip)
-    /// AzaharFrame kiu2: each raw grip down for both grips + D-pad, with the Adjuster's hysteresis
-    bool scale_grip_down[2]{};
+    /// AzaharFrame kiu2: each raw grip down for both grips + D-pad, with the Adjuster's
+    /// hysteresis; 1.2.0 fix lane B: latched until both are up (Layout::ScaleChord).
+    Immersive::Layout::ScaleChord scale_chord;
     bool both_grips_logged = false; ///< "both grips" logged for this hold
     int64_t last_hint_ns = 0;       ///< when the hint chip last showed
 

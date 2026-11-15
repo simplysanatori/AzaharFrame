@@ -38,7 +38,7 @@ Modes 2 and 3 need hardware shaders (Graphics, Enable Hardware Shader; on by def
 | Left Stick Click, tap | Shows or hides the bottom screen, the same switch as the chord (screen focus, [docs/CONTROLS.md](../../docs/CONTROLS.md#swapping-the-screens)). |
 | Right Stick Click, tap | Swaps the screens: the bottom screen becomes the main one. Immersive mode pauses (all three modes, `Immersive::SetBottomFocused`) until you tap again. |
 | Grip (either hand) | Holds the immersive screen: move the hand up or down and the screen follows (the point under the laser stays under it). The stick of that hand: up moves it farther, down nearer; right makes it bigger, left smaller (past half way, as in the normal placement). Let go and the placement is saved for this game. The grip, and that hand's stick, do not reach the game meanwhile. Stick Click taps do nothing meanwhile (`Immersive::HoldingScreen`). A grab shows the hint chip low in front of you (`VrUi::ShowGripHint`, at most once per 10 s). |
-| D-Pad, while both grips are down and one holds the screen | AzaharFrame immersive2 (AzaharFrame kiu: signed). Right makes the screen wider, left narrower (Horizontal Scale); up makes it taller, down shorter (Vertical Scale); 5 % per press, held: again after 0.4 s, then every 0.1 s, -30 % to +30 % (positive is larger). Live, saved for this game, toast "Horizontal Scale: -10%" or "Vertical Scale: +5%" (`Immersive::StepScale`). Grip + D-pad with one grip keeps the offset and Render Margin below; the second grip only chooses which. |
+| D-Pad, while both grips are down and one holds the screen | AzaharFrame immersive2 (AzaharFrame kiu: signed). Right makes the screen wider, left narrower (Horizontal Scale); up makes it taller, down shorter (Vertical Scale); 5 % per press, held: again after 0.4 s, then every 0.1 s, -30 % to +30 % (positive is larger). Live, saved for this game, toast "Horizontal Scale: -10%" or "Vertical Scale: +5%" (`Immersive::StepScale`). Grip + D-pad with one grip keeps the offset and Render Margin below; the second grip only chooses which. 1.2.0 fix lane B (session 651, triage item 6): latched (`Layout::ScaleChord`): once both grips are down while one holds the screen, the D-pad stays on the scales (and off the game) until both are up, so a late second grip or one easing off no longer drops to the one-grip chord; a diagonal steps both in one call and one toast ("Horizontal Scale: +45% · Vertical Scale: +100% (Max)"; toasts are last-wins a frame); the ends add "(Max)" or "(Min)"; a press with no grip holding the screen (the latch after the holding grip let go, or the screen paused) shows "Hold the Screen First" instead of nothing. |
 | D-Pad, while a grip holds the screen | Left / right nudge the global Immersive Offset 0.5 degrees per press (held: again after 0.4 s, then every 0.1 s) and show "Offset Right 1.5°" (etc.) as a toast for 2 s; the vertical offset is set only in the settings. Up / down step Render Margin for this game (Full modes), "Render Margin: 1.2x". AzaharFrame fovaxis: with Field of View (Full modes) up / down step the Full modes' 3D Depth instead (`vr_immersive_depth`, `Layout::GripUpDownFor`, `Immersive::StepDepth3d`): 5 % per press from what is shown (`NaturalDepth`), held: repeats as the scales, 0 to 100 %, written per game as the in-game menu's row (it opens on Per-Game), live, toast "3D Depth: 80%" (`Names::DepthToast`); the grip hint says "D-Pad ↕ 3D Depth" then. The D-pad does not reach the game while the grip holds the screen, nor a direction pressed then until it is let go (`Input::ScreenRig::DpadNudger`, `Immersive::NudgeOffset`). See Placement. |
 | Right Stick Click, held for 1 s | Also re-centres: the direction you face and where your head is become the game camera's rest pose (modes 2, 3), and the wide screen moves in front of you (mode 1). The immersive screen keeps its size, distance and pitch unless a grip holds it; then it goes back to its default placement and its saved one is forgotten (`Immersive::OnResetPanels`). **Reset Position** in the menu always puts it back. SteamVR's own recentre (hold the Steam button) only re-centres: the screen keeps its size, distance and pitch, so recentring again changes nothing (`Immersive::OnRecentred`; the rest pose is taken from the first head pose located in the moved space, at or after the event's `changeTime`). |
 | Triggers | ZL / ZR (a trigger is a touch only on a shown bottom screen). |
@@ -364,27 +364,34 @@ Four per-game settings change this (**VR** group, logged as
   same file shows the same screen, stretched; nothing is converted, no marker. Presets keep their
   scales; they are starting values under either mode. AzaharFrame fovaxis: a preset may set Scale
   Mode (`Preset::scale_mode`, -1 = not), filled only while the game has neither scale of its
-  own, so a player who already saved scales keeps the mode they had; Mario Kart 7's is Stretch
-  (its -30 % / -15 % bring the side HUD in, which Field of View would crop, and its Render
-  Margin 1.3x applies there). Super Mario 3D Land, the Zelda games and Asphalt 3D relied on the
+  own, so a player who already saved scales keeps the mode they had; Mario Kart 7's was Stretch
+  (its -30 % / -15 % brought the side HUD in, which Field of View would crop); 1.2.0 fix lane B
+  made it the owner's session-651 Field of View +55 % / +70 % (presets.cpp). Super Mario 3D Land, the Zelda games and Asphalt 3D relied on the
   default Render Margin 1.4x in Field of View: their presets now have both scales at +40 %, the
   same picture and screen when the view-fill cap is not reached.
 - **Fill View** (AzaharFrame fovaxis; the VR menu's button under Scale Mode, `Immersive::FillView`,
-  `Layout::FillView`): once, never a mode. From the last solve's camera, shape and eye shift
-  (mode 2's half IPD over the distance) and the placement's pitch: the screen at size 1 and
-  scales 0 % (the fit taken first, so the screen then grows exactly with the size and each
-  scale), `DefaultCover` at the screen's pitch (what either eye sees plus `kFillMarginDeg`).
-  Horizontal Scale is the largest 5 % step at or under what the width needs and the size
-  (`kMinSize` to `kMaxSize`) makes the width exact (so the size is at least 1); Vertical Scale
-  is the smallest step that covers the height at that size, at most one step over (7.4 % below
-  -30 %, 5 / (100 + scale) above). Where no Vertical Scale step reaches the height at that size
-  (a narrow camera, a tall view, Stretch's trimmed padding), Horizontal Scale steps down and the
-  size up until one does; if none can (the size ends at 2.5), it fills as far as it goes and the
-  toast says `(Partial)`. Each step is solved (`SolveHeadLocked`), so the caps and the trimming
-  are taken as they are. Scales and size per game, as the D-pad and the grip; the
-  toast `Fill View: Horizontal +35%, Vertical +60%` with ` (May Warp)` when the result is past
-  the caps; logged as `xr: immersive: Fill View: size 1.034, Horizontal Scale 35%, Vertical
-  Scale 60% (Field of View), height 2.0% over`, which `hold.py --log` reads. Nothing re-applies
+  `Layout::FillView`): once, never a mode. 1.2.0 (session 651, triage item 2): across only.
+  From the last solve's camera, shape and eye shift (mode 2's half IPD over the distance) and
+  the placement's pitch: the screen at size 1 for each Horizontal Scale step with the player's
+  Vertical Scale (the fit taken first, so the screen then grows exactly with the size and each
+  scale), `DefaultCover` at the screen's pitch (what either eye sees plus `kFillMarginDeg`). The
+  width's target is `kFillAcrossShare` (0.75) of the cover's half-width tangent. Horizontal
+  Scale is `kFillScalePercent` (+50 %, the owner's "about 25 % more on each side"), or the
+  largest 5 % step under it whose width at size 1 is at or under the target, of the steps that
+  do not warp across at that Vertical Scale (`SplitScales`' `warp_x`; any step when none
+  avoids it); the size (`kMinSize` to `kMaxSize`) makes the width exact (so at least 1). If the
+  size ends first the toast says `(Partial)`. Vertical Scale is never written and nothing
+  searches the height (the old `cover_y` search, which lowered Horizontal Scale and raised the
+  size to reach the height, made every session-651 press 1.5 to 2.3 times the size and "May
+  Warp"). Calibration: the owner's settled screens were 0.58 to 0.93 (median about 0.74) as
+  wide as the old full cover; at +50 % the new size has no mean bias against the owner's sizes
+  (OoT 1.32 and 1.37 against 1.12, Majora's Mask 3D 1.19 against 1.39, Mario Kart 7 1.70 against
+  2.05). Each step is solved (`SolveHeadLocked`), so the caps and the trimming are taken as
+  they are. Size and Horizontal Scale per game, as the D-pad and the grip; the
+  toast `Fill View: Horizontal +35%, Vertical +60%` (Vertical: the player's, unchanged) with
+  ` (May Warp)` when the result is past the caps; logged as `xr: immersive: Fill View: size
+  1.034, Horizontal Scale 35%, Vertical Scale 60% (Field of View), across 75% of the view,
+  Vertical Scale kept, the height 81% of the view's`, which `hold.py --log` reads. Nothing re-applies
   it; the values are ordinary, so the next D-pad or menu step moves one step from them and the
   grip resizes from the filled size. It fills with the screen, not the game's own frame: in
   Field of View the frame does not grow with the scales (they draw more around it), and in
@@ -556,16 +563,21 @@ headset rather than to the 65 mm the numbers below assume.
 
 AzaharFrame presets: the table above is what was measured. The values the presets ship are the
 owner's own tuned per-game settings of 2026-11-12 (`frame_xr/presets.cpp`; each applies only
-where a game has no value of its own and the global one is still the default): Mario Kart 7 FOV
-40, Render Margin 1.3x, Horizontal Scale -30 % and Vertical Scale -15 %, Internal Resolution 3x, ScaleForce, the
-screen 4.95 degrees below the middle, 0.37 m, size 2.02; Super Mario 3D Land 10x, 3D Depth 100,
+where a game has no value of its own and the global one is still the default): Mario Kart 7
+(1.2.0 fix lane B: the owner's session-651 file and placement) FOV 40, Detect Game FOV Always,
+Render Margin 1.3x (Stretch's), Field of View with Horizontal Scale +55 % and Vertical Scale
++70 %, Internal Resolution 4x, Bicubic, the screen 5.6 degrees below the middle, the
+placement 3 m with World Scale 10 % (`Preset::world_scale`, which also marks the game's World
+Scale as its own, `vr_immersive_world_set`, so the 1.2.0 migration leaves it: the screen 0.30 m
+away), size 2.05, and the Full modes' 3D Depth 85 (`Preset::immersive_depth`,
+`vr_immersive_depth`); Super Mario 3D Land 10x, 3D Depth 100,
 4x, screen 7.15 degrees below the middle, size 1.06; Kid Icarus: Uprising (normal view; Immersive stays Off by default, the player can turn it on) Internal Resolution 4x and Bicubic only; Ocarina of Time 3D and Majora's Mask 3D (every region, identical) FOV 55, Match
 Game Camera off, 3D Depth 30 (no Horizontal Scale of their own since AzaharFrame oot), screen 9.21 degrees below the middle, 3 m.
 
 ### The immersive screen per game
 
 AzaharFrame immersive2, on the Frame (its view from the headset log), at the defaults and presets
-(a game's own values win). Vertical Scale is 0 % (but in Mario Kart 7's preset) and the screen's pitch is the middle of the view
+(a game's own values win). Vertical Scale is 0 % (but in the presets) and the screen's pitch is the middle of the view
 in all of them. Size 1 is the world at its own scale; the angles are the screen's.
 
 | Game | Screen Shape | Horizontal Scale | Render Margin | Up and down | Distance | Size |
@@ -574,7 +586,7 @@ in all of them. Size 1 is the world at its own scale; the angles are the screen'
 | Ocarina of Time 3D | 3DS (5:3); with SSE as measured | 0 % (-10 % before) | 1.4x | 1.4x (1.76x to 2.0x before) | 3 m | 1 (95 x 85; 16:9 99 x 89; widest 111 x 92) |
 | Majora's Mask 3D | 3DS (5:3) | 0 % (-10 % before) | 1.4x | 1.4x (1.76x before) | 3 m | 1 (95 x 85) |
 | Super Mario 3D Land | 3DS (5:3) | 0 % (-10 % before) | 1.4x | 1.4x (1.77x before) | 3 m | 1 (82 x 73) |
-| Mario Kart 7 | 3DS (5:3) | 0 % (its preset now starts at -30 %, Vertical Scale -15 %) | 1.4x | 1.4x (1.77x before) | 3 m | 0.9 (91 x 76, gain 1.11) |
+| Mario Kart 7 | 3DS (5:3) | 0 % (its preset now starts at +55 %, Vertical Scale +70 %, Field of View, size 2.05) | 1.4x | 1.4x (1.77x before) | 3 m | 0.9 (91 x 76, gain 1.11) |
 
 The Size column's heights are from before AzaharFrame oot (the view's shape); the screen is now
 as high as the picture's shape gives at that width. The widths were worked out at Horizontal Scale -10 %, the default before
@@ -1012,7 +1024,13 @@ the screen in metres; `d` its distance; `f` 3D Depth / 100):
   the distance at a fixed angle, so World Scale is the screen's distance in both Full modes:
   `d = ws x 3 m` (`FullDistance`; `/ size` with Follow Screen Size off), eased at most a factor 4
   a second; the leaning follows it. The grips' stick forward/back changes it (the Adjuster's
-  `world_ratio`) with the toast "World Scale: 45%". The placement file's distance is no longer
+  `world_ratio`) with the toast "World Scale: 45%". The stick right/left resizes the screen with
+  the toast "Screen Size: 137%" (1.2.0 fix lane B, `Names::ScreenSizeToast`, at the World Scale
+  toast's rate); on release "· World Scale Follows" with Follow Screen Size on (it was only
+  "Follow Screen Size: On", which read like a toggle), and "· May Feel Locked" while either gain
+  is under `kLockedGain` (0.7: session 651's Super Mario 3D Land at 0.65/0.73 after a resize to
+  137 % "couldn't look around"); logged as `xr: immersive: Screen Size 137 % by the grip (...)`.
+  The placement file's distance is no longer
   moved in the Full modes (it is the 1.2.0 distance, the fallback's and the migration's input).
 - **The fallback** where `K` cannot be read: the `K` saved from an earlier run
   (`vr_immersive_eye_per_far`), else 1.2.0's `GamePositionScale` at the saved screen

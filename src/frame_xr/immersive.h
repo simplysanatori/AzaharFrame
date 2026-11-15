@@ -142,6 +142,8 @@ WiderStep StepWiderView(int dir);
 /// (Settings::values.vr_immersive_scale_x), else `taller_steps` (up +1, down -1) steps Vertical
 /// Scale (vr_immersive_scale_y), Layout::kScaleStepPercent each, set for this game and live; the
 /// toast shows the value. Changed: the caller has the game's config saved. XR thread.
+/// 1.2.0 fix lane B: both at once (a diagonal) in one toast; "(Max)" or "(Min)" at an end; with
+/// no grip holding the screen, the toast "Hold the Screen First" (never a silent drop).
 WiderStep StepScale(int wider_steps, int taller_steps);
 
 /// AzaharFrame fovaxis: true when grip + D-pad up or down steps 3D Depth now (StepDepth3d) while

@@ -2027,8 +2027,16 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
     // the game. The normal pair's drag is the mapper's, as of the last frame.
     const bool holding_immersive = Immersive::HoldingScreen();
     const bool holding_normal = !holding_immersive && bridge.mapper().DragActive();
+    // AzaharFrame immersive2: both grips down while one holds the immersive screen: the D-pad
+    // shapes the screen (AzaharFrame kiu: Horizontal Scale, Vertical Scale) instead of the offset
+    // and Render Margin. The raw grips: a Bottom Screen Reticle hand's grip is taken out of
+    // game_in. AzaharFrame kiu2: with the Adjuster's hysteresis (down past kGripPress, up only
+    // under kGripRelease). 1.2.0 fix lane B (triage item 6): latched until both grips are up
+    // (Layout::ScaleChord), and the D-pad stays off the game meanwhile.
+    const bool both_grips =
+        scale_chord.Update(in.hand[0].grip, in.hand[1].grip, holding_immersive);
     const Rig::DpadNudger::Steps nudge =
-        nudger.Filter(game_in, holding_immersive || holding_normal);
+        nudger.Filter(game_in, holding_immersive || holding_normal || both_grips);
     // AzaharFrame move: Detach Screens: a grip moves the slot under it (main or second).
     const uint32_t detach = DetachMode();
     // AzaharFrame controls: a grab starts: the hint chip, unless one showed in the last 10 s.
@@ -2333,32 +2341,17 @@ void VrUi::GameFrame(Runtime& rt, const FrameInfo& info, const Input::InputFrame
         place.bottom_pose = BottomFromTop(place.top_pose, place.top_scale);
         SetScreenPlacement(place);
     }
-    // AzaharFrame immersive2: both grips down while one holds the immersive screen: the D-pad
-    // shapes the screen (AzaharFrame kiu: Horizontal Scale, Vertical Scale) instead of the offset
-    // and Render Margin. The raw grips: a Bottom Screen Reticle hand's grip is taken out of
-    // game_in.
-    // AzaharFrame kiu2: with the Adjuster's hysteresis (down past kGripPress, up only under
-    // kGripRelease), so the holding hand's grip easing off while the thumb finds the D-pad does
-    // not drop back to the offset and Render Margin.
-    for (std::size_t h = 0; h < 2; h++) {
-        const float g = in.hand[h].grip;
-        scale_grip_down[h] = scale_grip_down[h] ? g > Immersive::Layout::kGripRelease
-                                                : g > Immersive::Layout::kGripPress;
-    }
-    const bool both_grips = holding_immersive && scale_grip_down[0] && scale_grip_down[1];
+    // Both grips: the scales (latched above, until both grips are up).
     if (both_grips != both_grips_logged) {
         both_grips_logged = both_grips;
-        LOG_INFO(Frontend, "xr: immersive: both grips {}", both_grips ? "down" : "up");
+        LOG_INFO(Frontend, "xr: immersive: both grips {}",
+                 both_grips ? "down" : "up (both released)");
     }
     if (nudge.Any() && both_grips) {
-        // Right wider, left narrower; up taller, down shorter. Held, they repeat.
-        bool changed = false;
-        if (nudge.right != 0) {
-            changed |= Immersive::StepScale(nudge.right, 0) == Immersive::WiderStep::Changed;
-        }
-        if (nudge.up != 0) {
-            changed |= Immersive::StepScale(0, nudge.up) == Immersive::WiderStep::Changed;
-        }
+        // Right wider, left narrower; up taller, down shorter. Held, they repeat. A diagonal
+        // steps both, in one toast (1.2.0 fix lane B).
+        const bool changed =
+            Immersive::StepScale(nudge.right, nudge.up) == Immersive::WiderStep::Changed;
         if (changed) {
             std::scoped_lock lock{hooks_mutex};
             if (hooks.game_setting_changed) {

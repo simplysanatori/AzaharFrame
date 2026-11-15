@@ -70,8 +70,8 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Render Margin: Vertical](#render-margin) | **Off**, **1.1x**, **1.2x**, **1.3x**, **1.4x** | 1.4x | global and per game | at once |
 | [Horizontal Scale](#horizontal-scale-and-vertical-scale) | -100% to +100%, in 5% steps | +40% | global and per game | at once |
 | [Vertical Scale](#horizontal-scale-and-vertical-scale) | -100% to +100%, in 5% steps | +40% | global and per game | at once |
-| [Scale Mode](#scale-mode) | **Stretch**, **Field of View** | Field of View (Mario Kart 7: Stretch) | global and per game | at once |
-| [Fill View](#fill-view) | a button | | per game (the size and both scales) | at once |
+| [Scale Mode](#scale-mode) | **Stretch**, **Field of View** | Field of View | global and per game | at once |
+| [Fill View](#fill-view) | a button | | per game (the size and Horizontal Scale) | at once |
 | [World Scale](#world-scale) | 10% to 400%, 100% by default | 100% | global and per game | eased in |
 | [Follow Screen Size](#follow-screen-size) | on or off | on | global and per game | eased in |
 | [Primary Screen as Panel](#primary-screen-as-panel) (Experimental) | on or off | off | global and per game | at once |
@@ -252,7 +252,7 @@ Earlier versions read the same keys; in Field of View they also apply Render Mar
 
 ## Fill View
 
-A button under Scale Mode, Full modes only. One press sets this game's screen size, Horizontal Scale and Vertical Scale so the screen covers what either eye sees, with 1 degree to spare on each side, at the screen's own pitch and distance. The width is exact; Vertical Scale is the smallest 5% step that covers the height, so the screen can be up to one step taller than needed (at most about 5% in testing). When the height cannot be reached that way, Horizontal Scale is set lower and the screen larger; with a narrow game camera, or in Stretch with Render Margin, it may still fall short, and the label then ends in **(Partial)**. In Field of View the game draws more to fill; in Stretch Render Margin adds around the picture and the scales stretch it. If that needs more than the scales can take without warping, it still fills and the label says **May Warp**. A label shows the result, for example **Fill View: Horizontal +35%, Vertical +60%**. It sets the values once: from then on they are ordinary values you can change with the grip, the D-pad or the menu, and nothing sets them again.
+A button under Scale Mode, Full modes only. One press sets this game's screen size and Horizontal Scale so the screen's width is about three quarters of what would cover either eye's view (with 1 degree to spare on each side), at the screen's own pitch and distance. Horizontal Scale is +50%, or the largest 5% step under it that the width allows (a wide game camera needs less), avoiding a step that would warp the picture at your Vertical Scale; the size then makes the width exact, so it is at least 1. Vertical Scale is not changed: the height follows your own Vertical Scale and the new size. If the size reaches its limit first, the label ends in **(Partial)**; if your Vertical Scale is past what the scales take without warping, it says **May Warp**. In Field of View the game draws more across; in Stretch the picture is stretched across. A label shows the result, for example **Fill View: Horizontal +50%, Vertical +40%**. It sets the values once: from then on they are ordinary values you can change with the grip, the D-pad or the menu, and nothing sets them again.
 
 ## World Scale
 

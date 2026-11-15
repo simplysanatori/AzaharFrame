@@ -61,6 +61,7 @@
 
 #include <limits>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <map>
@@ -101,6 +102,11 @@ inline constexpr float kMinFillHalfHeightDeg = 35.0f;
 /// a little). At the screen's edge, angle e, a head turn moves the picture by
 /// (1 + gain^2 tan^2 e) / (1 + tan^2 e) times the turn: 1.25 at gain 1.3 and e = 37 degrees.
 inline constexpr float kMinGain = 0.4f;
+/// 1.2.0 fix lane B (session 651, triage item 5): under this gain (either axis) a head turn
+/// turns the game camera so little that the screen seems to follow the head (Super Mario 3D Land
+/// at gain 0.65/0.73 after a resize, 0.41/0.52 in mode 2): the resize toast adds "May Feel
+/// Locked" (MayFeelLocked).
+inline constexpr float kLockedGain = 0.7f;
 inline constexpr float kMaxGain = 2.0f;
 /// Narrow Screen and Narrow Height (vr_immersive_squeeze, vr_immersive_squeeze_y): the screen
 /// this many percent narrower (lower) than the picture, in kNarrowStepPercent steps up to
@@ -119,6 +125,31 @@ inline constexpr float kDistanceRate = 1.0f;
 inline constexpr float kSizeRate = 0.5f;
 inline constexpr float kGripPress = 0.60f;
 inline constexpr float kGripRelease = 0.40f;
+
+/// 1.2.0 fix lane B (session 651, triage item 6): both grips + D-pad steps the scales, latched.
+/// Each raw grip is down past kGripPress and up only under kGripRelease (AzaharFrame kiu2's
+/// hysteresis); once both are down while a grip holds the immersive screen, the chord holds
+/// until BOTH are up, so a second grip that arrives late, or one that eases off, no longer drops
+/// the D-pad to the single-grip chord (3D Depth or Render Margin, and the offset), which showed
+/// "3D Depth: 100%" three times in the owner's session.
+struct ScaleChord {
+    bool down[2]{};
+    bool latched = false;
+    /// This frame's raw grips (left, right) and whether a grip holds the immersive screen: true
+    /// while the D-pad steps the scales.
+    bool Update(float grip_left, float grip_right, bool holding) {
+        const float grips[2]{grip_left, grip_right};
+        for (int h = 0; h < 2; ++h) {
+            down[h] = down[h] ? grips[h] > kGripRelease : grips[h] > kGripPress;
+        }
+        if (holding && down[0] && down[1]) {
+            latched = true;
+        } else if (!down[0] && !down[1]) {
+            latched = false;
+        }
+        return latched;
+    }
+};
 
 inline constexpr float kDegToRad = 3.14159265f / 180.0f;
 inline constexpr float kRadToDeg = 180.0f / 3.14159265f; ///< AzaharFrame stereo
@@ -292,8 +323,12 @@ float ScaleFactor(int setting);
 float SqueezeForScale(int setting);
 /// The setting after `steps` presses (positive = larger), clamped.
 int SteppedScale(int setting, int steps);
-/// "Horizontal Scale: -10%", "Horizontal Scale: 0%", "Vertical Scale: +5%".
+/// "Horizontal Scale: -10%", "Horizontal Scale: 0%", "Vertical Scale: +5%"; 1.2.0 fix lane B: at
+/// an end "Vertical Scale: +100% (Max)", "Horizontal Scale: -100% (Min)".
 std::string ScaleToast(int percent, bool vertical);
+/// 1.2.0 fix lane B: both axes in one toast (a diagonal on the D-pad; one toast a frame, the
+/// last wins): "Horizontal Scale: +45% \u00b7 Vertical Scale: +100% (Max)".
+std::string ScaleToasts(int percent_x, int percent_y);
 /// The old Narrow Screen or Narrow Height value as a scale: -NarrowPercent (the legacy 1 to 3 =
 /// 10 % steps rule kept), so a game keeps exactly its screen.
 int ScaleFromNarrow(uint32_t old_setting);
@@ -423,6 +458,11 @@ struct HeadLocked {
         return 2.0f * distance * tan_half_y;
     }
 };
+
+/// 1.2.0 fix lane B: either gain under kLockedGain (the resize toast's "May Feel Locked").
+inline bool MayFeelLocked(const HeadLocked& s) {
+    return std::min(s.gain, s.gain_x) < kLockedGain;
+}
 
 /// The middle of the view, as a pitch (radians).
 float ViewMiddlePitch(const ViewFov& view);
@@ -762,28 +802,38 @@ HeadLocked SolveHeadLocked(const Placement& placement, float game_fov_y_deg, flo
                            const ViewFov& view, float eye_shift = 0.0f,
                            const Options& options = {}, const LensOffset& offset = {});
 
-/// AzaharFrame fovaxis: Fill View, set once (no mode): the placement size and both scales that
-/// make the screen cover what either eye sees (DefaultCover at the screen's own pitch, with
-/// kFillMarginDeg to spare, and mode 2's `eye_shift`), from the screen as SolveHeadLocked gives
-/// it with `options` (its scales replaced; each step solved, the mode and the caps included).
-/// Horizontal Scale is the largest 5 % step at or under what the width needs and the size makes
-/// the width exact (so at least 1, a little magnified); Vertical Scale is the smallest 5 % step
-/// that covers the height at that size, so the height is over by less than one step. `covers`
-/// is false where the ranges (size kMinSize to kMaxSize, scales +-100 %) or Stretch's caps
-/// cannot reach the view (Stretch trims Render Margin's padding at 1.6x, so a margin leaves
-/// less room up and down): then the most they give, the smallest steps that give it.
+/// AzaharFrame fovaxis: Fill View, set once (no mode). 1.2.0: across only, at kFillAcrossShare
+/// of the view. The placement size and Horizontal Scale that make the screen's width exactly
+/// kFillAcrossShare of the half width (tangent) that would cover what either eye sees
+/// (DefaultCover at the screen's own pitch, with kFillMarginDeg to spare, and mode 2's
+/// `eye_shift`), from the screen as SolveHeadLocked gives it with `options` (its scales replaced;
+/// each step solved, the mode and the caps included). Vertical Scale stays the player's
+/// `scale_y` (on the grid); nothing searches the height. Horizontal Scale is kFillScalePercent,
+/// or the largest 5 % step under it whose width is at or under what the share needs, of the
+/// steps that do not warp across at that Vertical Scale (any step when every one would); the
+/// size then makes the width exact (so at least 1: the size, not the scale, makes up the rest).
+/// `covers` is false where the size's range (kMinSize to kMaxSize) cannot make it exact: then
+/// the size at its end.
+/// Session 651: covering the whole view (width and height, the height by lowering Horizontal
+/// Scale and raising the size) was far too big; the owner's settled screens were 0.58 to 0.93
+/// as wide as that (median about 0.74), the height 0.54 to 0.82 (triage item 2). The owner's
+/// rule (2026-11-15): a moderate Horizontal Scale, about 25 % more on each side, and the size
+/// raised until the width fits.
+inline constexpr float kFillAcrossShare = 0.75f;
+inline constexpr int kFillScalePercent = 50;
 struct Filled {
     float size = 1.0f;
     int scale_x = 0;
-    int scale_y = 0;
-    bool covers = true;
-    float over_y = 0.0f; ///< the height over what covers, as a share (0.03: 3 % taller)
+    int scale_y = 0; ///< the player's Vertical Scale, unchanged
+    bool covers = true; ///< the width exactly kFillAcrossShare of the view
+    /// The screen's height over the height that would cover the view (0.8: 80 % of it); logged.
+    float share_y = 0.0f;
 };
 Filled FillView(const Placement& placement, float game_fov_y_deg, float aspect,
-                const ViewFov& view, float eye_shift, const Options& options,
+                const ViewFov& view, float eye_shift, int scale_y, const Options& options,
                 const LensOffset& offset = {});
-/// "Fill View: Horizontal +35%, Vertical +60%", with " (Partial)" when it does not cover and
-/// " (May Warp)" when `warp`.
+/// "Fill View: Horizontal +35%, Vertical +60%" (Vertical: the player's, unchanged), with
+/// " (Partial)" when the width is not exact and " (May Warp)" when `warp`.
 std::string FillToast(const Filled& filled, bool warp);
 
 /// The head-locked quad's rotation about the eye: the offset's yaw, then the pitch.

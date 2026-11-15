@@ -421,12 +421,15 @@ int main(int argc, char** argv) {
         ok &= toast_shot("homebrew-no-updates-toast.png", {"No Updates Available"});
         ok &= toast_shot("homebrew-update-available-toast.png", {"Update Available"});
         ok &= toast_shot("homebrew-check-failed-toast.png", {"Couldn't Check for Updates"});
-        // AzaharFrame natural: the grip's World Scale, a resize with Follow Screen Size on, the
-        // 3D Factor shortcuts in the Full modes (the stereo cap's "Limited to" toast is gone)
+        // AzaharFrame natural: the grip's World Scale, a resize (1.2.0: its size, with Follow
+        // Screen Size on, and with the low-gain warning), the 3D Factor shortcuts in the Full
+        // modes (the stereo cap's "Limited to" toast is gone)
         ok &= toast_shot("natural-toasts.png",
                          {Immersive::Names::WorldScaleToast(45.0f),
                           Immersive::Names::WorldScaleToast(100.0f),
-                          Immersive::Names::kWorldScaleFollowsToast,
+                          Immersive::Names::ScreenSizeToast(1.37f, false, false),
+                          Immersive::Names::ScreenSizeToast(1.37f, true, false),
+                          Immersive::Names::ScreenSizeToast(1.37f, true, true),
                           Immersive::Names::DepthToast(45)});
     }
     MenuView v;
