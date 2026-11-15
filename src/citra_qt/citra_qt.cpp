@@ -517,10 +517,19 @@ struct FrameKeepControls {
           weapon{Settings::values.vr_light_gun_weapon}, // AzaharFrame kiuguns
           laser{Settings::values.vr_light_gun_laser},
           flash{Settings::values.vr_light_gun_flash}, // AzaharFrame kiuflash
+          projectile{Settings::values.vr_light_gun_projectile},
+          projectile_size{Settings::values.vr_light_gun_projectile_size},
+          projectile_speed{Settings::values.vr_light_gun_projectile_speed},
           recoil_charged{Settings::values.vr_light_gun_recoil_charged}, // AzaharFrame kiufix
           recoil_rapid{Settings::values.vr_light_gun_recoil_rapid},
           weapon_size{Settings::values.vr_light_gun_weapon_size},
           weapon_scale{Settings::values.vr_light_gun_weapon_scale},
+          turn_zone_from{Settings::values.vr_light_gun_turn_zone_from}, // AzaharFrame kiuaim3
+          lock{Settings::values.vr_light_gun_lock},
+          grip{Settings::values.vr_light_gun_grip},
+          weapon_opacity{Settings::values.vr_light_gun_weapon_opacity}, // AzaharFrame kiuopacity
+          projectile_opacity{Settings::values.vr_light_gun_projectile_opacity},
+          flash_size{Settings::values.vr_light_gun_muzzle_flash_size}, // AzaharFrame kiuweap2
           preset_done{Settings::values.vr_controls_preset_done} {}
     void Restore() {
         touchpad.Restore();
@@ -539,10 +548,19 @@ struct FrameKeepControls {
         weapon.Restore();
         laser.Restore();
         flash.Restore();
+        projectile.Restore();
+        projectile_size.Restore();
+        projectile_speed.Restore();
         recoil_charged.Restore(); // AzaharFrame kiufix
         recoil_rapid.Restore();
         weapon_size.Restore();
         weapon_scale.Restore();
+        turn_zone_from.Restore(); // AzaharFrame kiuaim3
+        lock.Restore();
+        grip.Restore();
+        weapon_opacity.Restore(); // AzaharFrame kiuopacity
+        projectile_opacity.Restore();
+        flash_size.Restore(); // AzaharFrame kiuweap2
         preset_done.Restore();
     }
     FrameKeepSetting<u32, true> touchpad;
@@ -561,10 +579,19 @@ struct FrameKeepControls {
     FrameKeepSetting<bool, false> weapon; // AzaharFrame kiuguns
     FrameKeepSetting<bool, false> laser;
     FrameKeepSetting<bool, false> flash; // AzaharFrame kiuflash
+    FrameKeepSetting<bool, false> projectile;
+    FrameKeepSetting<u32, true> projectile_size;
+    FrameKeepSetting<u32, true> projectile_speed;
     FrameKeepSetting<u32, true> recoil_charged; // AzaharFrame kiufix
     FrameKeepSetting<u32, true> recoil_rapid;
     FrameKeepSetting<u32, true> weapon_size;
     FrameKeepSetting<u32, true> weapon_scale;
+    FrameKeepSetting<u32, true> turn_zone_from; // AzaharFrame kiuaim3
+    FrameKeepSetting<bool, false> lock;
+    FrameKeepSetting<u32, true> grip;
+    FrameKeepSetting<u32, true> weapon_opacity; // AzaharFrame kiuopacity
+    FrameKeepSetting<u32, true> projectile_opacity;
+    FrameKeepSetting<u32, true> flash_size; // AzaharFrame kiuweap2
     FrameKeepSetting<u32, false> preset_done;
 };
 // Fast forward (View, then the Right Trigger): Azahar's turbo speed on or off, with the
@@ -5583,6 +5610,15 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
     case S::MuzzleFlash: // AzaharFrame kiuflash
         set(v.vr_light_gun_flash, r.value != 0);
         break;
+    case S::Projectiles: // AzaharFrame kiuflash
+        set(v.vr_light_gun_projectile, r.value != 0);
+        break;
+    case S::ProjectileSize:
+        set(v.vr_light_gun_projectile_size, std::clamp<u32>(u, 50, 200));
+        break;
+    case S::ProjectileSpeed:
+        set(v.vr_light_gun_projectile_speed, std::clamp<u32>(u, 50, 200));
+        break;
     case S::RecoilCharged: // AzaharFrame kiufix: percent
         set(v.vr_light_gun_recoil_charged, std::min<u32>(u, 100));
         break;
@@ -5594,6 +5630,27 @@ void GMainWindow::FrameMenuRequest(const FrameXr::MenuRequest& r) {
         break;
     case S::WeaponScale:
         set(v.vr_light_gun_weapon_scale, std::clamp<u32>(u, 50, 150));
+        break;
+    case S::TurnZoneFrom: // AzaharFrame kiuaim3: 0 Screen Edge, 1 Aim Box
+        set(v.vr_light_gun_turn_zone_from, std::min<u32>(u, 1));
+        break;
+    case S::KeepOnScreen:
+        set(v.vr_light_gun_lock, r.value != 0);
+        break;
+    case S::GripFreesAim: // 0 Hold, 1 Toggle
+        set(v.vr_light_gun_grip, std::min<u32>(u, 1));
+        break;
+    case S::WeaponOpacity: // AzaharFrame kiuopacity: percent
+        set(v.vr_light_gun_weapon_opacity, std::clamp<u32>(u, 20, 100));
+        break;
+    case S::ProjectileOpacity:
+        set(v.vr_light_gun_projectile_opacity, std::clamp<u32>(u, 20, 100));
+        break;
+    case S::MuzzleFlashSize: // AzaharFrame kiuweap2: percent
+        set(v.vr_light_gun_muzzle_flash_size, std::clamp<u32>(u, 50, 300));
+        break;
+    case S::AngelsAimIntroShown: // AzaharFrame kiuweap2: a plain global key
+        v.vr_angels_aim_intro_shown.SetValue(r.value != 0);
         break;
     case S::CustomTextures: // AzaharFrame texui: from the next start
         set(v.custom_textures, r.value != 0);

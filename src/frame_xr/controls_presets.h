@@ -75,6 +75,11 @@ inline constexpr uint32_t kLaserMirrorMask = 3u << kLaserMirrorShift;
 /// same two (14 to 27 are Angel's Aim's recoil strengths and weapon size, lane/kiufix).
 inline constexpr uint32_t kFlashMirrorShift = 28;
 inline constexpr uint32_t kFlashMirrorMask = 3u << kFlashMirrorShift;
+/// AzaharFrame kiuflash: bits 30 and 31: Projectiles (vr_light_gun_projectile), the same way.
+/// (Projectile Size and Speed are not mirrored: no bits are left; an older build that saves the
+/// game's file sends them back to the global values.)
+inline constexpr uint32_t kProjectileMirrorShift = 30;
+inline constexpr uint32_t kProjectileMirrorMask = 3u << kProjectileMirrorShift;
 void MirrorWeaponInHand();
 bool RestoreWeaponInHand();
 

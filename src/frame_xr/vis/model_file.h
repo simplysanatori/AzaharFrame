@@ -67,6 +67,10 @@ constexpr uint32_t kModelFlagFlatSurface = 1u << 16;
 /// FlashValue: each component a card, its values in the motion floats); the colour image's alpha
 /// is the texture's own, not ambient occlusion.
 constexpr uint32_t kModelFlagFlash = 1u << 17;
+/// AzaharFrame kiuflash: weapon space only: a projectile's bullet (core/frame_weapon_models.h
+/// BulletValue: each component a kind, rapid or charged, its look in the motion floats; the vertex
+/// colour in the tangent's place); the colour image's alpha is the texture's own.
+constexpr uint32_t kModelFlagBullet = 1u << 18;
 constexpr uint32_t ModelWrapU(uint32_t flags) {
     return (flags >> 8) & 7u;
 }

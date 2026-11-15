@@ -26,12 +26,14 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "frame_xr/frame_xr.h"
 #include "frame_xr/vis/muzzle_flash.h" // AzaharFrame kiuflash
+#include "frame_xr/vis/projectile.h"   // AzaharFrame kiuflash
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/input_frame.h"
 #include "frame_xr/input/mouse_pointer.h" // AzaharFrame padsui
@@ -132,13 +134,26 @@ public:
     /// is drawn red to `point` (LOCAL, on the top screen) with a small red dot there, at full
     /// strength however still the hand is. Cleared by TakeInput; GameFrame sets it.
     void SetLaser(int hand, const Input::Vec3f& point);
+    /// AzaharFrame kiuaim2: Check Aim's target this frame: drawn at `point` (LOCAL, on the top
+    /// screen), `size_m` across, over the beams. Cleared by TakeInput; GameFrame sets it.
+    void SetAimTarget(const Input::Vec3f& point, float size_m);
+    /// AzaharFrame kiuaim2: the weapon's muzzle in `hand`'s aim space while the weapon is drawn
+    /// there (the last frame's fit), for Direct Aim's one ray (Input::AimRay).
+    std::optional<Input::Vec3f> WeaponMuzzle(int hand) const;
+    /// AzaharFrame kiuinteg: the weapon's own axis as held, in `hand`'s aim space, with its
+    /// muzzle (ControllerModels::WeaponAxis); none for a class fitted along the ray.
+    std::optional<Input::Vec3f> WeaponAxis(int hand) const;
     /// AzaharFrame kiuguns: Kid Icarus: Uprising's equipped weapon (`id`, 0 to 107) is drawn in
     /// place of `hand`'s controller this frame (ControllerModels; the controller when the weapon
-    /// is not ready). Cleared by TakeInput; GameFrame sets it.
-    void SetWeapon(int hand, int id);
+    /// is not ready). Cleared by TakeInput; GameFrame sets it. AzaharFrame kiuopacity:
+    /// `opacity`, Weapon Opacity (0.2 to 1; see_through.h).
+    void SetWeapon(int hand, int id, float opacity = 1.0f);
     /// AzaharFrame kiuflash: the weapon's muzzle flash this frame (muzzle_flash.h), drawn with
     /// the weapon set by SetWeapon. Cleared by TakeInput; GameFrame sets it.
     void SetMuzzleFlash(const FlashFrame& flash);
+    /// AzaharFrame kiuflash: the projectiles' signal this frame (projectile.h), for the weapon
+    /// in `hand`. Cleared by TakeInput; GameFrame sets it.
+    void SetShots(int hand, const ShotSignal& shots);
     /// AzaharFrame kiuguns: no beam or dot this frame where `hand` points at `over` (the top
     /// screen, Laser Sight off: Input::AimBeamFor). Cleared by TakeInput.
     void SetBeamHidden(int hand, const Input::PanelQuad& over);

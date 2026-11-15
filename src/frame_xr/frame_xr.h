@@ -353,10 +353,23 @@ enum class MenuSetting {
     WeaponInHand,    ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_weapon)
     LaserSight,      ///< AzaharFrame kiuguns: `value` 0 or 1 (vr_light_gun_laser)
     MuzzleFlash,     ///< AzaharFrame kiuflash: `value` 0 or 1 (vr_light_gun_flash)
+    Projectiles,     ///< AzaharFrame kiuflash: `value` 0 or 1 (vr_light_gun_projectile)
+    ProjectileSize,  ///< `value` percent, 50 to 200 (vr_light_gun_projectile_size)
+    ProjectileSpeed, ///< `value` percent, 50 to 200 (vr_light_gun_projectile_speed)
     RecoilCharged,   ///< AzaharFrame kiufix: `value` percent, 0 to 100 (vr_light_gun_recoil_charged)
     RecoilRapid,     ///< `value` percent, 0 to 100 (vr_light_gun_recoil_rapid)
     WeaponSize,      ///< `value` 0 Game Size, 1 Hand Size (vr_light_gun_weapon_size)
     WeaponScale,     ///< `value` percent, 50 to 150 (vr_light_gun_weapon_scale)
+    TurnZoneFrom,    ///< AzaharFrame kiuaim3: `value` 0 Screen Edge, 1 Aim Box
+                     ///< (vr_light_gun_turn_zone_from)
+    KeepOnScreen,    ///< `value` 0 or 1 (vr_light_gun_lock)
+    GripFreesAim,    ///< `value` 0 Hold, 1 Toggle (vr_light_gun_grip)
+    WeaponOpacity,   ///< AzaharFrame kiuopacity: `value` percent, 20 to 100
+                     ///< (vr_light_gun_weapon_opacity)
+    ProjectileOpacity, ///< `value` percent, 20 to 100 (vr_light_gun_projectile_opacity)
+    MuzzleFlashSize, ///< AzaharFrame kiuweap2: `value` percent, 50 to 300
+                     ///< (vr_light_gun_muzzle_flash_size)
+    AngelsAimIntroShown, ///< AzaharFrame kiuweap2: `value` 1 (vr_angels_aim_intro_shown, global)
 };
 struct MenuRequest {
     MenuCommand command = MenuCommand::Continue;

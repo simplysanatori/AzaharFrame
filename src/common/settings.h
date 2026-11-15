@@ -772,6 +772,9 @@ struct Values {
 
     // VR
     Setting<bool> vr_extra_performance_mode_enabled{false, "vr_extra_performance_mode"};
+    // AzaharFrame kiuweap2: the "Angel's Aim Is On" prompt was shown (Aiming turned on from Off
+    // in the VR menu): it shows once. A plain new key (global): older builds ignore it.
+    Setting<bool> vr_angels_aim_intro_shown{false, "vr_angels_aim_intro_shown"};
     // AzaharFrame imglag: internal (no menu): the XR runtime's image lag in display refreshes, 0
     // or 1. SteamVR shows an image one refresh after the pose sent with it, so 1 (frame_xr/
     // image_lag.h); 0 for a runtime that shows them together. The test switch
@@ -991,6 +994,16 @@ struct Values {
     // each of the game's own shots (frame_xr/vis/muzzle_flash.h). Per game too. A new key: older
     // builds ignore it (a game's own value is mirrored in vr_controls_preset_done).
     SwitchableSetting<bool> vr_light_gun_flash{true, "vr_light_gun_flash"};
+    // AzaharFrame kiuflash: Projectiles: with the weapon in hand, each of the game's own shots
+    // flies from its muzzle into the top screen (frame_xr/vis/projectile.h); Projectile Size and
+    // Projectile Speed (percent). Per game too. New keys: older builds ignore them; a game's own
+    // Projectiles is mirrored in vr_controls_preset_done, the two sliders are not (an older build
+    // that saves the game's file sends them back to the global values).
+    SwitchableSetting<bool> vr_light_gun_projectile{true, "vr_light_gun_projectile"};
+    SwitchableSetting<u32, true> vr_light_gun_projectile_size{100, 50, 200,
+                                                              "vr_light_gun_projectile_size"};
+    SwitchableSetting<u32, true> vr_light_gun_projectile_speed{100, 50, 200,
+                                                               "vr_light_gun_projectile_speed"};
     // AzaharFrame kiufix: Recoil's strength (percent of the full buzz): Charged Shot (a shot
     // after a pause: the charged-shot heuristic) and Rapid Fire (the rest). Weapon Size: 0 Game
     // Size (the fit as the game has it), 1 Hand Size (big weapons down to a hand-held length);
@@ -1002,6 +1015,30 @@ struct Values {
     SwitchableSetting<u32, true> vr_light_gun_weapon_size{0, 0, 1, "vr_light_gun_weapon_size"};
     SwitchableSetting<u32, true> vr_light_gun_weapon_scale{100, 50, 150,
                                                            "vr_light_gun_weapon_scale"};
+    // AzaharFrame kiuaim3: Direct Aim (frame_xr/input/gyro_aim.h). Turn Zone From: 0 Screen Edge
+    // (the outer Turn Zone % of the top screen, as before), 1 Aim Box (from the game's aim box
+    // outward). Keep Reticle on Screen: a ray off the top screen keeps the reticle at its edge
+    // (turning past the aim box) while the aim is locked. Grip Frees Aim: 0 Hold (free while
+    // held), 1 Toggle (a press frees, the next locks). Per game too. New keys: older builds
+    // ignore them.
+    SwitchableSetting<u32, true> vr_light_gun_turn_zone_from{1, 0, 1,
+                                                             "vr_light_gun_turn_zone_from"};
+    SwitchableSetting<bool> vr_light_gun_lock{true, "vr_light_gun_lock"};
+    SwitchableSetting<u32, true> vr_light_gun_grip{0, 0, 1, "vr_light_gun_grip"};
+    // AzaharFrame kiuopacity: Weapon Opacity and Projectile Opacity (percent, 20 to 100): how
+    // solid the weapon in hand and the projectiles look; under 100 they are drawn see-through,
+    // nearest surface only (frame_xr/vis/see_through.h). Per game too. Plain new keys, no
+    // mirror: older builds ignore them, and one that saves a game's file sends them back to the
+    // global values.
+    SwitchableSetting<u32, true> vr_light_gun_weapon_opacity{100, 20, 100,
+                                                             "vr_light_gun_weapon_opacity"};
+    SwitchableSetting<u32, true> vr_light_gun_projectile_opacity{100, 20, 100,
+                                                                 "vr_light_gun_projectile_opacity"};
+    // AzaharFrame kiuweap2: Muzzle Flash Size (percent, 50 to 300): how big the flash at the
+    // weapon's tip is (100: kiuweap2's bigger flash). Per game too. A plain new key, no mirror:
+    // older builds ignore it.
+    SwitchableSetting<u32, true> vr_light_gun_muzzle_flash_size{100, 50, 300,
+                                                                "vr_light_gun_muzzle_flash_size"};
     // AzaharFrame kiu: in a game's own file only: the Controls preset's values already decided
     // for this game (FrameXr::ControlsPresetField bits). A value the preset gave, or the game
     // already had, is never given again, so a later choice (Use Global Value too) stays.

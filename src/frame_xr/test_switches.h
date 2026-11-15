@@ -41,6 +41,7 @@ inline Apply ApplyFor(std::string_view name) {
         "AZAHARFRAME_XR_PROJ_MARKS", "AZAHARFRAME_XR_PROJ_ALSO_QUADS",
         "AZAHARFRAME_XR_PROJ_FILTER", // AzaharFrame projdef
         "AZAHARFRAME_XR_POSE_GUARD", "AZAHARFRAME_XR_CANVAS", // AzaharFrame ctrlglitch
+        "AZAHARFRAME_ANGELS_AIM_RAY", // AzaharFrame kiuinteg (input/gyro_aim.h AimRay)
     };
     // AzaharFrame imglag: replaced by AZAHARFRAME_XR_IMAGE_LAG.
     constexpr std::string_view kRetired[] = {"AZAHARFRAME_IMMERSIVE_ANCHOR_LAG"};
@@ -49,7 +50,8 @@ inline Apply ApplyFor(std::string_view name) {
     }
     // AzaharFrame kiuguns: the weapon in hand's tuning (vis/weapon_fit.h: AZAHARFRAME_KIU_FIT_
     // <CLASS>, AZAHARFRAME_KIU_WEAPON, AZAHARFRAME_KIU_WEAPON_GLOW), read every frame.
-    // AzaharFrame kiumodels: AZAHARFRAME_KIU_GLOW_MOTION too.
+    // AzaharFrame kiumodels: AZAHARFRAME_KIU_GLOW_MOTION too. AzaharFrame kiuopacity:
+    // AZAHARFRAME_KIU_OPACITY too.
     if (name.rfind("AZAHARFRAME_KIU_", 0) == 0) {
         return Apply::Live;
     }

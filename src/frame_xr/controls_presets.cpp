@@ -118,6 +118,7 @@ void MirrorWeaponInHand() { // AzaharFrame kiuguns
     MirrorSwitch(Settings::values.vr_light_gun_weapon, kWeaponMirrorShift);
     MirrorSwitch(Settings::values.vr_light_gun_laser, kLaserMirrorShift);
     MirrorSwitch(Settings::values.vr_light_gun_flash, kFlashMirrorShift); // AzaharFrame kiuflash
+    MirrorSwitch(Settings::values.vr_light_gun_projectile, kProjectileMirrorShift);
 }
 
 bool RestoreWeaponInHand() { // AzaharFrame kiuguns
@@ -127,7 +128,9 @@ bool RestoreWeaponInHand() { // AzaharFrame kiuguns
         RestoreSwitch(Settings::values.vr_light_gun_laser, kLaserMirrorShift, "Laser Sight");
     const bool flash = // AzaharFrame kiuflash
         RestoreSwitch(Settings::values.vr_light_gun_flash, kFlashMirrorShift, "Muzzle Flash");
-    return weapon || laser || flash;
+    const bool projectile = RestoreSwitch(Settings::values.vr_light_gun_projectile,
+                                          kProjectileMirrorShift, "Projectiles");
+    return weapon || laser || flash || projectile;
 }
 
 namespace {

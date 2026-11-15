@@ -64,12 +64,15 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
         if (aim == GyroAimMode::LightGun) {
             Kiu::LightGunFrame lg;
             lg.enabled = true;
-            lg.target = ApplyCalibration(gyro_aim->calibration,
-                                         LightGunTargetFor(source, panels.top)); // kiufix
+            lg.target = gyro_aim->target; // AzaharFrame kiuaim2: the beam's own hit
             lg.zone_fraction =
-                static_cast<float>(std::min<u32>(Settings::values.vr_light_gun_turn_zone.GetValue(),
-                                                 kTurnZoneMaxPercent)) /
-                100.0f;
+                gyro_aim->checking
+                    ? 0.0f
+                    : static_cast<float>(std::min<u32>(
+                          Settings::values.vr_light_gun_turn_zone.GetValue(), kTurnZoneMaxPercent)) /
+                          100.0f;
+            lg.zone_from = // AzaharFrame kiuaim3
+                TurnZoneFromValue(Settings::values.vr_light_gun_turn_zone_from.GetValue());
             lg.turn_speed = ClampTurnSpeed(Settings::values.vr_light_gun_turn_speed.GetValue());
             lg.clutch = gyro_aim->clutch;
             // AzaharFrame kiufix2: the C-Stick (the right stick, past its dead zone, with the

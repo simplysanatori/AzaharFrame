@@ -49,7 +49,11 @@ inline constexpr uint32_t kReticleW = 0xE0;
 inline constexpr uint32_t kReticleCx = 0xE4;
 inline constexpr uint32_t kReticleH = 0xE8;
 inline constexpr uint32_t kReticleCy = 0xEC;
-inline constexpr uint32_t kReticleSpan = 0xF0;
+// AzaharFrame kiuaim2 (the game's 0x6D163C, the box, and 0x6D16A4, a reticle the game places):
+inline constexpr uint32_t kReticleGamePlaces = 0xD5; ///< u8, 1: the game sets the reticle itself
+inline constexpr uint32_t kReticleBoxBottom = 0xF0;  ///< float: the box's bottom, of the centre y
+inline constexpr uint32_t kReticleBoxTop = 0xF4;     ///< float: its top (-0.6)
+inline constexpr uint32_t kReticleSpan = 0xF8;
 inline constexpr uint32_t kOptionsScheme = 0x163E8;
 inline constexpr uint32_t kSchemeGyro = 1;
 

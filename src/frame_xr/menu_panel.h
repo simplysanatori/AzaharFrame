@@ -55,8 +55,9 @@ public:
         std::function<void()> reset_position;
         std::function<void()> swap_screens;
         std::function<void()> fill_view; ///< AzaharFrame fovaxis: Fill View (Immersive::FillView)
-        /// AzaharFrame kiufix: Calibrate Aim (Direct Aim): start it (the menu then closes), and
-        /// its Reset (the game's calibration goes); whether the game has one, whether it can.
+        /// AzaharFrame kiufix: Calibrate Aim (Direct Aim; kiuaim2: Check Aim): start it (the menu
+        /// then closes), and its Reset (the game's map goes); whether the game has one, whether
+        /// it can.
         std::function<void()> calibrate_aim;
         std::function<void()> reset_aim_calibration;
         bool aim_calibrated = false;

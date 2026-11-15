@@ -139,6 +139,15 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         f(v.vr_light_gun_flash);
         return true;
+    case Id::Projectiles: // AzaharFrame kiuflash
+        f(v.vr_light_gun_projectile);
+        return true;
+    case Id::ProjectileSize:
+        f(v.vr_light_gun_projectile_size);
+        return true;
+    case Id::ProjectileSpeed:
+        f(v.vr_light_gun_projectile_speed);
+        return true;
     case Id::RecoilCharged: // AzaharFrame kiufix
         f(v.vr_light_gun_recoil_charged);
         return true;
@@ -150,6 +159,24 @@ bool WithSetting(Menu::Id id, F&& f) {
         return true;
     case Id::WeaponScale:
         f(v.vr_light_gun_weapon_scale);
+        return true;
+    case Id::TurnZoneFrom: // AzaharFrame kiuaim3
+        f(v.vr_light_gun_turn_zone_from);
+        return true;
+    case Id::KeepOnScreen:
+        f(v.vr_light_gun_lock);
+        return true;
+    case Id::GripFreesAim:
+        f(v.vr_light_gun_grip);
+        return true;
+    case Id::WeaponOpacity: // AzaharFrame kiuopacity
+        f(v.vr_light_gun_weapon_opacity);
+        return true;
+    case Id::ProjectileOpacity:
+        f(v.vr_light_gun_projectile_opacity);
+        return true;
+    case Id::MuzzleFlashSize: // AzaharFrame kiuweap2
+        f(v.vr_light_gun_muzzle_flash_size);
         return true;
     default:
         return false;

@@ -734,9 +734,15 @@ Core::AngelsReport::Info FrameMods::AngelsAimInfo(const std::string& game_title)
     i.recoil_rapid = static_cast<int>(v.vr_light_gun_recoil_rapid.GetValue());
     i.weapon_size = static_cast<int>(v.vr_light_gun_weapon_size.GetValue());
     i.weapon_scale = static_cast<int>(v.vr_light_gun_weapon_scale.GetValue());
+    i.weapon_opacity = static_cast<int>(v.vr_light_gun_weapon_opacity.GetValue()); // kiuopacity
+    i.projectile_opacity = static_cast<int>(v.vr_light_gun_projectile_opacity.GetValue());
+    i.flash_size = static_cast<int>(v.vr_light_gun_muzzle_flash_size.GetValue()); // kiuweap2
     i.gyro_sensitivity = static_cast<int>(std::lround(v.vr_gyro_sensitivity.GetValue() * 10.0f));
     i.turn_zone = static_cast<int>(v.vr_light_gun_turn_zone.GetValue());
     i.turn_speed = static_cast<int>(std::lround(v.vr_light_gun_turn_speed.GetValue() * 10.0f));
+    i.turn_zone_from = static_cast<int>(v.vr_light_gun_turn_zone_from.GetValue()); // kiuaim3
+    i.keep_on_screen = v.vr_light_gun_lock.GetValue();
+    i.grip_toggle = v.vr_light_gun_grip.GetValue() == 1;
     i.immersive = v.vr_immersive_mode.GetValue() != 0;
     return i;
 }

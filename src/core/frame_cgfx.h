@@ -110,6 +110,10 @@ struct Bone {
     s32 index = -1;
     s32 parent = -1;
     Mat34 bind{};    ///< model space in the bind pose (the inverse of the stored inverse)
+    // AzaharFrame kiuweap2: its own transform in its parent's space in the bind pose (an
+    // animation replaces the parts it holds): scale, rotation (radians: about x, then y, then z)
+    // and translation.
+    std::array<float, 3> scale{1.0f, 1.0f, 1.0f}, rotation{}, translation{};
 };
 
 struct TexCoord {
@@ -130,6 +134,17 @@ struct Material {
     /// The face culling the game draws it with (PICA's GPUREG_FACECULLING_CONFIG: 0 both sides,
     /// 1 or 2 one side only).
     u32 cull = 0;
+    // AzaharFrame kiuflash: what an effect material (a bullet's) is drawn with, as far as the
+    // bullets need: its six combiner constants (RGBA 0 to 1), its blend (enabled; the source and
+    // destination colour factors, PICA's: 0 zero, 1 one, 6 source alpha, 7 one minus it, ...) and
+    // its combiner stages (PICA's TEV: sources, operands, combine, constant, scale).
+    std::array<std::array<float, 4>, 6> constants{};
+    bool blend = false;
+    u32 blend_src = 1, blend_dst = 0;
+    struct Stage {
+        u32 source = 0, operand = 0, combine = 0, constant = 0, scale = 0;
+    };
+    std::vector<Stage> stages;
 };
 
 struct Vertex {
@@ -213,10 +228,41 @@ struct UvAnim {
 /// the reason for a bad file.
 bool ReadUvAnims(std::span<const u8> data, std::vector<UvAnim>& out, std::string& error);
 
+/// AzaharFrame kiuweap2: one bone's own transform in a skeletal animation (CANM in the DATA
+/// section's 10th dictionary, Transform elements) at its first frame: scale x y z, rotation
+/// x y z (radians), translation x y z; a part the animation does not hold is unset (the bone's
+/// bind value stays).
+struct BoneKey {
+    std::string bone;
+    std::array<std::optional<float>, 9> srt{};
+};
+struct SkeletalPose {
+    std::string animation;
+    float frames = 0.0f;
+    std::vector<BoneKey> bones;
+    const BoneKey* Find(std::string_view bone) const;
+};
+/// The skeletal animation `animation` of a CGFX file (nothing else is read: cheap for a big
+/// file). False with the reason (a bad file, or no such animation).
+bool ReadSkeletalPose(std::span<const u8> data, std::string_view animation, SkeletalPose& out,
+                      std::string& error);
+/// CGFX's bone transform: translation x rotation z x rotation y x rotation x x scale.
+Mat34 LocalTransform(const std::array<float, 3>& scale, const std::array<float, 3>& rotation,
+                     const std::array<float, 3>& translation);
+/// Every bone's model space transform in `pose` (bones it does not hold keep their bind
+/// transform relative to their parent), in the model's bone order.
+std::vector<Mat34> PoseBones(const Model& model, const SkeletalPose& pose);
+
 /// A model space position of one vertex of a submesh (the bind pose: rigid and unskinned
 /// vertices are in their bone's space, smooth ones in model space already).
 std::array<float, 3> BindPosition(const Model& model, const SubMesh& sub, const Vertex& v,
                                   std::array<float, 3>* normal = nullptr);
+
+/// AzaharFrame kiuflash: the named models of a CGFX file that may hold others it cannot read
+/// (an effect file: particle models, bullets) and all its textures: each model read on its own
+/// (one that fails is left out). False only when the file itself cannot be read.
+bool ReadCgfxModels(std::span<const u8> data, const std::vector<std::string>& names, File& out,
+                    std::string& error);
 
 // ---- Particle models (AzaharFrame kiuflash) ----
 //

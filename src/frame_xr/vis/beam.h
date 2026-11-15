@@ -43,6 +43,18 @@ constexpr float LaserDotSize(float distance_m) {
     return 0.005f + 0.0015f * (distance_m > 0.0f ? distance_m : 0.0f);
 }
 
+/// AzaharFrame kiuaim2: Check Aim's target (one at a time, over the top screen where the reticle
+/// should go): kAimTargetPixels square, premultiplied RGBA8, an amber ring with a dark rim and a
+/// dot in its middle, so it reads over any scenery and its centre is exact.
+constexpr uint32_t kAimTargetRgb = 0xFFC400;
+constexpr int kAimTargetPixels = 48;
+std::vector<uint8_t> AimTargetArt();
+/// Its size (metres) on a top screen `screen_width_m` wide: kAimTargetGamePx of the game's 400.
+constexpr float kAimTargetGamePx = 20.0f;
+constexpr float AimTargetSize(float screen_width_m) {
+    return screen_width_m * kAimTargetGamePx / 400.0f;
+}
+
 /// The art level for a strength 0..1 (no level for 0).
 std::optional<int> BeamLevel(float strength);
 

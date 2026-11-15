@@ -94,7 +94,10 @@ game too; stored as before: 0 Off, 1 Gyro Aim, 2 Direct Aim, so older builds rea
 value; the code calls Direct Aim "Light Gun" and Gyro Aim "Gyro"; `Menu::AimingIndexOf`),
 **Recoil**, **Gyro Sensitivity**, and with Direct Aim **Turn Zone** (`vr_light_gun_turn_zone`, 0
 to 30 % of the screen, default 10 %) and **Turn Speed** (`vr_light_gun_turn_speed`, 0.2x to
-4.0x, default 1.0x). Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod (v172), in
+4.0x, default 1.0x), and (AzaharFrame kiuaim3) **Keep Reticle on Screen** (`vr_light_gun_lock`, on
+by default), **Grip Frees Aim** (`vr_light_gun_grip`: 0 Hold, the default, 1 Toggle) and **Turn
+Zone From** (`vr_light_gun_turn_zone_from`: 0 Screen Edge, 1 Aim Box, the default), all per game
+too; new keys, which older builds ignore. Made for Kid Icarus: Uprising with Darkshade's C-Stick & Gyro mod (v172), in
 any of the game's own control schemes (AzaharFrame kiufix2); its Controls preset starts
 Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_mod`). `gyro_aim.h`,
 `kiu_scan.h`, `kiu_probe.h`; the disassembly is in handoff/reports/37/kiugyro/design.md.
@@ -119,59 +122,142 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   bits 21 to 23) and logged as it changes (`xr: Kid Icarus: the game's controls: scheme N`).
 - **The C-Stick** (AzaharFrame kiufix2): with the game on C-Stick the mod moves the reticle with
   the stick and the gyro together, so the stick still aims and turns the camera with Aiming on.
-  Direct Aim would undo it (every poll it sends the rate back to the pointer, and against a stick
-  pushing past the box it pulled back), so while the right stick (`AnalogControl::StickR`, the
-  C-Stick in the default profile, after the mapper's dead zone and the other gamepads;
-  `CStickTakesAim`) is pushed, Direct Aim pauses as for its grip (`LightGunFrame::stick`) and the
-  stick has the reticle to itself, Turn Zone included. Let go, or after the grip's pause,
-  Direct Aim eases back in rather than snapping under the pointer: what `LightGunLoop` sends,
-  the Turn Zone's push too, is scaled from 0 to 1 over 300 ms of game time (a smoothstep,
-  `LightGunLoop::kEaseInNs`), and it learns nothing until then, so the stick's moves are never
-  taken for the gyro's. The C-Stick is untouched (never zeroed or rebound); Gyro Aim adds the
-  hand's turn to the stick's and has no pause. With the trace switch the reading's line ends in
-  `C-Stick steers`, `paused` or `easing back in`.
-- **Light Gun:** where the ray hits the top screen (`LightGunTargetFor`, the screen as drawn,
-  `PanelGeometry::top`; a screen that cannot be pointed at, such as the immersive one, gives no
-  target) is where the reticle goes. On the emulation thread, at each HID gyroscope poll
-  (~101 Hz; `InputCommon::FrameXr::MotionState::SetGyroOverride`), the probe reads the reticle
-  from the game, read only (the mod's state block + 0x20 -> the reticle object: +0xA4/+0xA8 the
-  reticle, +0xE0/+0xE8 the screen's size, +0xE4/+0xEC its centre, +0x81 the ground box), and
-  `LightGunLoop` sends the rate that brings it under the pointer: a Smith predictor (one game
-  frame of latency) and a proportional term (two game frames), in emulated time, with the gain
-  (pixels per degree, sign included) learnt from rest-to-rest moves and flipped when the reticle
-  runs the other way; the HID service's slow-down stretch is divided out. On the ground the target
-  is kept in the game's box (x 0.7 to 1.3 of the centre, y 0.4 to 1.25); the **Turn Zone** at the
-  screen's sides (and top and bottom) adds a push past the box, depth 0 to 1 across the zone, one
-  screen width (height) a second at the edge times Turn Speed, which the mod turns into a camera
-  turn. In the air (no box) nothing is pushed. When the reticle cannot be read (not Kid Icarus,
-  the mod's code patterns not found, no reticle, a value out of
-  range) Light Gun uses Gyro instead and says why once in the log (`xr: Light Gun: Gyro instead:
-  ...`); `xr: Light Gun: reticle found` when it reads it again, and every 5 s the reading, the
-  target, the gain and the game frame.
+  Direct Aim would undo it, so while the right stick (`AnalogControl::StickR`, the C-Stick in the
+  default profile, after the mapper's dead zone and the other gamepads; `CStickTakesAim`) is
+  pushed, Direct Aim pauses as for its grip (`LightGunFrame::stick`): it writes nothing and sends
+  nothing, and the stick has the reticle to itself (its own turn past the box included). Let go,
+  or after the grip's pause, Direct Aim eases back in rather than snapping under the pointer: from
+  where the reticle is to the ray's pixel, a smoothstep over 300 ms of game time
+  (`DirectAim::kEaseInNs`), the Turn Zone's push scaled the same. The C-Stick is untouched (never
+  zeroed or rebound); Gyro Aim adds the hand's turn to the stick's and has no pause. With the
+  trace switch the reading's line ends in `C-Stick steers`, `paused`, `easing back in` or
+  `turning`.
+- **Light Gun (Direct Aim), absolute** (AzaharFrame kiuaim2): one ray aims and draws
+  (`AimRay`): from the weapon's muzzle while the weapon is drawn in the hand
+  (`Vis::Visuals::WeaponMuzzle`, the fit's point in the aim pose's space), else from the aim pose
+  (the head's with Headset), along the pose's pointing direction. AzaharFrame kiuinteg (the
+  owner's option A): with a blade, staff, club, bow or cannon in the hand, along the weapon's own
+  axis as held instead (`AngelsAimRay`, `Vis::Visuals::WeaponAxis`, `vis/weapon_fit.h` FitAxis:
+  from Pit's fist to the muzzle for blades, staffs and clubs; the arrow's or the forearm's line
+  for bows and cannons, which is the controller's), so a blade aims where it points: measured on
+  the 108 weapons, blades 14.6 to 19.6 degrees above the controller's line, staffs 1.7 to 6.9,
+  clubs 47.7, bows and cannons 0. The tilt is fixed in the hand: rolling the wrist moves the aim
+  (accepted). Claws, palms, arms and orbitars are fitted along the ray and keep the controller's
+  direction. The laser, the reticle, Keep Reticle on Screen and its resting guard, the Turn Zone,
+  Check Aim and the C-Stick's hand-over all take this one ray. Live test switch
+  `AZAHARFRAME_ANGELS_AIM_RAY=hand`: the controller's direction (kiuaim2's ray, bit for bit).
+  Where it hits the top screen
+  (`LightGunTargetFor`, the screen as drawn, `PanelGeometry::top`, curve, size and World Scale
+  included; on the bottom screen it is a touch, no target; a screen that cannot be pointed at, such
+  as the immersive one, gives no target) is the pixel the reticle goes to: x = u x 400, y = v x
+  240, the reticle's own pixels (`ReticlePixel`; +0xE0/+0xE8 read live). Rolling the controller
+  changes nothing but the start of a muzzle beside the pose's axis, and the reticle follows that
+  beam. The XR thread publishes the hit once a display frame (`Kiu::Publish`, the pose predicted
+  by the runtime to that frame's display time); the emulation thread carries the newest sample
+  forward along its motion for at most 12 ms (`AimSampler`) and, at each HID pad update (~234 a
+  second of game time) and each VBlank (`Common::FrameEmuPoll::RunAim`), reads the reticle (the
+  mod's state block + 0x20 -> the reticle object: +0xA4/+0xA8 the reticle, +0xE0/+0xE8 the
+  screen's size, +0xE4/+0xEC its centre, +0x81 the ground box, +0xF0/+0xF4 the box's bottom and
+  top as the game wrote them, +0xD5 the game placing it itself) and writes the pixel into
+  +0xA4/+0xA8 (`DirectAim`). The game adds its own moves to the reticle and clamps it to the box
+  each frame (0x6D2B5C, 0x6D2C08), so the pixel written between two of its frames is where the
+  next one starts: no gain, no learning, nothing to drift. On the ground the pixel is kept just
+  inside the game's box (x 0.7 to 1.3 of the centre, y from the factors the game wrote: the old
+  fixed 1.25 left the reticle up to 15 px short of the pointer); in the air the whole screen. The
+  mod's gyro gets zero, or, pointing into the **Turn Zone** at the screen's sides (and top and
+  bottom) on the ground, the pixel at the box's edge and an outward gyro rate, depth 0 to 1
+  across the zone x Turn Speed x 33.3 deg/s (`DirectAim::kTurnPushDps`): the mod drags the reticle
+  past the box and the game turns the camera by the overshoot, as with the C-Stick. In the air
+  nothing is pushed. While the game places the reticle itself (+0xD5) nothing is written. When
+  the reticle cannot be read (not Kid Icarus, the mod's code patterns not found, no reticle, a
+  value out of range) nothing is written and Light Gun uses Gyro instead and says why once in the
+  log (`xr: Light Gun: Gyro instead: ...`); `xr: Light Gun: reticle found` when it reads it
+  again, and every 5 s (4 a second with the trace switch) the reading, the box, the ray's pixel
+  and what was written. Before kiuaim2 Light Gun fed the mod a gyro rate towards the hit with a
+  learnt gain (a Smith predictor; relative): the gain was a guess that could drift, which is what
+  the owner felt as losing the calibration.
+- **The aim box** (AzaharFrame kiuaim3: where the C-Stick turns the camera). Each game frame
+  the game asks 0x6D163C for the ground box: x 0.7 to 1.3 of the centre's x (fixed), y from
+  (1 + [+0xF4]) to (1 + [+0xF0]) of the centre's y (-0.6, and 0.25 to 0.8 as the game writes them
+  for its state; the bottom is stretched to the reticle while the game lowers it, 0x6D17D8 to
+  0x6D18A4). The box goes to 0x6D2C08 (through the mod's 0xF40000), which clamps the reticle to it
+  and turns the camera by what it clamps off (x 2.7, the mod's 0xF54000), and to the reticle's own
+  move and clamp (0x6D296C). So the +0xF0/+0xF4 box and `GroundBox` are one box, and it is where
+  the C-Stick starts turning: in the owner's 571 and 573 logs the ground reticle, C-Stick steering
+  included, stays within x 140 to 260 and y 48 to 150 (cx 200, cy 120), the box's edges, and
+  stops at x 259 to 260, the right edge, while the C-Stick steers. Direct Aim keeps the reticle 0.5 px inside it
+  (`ReachableBox`); Turn Zone From's **Aim Box** is this box. The reticle's reach differs from it
+  only in the mod's own states, which Direct Aim does not use: with the mod's flag 4
+  (0xF35D74 & 4, set while a byte of the player's state, +0x27C, is non-zero; not identified,
+  likely the touch screen's aim) the box is the whole screen (0xF5A4C8: the stylus reaches every
+  pixel and nothing turns before the screen's edge); while its own C-Stick or gyro drag runs, the
+  box is stretched to take in where the reticle already is (0xF5B038) or, with a counter of its
+  stick (0xF35D88, from 0xF55678), the whole screen (0xF45450, 0xF5B118); and in the game's
+  control schemes 1 and 2 with a camera flag (+0x31A) it shrinks to the centre (0xF40000). The
+  Frame mock's C-Stick run reads where the turn starts (+0x84 bit 8, set by 0x6D2C08 when it
+  clamps).
+- **Turn Zone From** (AzaharFrame kiuaim3, ground only; the air has no zone): **Screen Edge** is
+  the outer Turn Zone % of the top screen (as before): between the aim box and that band the
+  reticle waits at the box's edge and nothing turns. **Aim Box** measures from the aim box's edge
+  outward (`AimBoxTurnDepth`): depth 0 at the edge, 1 at the edge plus Turn Zone % of the
+  screen's width (sides) or height (top and bottom), so pointing just past the box already turns,
+  a little, and there is no dead band. Either way the push is depth x Turn Speed x 33.3 deg/s
+  outward and the reticle is written at the box's edge (`TurnDepthFor`, `DirectAim::Turn`).
+- **Keep Reticle on Screen** (AzaharFrame kiuaim3, the aiming controller, not Headset): while the
+  aim is locked (not freed by the grip), a ray that misses the top screen puts the reticle at the
+  nearest point of the screen's edge to where it meets the screen's plane (`LockedTargetFor`); a
+  ray that does not reach the plane from the front (pointing away, or along it) gets the edge
+  point in its direction from the screen's centre. The bottom screen is no exception: the reticle
+  waits at the top screen's bottom edge, and that controller's beam touches nothing there and
+  shows no pointer (`HandInput::aim_locked`; its trigger is ZL/ZR and fires). On the ground the
+  edge point is past the aim box, so the Turn Zone turns at full depth on the sides the ray is
+  past, as the C-Stick held to its rim does. **Resting guard:** a ray more than 25 degrees past
+  the edge (`kRestingPastDeg`: the angle between the ray and the edge point, from the ray's start;
+  the arm lowered to rest, say) keeps the reticle at the edge and turns nothing; the log says
+  `xr: Direct Aim: resting at the edge (N deg past ...)` and `aiming again`. The laser is not drawn
+  to an edge point. Off: as before (no target off the top screen's surroundings or on the bottom
+  screen, which that controller touches).
 - **Laser sight** (with Laser Sight on; AzaharFrame kiuguns): with Direct Aim, while its ray is on
-  the top screen (AzaharFrame kiufix: whether or not the reticle is read from the game; it waited
-  for that before, and showed nothing at all when Direct Aim had fallen back), the controller's
-  beam is red and ends in a small red
-  dot (`LaserDotSize`: half the pointer dot's) where the ray meets the screen, which is where the
-  loop steers the reticle (on the ground, pointing past the box, the two part: the reticle waits
-  at the box). The beam stays at full strength while the hand is still. A red copy of the beam
-  art and the dot are in the vis atlas (`kLaserBeamRect`, `kLaserDotRect`), drawn once: no GPU
-  work in a game. Otherwise the usual white beam (`Input::LaserSight`, `Vis::Visuals::SetLaser`).
-- **Calibrate Aim** (AzaharFrame kiufix; Direct Aim, optional, per game): the Controls page's
-  Calibrate Aim row, Start, closes the menu; toasts ask for the top screen's centre, then its
-  top-left and bottom-right corners, each a press of the aiming controller's grip (the reticle
-  waits meanwhile). The centre alone gives an offset; with the corners a line is fitted per axis
-  (least squares: offset and scale), u' = a + b u, applied to Light Gun's target and to the laser's
-  dot (`AimCalibration`, `FitCalibration`, `AimCalibrationFlow`, `PointOnQuad`). A point that
-  would give an offset past half the screen or a scale outside 0.5 to 2 is asked again. Kept in
-  `config/custom/<title id>.aim` (one line, `v1 au bu av bv scaled`), not a settings key, so an
-  older build neither reads nor drops it; Reset deletes it; the menu opening stops a calibration
-  where it is (what was saved stays). Computed from the player's own pointing, never a preset.
+  the top screen, the beam is red, runs along Direct Aim's ray (from the muzzle when the weapon is
+  drawn) and ends in a small red dot (`LaserDotSize`: half the pointer dot's) where it meets the
+  screen, which is the reticle's pixel (on the ground, pointing past the box, the two part: the
+  reticle waits at the box). The beam stays at full strength while the hand is still. A red copy
+  of the beam art and the dot are in the vis atlas (`kLaserBeamRect`, `kLaserDotRect`), drawn
+  once: no GPU work in a game. Otherwise the usual white beam (`Input::LaserSight`,
+  `Vis::Visuals::SetLaser`).
+- **Check Aim** (AzaharFrame kiuaim2, was Calibrate Aim; Direct Aim, optional, per game): the
+  Controls page's Check Aim row, Start (once the reticle has been read in this game), closes the
+  menu. Seven targets (`AimTargets`: the four corners, the centre and the middles of the left and
+  right sides of where the reticle can go, 8 % in: the whole screen in the air, the box on the
+  ground) show over the top screen one at a time (`Vis::Visuals::SetAimTarget`, an amber ring,
+  `kAimTargetRect`, 20 game pixels across); the laser and the beam are hidden over the top screen
+  meanwhile, the Turn Zone is off and the aiming controller's trigger fires nothing. The player
+  puts the game's reticle on each target and pulls the trigger. A pull more than 24 px from the
+  target, or (from the third) more than 6 px from the line the others give, is asked again; three
+  at one target start over (`AimCheckFlow`). From the seven a map is fitted per axis
+  (`FitAimMap`: offset and scale, a skew term only when it cuts the largest distance left by a
+  third): where the game shows its reticle for the pixel written; identity when the points show
+  nothing to correct (within 1 px). Direct Aim then writes through its inverse (`ApplyAimMap`) so
+  the reticle shows on the ray's hit; the toast says how close: "Aim Checked · Within N px". Kept
+  in `config/custom/<title id>.aim` as a `v2` line after the old `v1` line, kept as it was (older
+  builds read only the first line; a `v2` line alone they ignore); read once per game and checked
+  (offset at most 10 % at the centre, scale 0.85 to 1.15, skew at most 0.05; else not used,
+  logged); a `v1` line alone is not used (it was made for the relative loop). Reset removes the
+  `v2` line. Taken at any roll: the clicks are the ray's hits.
 - **Grip:** the Gyro Aim controller's grip held (above 0.60, let go below 0.40) pauses it (Gyro:
   zero rate; Light Gun: the reticle stays) and grabs nothing; letting go does not jump (Gyro
-  starts again from the hand's new place; Light Gun goes back to the pointer). The other
+  starts again from the hand's new place; Light Gun eases back to the pointer over 300 ms). The other
   controller's grip still grabs, moves and sizes the screens (World Scale, grip + stick).
-  Not with Headset (no grip).
+  Not with Headset (no grip). AzaharFrame kiuaim3, **Grip Frees Aim** (Direct Aim): **Hold** is
+  the above; **Toggle** frees the aim at one press and locks it at the next (`AimGrip`, on the
+  release; toasts "Aim Unlocked", "Aim Locked"). Free, the reticle stays where it was, nothing is
+  written, the laser gives way to the usual beam and the controller points and touches anywhere
+  (the bottom screen, the menus); locked, Keep Reticle on Screen holds it. What else the aiming
+  grip does in Kid Icarus: Uprising: nothing in the game (it reaches neither the mapper nor the
+  game), no grab; Check Aim confirms with the trigger, and a check keeps the aim locked (Toggle's
+  presses wait). Both grips together (with the other hand holding the immersive screen: the
+  D-pad shapes it) keep that meaning: in Toggle a press while the other grip is down, or joined by
+  it, toggles nothing; in Hold the aim is paused meanwhile, as before.
 - **Fire:** while Gyro Aim is on, a trigger that is ZL/ZR (not touching the bottom screen) also
   presses the Left Bumper's control (L in the default profile): the game fires with L, so the
   aiming controller's trigger fires, and the left trigger too. The mod also writes ir:rst's
@@ -198,6 +284,24 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   another fighter in the records (multiplayer) and in menus. Every class's muzzle (the json's
   `muzzleNode_` + `muzzleOffset_`) is on the aim ray: held classes are turned so it is, worn ones
   raised onto it, the orbitars' middle is on the hand's line; a bow shoots from the hand.
+  AzaharFrame kiuweap2: blades, staffs, clubs, bows and cannons are held as Pit holds them in the
+  game: the converter reads his class's poses (`player/g<class>.zrc`, `character/mdl.arc`'s
+  skeletal animations `ChrPit00Wait<Class>` and `ChrPit00ShotWait<Class>`, first frame) and keeps
+  the weapon's place in his holding hand (`hold` line of the manifest, `HoldInfo`; a manifest
+  without it is made again once, no version change). The fit puts his hand on the player's:
+  blades, staffs and clubs by the fist (`HoldMap::Grip`: the fist's axis along the Frame
+  controller's handle, the hilt through it, so a blade rises from the thumb's side as in his
+  grip); bows and cannons by the hand's line (`HoldMap::Point`: fingers along the ray, thumb up;
+  the bow upright in the fist, in his left hand's grip mirrored to the right; the cannon along
+  the forearm, its housing outward). Staffs take his aiming grip (his idle one points the staff
+  back along the forearm). Their muzzles follow the weapon (the shots, the flash and the laser
+  start at its tip), not the ray. Claws, palms, arms and orbitars keep their fits (the game's hold
+  of them is the hand itself). Test switch (live): `AZAHARFRAME_KIU_HOLD=idle|shot`.
+  AzaharFrame kiuinteg: Pit's fist's centre is on the controller's handle (`kHandleCentre`, its
+  mirror for the left hand) for every class he holds: bows and cannons were 4.7 cm off it (at the
+  pistol palm point), claws and arms 7 to 11 cm (above and ahead, sideways by each weapon's
+  muzzle), palms 6.2 cm; their muzzles now sit 4 to 9 cm off the controller's line (the aim ray
+  starts at the muzzle, so the beam and the reticle still meet). Orbitars float by the hand.
 - **Muzzle Flash** (`vr_light_gun_flash`, per game too, on by default; shown under Weapon in
   Hand while it is on; AzaharFrame kiuflash): a flash at the weapon's muzzle on each of the
   game's own shots (the same shots record as Recoil, read for either; `vis/muzzle_flash.h`). The
@@ -207,7 +311,49 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   Added to what is behind, 70 ms (charged 100 ms), fading as it grows a little. A weapon whose
   file has no flash borrows its class's first, in neutral colours. Recoil and Laser Sight are
   untouched by it. Test switch (live): `AZAHARFRAME_KIU_FLASH=size,ms` (a size factor, a
-  duration).
+  duration). AzaharFrame kiuweap2: bigger and clearer: 90 ms (charged 120 ms), the cards 1.5 times
+  larger (and their limits), bursting from 0.6 to 1.4 of their size (most of it early), the
+  charged one 1.4 times the rapid one, and a flare under them (one more card drawn by the shader
+  alone: a white-hot core in a halo of the weapon's flash colour, gone by 70 % of the flash).
+  **Muzzle Flash Size** (`vr_light_gun_muzzle_flash_size`, per game too, 50 to 300 %, 100 % by
+  default; the row under Muzzle Flash while it is on) scales all of it. A plain new key.
+- **"Angel's Aim Is On"** (AzaharFrame kiuweap2): turning Aiming on (Off to Direct Aim or Gyro
+  Aim) in the VR menu with Kid Icarus: Uprising open shows, once, a notice of what is on
+  (Weapon in Hand, Muzzle Flash, Projectiles, Recoil, Laser Sight, each On or Off) with OK and
+  Controls (the Controls tab at Aiming). Shown once in all: `vr_angels_aim_intro_shown`, a plain
+  new global key (an older build ignores it; no older key changes meaning).
+- **Weapon Opacity** (`vr_light_gun_weapon_opacity`, per game too, 20 to 100 %, 100 % by
+  default; the first row under Weapon in Hand while it is on, above Weapon Size; AzaharFrame
+  kiuopacity): how solid the weapon in hand looks (`vis/see_through.h`). Under 100 % its lit
+  parts are drawn twice, depth only, then their colour where they are the nearest surface
+  (LEQUAL, nothing written to depth), premultiplied at the opacity and blended over what is
+  there, so the fade is even and shows no inner or back faces; its glows, a palm's flames and
+  the muzzle flash (added light) are drawn after it with their light and coverage alpha times
+  the opacity, their coverage held at the most of what is there and their own (blend op MAX,
+  not summed, so overlapping glow cards never cover more than the opacity), and the other hand's
+  controller is drawn first so it shows through. At 100 % the
+  pass is as before (no extra draws). The controllers' image is premultiplied (the layer, and
+  Controllers in Front of Screen's eye quads, have only `XR_COMPOSITION_LAYER_BLEND_TEXTURE_
+  SOURCE_ALPHA_BIT`), so the screens and the room show through it the same way in either path.
+  Laser Sight is untouched. A plain new key (no mirror bit): an older build ignores it, and one
+  that saves the game's file sends it back to the global value.
+- **Projectiles** (`vr_light_gun_projectile`, per game too, on by default; under Muzzle Flash;
+  AzaharFrame kiuflash), with **Projectile Size** and **Projectile Speed** (50 to 200 %, 100 % by
+  default; shown while it is on): each of the game's own shots flies as the weapon's own bullet
+  (its effect file's bullet model, `core/frame_weapon_models.h` ConvertBullets, or its bullet
+  sprites when it has no mesh) from the muzzle to where the reticle is put on the top screen
+  (with Direct Aim the point it writes, through the game's Check Aim map and at Keep Reticle on
+  Screen's edge point; with Gyro Aim where the aim pose's ray meets it; held on the screen;
+  kiuinteg), then shrinks into it
+  (`vis/projectile.h`). 14 m/s rapid, 9 m/s charged (110 to 220 ms and 180 to 380 ms), at most 8
+  at once, turning slowly about the way they fly (the bullets' own animations are not read).
+  Projectiles is mirrored in `vr_controls_preset_done` bits 30 and 31; Size and Speed are plain
+  new keys. Test switch (live): `AZAHARFRAME_KIU_SHOT=speed,size` (factors on top).
+  **Projectile Opacity** (`vr_light_gun_projectile_opacity`, per game too, 20 to 100 %, 100 % by
+  default; the first row under Projectiles while it is on, above Projectile Size; AzaharFrame
+  kiuopacity): the same see-through drawing as Weapon Opacity for the bullets in flight (solid
+  bullets depth first, then their colour; added bullets and sprite bullets dimmed). A plain new
+  key. Test switch (live) for both: `AZAHARFRAME_KIU_OPACITY=weapon,projectile` (percent).
 - **Laser Sight** (`vr_light_gun_laser`, per game too, off by default; shown with Direct Aim;
   AzaharFrame kiuguns): on, the red laser sight above, from the weapon's muzzle when the weapon
   is drawn (`ControllerModels::WeaponMuzzle`), else from the controller; off, the aiming hand has

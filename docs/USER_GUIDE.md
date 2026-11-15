@@ -264,6 +264,16 @@ Global settings, not per game:
 - **Face Buttons**: **By Position (Nintendo)** (default) makes the Frame's A, B, X and Y do what the 3DS button in the same place does. **By Label (Xbox)** makes A, B, X and Y the 3DS's A, B, X and Y.
 - **Motion Controls**: **Off**, **Right Controller** (default), **Left Controller** or **Headset**. The controller, or your head, becomes the 3DS's gyroscope and accelerometer, for games like Ocarina of Time 3D that aim the first-person items by moving the 3DS. It can be set per game, and Kid Icarus: Uprising starts with it off.
 
+### Direct Aim (Kid Icarus: Uprising)
+
+With Darkshade's C-Stick & Gyro mod installed, **Aiming** on the in-game menu's **Controls** tab can be **Direct Aim**: the game's reticle goes where your controller points on the Primary Screen. These rows show with it, and each can be set per game:
+
+- **Keep Reticle on Screen** (on by default): point off the Primary Screen and the reticle waits at its nearest edge while the camera turns at full speed, as with the C-Stick held all the way. Point more than 25 degrees past the edge, as when you lower your arm to rest, and the reticle stays at the edge without turning. While it is on, the aiming controller does not touch the Secondary Screen.
+- **Grip Frees Aim**: the aiming controller's grip frees your aim, so you can point at the Secondary Screen or a menu while the reticle stays put. **Hold** (default): free while you hold it. **Toggle**: press once to free your aim, again to lock it; a short message says which.
+- **Turn Zone From**: where turning starts on the ground. **Aim Box** (default) is the box the reticle stays in, where the C-Stick turns the camera too: point past it and the camera turns, faster the farther you point. **Screen Edge** turns only near the Primary Screen's edges.
+- **Turn Zone** and **Turn Speed**: how far past that edge you point for full speed, and how fast that is.
+- **Check Aim**: optional. Targets show on the Primary Screen one at a time; put the reticle on each and pull the trigger.
+
 ### Window Scale
 
 Global, not per game: **100%**, **150%** (default) or **200%**. It makes Azahar's window look larger in the headset, so the text, buttons, list rows and menus are easier to read and to hit with the beam. The window shows less at a time (about a quarter less at 150%), and the panel is wider: 30% at 150% and 50% at 200%. In VR the game list has no side-to-side scroll bar; long names are cut short. A window larger than Azahar's, such as the configuration window, makes the panel wider still, up to 50% and no taller than it is wide. The change shows as soon as you press **OK**. Flat mode always uses 100%, in a 16:9 window; there, `QT_SCALE_FACTOR` in `session.env` enlarges the window.

@@ -309,11 +309,17 @@ struct Visuals::Impl {
     std::vector<Quad> top_beams, top_dots;
     int weapon_hand = -1;      ///< AzaharFrame kiuguns: the weapon in hand, this frame
     int weapon_id = -1;
+    float weapon_opacity = 1.0f; ///< AzaharFrame kiuopacity
     FlashFrame flash;          ///< AzaharFrame kiuflash: its muzzle flash, this frame
+    int shots_hand = -1;       ///< AzaharFrame kiuflash: the projectiles' hand and signal
+    ShotSignal shots;
     int hide_hand = -1;        ///< AzaharFrame kiuguns: no beam over `hide_over`, this frame
     Input::PanelQuad hide_over;
     int laser_hand = -1;       ///< AzaharFrame kiugyro: Light Gun's laser sight, this frame
     Vec3f laser_point{};
+    bool aim_target = false;   ///< AzaharFrame kiuaim2: Check Aim's target, this frame
+    Vec3f aim_target_point{};
+    float aim_target_size = 0.0f;
     const XrCompositionLayerBaseHeader* models_layer = nullptr;
     // AzaharFrame ctrlfront: the models as the eye quads (any choice but Off), and what the
     // next picture is drawn against.
@@ -464,8 +470,10 @@ void Visuals::TakeInput(const FrameInfo& info, Where where, Input::InputFrame& i
     Impl& m = *impl;
     static_cast<void>(info);
     m.laser_hand = -1; // AzaharFrame kiugyro: GameFrame sets it again for this frame
+    m.aim_target = false; // AzaharFrame kiuaim2: the same
     m.weapon_hand = -1; // AzaharFrame kiuguns: the same
     m.flash = {};       // AzaharFrame kiuflash: the same
+    m.shots_hand = -1;
     m.hide_hand = -1;
     // AzaharFrame statspos: a grip with the beam on the stats (In Front) holds them; the hand's
     // grip and stick then move them and reach neither the screens nor the game.
@@ -1046,6 +1054,14 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
                     AtlasQuad(m.atlas.Handle(), kLaserDotRect, dot_pose, size, size));
             }
         }
+        // AzaharFrame kiuaim2: Check Aim's target, on the top screen, over the beams.
+        if (m.aim_target && m.aim_target_size > 0.0f) {
+            const Input::Posef pose{
+                Input::FaceViewer(m.aim_target_point, head.position, {0.0f, 1.0f, 0.0f}),
+                m.aim_target_point};
+            m.top_dots.push_back(AtlasQuad(m.atlas.Handle(), kAimTargetRect, pose,
+                                           m.aim_target_size, m.aim_target_size));
+        }
         // The dots, over the beams; a dot of an idle controller goes with its beam.
         for (std::size_t d = 0; d < dots.size(); d++) {
             const int h = d < dot_hand.size() ? dot_hand[d] : -1;
@@ -1077,7 +1093,9 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             out.fade = m.activity[h].Model();
             out.input = ModelInputsFor(in, h);
             out.weapon = h == m.weapon_hand ? m.weapon_id : -1; // AzaharFrame kiuguns
+            out.weapon_opacity = h == m.weapon_hand ? m.weapon_opacity : 1.0f; // kiuopacity
             out.flash = h == m.weapon_hand ? m.flash : FlashFrame{}; // AzaharFrame kiuflash
+            out.shots = h == m.shots_hand ? m.shots : ShotSignal{};
         }
     }
     // AzaharFrame ctrlfront: "Controllers in Front of Screen", read every frame (model_plane.h).
@@ -1092,13 +1110,19 @@ void Visuals::SetOccluders(std::vector<Occluder>&& occluders) {
     impl->occluders = std::move(occluders);
 }
 
-void Visuals::SetWeapon(int hand, int id) {
+void Visuals::SetWeapon(int hand, int id, float opacity) {
     impl->weapon_hand = hand;
     impl->weapon_id = id;
+    impl->weapon_opacity = opacity; // AzaharFrame kiuopacity
 }
 
 void Visuals::SetMuzzleFlash(const FlashFrame& flash) { // AzaharFrame kiuflash
     impl->flash = flash;
+}
+
+void Visuals::SetShots(int hand, const ShotSignal& shots) { // AzaharFrame kiuflash
+    impl->shots_hand = hand;
+    impl->shots = shots;
 }
 
 void Visuals::SetBeamHidden(int hand, const Input::PanelQuad& over) {
@@ -1109,6 +1133,28 @@ void Visuals::SetBeamHidden(int hand, const Input::PanelQuad& over) {
 void Visuals::SetLaser(int hand, const Input::Vec3f& point) {
     impl->laser_hand = hand;
     impl->laser_point = point;
+}
+
+void Visuals::SetAimTarget(const Input::Vec3f& point, float size_m) {
+    impl->aim_target = true;
+    impl->aim_target_point = point;
+    impl->aim_target_size = size_m;
+}
+
+std::optional<Input::Vec3f> Visuals::WeaponAxis(int hand) const { // AzaharFrame kiuinteg
+    const auto ax = impl->models.WeaponAxis(hand);
+    if (!ax) {
+        return std::nullopt;
+    }
+    return Input::Vec3f{(*ax)[0], (*ax)[1], (*ax)[2]};
+}
+
+std::optional<Input::Vec3f> Visuals::WeaponMuzzle(int hand) const {
+    const auto mz = impl->models.WeaponMuzzle(hand);
+    if (!mz) {
+        return std::nullopt;
+    }
+    return Input::Vec3f{(*mz)[0], (*mz)[1], (*mz)[2]};
 }
 
 void Visuals::SetMousePointer(Input::MousePointer* pointer) {

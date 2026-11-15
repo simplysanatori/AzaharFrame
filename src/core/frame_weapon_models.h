@@ -35,12 +35,10 @@
 #include <string>
 #include <vector>
 #include "common/common_types.h"
+#include "core/frame_cgfx.h" // AzaharFrame kiuweap2: the poses (SkeletalPose, Mat34)
 
 namespace FileSys {
 class RomFSReader;
-}
-namespace FrameCgfx {
-struct UvAnim;
 }
 
 namespace FrameWeapons {
@@ -165,6 +163,70 @@ struct FlashInfo {
     std::vector<FlashPart> parts;
 };
 
+// ---- AzaharFrame kiuflash: the projectiles ----
+//
+// Each weapon's effect file also holds its shots' bullets: mesh models ("Eff<Class><NN>Bullet1",
+// the charged shot's "...Bullet3"), most of them added light with combiner-coloured textures.
+// Each is made into files that join the weapon's own (w<id>-b<n>.model, one per bullet material:
+// its meshes in the bind pose, centred, scaled so the largest side is 1, the head to +z (its
+// trail reaches farther along z from its mass); components "rapid" and "charged" for the kinds it is), the material's look fitted
+// to its texture (BulletValue: a colour mode and a colour, so a texture pack's PNG can stand in).
+// A kind with no mesh bullet (or one over kBulletTrianglesMax) uses its bullet sprites instead
+// ("Ptc<Class><NN>Bullet1"/"Bullet3": face cards as the flashes'). Bullet animations are not
+// read: the projectile turns about the way it flies (frame_xr/vis/projectile.h).
+
+constexpr u32 kBulletTrianglesMax = 600;
+
+/// The bullet models (mesh) a weapon's shots are, by name only: rapid fire's "Bullet1",
+/// "Bullet01" or "BulletA01", the charged shot's "Bullet3" or "Bullet03" (the other kind's when
+/// missing; "" for none).
+FlashModels PickBulletModels(int id, const std::vector<std::string>& names);
+/// The bullet sprites (particle models) the same way: "Ptc<Class><NN>Bullet1"/"Bullet01",
+/// "Bullet3"/"Bullet03".
+FlashModels PickBulletSprites(int id, const std::vector<std::string>& names);
+
+/// A bullet part's values in its components' motion floats (a mesh bullet's; a sprite one's are
+/// FlashValue, its file flagged a flash).
+enum BulletValue : int {
+    kBulletMode,  ///< FlashMode
+    kBulletRed,   ///< the colour fitted to the material's look, 0 to 1 (as the game's: not linear)
+    kBulletGreen,
+    kBulletBlue,
+    kBulletAdded, ///< 1: added light (the glow pipeline); 0: drawn lit and solid
+    /// 1: its look is times the vertex colour (the combiner's first stage multiplies by it, as
+    /// most bullets'); 0: the vertex colour is in the look already (its mean, run through the
+    /// combiner as the game does)
+    kBulletVertexColour,
+    kBulletValues,
+};
+
+struct BulletInfo {
+    bool known = false; ///< made by a build with the projectiles (else made again when asked for)
+    std::string rapid, charged; ///< the models used ("" for none)
+    bool rapid_cards = false, charged_cards = false; ///< sprites, not a mesh
+    u64 pack_key = 0;
+    std::vector<FlashPart> parts; ///< file, texture, hash, components, pack PNG (as the flashes')
+};
+
+/// AzaharFrame kiuweap2: how Pit holds the weapon, from the game's own animations of his class
+/// (player/g<class>.zrc, character/mdl.arc!mdl/00.bcres): in a pose, the primary anchor's space
+/// in the holding hand's (`to_hand`, row major 3x4) and the fist's centre in that hand's space
+/// (the grip bone's origin for a weapon with one, else the fist marker of Pit's hand; game
+/// units).
+struct HoldPose {
+    FrameCgfx::Mat34 to_hand{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+    std::array<float, 3> fist{};
+};
+struct HoldInfo {
+    bool known = false; ///< made by a build that makes it (else the weapon is made again once)
+    bool valid = false; ///< read from the game's files (else the class's own fit is used)
+    /// The holding hand: RHandN; a bow's LHandN (Pit holds it in his left hand); a cannon's
+    /// RArmN (it has no right hand: the forearm is the cannon).
+    std::string hand;
+    HoldPose idle; ///< his idle (ChrPit00Wait<Class>), its first frame
+    HoldPose shot; ///< his aiming pose (ChrPit00ShotWait<Class>; clubs have none: the idle)
+};
+
 struct Weapon {
     int id = -1;
     int cls = -1;
@@ -182,6 +244,8 @@ struct Weapon {
     u64 pack_key = 0;
     std::vector<Part> parts;
     FlashInfo flash; ///< AzaharFrame kiuflash
+    BulletInfo bullets; ///< AzaharFrame kiuflash
+    HoldInfo hold;      ///< AzaharFrame kiuweap2
 };
 
 struct Manifest {
@@ -208,6 +272,24 @@ TexturePack ReadTexturePack(u64 title_id);
 /// What the pack holds for these hashes (the files' names, sizes and times; 0 for nothing).
 u64 PackKey(const TexturePack* pack, const std::vector<u64>& hashes);
 
+/// AzaharFrame kiuweap2: Pit's idle and aiming poses of a class (skeletal animations of
+/// player/g<class>.zrc), read once per class.
+struct ClassPoses {
+    FrameCgfx::SkeletalPose idle, shot;
+};
+/// The file: "g<class>.zrc".
+std::string PoseZrcName(int cls);
+/// The animations' names: "ChrPit00Wait<Name>", "ChrPit00ShotWait<Name>" (Name: the game's
+/// class name, Rifle, Snipe, Nail, Bow, Palm, Pillar, Launch, Bit, Arm).
+std::string IdleAnimation(int cls);
+std::string ShotAnimation(int cls);
+/// Reads both (an aiming pose that is missing is the idle). False with the reason.
+bool ReadClassPoses(std::span<const u8> pose_zrc, int cls, ClassPoses& out, std::string& error);
+/// A weapon's hold (HoldInfo) from its skeleton (`m`: the weapon's fmdl model, Pit and the
+/// weapon; `anchor`: its primary anchor bone) posed by the class's poses. Not valid when the
+/// skeleton lacks the bones.
+HoldInfo MakeHold(const FrameCgfx::Model& m, int cls, s32 anchor, const ClassPoses& poses);
+
 /// One weapon's .zrc made into its files (in memory). Pure but for the pack's files: tested.
 struct Converted {
     Weapon info;
@@ -215,9 +297,12 @@ struct Converted {
 };
 /// `class_anims` (AzaharFrame kiumodels): the material animations of the class's Pit file
 /// (ReadClassUvAnims), for the parts' UvMotion; none: glow cards flow.
+/// `poses` (AzaharFrame kiuweap2): the class's Pit poses (ReadClassPoses), for the hold; none:
+/// the hold is not valid (the class's own fit).
 bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string& error,
                    const TexturePack* pack = nullptr,
-                   const std::vector<FrameCgfx::UvAnim>* class_anims = nullptr);
+                   const std::vector<FrameCgfx::UvAnim>* class_anims = nullptr,
+                   const ClassPoses* poses = nullptr);
 
 /// AzaharFrame kiumodels: the class's Pit file (player/a<class>.zrc: LZ11, darc,
 /// character/mdl.arc!mdl/00.bcres) read for its texture coordinator animations (the weapons'
@@ -226,6 +311,7 @@ bool ReadClassUvAnims(std::span<const u8> class_zrc, std::vector<FrameCgfx::UvAn
                       std::string& error);
 /// The class's Pit file name: "a<class>.zrc".
 std::string ClassZrcName(int cls);
+
 /// A part's UvMotion from the animations (the coordinator `coord` of `material`; a scale on it
 /// turns the slide: the game samples at scale * (uv - translate)). None when nothing targets it.
 UvMotion GameUvMotion(const std::vector<FrameCgfx::UvAnim>& anims, const std::string& material,
@@ -237,6 +323,11 @@ UvMotion GameUvMotion(const std::vector<FrameCgfx::UvAnim>& anims, const std::st
 /// when that file has no flash (out unchanged but for flash.known).
 bool ConvertFlash(int id, std::span<const u8> source_zrc, int source, bool neutral,
                   Converted& out, const TexturePack* pack = nullptr);
+
+/// AzaharFrame kiuflash: weapon `id`'s bullets from its effect file into `out` (out.info.bullets
+/// and its files). ConvertWeapon calls it. False when the file has none.
+bool ConvertBullets(int id, std::span<const u8> zrc, Converted& out,
+                    const TexturePack* pack = nullptr);
 
 /// A texture pack's PNG (Part::replaced) for a model's colour image: RGBA8, rows in the game's
 /// memory order, alpha 255 (AzaharFrame kiuflash: or the PNG's own, `keep_alpha`, for a flash

@@ -117,6 +117,21 @@ V3 TransformPoint(const FitMat& m, const V3& p) {
             m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]};
 }
 
+/// Column major a * b.
+FitMat Mul4(const FitMat& a, const FitMat& b) {
+    FitMat m{};
+    for (int c = 0; c < 4; c++) {
+        for (int r = 0; r < 4; r++) {
+            float v = 0.0f;
+            for (int k = 0; k < 4; k++) {
+                v += a[static_cast<std::size_t>(k * 4 + r)] * b[static_cast<std::size_t>(c * 4 + k)];
+            }
+            m[static_cast<std::size_t>(c * 4 + r)] = v;
+        }
+    }
+    return m;
+}
+
 enum class Rule { Held, Worn, Pair };
 
 struct ClassFit {
@@ -147,6 +162,69 @@ constexpr V3 kPalm{0.0f, -0.0525f, 0.043f};
 constexpr V3 kWrist{0.0f, -0.045f, 0.10f};
 /// The orbitars: either side of the hand, a little above and ahead of it.
 constexpr V3 kOrbitar{0.17f, 0.05f, -0.08f};
+
+} // namespace
+
+HoldMap HoldMapFor(int cls) {
+    switch (cls) {
+    case 0: // blade
+    case 1: // staff
+    case 5: // club
+        return HoldMap::Grip;
+    case 3: // bow
+    case 6: // cannon
+        return HoldMap::Point;
+    default:
+        return HoldMap::None;
+    }
+}
+
+HoldPick HoldPickFor(int cls, const std::optional<std::string>& value) {
+    if (value && *value == "idle") {
+        return HoldPick::Idle;
+    }
+    if (value && *value == "shot") {
+        return HoldPick::Shot;
+    }
+    return cls == 1 ? HoldPick::Shot : HoldPick::Idle;
+}
+
+namespace {
+
+/// Pit's hand's frame in aim space for a hold (row major: columns are where his hand's x, y, z
+/// go), and where its fist's centre goes.
+M3 HoldHandFrame(HoldMap map) {
+    V3 x{0, 0, 1}, y{1, 0, 0}, z{0, 1, 0}; // Point: fingers (-x) ahead, thumb (+z) up
+    if (map == HoldMap::Grip) {
+        z = Normal(kHandleAxis);
+        y = Normal(Sub(V3{1, 0, 0}, Scale(z, z[0])));
+        x = Cross(y, z);
+    }
+    return {x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]};
+}
+
+V3 HoldFistAt(HoldMap) {
+    // AzaharFrame kiuinteg: Pit's fist on the controller's handle for both maps (a bow's and a
+    // cannon's were at the pistol palm point kPalm, 4.7 cm off it: 4.4 cm ahead, 1.3 cm
+    // inward, 0.8 cm down).
+    return kHandleCentre;
+}
+
+/// The game's hold (weapon space to the holding hand's), as a right hand's: Pit's left hand's
+/// (a bow's) mirrored across his x (his right is -x), with its fist.
+FitMat HoldMatrix(const FitHold& h, V3& fist) {
+    FitMat m{};
+    const float flip = h.left ? -1.0f : 1.0f;
+    for (int row = 0; row < 3; row++) {
+        const float f = row == 0 ? flip : 1.0f;
+        for (int col = 0; col < 4; col++) {
+            m[static_cast<std::size_t>(col * 4 + row)] = f * h.to_hand[static_cast<std::size_t>(row * 4 + col)];
+        }
+    }
+    m[15] = 1.0f;
+    fist = {flip * h.fist[0], h.fist[1], h.fist[2]};
+    return m;
+}
 
 } // namespace
 
@@ -358,6 +436,34 @@ FitOverride ParseFitOverride(const std::optional<std::string>& value) {
     return o;
 }
 
+namespace {
+
+/// The fist's centre in weapon space: the hold's (in Pit's hand's space) taken back through the
+/// hold (weapon space to the hand's, a rotation and a translation).
+std::optional<V3> FistInWeapon(const FitHold& h) {
+    const auto& a = h.to_hand;
+    const M3 r{a[0], a[1], a[2], a[4], a[5], a[6], a[8], a[9], a[10]};
+    const V3 t{a[3], a[7], a[11]};
+    const float det = r[0] * (r[4] * r[8] - r[5] * r[7]) - r[1] * (r[3] * r[8] - r[5] * r[6]) +
+                      r[2] * (r[3] * r[7] - r[4] * r[6]);
+    if (!(std::fabs(det) > 1e-9f)) {
+        return std::nullopt;
+    }
+    const M3 inv{(r[4] * r[8] - r[5] * r[7]) / det, (r[2] * r[7] - r[1] * r[8]) / det,
+                 (r[1] * r[5] - r[2] * r[4]) / det, (r[5] * r[6] - r[3] * r[8]) / det,
+                 (r[0] * r[8] - r[2] * r[6]) / det, (r[2] * r[3] - r[0] * r[5]) / det,
+                 (r[3] * r[7] - r[4] * r[6]) / det, (r[1] * r[6] - r[0] * r[7]) / det,
+                 (r[0] * r[4] - r[1] * r[3]) / det};
+    return Apply(inv, Sub(h.fist, t));
+}
+
+V3 TransformDir(const FitMat& m, const V3& d) {
+    return {m[0] * d[0] + m[4] * d[1] + m[8] * d[2], m[1] * d[0] + m[5] * d[1] + m[9] * d[2],
+            m[2] * d[0] + m[6] * d[1] + m[10] * d[2]};
+}
+
+} // namespace
+
 std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
                                      const std::vector<FitSide>& sides, const FitOverride& tune) {
     std::vector<FitPart> out;
@@ -370,6 +476,19 @@ std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
     const V3 offset = Scale(tune.offset_cm, 0.01f);
     const auto has = [&](FitSide s) { return std::find(sides.begin(), sides.end(), s) != sides.end(); };
     const auto at = [&](const V3& p) { return V3{p[0] + offset[0], p[1] + offset[1], p[2] + offset[2]}; };
+
+    // AzaharFrame kiuweap2: the game's hold (FitHold): Pit's hand on the player's, the weapon
+    // as he holds it; the tune turns about the fist and offsets it; the left hand gets the
+    // right hand's mirrored.
+    if (const HoldMap map = HoldMapFor(w.cls); w.hold && map != HoldMap::None) {
+        V3 fist{};
+        const FitMat hold = HoldMatrix(*w.hold, fist);
+        const M3 r = Mul(turn, HoldHandFrame(map));
+        const FitMat base = Compose(at(HoldFistAt(map)), r, scale, fist, left_hand);
+        const FitSide side = has(FitSide::Centre) ? FitSide::Centre : FitSide::Right;
+        out.push_back({side, Mul4(base, hold), left_hand != w.hold->left});
+        return out;
+    }
 
     switch (c.rule) {
     case Rule::Held: {
@@ -446,6 +565,29 @@ std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
         break;
     }
     }
+    // AzaharFrame kiuinteg: claws, palms and arms with the game's hold: Pit's fist's centre (the
+    // hold's) on the controller's handle (kHandleCentre, the tune's offset kept), so his hand is
+    // where the player's is, the same for every weapon of the class. Their fits put the wrist
+    // behind the grip and raised the hand onto the ray at the muzzle, which left the fist 6 to
+    // 12 cm above and ahead of the handle, and sideways by the muzzle's own offset.
+    if (w.hold && (w.cls == 2 || w.cls == 4 || w.cls == 8)) {
+        if (const auto fist_w = FistInWeapon(*w.hold)) {
+            const float sx = left_hand ? -1.0f : 1.0f;
+            const V3 want{sx * (kHandleCentre[0] + offset[0]), kHandleCentre[1] + offset[1],
+                          kHandleCentre[2] + offset[2]};
+            for (FitPart& part : out) {
+                V3 f = *fist_w;
+                if (part.side == FitSide::Left && c.rule == Rule::Worn) {
+                    f[0] = -f[0]; // the left claw's own hand: the right one's mirrored
+                }
+                const V3 at_now = TransformPoint(part.transform, f);
+                for (int k = 0; k < 3; k++) {
+                    part.transform[static_cast<std::size_t>(12 + k)] +=
+                        want[static_cast<std::size_t>(k)] - at_now[static_cast<std::size_t>(k)];
+                }
+            }
+        }
+    }
     return out;
 }
 
@@ -470,6 +612,62 @@ std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand
         sum = {sum[0] + q[0], sum[1] + q[1], sum[2] + q[2]};
     }
     return Scale(sum, 1.0f / static_cast<float>(parts.size()));
+}
+
+
+std::optional<std::array<float, 3>> FitFist(const FitWeapon& w, bool left_hand,
+                                            const std::vector<FitSide>& sides,
+                                            const FitOverride& tune) {
+    if (!w.hold || w.cls < 0 || w.cls >= 9) {
+        return std::nullopt;
+    }
+    const auto fist = FistInWeapon(*w.hold);
+    const auto parts = FitWeaponToHand(w, left_hand, sides, tune);
+    if (!fist || parts.empty()) {
+        return std::nullopt;
+    }
+    V3 f = *fist;
+    if (parts.front().side == FitSide::Left && kFits[w.cls].rule == Rule::Worn) {
+        f[0] = -f[0];
+    }
+    return TransformPoint(parts.front().transform, f);
+}
+
+std::optional<std::array<float, 3>> FitAxis(const FitWeapon& w, bool left_hand,
+                                            const std::vector<FitSide>& sides,
+                                            const FitOverride& tune) {
+    if (!w.hold || w.cls < 0 || w.cls >= 9 || HoldMapFor(w.cls) == HoldMap::None) {
+        return std::nullopt;
+    }
+    const auto fist = FistInWeapon(*w.hold);
+    const auto parts = FitWeaponToHand(w, left_hand, sides, tune);
+    if (!fist || parts.empty()) {
+        return std::nullopt;
+    }
+    const FitMat& m = parts.front().transform;
+    V3 axis{};
+    if (HoldMapFor(w.cls) == HoldMap::Grip && w.muzzle_valid) {
+        // A hilt or a shaft in the fist: from the fist to the muzzle (the blade, the staff, the
+        // club as his hand holds it).
+        axis = Sub(TransformPoint(m, w.muzzle), TransformPoint(m, *fist));
+        if (axis[2] >= 0.0f) {
+            // Held pointing back (a staff in Pit's idle grip, AZAHARFRAME_KIU_HOLD=idle): no
+            // aim along it; the controller's line.
+            return std::nullopt;
+        }
+    }
+    if (Length(axis) < 0.03f) {
+        // Held by the hand's line (a bow's arrow, a cannon's forearm: their muzzles sit beside
+        // it), or a muzzle in the fist: the class's forward as held, away from the player.
+        axis = TransformDir(m, kFits[w.cls].forward);
+        if (axis[2] > 0.0f) {
+            axis = Scale(axis, -1.0f);
+        }
+    }
+    if (!(Length(axis) > 1e-6f)) {
+        return std::nullopt;
+    }
+    return Normal(axis);
 }
 
 } // namespace FrameXr::Vis

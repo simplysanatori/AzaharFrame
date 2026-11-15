@@ -87,6 +87,33 @@ std::vector<uint8_t> LaserDotArt() {
     return px;
 }
 
+std::vector<uint8_t> AimTargetArt() {
+    constexpr int n = kAimTargetPixels;
+    std::vector<uint8_t> px(static_cast<std::size_t>(n) * n * 4, 0);
+    const float r0 = static_cast<float>((kAimTargetRgb >> 16) & 0xFF) / 255.0f;
+    const float g0 = static_cast<float>((kAimTargetRgb >> 8) & 0xFF) / 255.0f;
+    const float b0 = static_cast<float>(kAimTargetRgb & 0xFF) / 255.0f;
+    const float c = n * 0.5f;
+    const auto band = [](float d, float lo, float hi) { // 1 inside [lo, hi], soft 1 px edges
+        return std::clamp(std::min(d - lo, hi - d) + 0.5f, 0.0f, 1.0f);
+    };
+    for (int y = 0; y < n; y++) {
+        for (int x = 0; x < n; x++) {
+            const float d = std::hypot(x + 0.5f - c, y + 0.5f - c); // pixels from the middle
+            // Amber: the ring and the middle dot; dark: a rim round each.
+            const float amber = std::max(band(d, c - 7.0f, c - 3.0f), band(d, -1.0f, 2.5f));
+            const float dark = std::max(band(d, c - 9.0f, c - 1.0f), band(d, -1.0f, 4.5f));
+            const float a = std::max(amber, dark * 0.8f);
+            uint8_t* p = &px[(static_cast<std::size_t>(y) * n + x) * 4];
+            p[0] = static_cast<uint8_t>(amber * r0 * 255.0f + 0.5f);
+            p[1] = static_cast<uint8_t>(amber * g0 * 255.0f + 0.5f);
+            p[2] = static_cast<uint8_t>(amber * b0 * 255.0f + 0.5f);
+            p[3] = static_cast<uint8_t>(a * 255.0f + 0.5f);
+        }
+    }
+    return px;
+}
+
 std::optional<int> BeamLevel(float strength) {
     if (strength <= 0.02f) {
         return std::nullopt;

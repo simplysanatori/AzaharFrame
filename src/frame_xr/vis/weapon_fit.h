@@ -2,7 +2,9 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// AzaharFrame kiuguns: where Kid Icarus: Uprising's weapon goes in the hand. A weapon model is in
+// AzaharFrame kiuguns: where Kid Icarus: Uprising's weapon goes in the hand. AzaharFrame
+// kiuweap2: blades, staffs, clubs, bows and cannons now take the game's own hold (FitHold,
+// HoldMap below); the table described here is their fallback (a weapon made without it). A weapon model is in
 // its anchor bone's space (core/frame_weapon_models.h: Pit's axes, +y up, +z Pit's front, his
 // right hand toward -x, the game's units); this gives the transform into the aiming
 // controller's OpenXR aim space (-z along the ray, +y up, +x right, metres), from a small table
@@ -46,11 +48,50 @@ using FitMat = std::array<float, 16>;
 
 enum class FitSide : uint8_t { Centre, Right, Left };
 
+/// AzaharFrame kiuweap2: how Pit holds the weapon in the game (core/frame_weapon_models.h
+/// HoldInfo, one of its poses): the weapon space in his holding hand's (row major 3x4), the
+/// fist's centre in that hand's space (game units), and whether that hand is his left (a bow).
+struct FitHold {
+    std::array<float, 12> to_hand{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+    std::array<float, 3> fist{};
+    bool left = false;
+};
+
 struct FitWeapon {
     int cls = 0;
     std::array<float, 3> muzzle{};
     bool muzzle_valid = false;
+    std::optional<FitHold> hold; ///< AzaharFrame kiuweap2: none: the class's own fit (as before)
 };
+
+/// AzaharFrame kiuweap2: the game's hold puts Pit's hand on the player's. Two ways, by class:
+///   Grip (blades, staffs, clubs: a hilt or a shaft in the fist): the fist's axis (Pit's hand
+///     +z, the thumb's side) along the controller's handle (kHandleAxis), the back of the hand
+///     (+y) outward, the fist's centre on the handle (kHandleCentre). The controller's handle
+///     sits where Pit's hand holds the hilt, the hilt through the fist.
+///   Point (bows, cannons): the fingers' line (-x) along the ray, the thumb (+z) up, the back
+///     of the hand outward, the fist's centre on the handle (kHandleCentre; AzaharFrame
+///     kiuinteg: it was the pistol palm point, 4.7 cm ahead of it): the bow upright (as the
+///     owner had it), the cannon's forearm along the ray, its housing on the hand's back
+///     (outward: the right for the right hand, as in the game).
+/// Claws, palms, arms and orbitars keep their own fits (the game's hold of them is the hand
+/// itself, which those fits already are; orbitars float). AzaharFrame kiuinteg: claws, palms
+/// and arms with a hold are then moved so Pit's fist's centre is on the handle too.
+enum class HoldMap : uint8_t { None, Grip, Point };
+HoldMap HoldMapFor(int cls);
+/// The Frame controller's handle in aim space (its model's body, the centres of its cross
+/// sections: frame_controller_right.model; the left one is its mirror): its axis (up through
+/// the fist, 42 degrees forward of straight up, 4 to the left) and its centre.
+inline constexpr std::array<float, 3> kHandleAxis{-0.0550f, 0.7387f, -0.6718f};
+inline constexpr std::array<float, 3> kHandleCentre{0.013f, -0.0444f, 0.0871f};
+
+/// AzaharFrame kiuweap2: which of the game's poses gives the hold (live test switch
+/// AZAHARFRAME_KIU_HOLD=idle|shot): his idle (the owner's choice: how Pit holds it at rest) for
+/// every class but staffs, whose idle grip points the staff back along the forearm (in the game
+/// his turned wrist points it ahead): theirs is his aiming grip, the staff ahead along the ray.
+enum class HoldPick : uint8_t { Idle, Shot };
+inline constexpr const char* kHoldSwitch = "AZAHARFRAME_KIU_HOLD";
+HoldPick HoldPickFor(int cls, const std::optional<std::string>& value);
 
 struct FitOverride {
     std::array<float, 3> offset_cm{};
@@ -81,6 +122,25 @@ std::vector<FitPart> FitWeaponToHand(const FitWeapon& w, bool left_hand,
 std::optional<std::array<float, 3>> FitMuzzle(const FitWeapon& w, bool left_hand,
                                               const std::vector<FitSide>& sides,
                                               const FitOverride& tune = {});
+
+/// AzaharFrame kiuinteg: the weapon's own axis as held, in aim space (a unit direction), for the
+/// classes that take the game's hold (HoldMapFor: blades, staffs, clubs, bows, cannons) when the
+/// weapon has one: from Pit's fist to the muzzle (the blade, the shaft, the barrel as his hand
+/// holds it), or for a weapon whose muzzle is in the fist (a bow) the class's forward (the
+/// arrow's line, kFits) as held, turned to point away from the player; none when a blade, staff
+/// or club is held pointing back toward the player. None for the others
+/// (claws, palms, arms, orbitars, a weapon without a hold): their fits are made along the ray,
+/// so the aim pose's own direction is theirs. Angel's Aim's ray runs along it from the muzzle
+/// (input/gyro_aim.h AimRay).
+std::optional<std::array<float, 3>> FitAxis(const FitWeapon& w, bool left_hand,
+                                            const std::vector<FitSide>& sides,
+                                            const FitOverride& tune = {});
+/// AzaharFrame kiuinteg: Pit's fist's centre (the hold's), in aim space, as fitted: where his
+/// hand is drawn, for the check that it sits on the controller's handle (kHandleCentre). None
+/// without a hold.
+std::optional<std::array<float, 3>> FitFist(const FitWeapon& w, bool left_hand,
+                                            const std::vector<FitSide>& sides,
+                                            const FitOverride& tune = {});
 
 /// AzaharFrame kiuguns: a palm is a whole forearm and hand. Two ways to wear it, a live test
 /// switch (AZAHARFRAME_KIU_PALM_MODE=wrist|elbow, wrist by default):

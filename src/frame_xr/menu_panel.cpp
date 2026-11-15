@@ -316,14 +316,32 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::LaserSight;
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         return MenuSetting::MuzzleFlash;
+    case Id::Projectiles: // AzaharFrame kiuflash
+        return MenuSetting::Projectiles;
+    case Id::ProjectileSize:
+        return MenuSetting::ProjectileSize;
+    case Id::ProjectileSpeed:
+        return MenuSetting::ProjectileSpeed;
     case Id::RecoilCharged: // AzaharFrame kiufix
         return MenuSetting::RecoilCharged;
     case Id::RecoilRapid:
         return MenuSetting::RecoilRapid;
     case Id::WeaponSize:
         return MenuSetting::WeaponSize;
+    case Id::TurnZoneFrom: // AzaharFrame kiuaim3
+        return MenuSetting::TurnZoneFrom;
+    case Id::KeepOnScreen:
+        return MenuSetting::KeepOnScreen;
+    case Id::GripFreesAim:
+        return MenuSetting::GripFreesAim;
     case Id::WeaponScale:
         return MenuSetting::WeaponScale;
+    case Id::WeaponOpacity: // AzaharFrame kiuopacity
+        return MenuSetting::WeaponOpacity;
+    case Id::ProjectileOpacity:
+        return MenuSetting::ProjectileOpacity;
+    case Id::MuzzleFlashSize: // AzaharFrame kiuweap2
+        return MenuSetting::MuzzleFlashSize;
     case Id::AutosaveKeep:
     default: // UseGlobal checks PerGameSetting first
         return MenuSetting::AutosaveKeep;
@@ -874,6 +892,9 @@ void MenuPanel::BuildModel(const Host& host) {
     if (!m.mods.angels_aim.shown && view.mods_segment == Menu::ModsSegment::AngelsAim) {
         view.mods_segment = Menu::ModsSegment::Cheats;
     }
+    if (!m.mods.angels_aim.shown) {
+        view.angels_intro = false; // AzaharFrame kiuweap2: its prompt goes with the game
+    }
     if (m.mods.ctgp7.busy && m.mods.ctgp7.permille < 0 && view.tab == Menu::Tab::Mods &&
         view.mods_segment == Menu::ModsSegment::Ctgp7) {
         m.mods.ctgp7.spin = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1017,11 +1038,27 @@ void MenuPanel::BuildModel(const Host& host) {
     m.weapon_in_hand = v.vr_light_gun_weapon.GetValue(); // AzaharFrame kiuguns
     m.laser_sight = v.vr_light_gun_laser.GetValue();
     m.muzzle_flash = v.vr_light_gun_flash.GetValue(); // AzaharFrame kiuflash
+    m.projectiles = v.vr_light_gun_projectile.GetValue();
+    m.projectile_size =
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_projectile_size.GetValue(), 50, 200));
+    m.projectile_speed =
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_projectile_speed.GetValue(), 50, 200));
     m.recoil_charged = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_charged.GetValue(), 100));
     m.recoil_rapid = static_cast<int>(std::min<u32>(v.vr_light_gun_recoil_rapid.GetValue(), 100));
     m.weapon_size = static_cast<int>(std::min<u32>(v.vr_light_gun_weapon_size.GetValue(), 1));
     m.weapon_scale =
         static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_scale.GetValue(), 50, 150));
+    m.keep_on_screen = v.vr_light_gun_lock.GetValue(); // AzaharFrame kiuaim3
+    m.grip_frees_aim = static_cast<int>(std::min<u32>(v.vr_light_gun_grip.GetValue(), 1));
+    m.turn_zone_from =
+        static_cast<int>(std::min<u32>(v.vr_light_gun_turn_zone_from.GetValue(), 1));
+    m.weapon_opacity = // AzaharFrame kiuopacity
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_weapon_opacity.GetValue(), 20, 100));
+    m.projectile_opacity =
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_projectile_opacity.GetValue(), 20, 100));
+    m.flash_size = // AzaharFrame kiuweap2
+        static_cast<int>(std::clamp<u32>(v.vr_light_gun_muzzle_flash_size.GetValue(), 50, 300));
+    m.angels_intro_shown = v.vr_angels_aim_intro_shown.GetValue();
     m.show_controllers = v.vr_show_controllers.GetValue();
     m.controllers_in_front = // AzaharFrame ctrlfront
         static_cast<int>(std::min<u32>(v.vr_controllers_in_front.GetValue(), 3));
@@ -1416,6 +1453,20 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_light_gun_flash, value != 0, per_game);
         r.setting = MenuSetting::MuzzleFlash;
         break;
+    case Id::Projectiles: // AzaharFrame kiuflash: per game in Per-Game
+        Apply(v.vr_light_gun_projectile, value != 0, per_game);
+        r.setting = MenuSetting::Projectiles;
+        break;
+    case Id::ProjectileSize: // AzaharFrame kiuflash: percent, per game in Per-Game
+        r.value = std::clamp(value, 50, 200);
+        Apply(v.vr_light_gun_projectile_size, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::ProjectileSize;
+        break;
+    case Id::ProjectileSpeed:
+        r.value = std::clamp(value, 50, 200);
+        Apply(v.vr_light_gun_projectile_speed, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::ProjectileSpeed;
+        break;
     case Id::RecoilCharged: // AzaharFrame kiufix: percent, per game in Per-Game
         r.value = std::clamp(value, 0, 100);
         Apply(v.vr_light_gun_recoil_charged, static_cast<u32>(r.value), per_game);
@@ -1431,10 +1482,39 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_light_gun_weapon_size, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::WeaponSize;
         break;
+    case Id::TurnZoneFrom: // AzaharFrame kiuaim3
+        r.value = std::clamp(value, 0, 1);
+        Apply(v.vr_light_gun_turn_zone_from, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::TurnZoneFrom;
+        break;
+    case Id::KeepOnScreen:
+        Apply(v.vr_light_gun_lock, value != 0, per_game);
+        r.setting = MenuSetting::KeepOnScreen;
+        break;
+    case Id::GripFreesAim:
+        r.value = std::clamp(value, 0, 1);
+        Apply(v.vr_light_gun_grip, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::GripFreesAim;
+        break;
     case Id::WeaponScale:
         r.value = std::clamp(value, 50, 150);
         Apply(v.vr_light_gun_weapon_scale, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::WeaponScale;
+        break;
+    case Id::WeaponOpacity: // AzaharFrame kiuopacity: percent, per game in Per-Game
+        r.value = std::clamp(value, 20, 100);
+        Apply(v.vr_light_gun_weapon_opacity, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::WeaponOpacity;
+        break;
+    case Id::ProjectileOpacity:
+        r.value = std::clamp(value, 20, 100);
+        Apply(v.vr_light_gun_projectile_opacity, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::ProjectileOpacity;
+        break;
+    case Id::MuzzleFlashSize: // AzaharFrame kiuweap2: percent, per game in Per-Game
+        r.value = std::clamp(value, 50, 300);
+        Apply(v.vr_light_gun_muzzle_flash_size, static_cast<u32>(r.value), per_game);
+        r.setting = MenuSetting::MuzzleFlashSize;
         break;
     case Id::ShowControllers:
         Apply(v.vr_show_controllers, value != 0, false);
@@ -2017,6 +2097,13 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::DialogExtra: // AzaharFrame memwarn: only a notice has one
         if (model.notice.kind != Menu::ModsDialogKind::None) {
             ask(MenuCommand::NoticeAnswer, 2);
+        } else if (view.angels_intro) {
+            // AzaharFrame kiuweap2: the prompt's Controls: the Controls tab at Aiming
+            view.angels_intro = false;
+            view.tab = Menu::Tab::Controls;
+            view.page = Menu::Page::Tabs;
+            controls_page = 0;
+            scroll_to_aiming = true;
         } else if (view.mods_segment == Menu::ModsSegment::Ctgp7 && // AzaharFrame ctgp7
                    model.mods.ctgp7.dialog.kind != Menu::ModsDialogKind::None) {
             ask_text(MenuCommand::Ctgp7Dialog, view.dialog_check ? "checked" : "", 2);
@@ -2030,6 +2117,10 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::DialogCancel: {
         if (model.notice.kind != Menu::ModsDialogKind::None) { // AzaharFrame savestate: drawn on top
             ask(MenuCommand::NoticeAnswer, t.id == Id::DialogConfirm ? 1 : 0);
+            break;
+        }
+        if (view.angels_intro) { // AzaharFrame kiuweap2: the prompt's OK
+            view.angels_intro = false;
             break;
         }
         if (ZipShown(model, view) && model.mods.zip.dialog.kind != Menu::ModsDialogKind::None) {
@@ -2227,7 +2318,13 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MuzzleFlash: // AzaharFrame kiuflash
         SetSetting(t.id, model.muzzle_flash ? 0 : 1, host);
         break;
-    case Id::CalibrateAim: // AzaharFrame kiufix: the game on view, the steps as toasts
+    case Id::Projectiles: // AzaharFrame kiuflash
+        SetSetting(t.id, model.projectiles ? 0 : 1, host);
+        break;
+    case Id::KeepOnScreen: // AzaharFrame kiuaim3
+        SetSetting(t.id, model.keep_on_screen ? 0 : 1, host);
+        break;
+    case Id::CalibrateAim: // AzaharFrame kiufix (kiuaim2: Check Aim): the game on view, its targets
         if (host.calibrate_aim && model.aim_calibration_ok) {
             host.calibrate_aim();
             ask(MenuCommand::Continue);
@@ -2313,6 +2410,8 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::MotionControls:
     case Id::GyroAim: // AzaharFrame kiugyro
     case Id::WeaponSize: // AzaharFrame kiufix
+    case Id::GripFreesAim: // AzaharFrame kiuaim3
+    case Id::TurnZoneFrom:
     case Id::WindowScale:
     case Id::MarginX: // AzaharFrame fovaxis
     case Id::MarginY:
@@ -2323,6 +2422,22 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::AccurateImageCopies: // AzaharFrame xfergpu: Off | Automatic | On
     case Id::FastForwardSpeed:
         if (t.index >= 0) {
+            // AzaharFrame kiuweap2: Aiming turned on in Kid Icarus: "Angel's Aim Is On", once
+            // (a plain new key remembers it).
+            if (t.id == Id::GyroAim &&
+                Menu::AngelsIntroDue(model.gyro_aim, t.index, model.mods.angels_aim.shown,
+                                     model.angels_intro_shown)) {
+                view.angels_intro = true;
+                Settings::values.vr_angels_aim_intro_shown.SetValue(true);
+                MenuRequest r;
+                r.command = MenuCommand::SetSetting;
+                r.setting = MenuSetting::AngelsAimIntroShown;
+                r.value = 1;
+                if (host.request) {
+                    host.request(r);
+                }
+                LOG_INFO(Frontend, "xr: in-game menu: Angel's Aim's prompt");
+            }
             SetSetting(t.id, t.index, host);
         }
         break;

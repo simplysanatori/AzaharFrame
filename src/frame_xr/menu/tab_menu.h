@@ -120,6 +120,9 @@ enum class Id : int {
     WeaponInHand,    ///< AzaharFrame kiuguns: a switch, while Aiming is not Off
     LaserSight,      ///< AzaharFrame kiuguns: a switch, with Direct Aim
     MuzzleFlash,     ///< AzaharFrame kiuflash: a switch, with Weapon in Hand on
+    Projectiles,     ///< AzaharFrame kiuflash: a switch, with Weapon in Hand on
+    ProjectileSize,  ///< a slider, 50 to 200 (percent), with Projectiles on
+    ProjectileSpeed, ///< a slider, 50 to 200 (percent), with Projectiles on
     ShowControllers,
     ControllersInFront, ///< AzaharFrame ctrlfront: Controllers in Front of Screen, index: 0 Off,
                         ///< 1 Primary, 2 Secondary, 3 Both (vr_controllers_in_front), global
@@ -253,13 +256,22 @@ enum class Id : int {
     RecoilRapid,       ///< a slider, 0 to 100 (percent), while Recoil is on
     WeaponSize,        ///< index: 0 Game Size, 1 Hand Size, while Weapon in Hand is on
     WeaponScale,       ///< a slider, 50 to 150 (percent), while Weapon in Hand is on
-    CalibrateAim,      ///< Direct Aim's Calibrate Aim: closes the menu and starts it
-    CalibrateAimReset, ///< its Reset (the game's calibration goes)
+    CalibrateAim,      ///< Direct Aim's Check Aim (kiuaim2; was Calibrate Aim): closes the menu, starts it
+    CalibrateAimReset, ///< its Reset (the game's Check Aim map goes)
     AimingDivider,     ///< the Controls tab's divider above Aiming (no action)
     // AzaharFrame kiufix: the Mods tab's Angel's Aim segment (angels_aim_tab.h)
     AngelsAimSettings, ///< Aiming Settings: the Controls tab at Aiming
     AngelsAimReport,   ///< Report an Issue ("Open GitHub?" first)
     AngelsAimSend,     ///< AzaharFrame kiumenus: Send Report (Azahar's window, its own dialog)
+    // AzaharFrame kiuaim3: Direct Aim's rows (the Controls tab, with Direct Aim)
+    KeepOnScreen, ///< Keep Reticle on Screen: a switch (vr_light_gun_lock)
+    GripFreesAim, ///< index: 0 Hold, 1 Toggle (vr_light_gun_grip)
+    TurnZoneFrom, ///< index: 0 Screen Edge, 1 Aim Box (vr_light_gun_turn_zone_from)
+    // AzaharFrame kiuopacity
+    WeaponOpacity,     ///< a slider, 20 to 100 (percent), while Weapon in Hand is on
+    ProjectileOpacity, ///< a slider, 20 to 100 (percent), with Projectiles on
+    // AzaharFrame kiuweap2
+    MuzzleFlashSize, ///< a slider, 50 to 300 (percent), with Muzzle Flash on
     Count
 };
 constexpr int kIdCount = static_cast<int>(Id::Count);
@@ -326,6 +338,13 @@ constexpr int AimingValueAt(int index) {
     return index == 1 ? 2 : (index == 2 ? 1 : 0);
 }
 
+/// AzaharFrame kiuweap2: Aiming turned on: from Off (`stored_before`, vr_gyro_aim's 0) to Direct
+/// Aim or Gyro Aim (`index_after`, the shown index 1 or 2), while Kid Icarus: Uprising is open
+/// (`kiu_open`) and the prompt has not been shown (`shown`).
+constexpr bool AngelsIntroDue(int stored_before, int index_after, bool kiu_open, bool shown) {
+    return kiu_open && !shown && stored_before == 0 && (index_after == 1 || index_after == 2);
+}
+
 struct MenuModel {
     std::string game_title;
     bool quick_load_available = true;
@@ -367,12 +386,22 @@ struct MenuModel {
     bool weapon_in_hand = true; ///< AzaharFrame kiuguns: vr_light_gun_weapon
     bool laser_sight = false;   ///< AzaharFrame kiuguns: vr_light_gun_laser
     bool muzzle_flash = true;   ///< AzaharFrame kiuflash: vr_light_gun_flash
+    bool projectiles = true;    ///< AzaharFrame kiuflash: vr_light_gun_projectile
+    int projectile_size = 100;  ///< percent (50 to 200)
+    int projectile_speed = 100; ///< percent (50 to 200)
     int recoil_charged = 100;   ///< AzaharFrame kiufix: percent (0 to 100)
     int recoil_rapid = 50;      ///< percent (0 to 100)
     int weapon_size = 0;        ///< 0 Game Size, 1 Hand Size
     int weapon_scale = 100;     ///< percent (50 to 150)
-    bool aim_calibrated = false; ///< the running game has a Calibrate Aim of its own
-    bool aim_calibration_ok = false; ///< Calibrate Aim can start (Direct Aim in a game)
+    bool keep_on_screen = true; ///< AzaharFrame kiuaim3: vr_light_gun_lock
+    int grip_frees_aim = 0;     ///< 0 Hold, 1 Toggle
+    int turn_zone_from = 1;     ///< 0 Screen Edge, 1 Aim Box
+    int weapon_opacity = 100;     ///< AzaharFrame kiuopacity: percent (20 to 100)
+    int projectile_opacity = 100; ///< percent (20 to 100)
+    int flash_size = 100;         ///< AzaharFrame kiuweap2: Muzzle Flash Size, percent (50 to 300)
+    bool angels_intro_shown = false; ///< AzaharFrame kiuweap2: vr_angels_aim_intro_shown
+    bool aim_calibrated = false; ///< the running game has a Check Aim map of its own
+    bool aim_calibration_ok = false; ///< Check Aim can start (Direct Aim, the reticle read)
     bool show_controllers = true;
     int controllers_in_front = 3; ///< AzaharFrame ctrlfront: 0 Off, 1 Primary, 2 Secondary, 3 Both
     int window_scale = 1; ///< 100, 150, 200 %
@@ -417,6 +446,11 @@ struct MenuModel {
     std::array<bool, kIdCount> game_value{};
     bool operator==(const MenuModel&) const = default;
 };
+
+/// AzaharFrame kiuweap2: the "Angel's Aim Is On" prompt (MenuView::angels_intro): a notice with
+/// the states of Weapon in Hand, Muzzle Flash, Projectiles, Recoil and Laser Sight, and its
+/// buttons Controls (DialogExtra) and OK (DialogConfirm).
+ModsDialog AngelsIntroDialog(const MenuModel& model);
 
 enum class Page { Tabs, SaveSlots, LoadSlots };
 
@@ -485,6 +519,9 @@ struct MenuView {
     } confirm;
     /// AzaharFrame ctgp7: "Requires CTGP-7" shows (an Install Mods row of a CTGP-7 mod was pressed)
     bool requires_ctgp7 = false;
+    /// AzaharFrame kiuweap2: the "Angel's Aim Is On" prompt is open (AngelsIntroDialog): OK
+    /// closes it, Controls closes it and shows the Controls tab at Aiming
+    bool angels_intro = false;
     /// AzaharFrame ctgp7: the open dialog's checkbox (ModsDialog::check) is ticked; off for each new one
     bool dialog_check = false;
     bool operator==(const MenuView&) const = default;

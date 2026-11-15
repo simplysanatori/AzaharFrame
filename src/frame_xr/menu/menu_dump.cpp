@@ -926,7 +926,7 @@ int main(int argc, char** argv) {
     {
         // AzaharFrame kiumenus: Aiming lives on the Controls page now (it scrolls): Kid Icarus:
         // Uprising, Direct Aim with the C-Stick & Gyro mod. The page at the top, scrolled to
-        // Aiming, and to the end (Recoil's strengths, Weapon Size, Laser Sight, Calibrate Aim).
+        // Aiming, and to the end (Recoil's strengths, Weapon Size, Laser Sight, Check Aim).
         MenuModel go = pg;
         go.game_title = "Kid Icarus: Uprising";
         go.motion_controls = 1;
@@ -963,6 +963,15 @@ int main(int argc, char** argv) {
         ok &= shot("kiu-controls-6b-end-calibrate-unavailable", nocal, at(1.0e5f));
         ok &= shot("kiu-controls-7-tooltip-calibrate", go, at(1.0e5f, Id::CalibrateAim, kLabelIndex, true));
         ok &= shot("kiu-controls-7b-tooltip-laser-sight", go, at(1.0e5f, Id::LaserSight, kLabelIndex, true));
+        // AzaharFrame kiuaim3: Keep Reticle on Screen, Grip Frees Aim, Turn Zone From.
+        ok &= shot("kiu-controls-7c-tooltip-keep-on-screen", go, at(1.0e5f, Id::KeepOnScreen, kLabelIndex, true));
+        ok &= shot("kiu-controls-7d-tooltip-grip-frees-aim", go, at(1.0e5f, Id::GripFreesAim, kLabelIndex, true));
+        ok &= shot("kiu-controls-7e-tooltip-turn-zone-from", go, at(1.0e5f, Id::TurnZoneFrom, kLabelIndex, true));
+        MenuModel alt = go;
+        alt.keep_on_screen = false;
+        alt.grip_frees_aim = 1;
+        alt.turn_zone_from = 0;
+        ok &= shot("kiu-controls-7f-end-lock-off-toggle-screen-edge", alt, at(1.0e5f));
         MenuModel ls = go;
         ls.laser_sight = true;
         ls.recoil_charged = 70;
@@ -999,38 +1008,121 @@ int main(int argc, char** argv) {
         MenuModel win = go;
         win.controls_page = 1;
         ok &= shot("kiu-controls-14-window-page", win, at(0.0f));
-        // AzaharFrame kiuflash (integ13: on the Controls page with Aiming's rows): Muzzle Flash
-        // under Weapon in Hand's rows, off for this game, its tooltip.
-        {
-            MenuModel mf = go;
-            mf.weapon_in_hand = true;
-            mf.muzzle_flash = false;
-            mf.game_value[static_cast<std::size_t>(Id::MuzzleFlash)] = true;
-            MenuView fv = at(0.0f, Id::MuzzleFlash, kLabelIndex, true);
+        // AzaharFrame kiuflash: Muzzle Flash and Projectiles (with its Size and Speed) under
+        // Weapon in Hand's rows: the end of the page, their tooltips, Projectiles off, one held.
+        MenuModel fx = go;
+        fx.projectile_size = 150;
+        fx.projectile_speed = 80;
+        fx.game_value[static_cast<std::size_t>(Id::Projectiles)] = true;
+        const auto aiming_at = [&](const MenuModel& model, Id row) {
+            // The scroll that shows `row` with a row to spare below (a tooltip goes above it).
             frame_xr::ui::Canvas scratch;
             scratch.Init(static_cast<int>(kPanelW * px_per_dp + 0.5f),
                          static_cast<int>(kPanelH * px_per_dp + 0.5f));
-            const auto on_view = [&](Id id) {
+            MenuView sv = at(0.0f);
+            for (float s = 0.0f; s <= 4000.0f; s += 20.0f) {
+                sv.scroll[static_cast<int>(Tab::Controls)] = s;
+                kit.Begin(scratch);
+                menu.Draw(kit, model, sv);
                 for (const auto& hit : menu.Hits()) {
-                    if (hit.t.id == id && hit.t.index == -1) {
-                        return true; // a row the list's edge cuts is a target too
+                    if (hit.t.id == row) {
+                        return std::min(s + 180.0f, menu.MaxScroll());
                     }
                 }
-                return false;
-            };
-            for (float s = 0.0f; s <= 3000.0f; s += 20.0f) {
-                fv.scroll[static_cast<int>(Tab::Controls)] = s;
-                kit.Begin(scratch);
-                menu.Draw(kit, mf, fv);
-                if (on_view(Id::MuzzleFlash) || s >= menu.MaxScroll()) {
-                    // Two rows more, so it sits above the list's edge with its tooltip.
-                    fv.scroll[static_cast<int>(Tab::Controls)] =
-                        std::min(s + 180.0f, menu.MaxScroll());
+                if (s >= menu.MaxScroll()) {
                     break;
                 }
             }
-            ok &= shot("kiu-controls-15-muzzle-flash-tooltip", mf, fv);
+            return 0.0f;
+        };
+        ok &= shot("kiu-controls-15-muzzle-flash-projectiles", fx,
+                   at(aiming_at(fx, Id::ProjectileSpeed)));
+        ok &= shot("kiu-controls-15b-tooltip-muzzle-flash", fx,
+                   at(aiming_at(fx, Id::MuzzleFlash), Id::MuzzleFlash, kLabelIndex, true));
+        ok &= shot("kiu-controls-15c-tooltip-projectiles", fx,
+                   at(aiming_at(fx, Id::Projectiles), Id::Projectiles, kLabelIndex, true));
+        ok &= shot("kiu-controls-15d-tooltip-projectile-size", fx,
+                   at(aiming_at(fx, Id::ProjectileSize), Id::ProjectileSize, kLabelIndex, true));
+        ok &= shot("kiu-controls-15e-tooltip-projectile-speed", fx,
+                   at(aiming_at(fx, Id::ProjectileSpeed), Id::ProjectileSpeed, kLabelIndex, true));
+        MenuView held = at(aiming_at(fx, Id::ProjectileSpeed));
+        held.dragging = Id::ProjectileSize;
+        held.hover = {Id::ProjectileSize};
+        ok &= shot("kiu-controls-15f-projectile-size-held", fx, held);
+        MenuModel nofx = fx;
+        nofx.projectiles = false;
+        nofx.muzzle_flash = false;
+        ok &= shot("kiu-controls-15g-flash-and-projectiles-off", nofx,
+                   at(aiming_at(nofx, Id::Projectiles)));
+        // AzaharFrame kiuopacity: Weapon Opacity first under Weapon in Hand, Projectile Opacity
+        // first under Projectiles: each at 100 %, 50 % and 20 %, their tooltips, one held, and
+        // Projectiles off (its Opacity gone with it).
+        for (const int pct : {100, 50, 20}) {
+            MenuModel op = fx;
+            op.weapon_opacity = pct;
+            op.projectile_opacity = pct;
+            const std::string n = std::to_string(pct);
+            ok &= shot("kiu-controls-16-weapon-opacity-" + n, op,
+                       at(aiming_at(op, Id::WeaponSize)));
+            ok &= shot("kiu-controls-17-projectile-opacity-" + n, op,
+                       at(aiming_at(op, Id::ProjectileSpeed)));
         }
+        MenuModel op = fx;
+        op.weapon_opacity = 60;
+        op.projectile_opacity = 30;
+        ok &= shot("kiu-controls-16b-tooltip-weapon-opacity", op,
+                   at(aiming_at(op, Id::WeaponOpacity), Id::WeaponOpacity, kLabelIndex, true));
+        ok &= shot("kiu-controls-17b-tooltip-projectile-opacity", op,
+                   at(aiming_at(op, Id::ProjectileOpacity), Id::ProjectileOpacity, kLabelIndex,
+                      true));
+        MenuView op_held = at(aiming_at(op, Id::WeaponSize));
+        op_held.dragging = Id::WeaponOpacity;
+        op_held.hover = {Id::WeaponOpacity};
+        ok &= shot("kiu-controls-16c-weapon-opacity-held", op, op_held);
+        MenuModel op_off = op;
+        op_off.projectiles = false;
+        ok &= shot("kiu-controls-17c-projectiles-off", op_off,
+                   at(aiming_at(op_off, Id::Projectiles)));
+        // AzaharFrame kiuweap2: Muzzle Flash Size under Muzzle Flash (100, 50 and 300 %), its
+        // tooltip, held, and Muzzle Flash off (the slider gone with it); the "Angel's Aim Is On"
+        // prompt (over the Controls tab: as it opens, Controls hovered, some things off with OK
+        // hovered).
+        for (const int pct : {100, 50, 300}) {
+            MenuModel fs = fx;
+            fs.flash_size = pct;
+            ok &= shot("kiu-controls-18-muzzle-flash-size-" + std::to_string(pct), fs,
+                       at(aiming_at(fs, Id::MuzzleFlashSize)));
+        }
+        MenuModel fs = fx;
+        fs.flash_size = 150;
+        ok &= shot("kiu-controls-18b-tooltip-muzzle-flash-size", fs,
+                   at(aiming_at(fs, Id::MuzzleFlashSize), Id::MuzzleFlashSize, kLabelIndex, true));
+        MenuView fs_held = at(aiming_at(fs, Id::MuzzleFlashSize));
+        fs_held.dragging = Id::MuzzleFlashSize;
+        fs_held.hover = {Id::MuzzleFlashSize};
+        ok &= shot("kiu-controls-18c-muzzle-flash-size-held", fs, fs_held);
+        MenuModel fs_off = fs;
+        fs_off.muzzle_flash = false;
+        ok &= shot("kiu-controls-18d-muzzle-flash-off", fs_off,
+                   at(aiming_at(fs_off, Id::MuzzleFlash)));
+        MenuModel intro = fx;
+        intro.gyro_aim = 1;
+        intro.weapon_in_hand = true;
+        intro.muzzle_flash = true;
+        intro.projectiles = true;
+        intro.recoil = true;
+        intro.laser_sight = true;
+        MenuView iv = at(aiming_at(intro, Id::GyroAim));
+        iv.angels_intro = true;
+        ok &= shot("kiu-controls-19-angels-aim-prompt", intro, iv);
+        iv.hover = {Id::DialogExtra};
+        ok &= shot("kiu-controls-19b-angels-aim-prompt-hover-controls", intro, iv);
+        MenuModel intro_off = intro;
+        intro_off.laser_sight = false;
+        intro_off.projectiles = false;
+        MenuView iv_ok = iv;
+        iv_ok.hover = {Id::DialogConfirm};
+        ok &= shot("kiu-controls-19c-angels-aim-prompt-some-off-hover-ok", intro_off, iv_ok);
     }
     {
         MenuModel so = pg; // Autosave off: Every and Keep greyed, with their tooltip
