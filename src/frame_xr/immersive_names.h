@@ -149,6 +149,25 @@ inline std::string WorldScaleToast(float percent) {
     return std::string(kWorldScale) + ": " + WorldScaleText(percent);
 }
 
+/// 1.2.0 fix lane B (session 651, triage item 5), all unapproved: the toast of grip + stick
+/// sideways, which resizes the Full modes' screen. It said "Follow Screen Size: On" on release,
+/// which read like a toggle; it now says what happened: the size (Layout::Placement::size, 100 %
+/// the world at its own scale), "World Scale Follows" on release when Follow Screen Size kept the
+/// world matched to the new size, and "May Feel Locked" while the head-to-camera gain is under
+/// Layout::kLockedGain (the screen bigger than the game's view: a head turn barely turns the
+/// camera, so the picture seems to follow the head).
+inline constexpr const char* kScreenSize = "Screen Size";
+inline constexpr const char* kMayFeelLocked = "May Feel Locked";
+/// The separator of a toast's parts (as "Motion Clarity: Experimental \u00b7 May Flicker").
+inline constexpr const char* kToastPartSeparator = " \u00b7 ";
+/// The whole percent ScreenSizeToast shows for a size.
+inline long ScreenSizeWhole(float size) {
+    return std::isfinite(size) ? std::lround(size * 100.0f) : 0;
+}
+/// "Screen Size: 137%", "Screen Size: 137% \u00b7 World Scale Follows",
+/// "Screen Size: 137% \u00b7 World Scale Follows \u00b7 May Feel Locked".
+inline std::string ScreenSizeToast(float size, bool follows, bool locked);
+
 /// Settings::values.vr_immersive_follow_screen.
 inline constexpr const char* kFollowScreen = "Follow Screen Size";
 inline constexpr const char* kFollowScreenTip =
@@ -188,8 +207,20 @@ inline constexpr const char* kScreenAsPanelNote = "Used by Motion Clarity";
 inline constexpr const char* kScreenAsPanelOnToast = "Primary Screen as Panel: May Double";
 inline constexpr const char* kScreenAsPanelOffToast = "Primary Screen as Panel: Off";
 
-/// The toast after resizing the screen with Follow Screen Size on.
-inline constexpr const char* kWorldScaleFollowsToast = "Follow Screen Size: On";
+/// The toast's part after resizing the screen with Follow Screen Size on (ScreenSizeToast; 1.2.0
+/// fix lane B, unapproved: it was the whole toast, "Follow Screen Size: On").
+inline constexpr const char* kWorldScaleFollowsToast = "World Scale Follows";
+inline std::string ScreenSizeToast(float size, bool follows, bool locked) {
+    std::string text =
+        std::string(kScreenSize) + ": " + std::to_string(ScreenSizeWhole(size)) + "%";
+    if (follows) {
+        text += std::string(kToastPartSeparator) + kWorldScaleFollowsToast;
+    }
+    if (locked) {
+        text += std::string(kToastPartSeparator) + kMayFeelLocked;
+    }
+    return text;
+}
 
 /// AzaharFrame integ8: Azahar's window (Graphics, Enhancements: Depth, Settings::values.factor_3d),
 /// global or a game's properties. AzaharFrame natural: the Full modes use Immersive 3D Depth.

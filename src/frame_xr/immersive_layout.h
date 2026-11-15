@@ -61,6 +61,7 @@
 
 #include <limits>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <map>
@@ -101,6 +102,11 @@ inline constexpr float kMinFillHalfHeightDeg = 35.0f;
 /// a little). At the screen's edge, angle e, a head turn moves the picture by
 /// (1 + gain^2 tan^2 e) / (1 + tan^2 e) times the turn: 1.25 at gain 1.3 and e = 37 degrees.
 inline constexpr float kMinGain = 0.4f;
+/// 1.2.0 fix lane B (session 651, triage item 5): under this gain (either axis) a head turn
+/// turns the game camera so little that the screen seems to follow the head (Super Mario 3D Land
+/// at gain 0.65/0.73 after a resize, 0.41/0.52 in mode 2): the resize toast adds "May Feel
+/// Locked" (MayFeelLocked).
+inline constexpr float kLockedGain = 0.7f;
 inline constexpr float kMaxGain = 2.0f;
 /// Narrow Screen and Narrow Height (vr_immersive_squeeze, vr_immersive_squeeze_y): the screen
 /// this many percent narrower (lower) than the picture, in kNarrowStepPercent steps up to
@@ -423,6 +429,11 @@ struct HeadLocked {
         return 2.0f * distance * tan_half_y;
     }
 };
+
+/// 1.2.0 fix lane B: either gain under kLockedGain (the resize toast's "May Feel Locked").
+inline bool MayFeelLocked(const HeadLocked& s) {
+    return std::min(s.gain, s.gain_x) < kLockedGain;
+}
 
 /// The middle of the view, as a pitch (radians).
 float ViewMiddlePitch(const ViewFov& view);

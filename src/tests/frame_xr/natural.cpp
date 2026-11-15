@@ -2,6 +2,7 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <cmath>
 #include <map>
 #include <optional>
@@ -869,4 +870,75 @@ TEST_CASE("Natural: the World Scale grip keeps the exact value", "[frame_xr][nat
         CHECK(HoldGrip(100.0f, 1.0f, 60.0f, 1.0f).value == Approx(a).epsilon(1e-3));
         CHECK(HoldGrip(100.0f, 1.0f, 120.0f, 1.0f).value == Approx(a).epsilon(1e-3));
     }
+}
+
+// 1.2.0 fix lane B (session 651, triage item 5): grip + stick sideways resizes the screen. Its
+// toast says the size (it said "Follow Screen Size: On" on release, which read like a toggle),
+// "World Scale Follows" on release with Follow Screen Size on, and "May Feel Locked" while a
+// gain is under kLockedGain (the screen bigger than the game's view).
+TEST_CASE("FrameXr fixb: the resize toast", "[frame_xr][natural][fixb]") {
+    namespace N = FrameXr::Immersive::Names;
+    CHECK(N::ScreenSizeToast(1.37f, false, false) == "Screen Size: 137%");
+    CHECK(N::ScreenSizeToast(1.37f, true, false) == "Screen Size: 137% · World Scale Follows");
+    CHECK(N::ScreenSizeToast(1.37f, true, true) ==
+          "Screen Size: 137% · World Scale Follows · May Feel Locked");
+    CHECK(N::ScreenSizeToast(0.6f, false, true) == "Screen Size: 60% · May Feel Locked");
+    CHECK(N::ScreenSizeToast(2.5f, false, false) == "Screen Size: 250%");
+    CHECK(N::ScreenSizeWhole(1.004f) == 100);
+    CHECK(N::ScreenSizeWhole(1.006f) == 101);
+    // The old toast's whole text is gone; its words are now only the release's part.
+    CHECK(std::string(N::kWorldScaleFollowsToast) == "World Scale Follows");
+
+    // The gain warning: the screen at the world's own scale is not locked; as the size grows the
+    // gain falls as 1 / size, and past about 1.4 it is under kLockedGain.
+    ViewFov view;
+    for (const float size : {1.0f, 1.2f, 1.6f, 2.2f}) {
+        Placement p;
+        p.size = size;
+        p.distance = 3.0f;
+        Options o;
+        o.scale_fov = 1.0f;
+        o.caps = 1.0f;
+        const HeadLocked s = SolveHeadLocked(p, 45.0f, 5.0f / 3.0f, view, 0.0f, o);
+        INFO("size " << size << " gains " << s.gain_x << ", " << s.gain);
+        CHECK(MayFeelLocked(s) == (std::min(s.gain, s.gain_x) < kLockedGain));
+        if (size <= 1.2f) {
+            CHECK(!MayFeelLocked(s));
+        } else {
+            CHECK(MayFeelLocked(s));
+        }
+    }
+    HeadLocked one_axis;
+    one_axis.gain = 0.9f;
+    one_axis.gain_x = 0.69f; // either axis
+    CHECK(MayFeelLocked(one_axis));
+    one_axis.gain_x = 0.7f;
+    CHECK(!MayFeelLocked(one_axis));
+}
+
+// The resize's toast at a readable rate: a smooth resize from 100 % to 137 % over 1.5 s at
+// 120 Hz shows far fewer texts than frames (each is an atlas upload), the last one the final
+// size, and the warning's change is a change of text.
+TEST_CASE("FrameXr fixb: the resize toast's rate", "[frame_xr][natural][fixb]") {
+    namespace N = FrameXr::Immersive::Names;
+    WorldScaleToastGate gate;
+    std::vector<std::string> toasts;
+    const int frames = 180;
+    float size = 1.0f;
+    for (int i = 0; i <= frames; ++i) {
+        size = 1.0f + 0.37f * static_cast<float>(i) / frames;
+        const bool locked = size > 1.3f;
+        const int64_t t = static_cast<int64_t>(i) * 8'333'333;
+        if (gate.Due(N::ScreenSizeWhole(size) * 2 + (locked ? 1 : 0), t)) {
+            toasts.push_back(N::ScreenSizeToast(size, false, locked));
+        }
+    }
+    // The release: forced, the final value with what Follow Screen Size did.
+    gate.Due(N::ScreenSizeWhole(size) * 2 + 1, static_cast<int64_t>(frames + 1) * 8'333'333,
+             true);
+    toasts.push_back(N::ScreenSizeToast(size, true, true));
+    INFO("toasts " << toasts.size());
+    CHECK(toasts.size() <= 1500 / 80 + 3);
+    CHECK(toasts.size() >= 5);
+    CHECK(toasts.back() == "Screen Size: 137% · World Scale Follows · May Feel Locked");
 }

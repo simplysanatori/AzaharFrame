@@ -1019,7 +1019,13 @@ the screen in metres; `d` its distance; `f` 3D Depth / 100):
   the distance at a fixed angle, so World Scale is the screen's distance in both Full modes:
   `d = ws x 3 m` (`FullDistance`; `/ size` with Follow Screen Size off), eased at most a factor 4
   a second; the leaning follows it. The grips' stick forward/back changes it (the Adjuster's
-  `world_ratio`) with the toast "World Scale: 45%". The placement file's distance is no longer
+  `world_ratio`) with the toast "World Scale: 45%". The stick right/left resizes the screen with
+  the toast "Screen Size: 137%" (1.2.0 fix lane B, `Names::ScreenSizeToast`, at the World Scale
+  toast's rate); on release "· World Scale Follows" with Follow Screen Size on (it was only
+  "Follow Screen Size: On", which read like a toggle), and "· May Feel Locked" while either gain
+  is under `kLockedGain` (0.7: session 651's Super Mario 3D Land at 0.65/0.73 after a resize to
+  137 % "couldn't look around"); logged as `xr: immersive: Screen Size 137 % by the grip (...)`.
+  The placement file's distance is no longer
   moved in the Full modes (it is the 1.2.0 distance, the fallback's and the migration's input).
 - **The fallback** where `K` cannot be read: the `K` saved from an earlier run
   (`vr_immersive_eye_per_far`), else 1.2.0's `GamePositionScale` at the saved screen

@@ -442,6 +442,9 @@ struct State {
     bool grab_active = false;    ///< the grips hold the immersive screen
     float grab_size = -1.0f;     ///< the screen's size when they took it
     long world_toasted = -1;     ///< the grip changed World Scale (the whole percent it reached)
+    /// 1.2.0 fix lane B: the resize's toast (Names::ScreenSizeToast) at a readable rate, keyed by
+    /// the whole percent and "May Feel Locked" (Names::ScreenSizeWhole x 2 + locked).
+    L::WorldScaleToastGate size_toast;
     L::WorldScaleToastGate world_toast; ///< what the grip's toast shows, and when
     L::Mode3Stereo mode3;
     float quad_half = L::kQuadsOnEyes; ///< mode 3's eye quads from the middle (NaN: on the eyes)
@@ -2417,6 +2420,20 @@ void OnGameInput(Input::InputFrame& in) {
         g.grab_size = place.size;
         g.world_toasted = -1;
         g.world_toast.Reset();
+        g.size_toast.Reset();
+    }
+    // 1.2.0 fix lane B (triage item 5): grip + stick sideways resizes the screen; its toast says
+    // the size while it changes (at the World Scale toast's rate: each new text is an atlas
+    // upload), with "May Feel Locked" while the gain is under Layout::kLockedGain. The gain is
+    // the last frame's solve, one frame behind the size.
+    const bool locked = L::MayFeelLocked(g.solved);
+    const auto size_key = [&] {
+        return Names::ScreenSizeWhole(place.size) * 2 + (locked ? 1 : 0);
+    };
+    const bool resized = g.grab_size > 0.0f && std::abs(place.size / g.grab_size - 1.0f) > 0.005f;
+    if (!wide && r.active && g.world_toasted < 0 && resized &&
+        g.size_toast.Due(size_key(), in.time_ns)) {
+        ShowToastText(Names::ScreenSizeToast(place.size, false, locked));
     }
     const bool grabbed = g.grab_active;
     g.grab_active = r.active;
@@ -2428,9 +2445,17 @@ void OnGameInput(Input::InputFrame& in) {
             SetWorldScale(WorldScaleSetting(), false); // to the game's file
             LOG_INFO(Frontend, "xr: World Scale {:.1f} % by the grip (screen at {:.2f} m)",
                      WorldScaleSetting(), g.solved.distance);
-        } else if (g.grab_size > 0.0f && std::abs(place.size / g.grab_size - 1.0f) > 0.02f &&
-                   Settings::values.vr_immersive_follow_screen.GetValue()) {
-            ShowToastText(Names::kWorldScaleFollowsToast);
+        } else if (g.grab_size > 0.0f && std::abs(place.size / g.grab_size - 1.0f) > 0.02f) {
+            // The final size, and what Follow Screen Size did with it (it was only "Follow
+            // Screen Size: On", which read like a toggle).
+            const bool follows = Settings::values.vr_immersive_follow_screen.GetValue();
+            ShowToastText(Names::ScreenSizeToast(place.size, follows, locked));
+            LOG_INFO(Frontend,
+                     "xr: immersive: Screen Size {:.0f} % by the grip ({}), gains {:.2f} across, "
+                     "{:.2f} up and down{}",
+                     place.size * 100.0f,
+                     follows ? "World Scale follows it" : "World Scale kept", g.solved.gain_x,
+                     g.solved.gain, locked ? ": May Feel Locked" : "");
         }
         g.world_toasted = -1;
     }
