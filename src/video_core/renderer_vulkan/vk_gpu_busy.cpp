@@ -13,7 +13,9 @@
 namespace Vulkan {
 
 GpuBusyTimer::GpuBusyTimer(const Instance& instance) {
-    if (const char* env = std::getenv("AZAHARFRAME_GPU_BUSY"); env && std::strcmp(env, "0") == 0) {
+    // Off by default (owner decision for 1.2.0): AZAHARFRAME_GPU_BUSY=1 turns it on. Off, no
+    // query pool is made, so Begin and End write no timestamps.
+    if (const char* env = std::getenv("AZAHARFRAME_GPU_BUSY"); !env || std::strcmp(env, "1") != 0) {
         return;
     }
     const vk::PhysicalDevice physical = instance.GetPhysicalDevice();

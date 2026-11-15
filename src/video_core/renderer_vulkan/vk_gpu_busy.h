@@ -11,7 +11,7 @@
 // signalled (never waited for), and the busy time added up (Common::StallTelemetry::gpu_busy_ns).
 // The XR thread divides it by the refreshes of each second, next to the XR pass's own time
 // (vis/controller_models.cpp), for the headroom per refresh (handoff report 76's fix plan, item 5).
-// AZAHARFRAME_GPU_BUSY=0 turns it off. All on the scheduler's worker thread.
+// Off by default: AZAHARFRAME_GPU_BUSY=1 turns it on. All on the scheduler's worker thread.
 
 #pragma once
 
