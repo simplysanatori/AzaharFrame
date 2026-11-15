@@ -2,7 +2,10 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// AzaharFrame flash: Motion Clarity (Settings::values.vr_motion_clarity, per game and global).
+// AzaharFrame flash: Motion Clarity. AzaharFrame fixa: two settings, each read alone, per game and
+// global: vr_motion_clarity_immersive (the Immersive section's row) in the Full modes, and
+// vr_motion_clarity_normal (the Graphics section's row) in the Off and Wide modes. Only the 3DS's
+// top screen ever flashes. The key of the development builds, vr_motion_clarity, is no longer read.
 //
 // In the Full immersive modes the game draws each top screen picture for the head pose of its
 // moment. Shown on a second display refresh it is a picture of the past held in front of a head
@@ -34,8 +37,17 @@
 //     refresh after the next was due, as before, and then on the beat, so the screen is never
 //     dark for longer than one picture's time; a new picture due before the beat waits for it;
 //   - held (as without it) for a game under the full rate (above: a 60 <-> 30 change still steps
-//     the brightness, with hysteresis) and outside the Full modes, where the picture does not
-//     follow the head (the setting's row is locked there; Off and Wide).
+//     the brightness, with hysteresis);
+//   - fixa: in the Off and Wide modes with their own setting: the top screen while it is the
+//     Primary one; swapped (the bottom screen in focus) it is held (HeldForSwap), and the bottom
+//     screen never flashes; with the screen's own shape (with Screen Curve on the backing is a
+//     cylinder layer like the screen); left out while its layers don't fit the runtime's limit
+//     (BackingRoom: held then). Its brightness is flash2's, as in the Full modes (no gain);
+//   - fixa: Match Bottom Screen Brightness (vr_motion_clarity_match_bottom, off by default): while
+//     the top screen flashes, the bottom screen is dimmed to the top one's time-averaged light
+//     (BottomDim: the beat's share, half at 120 Hz), by the layer's colour scale when the runtime
+//     has XR_KHR_composition_layer_color_scale_bias, else in the shader that draws its picture.
+//     Dimming only: never a boost, so nothing clips.
 //
 // AZAHARFRAME_XR_SINGLE_FLASH keeps working as an override: 1 on (in every mode, as the test
 // switch always was), 0 off, unset the setting. Pure (unit-tested: src/tests/frame_xr/
@@ -66,25 +78,70 @@ inline std::optional<bool> OverrideFrom(const std::optional<std::string>& v) {
     return std::nullopt;
 }
 
-/// Whether pictures are flashed at all for this frame: the override, else the setting while the
-/// game on view is in a Full mode (Immersive::ScreenLayers::full_mode: modes 2 and 3, engaged or
-/// paused for the VR menu, the game's keyboard or the bottom screen). flash2: it was the setting
-/// while engaged only (head_driven), so opening the menu turned it off: 100 % lit.
-inline bool InEffect(bool setting, std::optional<bool> override_on, bool full_mode) {
+/// Whether pictures are flashed at all for this frame: the override, else the setting of the mode
+/// the game on view is in. `in_full`: vr_motion_clarity_immersive, for the Full modes
+/// (Immersive::ScreenLayers::full_mode: modes 2 and 3, engaged or paused for the VR menu, the
+/// game's keyboard or the bottom screen); `in_normal`: vr_motion_clarity_normal, for the Off and
+/// Wide modes (fixa). flash2: it was the setting while engaged only (head_driven), so opening the
+/// menu turned it off: 100 % lit. projdef: the Full modes took vr_motion_clarity too (the RC's
+/// master switch, no longer read).
+inline bool InEffect(bool in_full, bool in_normal, std::optional<bool> override_on,
+                     bool full_mode) {
     if (override_on) {
         return *override_on;
     }
-    return setting && full_mode;
+    return full_mode ? in_full : in_normal;
 }
 
-/// AzaharFrame projdef: the setting InEffect takes in the Full modes: Motion Clarity
-/// (vr_motion_clarity) and its "In Immersive Modes" (vr_motion_clarity_immersive) both on. Older
-/// builds read vr_motion_clarity alone (on by default), so going back to one flashes in the Full
-/// modes while it is on, as before; nothing else changes meaning. Off here, the Full modes' top
-/// screen goes through the projection layer (vis/proj_path.h).
-inline bool WantedInFull(bool motion_clarity, bool in_immersive_modes) {
-    return motion_clarity && in_immersive_modes;
+/// AzaharFrame fixa: the Off and Wide modes hold the top screen while it is swapped out of the
+/// Primary slot (the bottom screen in focus): Motion Clarity flashes only the 3DS's top screen, and
+/// only where it is the Primary one. The Full modes keep flash2's rule: the top screen flashes on
+/// the beat while the bottom one is in focus (immersive paused), so its brightness does not step.
+inline bool HeldForSwap(bool full_mode, bool swapped) {
+    return !full_mode && swapped;
 }
+
+/// AzaharFrame fixa: room for the backing's layers (one per eye for the top screen) under the
+/// runtime's limit. The VR menu with both controllers pointing at it
+/// carried 16 layers in the Full modes with the backing; the Off and Wide modes have one screen
+/// layer more (the Secondary screen). Over the limit the last layers of the list (the beams and
+/// pointer dots) would be cut, so the backing goes instead and the screen is held (lit every
+/// refresh) until the backing fits again for kBackAfter refreshes in a row (no flicker of the
+/// list's shape at the edge). `others`: the layers the frame carries besides the backing (the
+/// screens, the projection layer, the slots the last frame had present).
+class BackingRoom {
+public:
+    static constexpr uint32_t kBackAfter = 90; ///< 0.75 s at 120 Hz
+    static bool Fits(std::size_t limit, std::size_t others, std::size_t backing) {
+        return others + backing <= limit;
+    }
+    bool Next(bool fits) {
+        if (!fits) {
+            if (room_) {
+                times_out_++;
+            }
+            room_ = false;
+            streak_ = 0;
+            return false;
+        }
+        if (!room_ && ++streak_ >= kBackAfter) {
+            room_ = true;
+        }
+        return room_;
+    }
+    bool Room() const {
+        return room_;
+    }
+    /// Times the backing was left out for room, since the start (for the log).
+    uint32_t TimesOut() const {
+        return times_out_;
+    }
+
+private:
+    bool room_ = true;
+    uint32_t streak_ = 0;
+    uint32_t times_out_ = 0;
+};
 
 /// How a game under the full rate (30 or 20 pictures a second) is shown with Motion Clarity on.
 enum class Slow : uint8_t {
@@ -428,6 +485,37 @@ private:
     std::array<uint32_t, kSlowRun> run_values_{};
     uint32_t hitches_ = 0;
 };
+
+/// AzaharFrame fixa: Match Bottom Screen Brightness. The bottom screen's colour scale while the top
+/// screen flashes: the top one's time-averaged share of light at the beat (1 / Scheduler::Beat:
+/// 0.5 at 120 Hz, 0.67 at 90 Hz), steady from refresh to refresh (the learnt LitShare would wander
+/// with every late picture); 1 (as it is) when the setting is off or the top screen is not flashing
+/// (off, held for a slow game, held for room or a swap). Never above 1.
+inline float BottomDim(bool match, bool flashing, int64_t period_ns) {
+    if (!match || !flashing) {
+        return 1.0f;
+    }
+    return std::min(1.0f, 1.0f / Scheduler::Beat(period_ns));
+}
+/// How the bottom screen is dimmed: the layer's colour scale (XR_KHR_composition_layer_color_
+/// scale_bias) when the runtime has it, else the shader that draws its picture into its swapchain.
+enum class DimMethod : uint8_t { ColorScale, Shader };
+inline DimMethod DimMethodFor(bool color_scale_bias) {
+    return color_scale_bias ? DimMethod::ColorScale : DimMethod::Shader;
+}
+inline const char* DimMethodName(DimMethod m) {
+    return m == DimMethod::ColorScale
+               ? "the layer's colour scale (XR_KHR_composition_layer_color_scale_bias)"
+               : "the bottom screen's shader (the runtime has no layer colour scale)";
+}
+/// The shader's push constant (the XR present shader's `layer`, which it does not use otherwise):
+/// the dim in thousandths, 1 to 999; 0 for none.
+inline int32_t DimPermille(float dim) {
+    if (!(dim < 1.0f)) {
+        return 0;
+    }
+    return std::clamp(static_cast<int32_t>(std::lround(dim * 1000.0f)), 1, 999);
+}
 
 /// The scheduler's picture id from what a release recorded: its game picture (ShownPicture::
 /// picture: the top screen swaps + 1; 0 not known) or, without one, the release serial itself

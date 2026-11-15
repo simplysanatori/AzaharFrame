@@ -389,20 +389,23 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     panel_check->setToolTip(tr(Names::kScreenAsPanelTip));
     layout->addWidget(panel_check);
 
-    // AzaharFrame flash: Motion Clarity (frame_xr/motion_clarity.h)
-    clarity_check = new QCheckBox(tr(Names::kMotionClarity), this);
-    clarity_check->setObjectName(QStringLiteral("frame_vr_motion_clarity_check"));
-    clarity_check->setToolTip(tr(Names::kMotionClarityWindowTip));
-    layout->addWidget(clarity_check);
-    // AzaharFrame projdef: its Full modes' opt-in (vr_motion_clarity_immersive), right under it,
-    // usable while Motion Clarity is not off.
+    // AzaharFrame flash, projdef; fixa: Motion Clarity (frame_xr/motion_clarity.h), two
+    // independent boxes, never greyed: the Full modes' (vr_motion_clarity_immersive) and the Off
+    // and Wide modes' (vr_motion_clarity_normal).
     clarity_immersive_check = new QCheckBox(tr(Names::kMotionClarityImmersiveWindow), this);
     clarity_immersive_check->setObjectName(QStringLiteral("frame_vr_motion_clarity_immersive_check"));
-    clarity_immersive_check->setToolTip(tr(Names::kMotionClarityImmersiveTip));
+    clarity_immersive_check->setToolTip(tr(Names::kMotionClarityWindowTip));
     layout->addWidget(clarity_immersive_check);
-    connect(clarity_check, &QCheckBox::stateChanged, this, [this](int state) {
-        clarity_immersive_check->setEnabled(state != Qt::Unchecked);
-    });
+    clarity_normal_check = new QCheckBox(tr(Names::kMotionClarityNormalWindow), this);
+    clarity_normal_check->setObjectName(QStringLiteral("frame_vr_motion_clarity_normal_check"));
+    clarity_normal_check->setToolTip(tr(Names::kMotionClarityNormalWindowTip));
+    layout->addWidget(clarity_normal_check);
+    // AzaharFrame fixa: Match Bottom Screen Brightness (vr_motion_clarity_match_bottom), one box
+    // for both, never greyed.
+    match_bottom_check = new QCheckBox(tr(Names::kMatchBottom), this);
+    match_bottom_check->setObjectName(QStringLiteral("frame_vr_match_bottom_check"));
+    match_bottom_check->setToolTip(tr(Names::kMatchBottomTip));
+    layout->addWidget(match_bottom_check);
 
     immersive_depth_scope = MakeScopeCombo(this);
     immersive_depth_spin = new QSpinBox(this);
@@ -485,9 +488,11 @@ void ConfigureFrameVr::SetupPerGameUI() {
         hint(motion_combo, Settings::values.vr_motion_controls.UsingGlobal());
         hint(world_slider, Settings::values.vr_immersive_world_scale.UsingGlobal()); // natural
         hint(follow_check, Settings::values.vr_immersive_follow_screen.UsingGlobal());
-        hint(clarity_check, Settings::values.vr_motion_clarity.UsingGlobal()); // AzaharFrame flash
         hint(clarity_immersive_check, // AzaharFrame projdef
              Settings::values.vr_motion_clarity_immersive.UsingGlobal());
+        hint(clarity_normal_check, // AzaharFrame fixa
+             Settings::values.vr_motion_clarity_normal.UsingGlobal());
+        hint(match_bottom_check, Settings::values.vr_motion_clarity_match_bottom.UsingGlobal());
         hint(panel_check, Settings::values.vr_screens_in_projection.UsingGlobal()); // projdef
         hint(immersive_depth_spin, Settings::values.vr_immersive_depth.UsingGlobal());
         return;
@@ -525,11 +530,13 @@ void ConfigureFrameVr::SetupPerGameUI() {
         static_cast<int>(Settings::values.vr_motion_controls.GetValue(true)));
     ConfigurationShared::SetColoredTristate(
         follow_check, Settings::values.vr_immersive_follow_screen, follow_state);
-    ConfigurationShared::SetColoredTristate( // AzaharFrame flash
-        clarity_check, Settings::values.vr_motion_clarity, clarity_state);
     ConfigurationShared::SetColoredTristate( // AzaharFrame projdef
         clarity_immersive_check, Settings::values.vr_motion_clarity_immersive,
         clarity_immersive_state);
+    ConfigurationShared::SetColoredTristate( // AzaharFrame fixa
+        clarity_normal_check, Settings::values.vr_motion_clarity_normal, clarity_normal_state);
+    ConfigurationShared::SetColoredTristate( // AzaharFrame fixa
+        match_bottom_check, Settings::values.vr_motion_clarity_match_bottom, match_bottom_state);
     {
         // AzaharFrame projdef: the box is the setting's opposite.
         const auto& s = Settings::values.vr_screens_in_projection;
@@ -572,10 +579,12 @@ void ConfigureFrameVr::SetConfiguration() {
     const bool global = Settings::IsConfiguringGlobal();
     hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue(global));
     follow_check->setChecked(Settings::values.vr_immersive_follow_screen.GetValue(global));
-    clarity_check->setChecked(Settings::values.vr_motion_clarity.GetValue(global)); // flash
     clarity_immersive_check->setChecked( // AzaharFrame projdef
         Settings::values.vr_motion_clarity_immersive.GetValue(global));
-    clarity_immersive_check->setEnabled(clarity_check->checkState() != Qt::Unchecked);
+    clarity_normal_check->setChecked( // AzaharFrame fixa
+        Settings::values.vr_motion_clarity_normal.GetValue(global));
+    match_bottom_check->setChecked( // AzaharFrame fixa
+        Settings::values.vr_motion_clarity_match_bottom.GetValue(global));
     panel_check->setChecked( // AzaharFrame projdef: the opposite of the setting
         !Settings::values.vr_screens_in_projection.GetValue(global));
     SetMatchCameraTips(); // AzaharFrame fovonce
@@ -835,8 +844,9 @@ void ConfigureFrameVr::ApplyConfiguration() {
     as_global(Settings::values.vr_immersive_positional_game_scaler);
     as_global(Settings::values.vr_immersive_world_scale); // AzaharFrame natural
     as_global(Settings::values.vr_immersive_follow_screen);
-    as_global(Settings::values.vr_motion_clarity); // AzaharFrame flash
     as_global(Settings::values.vr_motion_clarity_immersive); // AzaharFrame projdef
+    as_global(Settings::values.vr_motion_clarity_normal);    // AzaharFrame fixa
+    as_global(Settings::values.vr_motion_clarity_match_bottom); // AzaharFrame fixa
     as_global(Settings::values.vr_screens_in_projection);    // AzaharFrame projdef
     as_global(Settings::values.vr_immersive_depth);
     as_global(Settings::values.vr_si_mode_register_offset);
@@ -899,11 +909,15 @@ void ConfigureFrameVr::ApplyConfiguration() {
                                              world_scope, [this](s32) { return world_value; });
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_immersive_follow_screen,
                                              follow_check, follow_state);
-    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_clarity, clarity_check,
-                                             clarity_state); // AzaharFrame flash
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_clarity_immersive,
                                              clarity_immersive_check,
                                              clarity_immersive_state); // AzaharFrame projdef
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_clarity_normal,
+                                             clarity_normal_check,
+                                             clarity_normal_state); // AzaharFrame fixa
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_clarity_match_bottom,
+                                             match_bottom_check,
+                                             match_bottom_state); // AzaharFrame fixa
     {
         // AzaharFrame projdef: the box is the setting's opposite.
         auto& s = Settings::values.vr_screens_in_projection;

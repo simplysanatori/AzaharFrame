@@ -177,6 +177,12 @@ public:
     void ReleaseFrame(bool gpu_finished, const VideoCore::XrContentPose& content) override;
     void WaitPresentSlot(uint64_t game_swaps) override; // AzaharFrame pacing
     bool PackedTop() const override;
+    /// AzaharFrame fixa: Match Bottom Screen Brightness's dim for the bottom screen's next pictures
+    /// (the shader method; motion_clarity.h DimMethod), set by the frame loop each refresh.
+    float ScreenDim(VideoCore::XrScreen screen) const override {
+        return screen == VideoCore::XrScreen::Bottom ? shader_dim_bottom.load() : 1.0f;
+    }
+    std::atomic<float> shader_dim_bottom{1.0f};
     void SetQueueMutex(std::mutex* mutex) override;
     void SetScreensLive(bool live) override;
     void NoteLateRelease(VideoCore::XrScreen screen) override;

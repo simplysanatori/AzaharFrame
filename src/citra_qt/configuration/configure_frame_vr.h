@@ -96,11 +96,15 @@ private:
     float world_value = 100.0f; ///< percent: as set, or the stop the slider was moved to
     QCheckBox* follow_check; ///< AzaharFrame natural: Follow Screen Size
     ConfigurationShared::CheckState follow_state = ConfigurationShared::CheckState::Global;
-    QCheckBox* clarity_check; ///< AzaharFrame flash: Motion Clarity
-    ConfigurationShared::CheckState clarity_state = ConfigurationShared::CheckState::Global;
     QCheckBox* clarity_immersive_check; ///< AzaharFrame projdef: Motion Clarity in Immersive Modes
     ConfigurationShared::CheckState clarity_immersive_state =
         ConfigurationShared::CheckState::Global;
+    /// AzaharFrame fixa: Motion Clarity in Off and Wide Modes (vr_motion_clarity_normal)
+    QCheckBox* clarity_normal_check;
+    ConfigurationShared::CheckState clarity_normal_state = ConfigurationShared::CheckState::Global;
+    /// AzaharFrame fixa: Match Bottom Screen Brightness (vr_motion_clarity_match_bottom)
+    QCheckBox* match_bottom_check;
+    ConfigurationShared::CheckState match_bottom_state = ConfigurationShared::CheckState::Global;
     QCheckBox* panel_check; ///< AzaharFrame projdef: Primary Screen as Panel (!vr_screens_in_projection)
     ConfigurationShared::CheckState panel_state = ConfigurationShared::CheckState::Global;
     QWidget* immersive_depth_row; ///< AzaharFrame natural: the Full modes' 3D Depth

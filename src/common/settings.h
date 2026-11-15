@@ -621,7 +621,10 @@ struct Values {
         true, Keys::use_display_refresh_rate_detection};
     Setting<bool> use_shader_jit{true, Keys::use_shader_jit};
     // CitraVR: default 0 (auto) so the VR layer picks the per-HMD scale factor
-    SwitchableSetting<u32, true> resolution_factor{0, 0, 18, Keys::resolution_factor};
+    // AzaharFrame fixa: 4x by default (Auto followed the desktop window, not the headset).
+    // Rollback-safe: the global file marks a value never changed with "\default=true", which each
+    // build reads as its own default (older builds: Auto); a game's own value is read as written.
+    SwitchableSetting<u32, true> resolution_factor{4, 0, 18, Keys::resolution_factor};
     SwitchableSetting<bool> use_integer_scaling{false, Keys::use_integer_scaling};
     SwitchableSetting<double, true> frame_limit{100, 0, 1000, Keys::frame_limit};
     SwitchableSetting<double, true> turbo_limit{200, 0, 1000, Keys::turbo_limit};
@@ -801,23 +804,31 @@ struct Values {
     SwitchableSetting<float, true> vr_immersive_world_scale{100.0f, 10.0f, 400.0f,
                                                             "vr_immersive_world_scale"};
     SwitchableSetting<bool> vr_immersive_follow_screen{true, "vr_immersive_follow_screen"};
-    // AzaharFrame flash: Motion Clarity (per game and global, on by default): in the Full modes
-    // each top screen picture of a game at its full rate is shown on one display refresh only,
-    // with a black backing on the rest (frame_xr/motion_clarity.h). Read every frame. A new key:
-    // older builds ignore it.
-    SwitchableSetting<bool> vr_motion_clarity{true, "vr_motion_clarity"};
-    // AzaharFrame projdef: Motion Clarity's "In Immersive Modes" (per game and global, off by
-    // default), under Motion Clarity: Motion Clarity is in effect in the Full modes only with both
-    // keys on (frame_xr/motion_clarity.h WantedInFull); otherwise the top screen goes through the
-    // projection layer there (frame_xr/vis/proj_path.h). vr_motion_clarity keeps its key and its
-    // meaning for older builds, which read it alone (and flash in the Full modes while it is on).
-    // A new key: older builds ignore it.
+    // AzaharFrame flash: Motion Clarity: each top screen picture of a game at its full rate is
+    // shown on one display refresh only, with a black backing on the rest
+    // (frame_xr/motion_clarity.h). AzaharFrame fixa: two independent rows, both "Motion
+    // Clarity", each read alone, every frame. The key of 1.2.0's development builds,
+    // "vr_motion_clarity" (on by default; the RC's master switch), is no longer read or written:
+    // it stays in the files as it is, so those builds keep their meaning (it flashes the Full
+    // modes while it is on, with this key in the RC). Its per-game values are ignored here.
+    // AzaharFrame projdef, fixa: the Immersive section's row, the Full modes (per game and global,
+    // off by default). Off, the Full modes' top screen goes through the projection layer
+    // (frame_xr/vis/proj_path.h). A new key: older builds ignore it.
     SwitchableSetting<bool> vr_motion_clarity_immersive{false, "vr_motion_clarity_immersive"};
+    // AzaharFrame fixa: the Graphics section's row, the Off and Wide modes (per game and global,
+    // off by default): only the Primary screen flashes (frame_xr/motion_clarity.h). A new plain
+    // key: older builds ignore it.
+    SwitchableSetting<bool> vr_motion_clarity_normal{false, "vr_motion_clarity_normal"};
+    // AzaharFrame fixa: Match Bottom Screen Brightness (per game and global, off by default; never
+    // locked): while either row flashes the top screen, the bottom screen is dimmed to its
+    // time-averaged brightness (frame_xr/motion_clarity.h BottomDim). A new plain key: older
+    // builds ignore it.
+    SwitchableSetting<bool> vr_motion_clarity_match_bottom{false, "vr_motion_clarity_match_bottom"};
     // AzaharFrame projdef: how the Primary screen is drawn in the Full modes (per game and global):
     // true (the default) in the projection layer, false as a panel (a quad layer, the older
     // route; experimental: it may double on fast head turns). The VR menu's "Primary Screen as
-    // Panel" is its opposite. Motion Clarity in the Full modes (vr_motion_clarity_immersive with
-    // vr_motion_clarity) needs the panel and takes it whatever this says
+    // Panel" is its opposite. Motion Clarity in the Full modes (vr_motion_clarity_immersive)
+    // needs the panel and takes it whatever this says
     // (frame_xr/vis/proj_path.h); the normal and the wide view are always panels. Never locked. A
     // new key: older builds ignore it, and a config without it reads the default.
     SwitchableSetting<bool> vr_screens_in_projection{true, "vr_screens_in_projection"};
@@ -830,7 +841,11 @@ struct Values {
     // 2 = Ultrawide 21:9, 3 = 4:3, 4 = 3:2, 5 = 16:10) for games and mods that render widescreen into the 400x240 frame.
     // Read when a game starts (frame_xr/immersive.h). AzaharFrame fixes7: 6 = Automatic, the shape
     // the game camera draws with, measured while the game runs (frame_xr/auto_shape.h).
-    SwitchableSetting<u32, true> vr_top_aspect{0, 0, 6, "vr_top_aspect"};
+    // AzaharFrame fixa: Automatic by default. Rollback-safe: the global file marks a value never
+    // changed with "\default=true", which each build reads as its own default (1.1.1: 3DS 5:3,
+    // 0..5 only), and a value equal to this default is saved that way; only an explicit pick of
+    // Automatic is out of 1.1.1's range, as before.
+    SwitchableSetting<u32, true> vr_top_aspect{6, 0, 6, "vr_top_aspect"};
     // AzaharFrame: the vertical field of view in degrees the game camera has, for sizing the
     // immersive screen (frame_xr/immersive.h). Read when a game starts.
     SwitchableSetting<s32, true> vr_immersive_game_fov{60, 30, 110, "vr_immersive_game_fov"};
@@ -979,8 +994,14 @@ struct Values {
     SwitchableSetting<u32, true> vr_gyro_aim{0, 0, 2, "vr_gyro_aim"};
     SwitchableSetting<float, true> vr_gyro_sensitivity{1.0f, 0.2f, 4.0f, "vr_gyro_sensitivity"};
     SwitchableSetting<u32, true> vr_light_gun_turn_zone{10, 0, 30, "vr_light_gun_turn_zone"};
+    // AzaharFrame fixa: vr_light_gun_turn_speed is Horizontal Turn Speed (older builds apply it
+    // to both axes, as before), vr_light_gun_turn_speed_vertical Vertical Turn Speed (0.4x by
+    // default: Kid Icarus: Uprising's aim box leaves far less room above and below than at the
+    // sides). A new plain key: older builds ignore it.
     SwitchableSetting<float, true> vr_light_gun_turn_speed{1.0f, 0.2f, 4.0f,
                                                            "vr_light_gun_turn_speed"};
+    SwitchableSetting<float, true> vr_light_gun_turn_speed_vertical{
+        0.4f, 0.2f, 4.0f, "vr_light_gun_turn_speed_vertical"};
     // AzaharFrame kiugyro: Recoil: a buzz in the aiming controller on each shot while Gyro Aim
     // steers (frame_xr/input/gyro_aim.h Recoil). Per game too. A new key: older builds ignore it.
     SwitchableSetting<bool> vr_light_gun_recoil{true, "vr_light_gun_recoil"};

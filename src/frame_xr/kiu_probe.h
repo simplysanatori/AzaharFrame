@@ -36,7 +36,9 @@ struct LightGunFrame {
     float zone_fraction = 0.0f;
     /// AzaharFrame kiuaim3: Turn Zone From (Settings::values.vr_light_gun_turn_zone_from).
     Input::TurnZoneFrom zone_from = Input::TurnZoneFrom::AimBox;
-    float turn_speed = 1.0f;
+    float turn_speed = 1.0f; ///< Horizontal Turn Speed (AzaharFrame fixa)
+    /// AzaharFrame fixa: Vertical Turn Speed (Settings::values.vr_light_gun_turn_speed_vertical).
+    float turn_speed_vertical = Input::kTurnSpeedVerticalDefault;
     /// The aim is paused or free (Gyro Aim's grip; AzaharFrame kiuaim3: Grip Frees Aim).
     bool clutch = false;
     /// AzaharFrame kiufix2: the C-Stick pushed (Input::CStickTakesAim): the stick steers, Direct

@@ -51,11 +51,15 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::FollowScreen: // AzaharFrame natural
         f(v.vr_immersive_follow_screen);
         return true;
-    case Id::MotionClarity: // AzaharFrame flash
-        f(v.vr_motion_clarity);
-        return true;
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
+    case Id::MotionClarity: // AzaharFrame flash; fixa: the Immersive section's, the Full modes
         f(v.vr_motion_clarity_immersive);
+        return true;
+    case Id::MotionClarityNormal: // AzaharFrame fixa: the Graphics section's, Off and Wide
+        f(v.vr_motion_clarity_normal);
+        return true;
+    case Id::MatchBottom: // AzaharFrame fixa: one key under both rows
+    case Id::MatchBottomNormal:
+        f(v.vr_motion_clarity_match_bottom);
         return true;
     case Id::ScreenAsPanel: // AzaharFrame projdef
         f(v.vr_screens_in_projection);
@@ -124,8 +128,11 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::TurnZone:
         f(v.vr_light_gun_turn_zone);
         return true;
-    case Id::TurnSpeed:
+    case Id::TurnSpeed: // AzaharFrame fixa: Horizontal Turn Speed
         f(v.vr_light_gun_turn_speed);
+        return true;
+    case Id::TurnSpeedVertical: // AzaharFrame fixa
+        f(v.vr_light_gun_turn_speed_vertical);
         return true;
     case Id::Recoil:
         f(v.vr_light_gun_recoil);
@@ -228,6 +235,23 @@ void FillGameValues(Menu::MenuModel& model) {
         }
         model.game_value[static_cast<std::size_t>(i)] = own;
     }
+}
+
+std::vector<std::string> KeysOf(Menu::Id id) {
+    std::vector<std::string> keys;
+    auto& v = Settings::values;
+    if (const auto axis = MarginAxis(id)) {
+        keys.push_back(*axis == Immersive::Margin::Axis::Horizontal
+                           ? v.vr_immersive_render_margin_x.GetLabel()
+                           : v.vr_immersive_render_margin_y.GetLabel());
+        keys.push_back(v.vr_immersive_wider_view_level.GetLabel()); // the old key it reads
+    } else if (id == Menu::Id::Depth3d) {
+        keys.push_back(v.vr_immersive_depth.GetLabel());
+        keys.push_back(v.factor_3d.GetLabel());
+    } else {
+        WithSetting(id, [&keys](auto& s) { keys.push_back(s.GetLabel()); });
+    }
+    return keys;
 }
 
 } // namespace FrameXr::PerGame

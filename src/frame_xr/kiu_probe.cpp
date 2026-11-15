@@ -246,7 +246,8 @@ void AimPoll(int64_t ticks) {
                                              static_cast<double>(BASE_CLOCK_RATE_ARM11));
     const Input::DirectAim::Out out =
         p.aim.Update(now, reading, target,
-                     Input::DirectAim::Turn{frame.zone_fraction, frame.zone_from, frame.turn_speed},
+                     Input::DirectAim::Turn{frame.zone_fraction, frame.zone_from, frame.turn_speed,
+                                            frame.turn_speed_vertical}, // AzaharFrame fixa
                      frame.clutch || frame.stick);
     if (out.write && (out.x != reading.x || out.y != reading.y)) {
         // Only these two floats of the object the guards just checked; the game reads them at

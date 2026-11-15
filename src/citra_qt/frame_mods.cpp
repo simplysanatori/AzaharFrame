@@ -740,6 +740,7 @@ Core::AngelsReport::Info FrameMods::AngelsAimInfo(const std::string& game_title)
     i.gyro_sensitivity = static_cast<int>(std::lround(v.vr_gyro_sensitivity.GetValue() * 10.0f));
     i.turn_zone = static_cast<int>(v.vr_light_gun_turn_zone.GetValue());
     i.turn_speed = static_cast<int>(std::lround(v.vr_light_gun_turn_speed.GetValue() * 10.0f));
+    i.turn_speed_vertical = static_cast<int>(std::lround(v.vr_light_gun_turn_speed_vertical.GetValue() * 10.0f)); // fixa
     i.turn_zone_from = static_cast<int>(v.vr_light_gun_turn_zone_from.GetValue()); // kiuaim3
     i.keep_on_screen = v.vr_light_gun_lock.GetValue();
     i.grip_toggle = v.vr_light_gun_grip.GetValue() == 1;

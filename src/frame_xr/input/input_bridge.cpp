@@ -74,6 +74,8 @@ const MapperOutput& InputBridge::Process(const InputFrame& frame, const PanelGeo
             lg.zone_from = // AzaharFrame kiuaim3
                 TurnZoneFromValue(Settings::values.vr_light_gun_turn_zone_from.GetValue());
             lg.turn_speed = ClampTurnSpeed(Settings::values.vr_light_gun_turn_speed.GetValue());
+            lg.turn_speed_vertical = ClampTurnSpeedVertical( // AzaharFrame fixa
+                Settings::values.vr_light_gun_turn_speed_vertical.GetValue());
             lg.clutch = gyro_aim->clutch;
             // AzaharFrame kiufix2: the C-Stick (the right stick, past its dead zone, with the
             // other gamepads') steers while it is pushed; Direct Aim pauses meanwhile.

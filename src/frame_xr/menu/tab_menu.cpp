@@ -89,7 +89,8 @@ std::string SliderText(Id id, float value) {
         return Immersive::Names::WorldScaleText(
             Immersive::Layout::kWorldScaleStops[static_cast<std::size_t>(i)]);
     }
-    if (id == Id::ReticleSpeed || id == Id::GyroSensitivity || id == Id::TurnSpeed) {
+    if (id == Id::ReticleSpeed || id == Id::GyroSensitivity || id == Id::TurnSpeed ||
+        id == Id::TurnSpeedVertical) { // AzaharFrame fixa
         // AzaharFrame reticle: tenths of 1x, "2.0x" (AzaharFrame kiugyro: the gyro's too)
         return Format("%.1fx", value / 10.0f);
     }
@@ -202,6 +203,14 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
             rows.push_back(row(Id::AsyncShaders, RowKind::Switch, 0, m.async_shaders));
             rows.push_back(row(Id::AccurateImageCopies, RowKind::Segmented, // accxfer, xfergpu
                                m.accurate_image_copies));
+            // AzaharFrame fixa: Motion Clarity in the Off and Wide modes (vr_motion_clarity_normal),
+            // never locked: in the Full modes it does nothing (Immersive has their own row).
+            rows.push_back(
+                row(Id::MotionClarityNormal, RowKind::Switch, 0, m.motion_clarity_normal));
+            // AzaharFrame fixa: Match Bottom Screen Brightness drops down under it while it is on.
+            if (m.motion_clarity_normal) {
+                rows.push_back(row(Id::MatchBottomNormal, RowKind::Switch, 0, m.match_bottom));
+            }
             return rows;
         }
         rows.push_back(row(Id::ImmersiveMode, RowKind::MenuButton, m.immersive_mode));
@@ -254,22 +263,22 @@ std::vector<Row> RowsFor(Tab tab, const MenuModel& m,
         rows.push_back(world);
         rows.push_back(full(row(Id::FollowScreen, RowKind::Switch, 0, m.follow_screen)));
         // AzaharFrame projdef: how the Primary screen is drawn in the Full modes, never locked;
-        // while Motion Clarity in Immersive Modes is on it takes the panel in the Full modes, and
-        // the row says so there (elsewhere the screen is a panel anyway, Motion Clarity or not).
+        // while Motion Clarity is on here it takes the panel in the Full modes, and the row says
+        // so there (elsewhere the screen is a panel anyway, Motion Clarity or not).
         {
             Row panel = row(Id::ScreenAsPanel, RowKind::Switch, 0, m.screen_as_panel);
-            if (m.motion_clarity && m.motion_clarity_immersive && m.immersive_mode >= 2) {
+            if (m.motion_clarity_immersive && m.immersive_mode >= 2) {
                 panel.value = Immersive::Names::kScreenAsPanelNote;
             }
             rows.push_back(panel);
         }
-        // AzaharFrame flash: Motion Clarity, the Full modes only (the picture follows the head)
-        rows.push_back(full(row(Id::MotionClarity, RowKind::Switch, 0, m.motion_clarity)));
-        // AzaharFrame projdef: its Full modes' opt-in, experimental (as Controllers in Immersive
-        // Modes under Show Controllers)
-        if (m.motion_clarity) {
-            rows.push_back(full(row(Id::MotionClarityImmersive, RowKind::Switch, 0,
-                                    m.motion_clarity_immersive)));
+        // AzaharFrame flash; fixa: Motion Clarity in the Full modes (vr_motion_clarity_immersive,
+        // read alone), never locked: elsewhere it does nothing, and its tooltip says where it
+        // works (the Graphics section has the Off and Wide modes' own).
+        rows.push_back(row(Id::MotionClarity, RowKind::Switch, 0, m.motion_clarity_immersive));
+        // AzaharFrame fixa: Match Bottom Screen Brightness drops down under it while it is on.
+        if (m.motion_clarity_immersive) {
+            rows.push_back(row(Id::MatchBottom, RowKind::Switch, 0, m.match_bottom));
         }
     }
     return rows;
@@ -286,6 +295,8 @@ SettingsSection SectionOf(Id id) {
     case Id::TextureFilter:
     case Id::AccurateImageCopies: // AzaharFrame accxfer
     case Id::AsyncShaders:
+    case Id::MotionClarityNormal: // AzaharFrame fixa
+    case Id::MatchBottomNormal:
         return SettingsSection::Graphics;
     case Id::ImmersiveMode:
     case Id::MarginX: // AzaharFrame fovaxis
@@ -299,7 +310,7 @@ SettingsSection SectionOf(Id id) {
     case Id::WorldScale:
     case Id::FollowScreen: // AzaharFrame natural
     case Id::MotionClarity: // AzaharFrame flash
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
+    case Id::MatchBottom:   // AzaharFrame fixa
     case Id::ScreenAsPanel:
         return SettingsSection::Immersive;
     default:
@@ -322,7 +333,9 @@ bool PerGameSetting(Id id) {
     case Id::WorldScale:
     case Id::FollowScreen: // AzaharFrame natural
     case Id::MotionClarity: // AzaharFrame flash
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
+    case Id::MotionClarityNormal: // AzaharFrame fixa
+    case Id::MatchBottom:
+    case Id::MatchBottomNormal:
     case Id::ScreenAsPanel:
     case Id::Depth3d: // AzaharFrame depth3d
     case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
@@ -345,6 +358,7 @@ bool PerGameSetting(Id id) {
     case Id::GyroSensitivity:
     case Id::TurnZone:
     case Id::TurnSpeed:
+    case Id::TurnSpeedVertical: // AzaharFrame fixa
     case Id::Recoil:
     case Id::WeaponInHand: // AzaharFrame kiuguns
     case Id::LaserSight:
@@ -395,6 +409,7 @@ const std::vector<Id>& ControlsScopeRows() {
         Id::WeaponOpacity, Id::WeaponSize,          Id::WeaponScale,   Id::MuzzleFlash,
         Id::MuzzleFlashSize, Id::Projectiles,       Id::ProjectileOpacity, Id::ProjectileSize,
         Id::ProjectileSpeed, Id::LaserSight,        Id::TurnZone,      Id::TurnSpeed,
+        Id::TurnSpeedVertical, // AzaharFrame fixa
         Id::KeepOnScreen,  Id::GripFreesAim,        Id::TurnZoneFrom};
     // fixes7; AzaharFrame kiuflash: Muzzle Flash, Projectiles and theirs; kiuopacity: the
     // opacities, each first under its switch; kiuweap2: Muzzle Flash Size under its switch;
@@ -593,7 +608,7 @@ std::string LabelFor(Id id) {
     case Id::TouchpadTouch: // AzaharFrame menuux
         return "Touchpad";
     case Id::BottomScreenReticle: // AzaharFrame mouse
-        return "Secondary Screen Reticle";
+        return "Bottom Screen Reticle";
     case Id::ReticleAtEdge:
         return "At Edge";
     case Id::ReticleSpeed: // AzaharFrame reticle
@@ -640,8 +655,10 @@ std::string LabelFor(Id id) {
         return "Gyro Sensitivity";
     case Id::TurnZone:
         return "Turn Zone";
-    case Id::TurnSpeed:
-        return "Turn Speed";
+    case Id::TurnSpeed: // AzaharFrame fixa: the left and right one
+        return "Horizontal Turn Speed";
+    case Id::TurnSpeedVertical:
+        return "Vertical Turn Speed";
     case Id::Recoil:
         return "Recoil";
     case Id::WeaponInHand: // AzaharFrame kiuguns
@@ -728,10 +745,12 @@ std::string LabelFor(Id id) {
         return Immersive::Names::kWorldScale; // AzaharFrame natural
     case Id::FollowScreen:
         return Immersive::Names::kFollowScreen;
-    case Id::MotionClarity: // AzaharFrame flash
+    case Id::MotionClarity: // AzaharFrame flash; fixa: both rows are "Motion Clarity"
+    case Id::MotionClarityNormal:
         return Immersive::Names::kMotionClarity;
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
-        return Immersive::Names::kMotionClarityImmersive;
+    case Id::MatchBottom: // AzaharFrame fixa
+    case Id::MatchBottomNormal:
+        return Immersive::Names::kMatchBottom;
     case Id::ScreenAsPanel: // AzaharFrame projdef
         return Immersive::Names::kScreenAsPanel;
     case Id::MoreSettings:
@@ -906,7 +925,7 @@ std::string ExplainFor(Id id) {
     case Id::ReticleSpeed: // AzaharFrame reticle
         return "How far the reticle moves when you turn your head or the controller.";
     case Id::ReticleCenter: // AzaharFrame fixes7
-        return "Keeps the reticle centred on the Secondary Screen. It moves only while you hold the trigger or click, and returns to the centre when you let go.";
+        return "Keeps the reticle centred on the Bottom Screen. It moves only while you hold the trigger or click, and returns to the centre when you let go.";
     case Id::ReticleStick: // AzaharFrame kiu
         return "The right stick moves the Secondary Screen's touch point, instead of the C-Stick.";
     case Id::HideBottomScreen:
@@ -935,8 +954,10 @@ std::string ExplainFor(Id id) {
         return "Scales the gyroscope in every game.";
     case Id::TurnZone:
         return "How wide the band is where the camera turns, up to full speed.";
-    case Id::TurnSpeed:
-        return "How fast the camera turns in the Turn Zone.";
+    case Id::TurnSpeed: // AzaharFrame fixa
+        return "How fast the camera turns left and right in the Turn Zone.";
+    case Id::TurnSpeedVertical:
+        return "How fast the camera turns up and down in the Turn Zone.";
     case Id::Recoil:
         return "A short buzz in the aiming controller on each shot.";
     case Id::WeaponInHand: // AzaharFrame kiuguns
@@ -1017,10 +1038,13 @@ std::string ExplainFor(Id id) {
         return Immersive::Names::kWorldScaleTip; // AzaharFrame natural
     case Id::FollowScreen:
         return Immersive::Names::kFollowScreenTip;
-    case Id::MotionClarity: // AzaharFrame flash
+    case Id::MotionClarity: // AzaharFrame flash; fixa: where each row works
         return Immersive::Names::kMotionClarityTip;
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
-        return Immersive::Names::kMotionClarityImmersiveTip;
+    case Id::MotionClarityNormal:
+        return Immersive::Names::kMotionClarityNormalTip;
+    case Id::MatchBottom: // AzaharFrame fixa
+    case Id::MatchBottomNormal:
+        return Immersive::Names::kMatchBottomTip;
     case Id::ScreenAsPanel: // AzaharFrame projdef
         return Immersive::Names::kScreenAsPanelTip;
     case Id::Autosave: // AzaharFrame autosave
@@ -1103,7 +1127,8 @@ SliderRange SliderFor(Id id) {
     if (id == Id::ReticleSpeed) { // AzaharFrame reticle: 0.5x to 4.0x in tenths
         return {5.0f, 40.0f, 1.0f};
     }
-    if (id == Id::GyroSensitivity || id == Id::TurnSpeed) { // AzaharFrame kiugyro: 0.2x to 4.0x
+    if (id == Id::GyroSensitivity || id == Id::TurnSpeed ||
+        id == Id::TurnSpeedVertical) { // AzaharFrame kiugyro: 0.2x to 4.0x (fixa: both turns)
         return {2.0f, 40.0f, 1.0f};
     }
     if (id == Id::TurnZone) { // AzaharFrame kiugyro: 0 to 30 %
@@ -1982,8 +2007,9 @@ constexpr float kScopeEditGap = 40.0f;
 // style of Angel's Aim's Alpha chip and the Mods list's version chips.
 constexpr float kRowChipH = 32.0f, kRowChipPad = 12.0f, kRowChipGap = 12.0f;
 const char* RowChip(Id id) {
-    return id == Id::MotionClarity || id == Id::ScreenAsPanel ? Immersive::Names::kExperimental
-                                                               : nullptr;
+    return id == Id::MotionClarity || id == Id::MotionClarityNormal || id == Id::ScreenAsPanel
+               ? Immersive::Names::kExperimental
+               : nullptr;
 }
 float RowChipWidth(const Kit& kit, Id id) {
     const char* chip = RowChip(id);
@@ -2067,6 +2093,7 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             aim_rows.push_back(Id::TurnZoneFrom);
             aim_rows.push_back(Id::TurnZone);
             aim_rows.push_back(Id::TurnSpeed);
+            aim_rows.push_back(Id::TurnSpeedVertical); // AzaharFrame fixa
             aim_rows.push_back(Id::CalibrateAim);
         }
     }
@@ -2261,6 +2288,9 @@ void TabMenu::DrawControls(Kit& kit, const MenuModel& model, const MenuView& vie
             break;
         case Id::TurnSpeed:
             slider_row(id, y, model.turn_speed);
+            break;
+        case Id::TurnSpeedVertical: // AzaharFrame fixa
+            slider_row(id, y, model.turn_speed_vertical);
             break;
         case Id::Recoil:
             switch_row(id, model.recoil);

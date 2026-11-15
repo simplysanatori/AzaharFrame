@@ -44,6 +44,13 @@ float ClampTurnSpeed(float value) {
     return std::clamp(value, kTurnSpeedMin, kTurnSpeedMax);
 }
 
+float ClampTurnSpeedVertical(float value) { // AzaharFrame fixa
+    if (!std::isfinite(value)) {
+        return kTurnSpeedVerticalDefault;
+    }
+    return std::clamp(value, kTurnSpeedMin, kTurnSpeedMax);
+}
+
 Vec3f AimDirection(const Posef& aim) {
     return Rotate(Normalized(aim.orientation), Vec3f{0.0f, 0.0f, -1.0f});
 }
@@ -757,9 +764,14 @@ DirectAim::Out DirectAim::Update(int64_t time_ns, const ReticleReading& r,
     if (r.ground) {
         const Vec2f depth = TurnDepthFor(r, target, turn.zone_fraction, turn.from);
         if (depth.x != 0.0f || depth.y != 0.0f) {
-            const float s = ClampTurnSpeed(turn.speed) * kTurnPushDps * ease;
-            out.right_dps = std::clamp(depth.x * s, -kModMaxDps, kModMaxDps);
-            out.down_dps = std::clamp(depth.y * s, -kModMaxDps, kModMaxDps);
+            // AzaharFrame fixa: each axis at its own Turn Speed.
+            const float sx = ClampTurnSpeed(turn.speed) * kTurnPushDps * ease;
+            const float sy = (turn.speed_vertical < 0.0f
+                                  ? ClampTurnSpeed(turn.speed)
+                                  : ClampTurnSpeedVertical(turn.speed_vertical)) *
+                             kTurnPushDps * ease;
+            out.right_dps = std::clamp(depth.x * sx, -kModMaxDps, kModMaxDps);
+            out.down_dps = std::clamp(depth.y * sy, -kModMaxDps, kModMaxDps);
             out.turning = true;
         }
     }

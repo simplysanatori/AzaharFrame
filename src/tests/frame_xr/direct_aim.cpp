@@ -13,6 +13,7 @@
 #include <vector>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include "common/settings.h"
 #include "frame_xr/input/geometry.h"
 #include "frame_xr/input/gyro_aim.h"
 #include "frame_xr/vis/beam.h"
@@ -443,6 +444,36 @@ TEST_CASE("Direct Aim: the Turn Zone turns on the ground, deeper is faster", "[f
     CHECK(out.turning);
     CHECK(out.right_dps == Approx(1.5f * DirectAim::kTurnPushDps));
     CHECK(out.x == Approx(259.5f)); // written at the box's edge
+}
+
+// AzaharFrame fixa: Horizontal and Vertical Turn Speed: each axis at its own speed; without a
+// vertical one (below 0) both at Turn Speed, as before. Vertical Turn Speed is 0.4x by default.
+TEST_CASE("Direct Aim: Horizontal and Vertical Turn Speed", "[frame_xr][fixa]") {
+    CHECK(kTurnSpeedVerticalDefault == 0.4f);
+    CHECK(Settings::values.vr_light_gun_turn_speed_vertical.GetDefault() == 0.4f);
+    CHECK(Settings::values.vr_light_gun_turn_speed_vertical.GetLabel() ==
+          "vr_light_gun_turn_speed_vertical");
+    CHECK(Settings::values.vr_light_gun_turn_speed.GetDefault() == 1.0f); // Horizontal, as before
+    CHECK(ClampTurnSpeedVertical(0.0f) == kTurnSpeedMin);
+    CHECK(ClampTurnSpeedVertical(9.0f) == kTurnSpeedMax);
+    CHECK(ClampTurnSpeedVertical(std::nanf("")) == kTurnSpeedVerticalDefault);
+    CHECK(ClampTurnSpeedVertical(0.7f) == 0.7f);
+    // Pointing past a corner: both axes push.
+    const auto push = [](float speed, float vertical) {
+        DirectAim aim;
+        return aim.Update(1, Reading(true), {true, 1.2f, -0.2f},
+                          DirectAim::Turn{0.1f, TurnZoneFrom::ScreenEdge, speed, vertical}, false);
+    };
+    const auto same = push(1.0f, -1.0f);
+    REQUIRE(same.turning);
+    CHECK(same.right_dps == Approx(DirectAim::kTurnPushDps));
+    CHECK(same.down_dps == Approx(-DirectAim::kTurnPushDps));
+    const auto split = push(1.0f, 0.4f);
+    CHECK(split.right_dps == Approx(same.right_dps)); // Horizontal unchanged
+    CHECK(split.down_dps == Approx(0.4f * same.down_dps));
+    const auto fast = push(2.0f, 0.4f);
+    CHECK(fast.right_dps == Approx(2.0f * same.right_dps));
+    CHECK(fast.down_dps == Approx(split.down_dps)); // Vertical on its own
 }
 
 // ---- The samples, XR frame by XR frame -------------------------------------------------------

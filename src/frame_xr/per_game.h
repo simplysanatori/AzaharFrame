@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
 #include "frame_xr/menu/tab_menu.h"
 
 namespace FrameXr::PerGame {
@@ -19,5 +21,9 @@ bool UsesGlobal(Menu::Id id);
 bool UseGlobalValue(Menu::Id id);
 /// MenuModel::game_value for every per-game row.
 void FillGameValues(Menu::MenuModel& model);
+/// AzaharFrame fixa: the keys a per-game row writes to the game's file (empty for a row that is
+/// not per game): both of 3D Depth's (the Full modes' and the 3DS one), Render Margin's axis key.
+/// For the check that ForEachMenuKey (per_game_keys.h) keeps them all.
+std::vector<std::string> KeysOf(Menu::Id id);
 
 } // namespace FrameXr::PerGame

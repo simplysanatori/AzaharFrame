@@ -538,17 +538,34 @@ TEST_CASE("Angel's Aim report: the payload has the fields and nothing of the mac
 }
 
 // AzaharFrame projdef: Send Report's settings say whether Motion Clarity is on in the Full modes.
-TEST_CASE("Crash report: the settings list Motion Clarity in Immersive Modes", "[frame_xr][projdef]") {
+// fixa: and in the Off and Wide modes, and Match Bottom Screen Brightness; the retired master
+// line is gone; shown as Black Frame Insertion (the owner's rename).
+TEST_CASE("Crash report: the settings list both Motion Clarity rows", "[frame_xr][projdef][fixa]") {
     auto& s = Settings::values.vr_motion_clarity_immersive;
+    auto& n = Settings::values.vr_motion_clarity_normal;
+    auto& b = Settings::values.vr_motion_clarity_match_bottom;
     const bool was = s.GetValue();
+    const bool was_n = n.GetValue();
+    const bool was_b = b.GetValue();
     s.SetValue(false);
+    n.SetValue(true);
+    b.SetValue(true);
     std::string text = CR::SettingsSummary();
-    CHECK(text.find("Motion Clarity: ") != std::string::npos);
-    CHECK(text.find("Motion Clarity in Immersive Modes: Off\n") != std::string::npos);
+    CHECK(text.find("Motion Clarity") == std::string::npos);
+    CHECK(text.find("Black Frame Insertion: ") == std::string::npos);
+    CHECK(text.find("Black Frame Insertion in Immersive Modes: Off\n") != std::string::npos);
+    CHECK(text.find("Black Frame Insertion in Off and Wide Modes: On\n") != std::string::npos);
+    CHECK(text.find("Match Bottom Screen Brightness: On\n") != std::string::npos);
     s.SetValue(true);
+    n.SetValue(false);
+    b.SetValue(false);
     text = CR::SettingsSummary();
-    CHECK(text.find("Motion Clarity in Immersive Modes: On\n") != std::string::npos);
+    CHECK(text.find("Black Frame Insertion in Immersive Modes: On\n") != std::string::npos);
+    CHECK(text.find("Black Frame Insertion in Off and Wide Modes: Off\n") != std::string::npos);
+    CHECK(text.find("Match Bottom Screen Brightness: Off\n") != std::string::npos);
     s.SetValue(was);
+    n.SetValue(was_n);
+    b.SetValue(was_b);
 }
 
 TEST_CASE("Crash report: the settings list Primary Screen as Panel", "[frame_xr][projdef]") {

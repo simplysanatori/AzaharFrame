@@ -13,7 +13,7 @@ While a game with its own value runs, **Configure** still changes that row's glo
 
 The in-game menu's **Settings** tab has three sections, **General**, **Graphics** and **Immersive**. The **Settings**, **Controls** and **Position** tabs have a **Global | Per-Game** switch at the top right, which opens on **Per-Game** while a game runs. **Global** changes every game. Pointing at **Per-Game** while it is picked shows how many values on the tab are set for this game (on **Settings**, in this section), and **Use Global Values for All**, in the **⋮** menu next to it, puts them back on the global values.
 
-**Detach Screens**, **Touchpad**, **Secondary Screen Reticle**, **Reticle Speed**, **At Edge**, **Aim Only While Pressed**, **Right Stick Moves Touch** and [Angel's Aim](#angels-aim)'s rows are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
+**Detach Screens**, **Touchpad**, **Bottom Screen Reticle**, **Reticle Speed**, **At Edge**, **Aim Only While Pressed**, **Right Stick Moves Touch** and [Angel's Aim](#angels-aim)'s rows are only in the in-game menu. **Mouse Mode** and **Recentre at Edge** belong to a device and are on its **Edit Controls** page; they are kept in `user/controller-mappings.txt`.
 
 ## At a glance
 
@@ -31,7 +31,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Screen Layout](#screen-layout) | **Stacked**, **Side by Side** | Stacked | global | at once |
 | [Detach Screens](#detach-screens) | **Off**, **Secondary**, **Both** | Off | global | at once |
 | [Touchpad](#touchpad) | **Tap for Input**, **Click for Input** | Tap for Input | global and per game | at once |
-| [Secondary Screen Reticle](#secondary-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off (Kid Icarus: Uprising: Headset) | global and per game | at once |
+| [Bottom Screen Reticle](#bottom-screen-reticle) | **Off**, **Left Controller**, **Right Controller**, **Headset** | Off (Kid Icarus: Uprising: Headset) | global and per game | at once |
 | [Reticle Speed](#reticle-speed) | 0.5x to 4.0x, in 0.1x steps | 2.0x | global and per game | at once |
 | [At Edge](#at-edge) | **Follow**, **Snap to Middle** | Follow | global and per game | at once |
 | [Aim Only While Pressed](#aim-only-while-pressed) | on or off | off | global and per game | at once |
@@ -52,7 +52,8 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Grip Frees Aim](#angels-aim) | **Hold**, **Toggle** | Hold | global and per game | at once |
 | [Turn Zone From](#angels-aim) | **Screen Edge**, **Aim Box** | Aim Box | global and per game | at once |
 | [Turn Zone](#angels-aim) | 0% to 30% | 10% | global and per game | at once |
-| [Turn Speed](#angels-aim) | 0.2x to 4.0x | 1.0x | global and per game | at once |
+| [Horizontal Turn Speed](#angels-aim) | 0.2x to 4.0x | 1.0x | global and per game | at once |
+| [Vertical Turn Speed](#angels-aim) | 0.2x to 4.0x | 0.4x | global and per game | at once |
 | [Mouse Mode](#mouse-mode) | **Secondary Screen**, **Pointer** | Secondary Screen | the mouse | at once |
 | [Recentre at Edge](#recentre-at-edge) | on or off | on | the mouse, each touchpad | at once |
 | [Autosave](#autosave) | on or off | off | global and per game | at once |
@@ -61,7 +62,7 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [Screen Curve](#screen-curve) | **Off**, **15°**, **30°**, **45°**, **60°**, **75°**, **90°** | Off | global | at once |
 | [3D Depth](#3d-depth) | 0% to 100%, in 5% steps | 50% (Full modes: 100%) | global and per game | at once |
 | [Dynamic Resolution](#dynamic-resolution) | on or off | off | global | at once |
-| [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10**, **Automatic** | 3DS (5:3) | global and per game | at once |
+| [Screen Shape](#screen-shape) | **3DS (5:3)**, **Widescreen (16:9)**, **Ultrawide (21:9)**, **Standard (4:3)**, **3:2**, **16:10**, **Automatic** | Automatic | global and per game | at once |
 | [Immersive Mode](#immersive-mode) | **Off**, **Wide (3DoF)**, **Full (6DoF): Ocarina of Time, Majora's Mask**, **Full (6DoF): Other Games** | Off | global and per game | — |
 | [Immersive Offset](#immersive-offset) | up to 10° each way, in 0.5° steps | centred | global | at once |
 | [Immersive Game FOV](#immersive-game-fov) | 30° to 110° | 60° | global and per game | at once |
@@ -75,8 +76,9 @@ The in-game menu's **Settings** tab has three sections, **General**, **Graphics*
 | [World Scale](#world-scale) | 10% to 400%, 100% by default | 100% | global and per game | eased in |
 | [Follow Screen Size](#follow-screen-size) | on or off | on | global and per game | eased in |
 | [Primary Screen as Panel](#primary-screen-as-panel) (Experimental) | on or off | off | global and per game | at once |
-| [Motion Clarity](#motion-clarity) (Experimental) | on or off | on | global and per game | at once |
-| [In Immersive Modes](#in-immersive-modes) (under Motion Clarity) | on or off | off | global and per game | at once |
+| [Black Frame Insertion](#black-frame-insertion) (Experimental), in **Immersive**: the Full modes | on or off | off | global and per game | at once |
+| [Black Frame Insertion](#black-frame-insertion) (Experimental), in **Graphics**: the Off and Wide modes | on or off | off | global and per game | at once |
+| [Match Bottom Screen Brightness](#match-bottom-screen-brightness), under either **Black Frame Insertion** row while it's on | on or off | off | global and per game | at once |
 | [View Matrix Register](#view-matrix-register) | **Auto**, 0 to 92 | Auto | global and per game | — |
 | [Eye Indicator Register](#eye-indicator-register) | empty for auto, or a register and index such as `87,2` | empty | global and per game | — |
 
@@ -142,25 +144,25 @@ Lets the screens in VR move apart. **Off**: a grip moves both screens together, 
 
 How a gamepad's touchpad touches the Secondary Screen in VR. The pad covers the whole screen, and a dot shows where your finger is. **Tap for Input**: a finger on the pad touches the screen. **Click for Input**: pressing the pad touches it, and holding it down drags. Turn Steam Input off for that controller, or Steam keeps the touchpad. It is on the in-game menu's **Controls** tab, and on a touchpad's **Edit Controls** page. See [CONTROLS.md](CONTROLS.md#touchpad).
 
-## Secondary Screen Reticle
+## Bottom Screen Reticle
 
-A controller, or your head with **Headset**, aims at the Secondary Screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip recentres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself, for that game or for all games. See [CONTROLS.md](CONTROLS.md#secondary-screen-reticle).
+A controller, or your head with **Headset**, aims at the Secondary Screen like a stylus, for games that aim with the touch screen. Its trigger touches and its grip recentres. While it aims in a game, that controller draws no beam. It is on the in-game menu's **Controls** tab. Kid Icarus: Uprising starts with **Headset** unless you set it yourself, for that game or for all games. See [CONTROLS.md](CONTROLS.md#bottom-screen-reticle).
 
 ## Reticle Speed
 
-How far the reticle moves when you turn your head or the controller, from where aiming started or was recentred. One value for the head and the controllers. At 1.0x your head turns 30 degrees to cross the Secondary Screen and 22.5 degrees from top to bottom, and a controller 40 and 30. At the default 2.0x it is half that: about 15 by 11 degrees for your head. Higher is faster; past an edge the dot stays on the edge. Shown under **Secondary Screen Reticle** while it is on.
+How far the reticle moves when you turn your head or the controller, from where aiming started or was recentred. One value for the head and the controllers. At 1.0x your head turns 30 degrees to cross the Secondary Screen and 22.5 degrees from top to bottom, and a controller 40 and 30. At the default 2.0x it is half that: about 15 by 11 degrees for your head. Higher is faster; past an edge the dot stays on the edge. Shown under **Bottom Screen Reticle** while it is on.
 
 ## At Edge
 
-What the reticle does at the edge of the Secondary Screen. **Follow**: the dot stays on the edge. **Snap to Middle**: the touch lifts and starts again in the middle. Shown under **Secondary Screen Reticle** while it is on.
+What the reticle does at the edge of the Secondary Screen. **Follow**: the dot stays on the edge. **Snap to Middle**: the touch lifts and starts again in the middle. Shown under **Bottom Screen Reticle** while it is on.
 
 ## Aim Only While Pressed
 
-The reticle stays in the middle of the Secondary Screen and moves only while the trigger touches. Let go and it goes back to the middle. Shown under **Secondary Screen Reticle** while it is on.
+The reticle stays in the middle of the Secondary Screen and moves only while the trigger touches. Let go and it goes back to the middle. Shown under **Bottom Screen Reticle** while it is on.
 
 ## Right Stick Moves Touch
 
-The right stick moves the Secondary Screen's touch point too, together with your head or controller, and the game no longer gets it as the C-Stick. Full tilt crosses the screen in about a second. Off, the right stick is the C-Stick as usual. With **Aim Only While Pressed** on, it moves the point only while the trigger touches. Shown under **Secondary Screen Reticle** while it is on.
+The right stick moves the Secondary Screen's touch point too, together with your head or controller, and the game no longer gets it as the C-Stick. Full tilt crosses the screen in about a second. Off, the right stick is the C-Stick as usual. With **Aim Only While Pressed** on, it moves the point only while the trigger touches. Shown under **Bottom Screen Reticle** while it is on.
 
 ## Angel's Aim
 
@@ -189,7 +191,7 @@ The shape of the Primary Screen in VR, and of the screen in immersive mode. The 
 - **3DS (5:3)**: the 3DS's own shape. Right for almost every game.
 - **Widescreen (16:9)** and **Ultrawide (21:9)**: for mods that draw a widescreen picture.
 - **Standard (4:3)**, **3:2** and **16:10**: for cheats and mods that change the game's own aspect.
-- **Automatic**: follows the shape the game's camera draws with: 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9. A new shape is used once it has held for 2 seconds, and the screen eases into it. A game with a widescreen mod from the **Mods** tab starts at that mod's shape. This works with **Detect Game FOV** set to **Off** too.
+- **Automatic**, the default: follows the shape the game's camera draws with: 4:3, 3:2, 5:3, 16:10, 16:9 or 21:9. A new shape is used once it has held for 2 seconds, and the screen eases into it. A game with a widescreen mod from the **Mods** tab starts at that mod's shape. This works with **Detect Game FOV** set to **Off** too.
 
 Match the shape the game or mod draws, or the picture stretches. A change shows at once, also from the in-game menu, so you can match a mod's setting while you play.
 
@@ -266,23 +268,26 @@ Full modes only. When you resize the immersive screen (grip and stick left or ri
 
 ## Primary Screen as Panel
 
-Experimental. Full modes only. Off by default: the Primary screen is drawn in step with your head, together with the controllers, which reduces doubling on fast head turns. On, it's a separate panel, as in earlier versions. It's a little lighter on the headset's graphics power, but it may double on fast head turns. In the Full modes, a message says what changed, unless Motion Clarity is using the panel (below).
+Experimental. Full modes only. Off by default: the Primary screen is drawn in step with your head, together with the controllers, which reduces doubling on fast head turns. On, it's a separate panel, as in earlier versions. It's a little lighter on the headset's graphics power, but it may double on fast head turns. In the Full modes, a message says what changed, unless Black Frame Insertion is using the panel (below).
 
-**Motion Clarity** with **In Immersive Modes** needs the panel, so while both are on the Primary screen is a panel in the Full modes whatever this says, and there the row reads **Used by Motion Clarity**. The normal and wide views always show the screen as a panel.
+**Black Frame Insertion** in **Immersive** needs the panel, so while it's on the Primary screen is a panel in the Full modes whatever this says, and there the row reads **Used by Black Frame Insertion**. The normal and wide views always show the screen as a panel.
 
-## Motion Clarity
+## Black Frame Insertion
 
-Experimental. Shows each game picture once, for one refresh of the headset, and black until the next one, for a clearer, more solid picture when you turn your head. It may flicker or double in demanding scenes. The screen is dimmer: at 60 fps it is lit half the time, which looks about three quarters as bright, and some people notice a slight flicker at the edges of their view. Games that run under 60 fps show as before. The VR menu, a paused game and a stall keep the same brightness.
+Experimental. Formerly **Motion Clarity**. Shows each game picture once, for one refresh of the headset, and black until the next one, for a clearer, more solid picture when you turn your head or when things move fast. It may flicker or double in demanding scenes, and a message says so each time you turn it on. The screen is dimmer: at 60 fps it is lit half the time, which looks about three quarters as bright, and some people notice a slight flicker at the edges of their view. Games that run under 60 fps show as before. The VR menu, a paused game and a stall keep the same brightness.
 
-For now it works only in the Full modes, and only with **In Immersive Modes** on.
+There are two **Black Frame Insertion** rows, each on its own and off by default, and neither is ever greyed out:
 
-## In Immersive Modes
+- In **Settings > Immersive**: the Full modes. On, the Primary screen is a panel there, whatever **Primary Screen as Panel** says (Black Frame Insertion needs it). Off, **Primary Screen as Panel** decides. It does nothing in the Off and Wide modes.
+- In **Settings > Graphics**: the **Off** and **Wide (3DoF)** modes. Only the 3DS's top screen flashes, while it's the Primary screen; when you swap the bottom screen into the Primary place, the top screen shows as before. The bottom screen never flashes. With **Screen Curve** on, the screen stays curved. It does nothing in the Full modes.
 
-Experimental. Under **Motion Clarity**, while it's on. Off by default. On, Motion Clarity works in the Full modes. It may flicker, mostly in demanding games, and a message says so each time you turn it on.
+In Azahar's settings they're **Black Frame Insertion in Immersive Modes** and **Black Frame Insertion in Off and Wide Modes**.
 
-On, the Primary screen is a panel in the Full modes, whatever **Primary Screen as Panel** says (Motion Clarity needs it). Off, **Primary Screen as Panel** decides.
+Going back to an earlier version: 1.1.1 has no Black Frame Insertion. Earlier 1.2.0 test versions called it Motion Clarity and had one more switch, on by default, that this version no longer reads or changes, so they behave as they did: with it on, they flash the Full modes (the 1.2.0 release candidate only with **In Immersive Modes**, the setting the **Immersive** row now changes, also on). A game's own value of that switch is no longer used. Earlier versions ignore the **Graphics** row and **Match Bottom Screen Brightness**.
 
-Going back to a version before this setting: those versions read only **Motion Clarity**, so with it on they flash the screen in the Full modes again.
+## Match Bottom Screen Brightness
+
+Off by default. It drops down under each **Black Frame Insertion** row while that row is on, and both rows change the same setting. Black Frame Insertion leaves the top screen lit only part of the time, so it looks dimmer than the bottom screen. On, the bottom screen is dimmed to match while the top screen flashes: to half at 120 Hz, two thirds at 90 Hz. It's never brightened. While the top screen isn't flashing (a game under 60 fps, or the top screen swapped out of the Primary place in the Off and Wide modes), the bottom screen shows as before. In Azahar's settings it's **Match Bottom Screen Brightness**.
 
 ## View Matrix Register
 

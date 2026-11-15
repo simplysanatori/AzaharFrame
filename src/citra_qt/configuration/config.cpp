@@ -535,8 +535,11 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_immersive_depth);   // AzaharFrame natural
     ReadGlobalSetting(Settings::values.vr_immersive_world_scale);
     ReadGlobalSetting(Settings::values.vr_immersive_follow_screen);
-    ReadGlobalSetting(Settings::values.vr_motion_clarity); // AzaharFrame flash
+    // AzaharFrame fixa: vr_motion_clarity (1.2.0's development builds) is no longer read or
+    // written: it stays in the file as it is, for those builds.
     ReadGlobalSetting(Settings::values.vr_motion_clarity_immersive); // AzaharFrame projdef
+    ReadGlobalSetting(Settings::values.vr_motion_clarity_normal);    // AzaharFrame fixa
+    ReadGlobalSetting(Settings::values.vr_motion_clarity_match_bottom); // AzaharFrame fixa
     ReadGlobalSetting(Settings::values.vr_screens_in_projection);    // AzaharFrame projdef
     ReadGlobalSetting(Settings::values.vr_immersive_world_set);
     ReadGlobalSetting(Settings::values.vr_immersive_eye_per_far);
@@ -638,6 +641,7 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_gyro_sensitivity);
     ReadGlobalSetting(Settings::values.vr_light_gun_turn_zone);
     ReadGlobalSetting(Settings::values.vr_light_gun_turn_speed);
+    ReadGlobalSetting(Settings::values.vr_light_gun_turn_speed_vertical); // AzaharFrame fixa
     ReadGlobalSetting(Settings::values.vr_light_gun_recoil);
     ReadGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     ReadGlobalSetting(Settings::values.vr_light_gun_laser);
@@ -1331,8 +1335,9 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_immersive_depth);   // AzaharFrame natural
     WriteGlobalSetting(Settings::values.vr_immersive_world_scale);
     WriteGlobalSetting(Settings::values.vr_immersive_follow_screen);
-    WriteGlobalSetting(Settings::values.vr_motion_clarity); // AzaharFrame flash
     WriteGlobalSetting(Settings::values.vr_motion_clarity_immersive); // AzaharFrame projdef
+    WriteGlobalSetting(Settings::values.vr_motion_clarity_normal);    // AzaharFrame fixa
+    WriteGlobalSetting(Settings::values.vr_motion_clarity_match_bottom); // AzaharFrame fixa
     WriteGlobalSetting(Settings::values.vr_screens_in_projection);    // AzaharFrame projdef
     WriteGlobalSetting(Settings::values.vr_immersive_world_set);
     WriteGlobalSetting(Settings::values.vr_immersive_eye_per_far);
@@ -1369,6 +1374,7 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_gyro_sensitivity);
     WriteGlobalSetting(Settings::values.vr_light_gun_turn_zone);
     WriteGlobalSetting(Settings::values.vr_light_gun_turn_speed);
+    WriteGlobalSetting(Settings::values.vr_light_gun_turn_speed_vertical); // AzaharFrame fixa
     WriteGlobalSetting(Settings::values.vr_light_gun_recoil);
     WriteGlobalSetting(Settings::values.vr_light_gun_weapon); // AzaharFrame kiuguns
     WriteGlobalSetting(Settings::values.vr_light_gun_laser);

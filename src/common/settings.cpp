@@ -295,8 +295,9 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_immersive_depth.SetGlobal(true);   // AzaharFrame natural
     values.vr_immersive_world_scale.SetGlobal(true);
     values.vr_immersive_follow_screen.SetGlobal(true);
-    values.vr_motion_clarity.SetGlobal(true); // AzaharFrame flash
     values.vr_motion_clarity_immersive.SetGlobal(true); // AzaharFrame projdef
+    values.vr_motion_clarity_normal.SetGlobal(true);    // AzaharFrame fixa
+    values.vr_motion_clarity_match_bottom.SetGlobal(true); // AzaharFrame fixa
     values.vr_screens_in_projection.SetGlobal(true);    // AzaharFrame projdef
     values.vr_immersive_world_set.SetGlobal(true);
     values.vr_immersive_eye_per_far.SetGlobal(true);
@@ -338,6 +339,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.vr_gyro_sensitivity.SetGlobal(true);
     values.vr_light_gun_turn_zone.SetGlobal(true);
     values.vr_light_gun_turn_speed.SetGlobal(true);
+    values.vr_light_gun_turn_speed_vertical.SetGlobal(true); // AzaharFrame fixa
     values.vr_light_gun_recoil.SetGlobal(true);
     values.vr_light_gun_weapon.SetGlobal(true); // AzaharFrame kiuguns
     values.vr_light_gun_laser.SetGlobal(true);

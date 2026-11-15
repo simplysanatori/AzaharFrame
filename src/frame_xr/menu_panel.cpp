@@ -262,10 +262,13 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::WorldScale;
     case Id::FollowScreen: // AzaharFrame natural
         return MenuSetting::FollowScreen;
-    case Id::MotionClarity: // AzaharFrame flash
-        return MenuSetting::MotionClarity;
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
+    case Id::MotionClarity: // AzaharFrame flash; fixa: vr_motion_clarity_immersive
         return MenuSetting::MotionClarityImmersive;
+    case Id::MotionClarityNormal: // AzaharFrame fixa
+        return MenuSetting::MotionClarityNormal;
+    case Id::MatchBottom: // AzaharFrame fixa
+    case Id::MatchBottomNormal:
+        return MenuSetting::MatchBottom;
     case Id::ScreenAsPanel: // AzaharFrame projdef
         return MenuSetting::ScreensInProjection;
     case Id::Depth3d:
@@ -308,6 +311,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::TurnZone;
     case Id::TurnSpeed:
         return MenuSetting::TurnSpeed;
+    case Id::TurnSpeedVertical: // AzaharFrame fixa
+        return MenuSetting::TurnSpeedVertical;
     case Id::Recoil:
         return MenuSetting::Recoil;
     case Id::WeaponInHand: // AzaharFrame kiuguns
@@ -1034,6 +1039,8 @@ void MenuPanel::BuildModel(const Host& host) {
         std::min<u32>(v.vr_light_gun_turn_zone.GetValue(), Input::kTurnZoneMaxPercent));
     m.turn_speed = static_cast<int>(
         std::lround(Input::ClampTurnSpeed(v.vr_light_gun_turn_speed.GetValue()) * 10.0f));
+    m.turn_speed_vertical = static_cast<int>(std::lround( // AzaharFrame fixa
+        Input::ClampTurnSpeedVertical(v.vr_light_gun_turn_speed_vertical.GetValue()) * 10.0f));
     m.recoil = v.vr_light_gun_recoil.GetValue();
     m.weapon_in_hand = v.vr_light_gun_weapon.GetValue(); // AzaharFrame kiuguns
     m.laser_sight = v.vr_light_gun_laser.GetValue();
@@ -1201,8 +1208,9 @@ void MenuPanel::BuildModel(const Host& host) {
     // AzaharFrame natural: World Scale's nearest stop, Follow Screen Size.
     m.world_scale_stop = Immersive::Layout::WorldScaleStop(v.vr_immersive_world_scale.GetValue());
     m.follow_screen = v.vr_immersive_follow_screen.GetValue();
-    m.motion_clarity = v.vr_motion_clarity.GetValue(); // AzaharFrame flash
     m.motion_clarity_immersive = v.vr_motion_clarity_immersive.GetValue(); // AzaharFrame projdef
+    m.motion_clarity_normal = v.vr_motion_clarity_normal.GetValue();       // AzaharFrame fixa
+    m.match_bottom = v.vr_motion_clarity_match_bottom.GetValue();           // AzaharFrame fixa
     m.screen_as_panel = !v.vr_screens_in_projection.GetValue();            // AzaharFrame projdef
     // AzaharFrame autosave: the running game's values (its own, else the global ones)
     m.autosave = v.autosave_enabled.GetValue();
@@ -1432,10 +1440,15 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_light_gun_turn_zone, static_cast<u32>(r.value), per_game);
         r.setting = MenuSetting::TurnZone;
         break;
-    case Id::TurnSpeed: // tenths of 1x
+    case Id::TurnSpeed: // tenths of 1x (AzaharFrame fixa: Horizontal Turn Speed)
         r.value = std::clamp(value, 2, 40);
         Apply(v.vr_light_gun_turn_speed, static_cast<float>(r.value) / 10.0f, per_game);
         r.setting = MenuSetting::TurnSpeed;
+        break;
+    case Id::TurnSpeedVertical: // AzaharFrame fixa: tenths of 1x
+        r.value = std::clamp(value, 2, 40);
+        Apply(v.vr_light_gun_turn_speed_vertical, static_cast<float>(r.value) / 10.0f, per_game);
+        r.setting = MenuSetting::TurnSpeedVertical;
         break;
     case Id::Recoil: // per game in Per-Game
         Apply(v.vr_light_gun_recoil, value != 0, per_game);
@@ -1584,11 +1597,7 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_immersive_follow_screen, value != 0, per_game);
         r.setting = MenuSetting::FollowScreen;
         break;
-    case Id::MotionClarity: // AzaharFrame flash: live
-        Apply(v.vr_motion_clarity, value != 0, per_game);
-        r.setting = MenuSetting::MotionClarity;
-        break;
-    case Id::MotionClarityImmersive: // AzaharFrame projdef: live (the path follows it)
+    case Id::MotionClarity: // AzaharFrame flash, projdef; fixa: the Full modes (path follows it)
         // The warning once each time it is turned on.
         if (value != 0 && !v.vr_motion_clarity_immersive.GetValue()) {
             ShowToastText(Immersive::Names::kMotionClarityImmersiveToast, ToastTime::Long);
@@ -1596,13 +1605,24 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
         Apply(v.vr_motion_clarity_immersive, value != 0, per_game);
         r.setting = MenuSetting::MotionClarityImmersive;
         break;
+    case Id::MotionClarityNormal: // AzaharFrame fixa: the Off and Wide modes', live
+        if (value != 0 && !v.vr_motion_clarity_normal.GetValue()) {
+            ShowToastText(Immersive::Names::kMotionClarityImmersiveToast, ToastTime::Long);
+        }
+        Apply(v.vr_motion_clarity_normal, value != 0, per_game);
+        r.setting = MenuSetting::MotionClarityNormal;
+        break;
+    case Id::MatchBottom: // AzaharFrame fixa: Match Bottom Screen Brightness, live
+    case Id::MatchBottomNormal:
+        Apply(v.vr_motion_clarity_match_bottom, value != 0, per_game);
+        r.setting = MenuSetting::MatchBottom;
+        break;
     case Id::ScreenAsPanel: { // AzaharFrame projdef: live (the path follows it); `value` 1 = panel
         const bool in_projection = value == 0;
-        // rel120: the toast only where the change shows: a Full mode, without Motion Clarity in
-        // Immersive Modes (which takes the panel whatever this says; vis/proj_path.h).
+        // rel120: the toast only where the change shows: a Full mode, without the Full modes'
+        // Motion Clarity (which takes the panel whatever this says; vis/proj_path.h).
         const bool shows = v.vr_immersive_mode.GetValue() >= 2 &&
-                           !(v.vr_motion_clarity.GetValue() &&
-                             v.vr_motion_clarity_immersive.GetValue());
+                           !v.vr_motion_clarity_immersive.GetValue();
         if (shows && in_projection != v.vr_screens_in_projection.GetValue()) {
             ShowToastText(in_projection ? Immersive::Names::kScreenAsPanelOffToast
                                         : Immersive::Names::kScreenAsPanelOnToast,
@@ -2363,11 +2383,15 @@ void MenuPanel::Click(Target t, Host& host) {
     case Id::FollowScreen: // AzaharFrame natural
         SetSetting(t.id, model.follow_screen ? 0 : 1, host);
         break;
-    case Id::MotionClarity: // AzaharFrame flash
-        SetSetting(t.id, model.motion_clarity ? 0 : 1, host);
-        break;
-    case Id::MotionClarityImmersive: // AzaharFrame projdef
+    case Id::MotionClarity: // AzaharFrame flash; fixa: vr_motion_clarity_immersive
         SetSetting(t.id, model.motion_clarity_immersive ? 0 : 1, host);
+        break;
+    case Id::MotionClarityNormal: // AzaharFrame fixa
+        SetSetting(t.id, model.motion_clarity_normal ? 0 : 1, host);
+        break;
+    case Id::MatchBottom: // AzaharFrame fixa
+    case Id::MatchBottomNormal:
+        SetSetting(t.id, model.match_bottom ? 0 : 1, host);
         break;
     case Id::ScreenAsPanel: // AzaharFrame projdef
         SetSetting(t.id, model.screen_as_panel ? 0 : 1, host);

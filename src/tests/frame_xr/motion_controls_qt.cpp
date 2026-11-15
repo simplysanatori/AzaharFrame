@@ -320,66 +320,109 @@ TEST_CASE("VR group: Scale Mode", "[frame_xr][fovscale]") {
     Settings::SetConfiguringGlobal(true);
 }
 
-// AzaharFrame projdef: Motion Clarity in Immersive Modes, per game, right under Motion Clarity,
-// usable while Motion Clarity is not off; its tooltip and the experimental Motion Clarity one.
-TEST_CASE("VR group: Motion Clarity in Immersive Modes", "[frame_xr][projdef]") {
+// AzaharFrame projdef; fixa: Motion Clarity's two boxes, independent and never greyed: in
+// Immersive Modes (the Full modes) right under Primary Screen as Panel, then in Off and Wide
+// Modes; their tooltips say where each works; per game in Properties.
+TEST_CASE("VR group: Motion Clarity's two boxes", "[frame_xr][projdef][fixa]") {
     App();
     auto& v = Settings::values;
-    Keep<bool, false> k1{v.vr_motion_clarity};
+    Keep<bool, false> k1{v.vr_motion_clarity_normal};
     Keep<bool, false> k2{v.vr_motion_clarity_immersive};
+    Keep<bool, false> k3{v.vr_motion_clarity_match_bottom};
     CHECK_FALSE(v.vr_motion_clarity_immersive.GetDefault());
+    CHECK_FALSE(v.vr_motion_clarity_normal.GetDefault());
     Settings::SetConfiguringGlobal(true);
-    v.vr_motion_clarity.SetGlobal(true);
+    v.vr_motion_clarity_normal.SetGlobal(true);
     v.vr_motion_clarity_immersive.SetGlobal(true);
-    v.vr_motion_clarity.SetValue(true);
+    v.vr_motion_clarity_normal.SetValue(false);
     v.vr_motion_clarity_immersive.SetValue(false);
+    v.vr_motion_clarity_match_bottom.SetGlobal(true);
+    v.vr_motion_clarity_match_bottom.SetValue(false);
     {
         ConfigureFrameVr w;
-        auto* mc = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_check"));
+        auto* panel = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_screen_as_panel_check"));
         auto* box =
             w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_immersive_check"));
-        REQUIRE(mc);
+        auto* normal =
+            w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_normal_check"));
+        REQUIRE(panel);
         REQUIRE(box);
-        CHECK(mc->text() == QStringLiteral("Motion Clarity"));
-        CHECK(mc->toolTip() ==
-              QStringLiteral("Experimental. Shows each picture once for a clearer view on head "
-                             "turns, in the Full modes with In Immersive Modes on. May flicker. "
-                             "Games that run under 60 fps show as before."));
-        CHECK(box->text() == QStringLiteral("Motion Clarity in Immersive Modes"));
+        REQUIRE(normal);
+        CHECK(w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_check")) == nullptr);
+        auto* match = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_match_bottom_check"));
+        REQUIRE(match);
+        CHECK(box->text() == QStringLiteral("Black Frame Insertion in Immersive Modes"));
         CHECK(box->toolTip() ==
-              QStringLiteral("Experimental. Uses Primary Screen as Panel. May flicker, mostly in "
-                             "demanding games."));
+              QStringLiteral("Experimental. In the Full modes, adds a black frame after each "
+                             "picture for a clearer view on head turns. Uses Primary Screen as "
+                             "Panel. May flicker. Games that run under 60 fps show as before."));
+        CHECK(normal->text() == QStringLiteral("Black Frame Insertion in Off and Wide Modes"));
+        CHECK(normal->toolTip() ==
+              QStringLiteral("Experimental. In the Off and Wide modes, adds a black frame after "
+                             "each picture on the Primary screen for clearer motion. May flicker. "
+                             "Games that run under 60 fps show as before."));
+        // fixa: Match Bottom Screen Brightness, one box for both, never greyed.
+        CHECK(match->text() == QStringLiteral("Match Bottom Screen Brightness"));
+        CHECK(match->toolTip() ==
+              QStringLiteral("Black Frame Insertion adds a black frame after each one, which "
+                             "dims the picture. This dims the bottom screen to match."));
         auto* layout = w.layout();
         REQUIRE(layout);
-        CHECK(layout->indexOf(box) == layout->indexOf(mc) + 1);
+        CHECK(layout->indexOf(box) == layout->indexOf(panel) + 1);
+        CHECK(layout->indexOf(normal) == layout->indexOf(box) + 1);
+        CHECK(layout->indexOf(match) == layout->indexOf(normal) + 1);
         CHECK(box->isEnabled());
+        CHECK(normal->isEnabled());
+        CHECK(match->isEnabled());
         CHECK_FALSE(box->isChecked()); // off by default
+        CHECK_FALSE(normal->isChecked());
+        CHECK_FALSE(match->isChecked());
         Shot(w, "qt-vr-motion-clarity-immersive.png");
-        mc->setChecked(false);
-        CHECK_FALSE(box->isEnabled()); // nothing to opt into with Motion Clarity off
-        mc->setChecked(true);
-        CHECK(box->isEnabled());
+        normal->setChecked(true);
+        match->setChecked(true);
+        CHECK(box->isEnabled()); // independent
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_motion_clarity_normal.GetValue(true));
+    CHECK(v.vr_motion_clarity_match_bottom.GetValue(true));
+    CHECK_FALSE(v.vr_motion_clarity_immersive.GetValue(true));
+    {
+        ConfigureFrameVr w;
+        auto* box =
+            w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_immersive_check"));
+        auto* normal =
+            w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_normal_check"));
+        REQUIRE(box);
+        REQUIRE(normal);
+        CHECK(normal->isChecked());
+        normal->setChecked(false);
         box->setChecked(true);
         w.ApplyConfiguration();
     }
     CHECK(v.vr_motion_clarity_immersive.GetValue(true));
-    CHECK(v.vr_motion_clarity.GetValue(true)); // its parent kept
+    CHECK_FALSE(v.vr_motion_clarity_normal.GetValue(true));
     // A game's Properties: its own value, or Use global.
     Settings::SetConfiguringGlobal(false);
     Values(v.vr_motion_clarity_immersive, true, false);
+    Values(v.vr_motion_clarity_normal, false, true);
     {
         ConfigureFrameVr w;
         auto* box =
             w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_immersive_check"));
+        auto* normal =
+            w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_normal_check"));
         REQUIRE(box);
+        REQUIRE(normal);
         CHECK_FALSE(box->isChecked()); // the game's own Off
-        CHECK(box->isEnabled());
-        box->click(); // its own On
+        CHECK(normal->isChecked());    // the game's own On
+        box->click();                  // its own On
         CHECK(box->isChecked());
         w.ApplyConfiguration();
     }
     CHECK_FALSE(v.vr_motion_clarity_immersive.UsingGlobal());
     CHECK(v.vr_motion_clarity_immersive.GetValue());
+    CHECK_FALSE(v.vr_motion_clarity_normal.UsingGlobal());
+    CHECK(v.vr_motion_clarity_normal.GetValue());
     Settings::SetConfiguringGlobal(true);
 }
 
@@ -390,6 +433,7 @@ TEST_CASE("VR group: Primary Screen as Panel", "[frame_xr][projdef]") {
     auto& v = Settings::values;
     Keep<bool, false> k1{v.vr_screens_in_projection};
     Keep<bool, false> k2{v.vr_motion_clarity_immersive};
+    Keep<bool, false> k3{v.vr_motion_clarity_match_bottom};
     Settings::SetConfiguringGlobal(true);
     v.vr_screens_in_projection.SetGlobal(true);
     v.vr_screens_in_projection.SetValue(true); // the default: the projection layer
@@ -398,7 +442,8 @@ TEST_CASE("VR group: Primary Screen as Panel", "[frame_xr][projdef]") {
     {
         ConfigureFrameVr w;
         auto* box = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_screen_as_panel_check"));
-        auto* mc = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_check"));
+        auto* mc =
+            w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_immersive_check"));
         REQUIRE(box);
         REQUIRE(mc);
         CHECK(box->text() == QStringLiteral("Primary Screen as Panel"));

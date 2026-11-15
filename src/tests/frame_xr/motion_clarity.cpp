@@ -9,6 +9,7 @@
 // brightness step), and the layer list through a menu.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <initializer_list>
 #include <string>
@@ -439,14 +440,14 @@ TEST_CASE("Motion Clarity: the top screen's layers stay through a menu", "[frame
     // each eye's screen when the menu opens and immersive pauses; the screens' part of the list
     // (backing, screen per eye: their swapchains) is the same on every refresh, lit or dark.
     // Before, the menu turned it off: the backing went and the list lost two layers.
-    CHECK(MC::InEffect(true, std::nullopt, /*full_mode=*/true));
+    CHECK(MC::InEffect(true, false, std::nullopt, /*full_mode=*/true));
     Session x;
     std::vector<std::string> lists;
     const auto refresh = [&](bool engaged, bool new_picture) {
         x.Refresh(engaged, new_picture);
         const bool dark = x.out.back() == 'B';
-        const MC::TopLayers tl = MC::TopLayersFor(MC::InEffect(true, std::nullopt, true), true,
-                                                  true, dark);
+        const MC::TopLayers tl = MC::TopLayersFor(MC::InEffect(true, false, std::nullopt, true),
+                                                  true, true, dark);
         CHECK_FALSE(tl.omit);
         std::string list;
         for (const char* eye : {"L", "R"}) {
@@ -478,13 +479,14 @@ TEST_CASE("Motion Clarity: the override, the setting and the picture ids", "[fra
     CHECK(MC::OverrideFrom(std::string("1")) == true);
     CHECK(MC::OverrideFrom(std::string("0")) == false);
     CHECK(MC::OverrideFrom(std::string("")) == std::nullopt);
-    // The setting only in the Full modes (flash2: engaged or paused for the menu); the switch's 1
-    // in every mode, 0 never.
-    CHECK(MC::InEffect(true, std::nullopt, true));
-    CHECK_FALSE(MC::InEffect(true, std::nullopt, false));
-    CHECK_FALSE(MC::InEffect(false, std::nullopt, true));
-    CHECK(MC::InEffect(false, true, false));
-    CHECK_FALSE(MC::InEffect(true, false, true));
+    // Each mode's own setting (fixa: the Full modes' in them, flash2: engaged or paused for the
+    // menu; the Off and Wide modes' in those); the switch's 1 in every mode, 0 never.
+    CHECK(MC::InEffect(true, false, std::nullopt, true));
+    CHECK_FALSE(MC::InEffect(true, false, std::nullopt, false));
+    CHECK_FALSE(MC::InEffect(false, true, std::nullopt, true));
+    CHECK(MC::InEffect(false, true, std::nullopt, false));
+    CHECK(MC::InEffect(false, false, true, false));
+    CHECK_FALSE(MC::InEffect(true, true, false, true));
     CHECK(MC::SlowFrom(std::string("twice")) == MC::Slow::Twice);
     CHECK(MC::SlowFrom(std::string("hold")) == MC::Slow::Hold);
     CHECK(MC::SlowFrom(std::nullopt) == MC::Slow::Hold);
@@ -493,30 +495,120 @@ TEST_CASE("Motion Clarity: the override, the setting and the picture ids", "[fra
     CHECK(MC::PictureId(0, 10) != MC::PictureId(0, 11));
     CHECK(MC::PictureId(5, 10) != MC::PictureId(0, 10));
     CHECK(MC::PictureId(0, 0) == 0u);
-    // On by default, per game and global, a new key.
-    CHECK(Settings::values.vr_motion_clarity.GetDefault());
-    CHECK(Settings::values.vr_motion_clarity.GetLabel() == "vr_motion_clarity");
 }
 
-// AzaharFrame projdef: Motion Clarity in the Full modes needs In Immersive Modes too (a new key,
-// off by default); an older build reads vr_motion_clarity alone.
-TEST_CASE("Motion Clarity: In Immersive Modes, and older builds", "[frame_xr][projdef]") {
+// AzaharFrame projdef; fixa: two independent settings, each read alone, both off by default; the
+// development builds' master key (vr_motion_clarity) is no longer a setting at all, so it is never
+// written: older builds keep reading what their files have.
+TEST_CASE("Motion Clarity: the Full modes' and the Off and Wide modes' settings",
+          "[frame_xr][projdef][fixa]") {
     CHECK_FALSE(Settings::values.vr_motion_clarity_immersive.GetDefault());
     CHECK(Settings::values.vr_motion_clarity_immersive.GetLabel() ==
           "vr_motion_clarity_immersive");
-    CHECK(MC::WantedInFull(true, true));
-    CHECK_FALSE(MC::WantedInFull(true, false)); // the default: not in the Full modes
-    CHECK_FALSE(MC::WantedInFull(false, true)); // Motion Clarity off: off everywhere
-    CHECK_FALSE(MC::WantedInFull(false, false));
-    // This build, in a Full mode, with the defaults (On, Off): not in effect (the projection
-    // layer takes the screen). An older build reads the first key alone: in effect, as before.
-    CHECK_FALSE(MC::InEffect(MC::WantedInFull(true, false), std::nullopt, true));
-    CHECK(MC::InEffect(true, std::nullopt, true));
-    // Opted in: in effect in the Full modes only.
-    CHECK(MC::InEffect(MC::WantedInFull(true, true), std::nullopt, true));
-    CHECK_FALSE(MC::InEffect(MC::WantedInFull(true, true), std::nullopt, false));
+    CHECK_FALSE(Settings::values.vr_motion_clarity_normal.GetDefault());
+    CHECK(Settings::values.vr_motion_clarity_normal.GetLabel() == "vr_motion_clarity_normal");
+    // The defaults: in effect nowhere.
+    for (const bool full : {false, true}) {
+        CHECK_FALSE(MC::InEffect(false, false, std::nullopt, full));
+    }
+    // Each one in its own modes only.
+    CHECK(MC::InEffect(true, false, std::nullopt, true));
+    CHECK_FALSE(MC::InEffect(true, false, std::nullopt, false));
+    CHECK(MC::InEffect(false, true, std::nullopt, false));
+    CHECK_FALSE(MC::InEffect(false, true, std::nullopt, true));
     // AZAHARFRAME_XR_SINGLE_FLASH still overrides.
-    CHECK(MC::InEffect(MC::WantedInFull(true, false), true, true));
+    CHECK(MC::InEffect(false, false, true, true));
+    CHECK(MC::InEffect(false, false, true, false));
+    CHECK_FALSE(MC::InEffect(true, true, false, false));
+}
+
+// AzaharFrame fixa: only the top screen flashes. In the Off and Wide modes it is held while
+// swapped out of the Primary slot (the bottom screen never flashes); the Full modes keep flash2's
+// rule (the top screen flashes on the beat while the bottom one is in focus).
+TEST_CASE("Motion Clarity: held for a swap in the Off and Wide modes only", "[frame_xr][fixa]") {
+    CHECK_FALSE(MC::HeldForSwap(false, false));
+    CHECK(MC::HeldForSwap(false, true));
+    CHECK_FALSE(MC::HeldForSwap(true, false));
+    CHECK_FALSE(MC::HeldForSwap(true, true));
+}
+
+// AzaharFrame fixa: Match Bottom Screen Brightness: the bottom screen dimmed to the top one's
+// time-averaged light while it flashes, never brightened, and as it is otherwise.
+TEST_CASE("Motion Clarity: Match Bottom Screen Brightness", "[frame_xr][fixa]") {
+    CHECK_FALSE(Settings::values.vr_motion_clarity_match_bottom.GetDefault());
+    CHECK(Settings::values.vr_motion_clarity_match_bottom.GetLabel() ==
+          "vr_motion_clarity_match_bottom");
+    constexpr int64_t k120 = 8'333'333, k90 = 11'111'111, k60 = 16'666'667;
+    const auto near = [](float a, float b) { return std::abs(a - b) < 0.002f; };
+    CHECK(near(MC::BottomDim(true, true, k120), 0.5f));
+    CHECK(near(MC::BottomDim(true, true, k90), 2.0f / 3.0f));
+    CHECK(MC::BottomDim(true, true, k60) == 1.0f); // every refresh lit: nothing to match
+    CHECK(near(MC::BottomDim(true, true, 0), 0.5f)); // period not known: Beat's 2
+    // Off, or the top screen not flashing: as it is.
+    CHECK(MC::BottomDim(false, true, k120) == 1.0f);
+    CHECK(MC::BottomDim(true, false, k120) == 1.0f);
+    for (const int64_t p : {int64_t{0}, int64_t{1}, k120, k90, k60, int64_t{100'000'000}}) {
+        CHECK(MC::BottomDim(true, true, p) <= 1.0f);
+        CHECK(MC::BottomDim(true, true, p) > 0.0f);
+    }
+    // The method: the layer's colour scale when the runtime has it, else the shader.
+    CHECK(MC::DimMethodFor(true) == MC::DimMethod::ColorScale);
+    CHECK(MC::DimMethodFor(false) == MC::DimMethod::Shader);
+    CHECK(std::string(MC::DimMethodName(MC::DimMethod::ColorScale)).find("colour scale") !=
+          std::string::npos);
+    CHECK(std::string(MC::DimMethodName(MC::DimMethod::Shader)).find("shader") !=
+          std::string::npos);
+    // The shader's push constant: thousandths, 1 to 999; 0 for none.
+    CHECK(MC::DimPermille(1.0f) == 0);
+    CHECK(MC::DimPermille(1.5f) == 0);
+    CHECK(MC::DimPermille(0.5f) == 500);
+    CHECK(MC::DimPermille(0.0f) == 1);
+    CHECK(MC::DimPermille(0.9999f) == 999);
+}
+
+// AzaharFrame fixa: the Off and Wide modes flash at the game's full rate as the Full modes do,
+// keep flash2's steady brightness through the menu, and hold a slow game.
+TEST_CASE("Motion Clarity: the Off and Wide modes flash like the Full modes",
+          "[frame_xr][fixa]") {
+    const bool on = MC::InEffect(false, true, std::nullopt, /*full_mode=*/false);
+    REQUIRE(on);
+    MC::Scheduler s;
+    uint64_t picture = 0;
+    Run(s, 2, 40, picture, on, true); // learnt
+    CHECK(s.Fast());
+    CHECK(Run(s, 2, 20, picture, on, true) == "PBPBPBPBPBPBPBPBPBPB");
+    // The menu (not played): on the beat, never two lit in a row.
+    const std::string menu = Run(s, 2, 40, picture, on, false);
+    CHECK(menu.find("PP") == std::string::npos);
+    const auto lit = std::count(menu.begin(), menu.end(), 'P');
+    CHECK(lit >= 19);
+    CHECK(lit <= 21);
+    // A 30 a second game: held, as in the Full modes.
+    MC::Scheduler slow;
+    uint64_t p2 = 0;
+    const std::string held = Run(slow, 4, 200, p2, on, true);
+    CHECK(held.substr(100).find('B') == std::string::npos);
+}
+
+// AzaharFrame fixa: the backing goes (and the screen is held) while its layers would go over the
+// runtime's limit, and comes back only after it has fit for a while.
+TEST_CASE("Motion Clarity: the backing's room under the layer limit", "[frame_xr][fixa]") {
+    using Room = MC::BackingRoom;
+    // The VR menu with both controllers in a Full mode: 16 with the backing, at the limit.
+    CHECK(Room::Fits(16, 14, 2));
+    // The Off mode has the Secondary screen's layer too: 17 would cut the last layers.
+    CHECK_FALSE(Room::Fits(16, 15, 2));
+    Room r;
+    CHECK(r.Next(true));
+    CHECK_FALSE(r.Next(false));
+    CHECK(r.TimesOut() == 1);
+    for (uint32_t i = 1; i < Room::kBackAfter; i++) {
+        CHECK_FALSE(r.Next(true));
+    }
+    CHECK(r.Next(true)); // back after kBackAfter refreshes that fit
+    CHECK_FALSE(r.Next(false));
+    CHECK_FALSE(r.Next(true)); // the count starts again
+    CHECK(r.TimesOut() == 2);
 }
 
 TEST_CASE("Motion Clarity: the 30 a second game through the release serials", "[frame_xr][flash]") {
