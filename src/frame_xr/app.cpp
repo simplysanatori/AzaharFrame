@@ -619,7 +619,8 @@ void Runtime::FrameLoop() {
                          proj_forced ? (*proj_forced ? "forced on" : "forced off")
                                      : "by the settings",
                          test_proj_scale);
-            } else if (c.name == Vis::kProjMarksSwitch || c.name == Vis::kProjAlsoQuadsSwitch) {
+            } else if (c.name == Vis::kProjMarksSwitch || c.name == Vis::kProjAlsoQuadsSwitch ||
+                       c.name == Vis::kProjFilterSwitch) { // projdef: the filter too
                 // read by the pass every frame
             } else if (c.name == "AZAHARFRAME_XR_IMAGE_LAG") {
                 UpdateImageLag("test switch changed"); // AzaharFrame imglag

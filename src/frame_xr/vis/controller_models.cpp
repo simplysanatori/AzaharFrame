@@ -2106,6 +2106,9 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
     }
     const bool marks = draw_screens &&
                        Common::FrameTestSwitches::Value(kProjMarksSwitch).value_or("0") == "1";
+    // AzaharFrame projdef: Catmull-Rom unless AZAHARFRAME_XR_PROJ_FILTER=soft (live).
+    const float filter =
+        ProjFilterCode(ProjFilterFrom(Common::FrameTestSwitches::Value(kProjFilterSwitch)));
     std::array<vk::ClearValue, 3> clears{}; // colour: zero, nothing round the models
     clears[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
     c.beginRenderPass({.renderPass = g.render_pass,
@@ -2192,7 +2195,7 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
             sp.rect = {se->rect.offset.x / iw, se->rect.offset.y / ih, se->rect.extent.width / iw,
                        se->rect.extent.height / ih};
             sp.tex = {iw, ih, marks ? 1.0f : 0.0f, 0.0f};
-            sp.extra = {ProjDepthCode(se->depth), 0.0f, 0.0f, 0.0f}; // projb
+            sp.extra = {ProjDepthCode(se->depth), filter, 0.0f, 0.0f}; // projb; projdef: filter
             c.bindPipeline(vk::PipelineBindPoint::eGraphics, g.screen_pipeline);
             c.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, g.screen_layout, 0,
                                  g.screen_sets[static_cast<std::size_t>(e)], {});

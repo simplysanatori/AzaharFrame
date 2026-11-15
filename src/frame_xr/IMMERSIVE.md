@@ -793,7 +793,14 @@ On the projection path:
   `app.cpp`: per eye, HeldQuad's warp included; a VIEW-space quad through this frame's head), seen
   through this refresh's located views. The picture is the swapchain image the renderer released
   last (`ScreenChain::shown_index`), sampled in place (moved to SHADER_READ_ONLY for the pass and
-  back), filtered over each pixel's footprint (up to 4 x 4 taps: the swapchain has no mips).
+  back). projdef: where a pixel covers up to 1.25 texels each way (`kSharpFootprint`; about 1.1
+  in the Full modes at the recommended size), Catmull-Rom in 5 bilinear taps, which offsets most
+  of the second resample (SteamVR's lens pass) the quads do not have; past that, filtered over
+  each pixel's footprint (up to 4 x 4 taps: the swapchain has no mips).
+  `AZAHARFRAME_XR_PROJ_FILTER=soft` (live) uses the footprint filter everywhere, as the test
+  builds did, for an A/B. A 1D model of the chain at the view's centre (contrast kept at a quarter
+  of the picture's texel rate): quads 0.81, footprint filter 0.57, Catmull-Rom 0.73, Catmull-Rom
+  at `AZAHARFRAME_XR_PROJ_SCALE=1.4` 0.83 (that scale about doubles the pass's pixels).
 - The models are drawn after it with the depth test. "Controllers in Front of Screen" holds as on
   the quad path (projb): when the choice takes the top screen's slot, a controller nearer than the
   screen is in front of it (the immersive screen never hides them); else the screen is drawn at the

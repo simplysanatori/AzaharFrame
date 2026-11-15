@@ -1021,6 +1021,21 @@ TEST_CASE("FrameXr vis: projection screens: the eye buffer's scale switch", "[fr
     CHECK(kProjMarks[0][0] < kProjMarks[4][0]);
 }
 
+// AzaharFrame projdef: the sharper filter by default, the test builds' with =soft; the shader's
+// threshold is kSharpFootprint.
+TEST_CASE("FrameXr vis: projection screens: the filter switch", "[frame_xr][projdef]") {
+    CHECK(ProjFilterFrom(std::nullopt) == ProjFilter::Sharp);
+    CHECK(ProjFilterFrom(std::string("sharp")) == ProjFilter::Sharp);
+    CHECK(ProjFilterFrom(std::string("x")) == ProjFilter::Sharp);
+    CHECK(ProjFilterFrom(std::string("soft")) == ProjFilter::Soft);
+    CHECK(ProjFilterCode(ProjFilter::Sharp) == 1.0f);
+    CHECK(ProjFilterCode(ProjFilter::Soft) == 0.0f);
+    const std::string frag = Shaders::kScreenFrag;
+    CHECK(frag.find("CatmullRom(") != std::string::npos);
+    CHECK(kSharpFootprint == 1.25f);
+    CHECK(frag.find("max(foot.x, foot.y) <= 1.25") != std::string::npos);
+}
+
 // projb: "Controllers in Front of Screen" in the projection layer: the screen's depth, as the
 // shader takes it (kScreenVert extra.x), and the hold over a new swapchain.
 TEST_CASE("FrameXr vis: projection screens: the screen's depth and the swapchain gap", "[frame_xr]") {
