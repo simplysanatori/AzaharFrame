@@ -32,7 +32,7 @@ Compared with CitraVR on the Quest, played on the Frame through Lepton:
 
 Compared with Azahar on a PC:
 
-- There is a stereoscopic 3D top screen and a bottom touch screen, floating in front of you.
+- There is a stereoscopic 3D Primary Screen and a bottom touch screen, floating in front of you.
 - You aim at the screens with a controller.
 - The 3D depth starts at 50 %, where Azahar's own default is 0.
 
@@ -179,13 +179,13 @@ Packs that already ship DDS or KTX files work too, with or without `skip_mipmap`
 | **A** (bottom), **B** (right), **X** (left), **Y** (top) | B, A, Y, X, by position as on the 3DS |
 | Left and right bumper | L and R |
 | Left and right trigger | ZL and ZR |
-| Trigger aimed at the bottom screen | Touch. Hold and move to drag |
+| Trigger aimed at the Secondary Screen | Touch. Hold and move to drag |
 | Grip aimed at a screen | Move the screens. The stick of that hand moves them nearer and farther (up, down) and makes them bigger or smaller (right, left). D-pad left or right nudges them a little, up or down curves them (**Screen Curve**: Off, then 15° to 90° in 15° steps) |
 | **Menu** (right controller) | Start. Hold for 1 second to pause and open the in-game menu |
 | **View** (left controller) | Select. Hold for 1.5 seconds to stop the game; **Stopping...** shows half way |
 | Right stick click | Swap Screens: the other screen becomes the main one. Hold for 1 second: Reset Screens and View |
 | Left stick click | Hide or Show Other Screen. Hold for 1 second: the next screen layout (**Stacked** or **Side by Side**; in Flat **Large Screen**, **Side by Side**, **Default**, also a grip + D-pad right or left) |
-| Both bumpers, then **View** | Show or hide the bottom screen, in games that hide it |
+| Both bumpers, then **View** | Show or hide the Secondary Screen, in games that hide it |
 | Both bumpers + **View** + **Menu** | Switch between VR and Flat |
 | Hold **View**, then the right bumper | Quick Save. Hold the left bumper for half a second instead: Quick Load |
 | Hold **View**, then the right trigger | Fast Forward on or off |
@@ -202,9 +202,9 @@ On Azahar's window and in the in-game menu:
 | Stick up and down | Scroll |
 | **Y** | Show or hide the keyboard |
 
-The top screen can grow to 3 times its starting size, enough to fill the whole view, and the bottom screen moves down to stay just under it. It is made bigger rather than brought nearer: the top screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press D-pad left or right: each press moves the screens half a degree around you, and **Moved Right** (or Left) shows for 2 seconds. With the grip still squeezed, D-pad up or down makes the main screen more or less curved (Off, then 15° to 90° in 15° steps), and **Screen Curve: 45°** (for example) shows; it is kept for every game, and **Screen Curve** in the **VR** group sets it too. While you hold the screens the D-pad does not reach the game. A small hint under the screens lists these when you take hold.
+The Primary Screen can grow to 3 times its starting size, enough to fill the whole view, and the Secondary Screen moves down to stay just under it. It is made bigger rather than brought nearer: the Primary Screen never comes closer than 1 m. A bigger screen gets less 3D depth, so the distant scenery stays easy on the eyes. If an edge of a big screen is just out of view, keep the grip squeezed and press D-pad left or right: each press moves the screens half a degree around you, and **Moved Right** (or Left) shows for 2 seconds. With the grip still squeezed, D-pad up or down makes the main screen more or less curved (Off, then 15° to 90° in 15° steps), and **Screen Curve: 45°** (for example) shows; it is kept for every game, and **Screen Curve** in the **VR** group sets it too. While you hold the screens the D-pad does not reach the game. A small hint under the screens lists these when you take hold.
 
-With the bottom screen in focus, it is in the main place, big, and the top screen is in the place below. Touch works on the bottom screen in either place. The screen in focus always shows; a hidden bottom screen shows while it is in focus. Immersive mode pauses while the bottom screen is in focus. Every game starts with the top screen in focus. The details are in [CONTROLS.md](CONTROLS.md#swapping-the-screens).
+With the Secondary Screen in focus, it is in the main place, big, and the Primary Screen is in the place below. Touch works on the Secondary Screen in either place. The screen in focus always shows; a hidden Secondary Screen shows while it is in focus. Immersive mode pauses while the Secondary Screen is in focus. Every game starts with the Primary Screen in focus. The details are in [CONTROLS.md](CONTROLS.md#swapping-the-screens).
 
 **Detach Screens**, on the in-game menu's **Position** tab, lets the screens move apart: **Off**, **Secondary** (the smaller screen moves on its own) or **Both** (each screen does). Grip a detached screen to take it anywhere around you; the stick of that hand sets its distance and size. Each game keeps its screen places. Details: [CONTROLS.md](CONTROLS.md#detaching-the-screens).
 
@@ -220,7 +220,7 @@ A Bluetooth or USB gamepad plays in VR alongside the Frame controllers. Pair it 
 
 **Edit Controls**, on the in-game menu's **Controls** tab, shows a New 3DS XL with a chip on each button and stick. The chip says what drives that button on the device you picked at the bottom: **Frame Controllers**, each connected gamepad by name, and **Mouse**. Select a chip and press the button you want for it. A button that already had a job swaps with it. For the Circle Pad or the C-Stick, push the stick up, then right. **Cancel** stops listening, **Reset to Default** puts the device's layout back and **Done** goes back to the Controls tab. Each kind of gamepad keeps its own layout, in `user/controller-mappings.txt`. The Frame controllers' layout is your controls profile, as in **Emulation > Configure > Controls**.
 
-A gamepad's touchpad is the Secondary Screen. The pad covers the whole screen, and a dot shows where your finger is. **Touchpad**, on the **Controls** tab, sets how it touches: **Tap for Input** (the default) touches when your finger is on the pad; **Click for Input** touches when you press the pad, and holding it down drags. Steam Input must leave the touchpad to the game: turn Steam Input off for that controller. In Edit Controls, a device with a touchpad shows the dot live on the drawing's bottom screen.
+A gamepad's touchpad is the Secondary Screen. The pad covers the whole screen, and a dot shows where your finger is. **Touchpad**, on the **Controls** tab, sets how it touches: **Tap for Input** (the default) touches when your finger is on the pad; **Click for Input** touches when you press the pad, and holding it down drags. Steam Input must leave the touchpad to the game: turn Steam Input off for that controller. In Edit Controls, a device with a touchpad shows the dot live on the drawing's Secondary Screen.
 
 **Secondary Screen Reticle**, on the **Controls** tab, lets a controller or your head aim at the Secondary Screen like a stylus, for games that aim with the touch screen, such as Kid Icarus: Uprising. Its trigger touches and its grip recentres. While it aims in a game, that controller draws no beam. **Reticle Speed**, under it, sets how far the reticle moves when you turn: at the default 2.0x your head turns about 15 degrees to cross the screen. Both can be set per game, and Kid Icarus: Uprising starts with **Headset**. Details: [CONTROLS.md](CONTROLS.md#secondary-screen-reticle).
 
@@ -313,7 +313,7 @@ Autosave makes save states of its own while you play, so you can go back a few m
 
 All three can be set for one game: in the in-game menu choose **Per-Game** (the menu opens on it while a game runs), or in the game's **Properties** choose **Set autosave** under **General > Autosave**. A game without its own values uses the ones for every game. Lowering **Keep** removes that game's extra autosaves at once; other games keep theirs until their next autosave.
 
-An autosave is also made when the in-game menu opens and when you close the game, but at most one a minute, and none in the first minute after the game starts, while a state is saved or loaded, or while the game waits for its shaders. Autosaves are separate from the 10 slots and from Quick Save: they never replace a slot, and **Load from Newest Slot** ignores them. Each one is its own file in `user/states/autosave/`, with a small picture of the top screen beside it. The one made when the menu opens has a file of its own, replaced each time, and doesn't count toward **Keep**, so opening the menu to go back never removes your oldest autosave.
+An autosave is also made when the in-game menu opens and when you close the game, but at most one a minute, and none in the first minute after the game starts, while a state is saved or loaded, or while the game waits for its shaders. Autosaves are separate from the 10 slots and from Quick Save: they never replace a slot, and **Load from Newest Slot** ignores them. Each one is its own file in `user/states/autosave/`, with a small picture of the Primary Screen beside it. The one made when the menu opens has a file of its own, replaced each time, and doesn't count toward **Keep**, so opening the menu to go back never removes your oldest autosave.
 
 Turning Autosave on or off in the in-game menu while it shows **Per-Game** changes it for that game only, and a short message says so: "Autosave On for Ocarina of Time 3D". If an autosave fails, a short message says "Couldn't Autosave", with the reason when it is known (such as "Not Enough Space"), at most once every 3 minutes.
 
@@ -350,7 +350,7 @@ Global only:
 
 ### Immersive mode
 
-Normally the top screen floats two metres away. In immersive mode the game draws a wider view, and in the Full modes its camera follows your head. Turn it on in the game's properties, on the **Graphics** tab, in the **VR** group, under **Immersive Mode**:
+Normally the Primary Screen floats two metres away. In immersive mode the game draws a wider view, and in the Full modes its camera follows your head. Turn it on in the game's properties, on the **Graphics** tab, in the **VR** group, under **Immersive Mode**:
 
 - **Wide (3DoF):** a big screen fixed in the room.
 - **Full (6DoF): Ocarina of Time, Majora's Mask:** the screen stays in front of your eyes and the game camera turns and moves with your head.
@@ -358,7 +358,7 @@ Normally the top screen floats two metres away. In immersive mode the game draws
 
 Five games start in immersive view with a setup already. Mario Kart 7 and Super Mario 3D Land start in **Full (6DoF): Other Games** with **View Matrix Register** 90, **Eye Indicator Register** `87,2` and their camera's angle; Mario Kart 7 also with **Detect Game FOV** off, **Immersive Game FOV** 40 and a screen narrowed by 30% in width and 15% in height, in **Stretch**, so its HUD at the sides comes into view; Super Mario 3D Land, Ocarina of Time 3D, Majora's Mask 3D and Asphalt 3D with both scales at +40%. Ocarina of Time 3D and Majora's Mask 3D start in **Full (6DoF): Ocarina of Time, Majora's Mask**, Majora's Mask 3D with **Detect Game FOV** off. Asphalt 3D starts in **Full (6DoF): Other Games** with register 8, from CitraVR's notes. That applies only when the game's own properties have no value of their own for each setting, and the global one is still the default. To play one of them without it, set **Immersive Mode** to **Off** in that game's properties. Any value you set yourself wins. Kid Icarus: Uprising starts in the normal view: it aims with a reticle on the screen, which cannot follow a camera turned by your head. You can still turn **Immersive Mode** on for it, in the VR menu or in its properties.
 
-**Detect Game FOV** decides where the immersive screen in the Full modes gets the game camera's angle. With **Always** (the default), it reads the angle and shape from the game itself while it runs, so the world stays still when you turn your head, also through cutscenes, zooms and widescreen mods. A new angle is followed once it has held for half a second, and the view then eases into it a little at a time, so a camera cut never makes the view jump. When the game zooms in to aim, the screen keeps its size and shape and the picture zooms, as on the 3DS. With **Once**, the game's camera is measured once while you play, for about 15 seconds, leaving out cuts and cutscenes, and the result becomes that game's **Immersive Game FOV**, which then stays as it is. A message shows the value, and you can change it like any other setting. Choose **Once** again to measure again. With **Off**, **Immersive Game FOV** (60 degrees by default) is used as you set it. It is also used until the camera is found, and in a game where it is not found. Both bumpers and **View** (or a tap of the left stick click) show or hide the bottom screen. Holding the right stick click for 1 second recentres the view.
+**Detect Game FOV** decides where the immersive screen in the Full modes gets the game camera's angle. With **Always** (the default), it reads the angle and shape from the game itself while it runs, so the world stays still when you turn your head, also through cutscenes, zooms and widescreen mods. A new angle is followed once it has held for half a second, and the view then eases into it a little at a time, so a camera cut never makes the view jump. When the game zooms in to aim, the screen keeps its size and shape and the picture zooms, as on the 3DS. With **Once**, the game's camera is measured once while you play, for about 15 seconds, leaving out cuts and cutscenes, and the result becomes that game's **Immersive Game FOV**, which then stays as it is. A message shows the value, and you can change it like any other setting. Choose **Once** again to measure again. With **Off**, **Immersive Game FOV** (60 degrees by default) is used as you set it. It is also used until the camera is found, and in a game where it is not found. Both bumpers and **View** (or a tap of the left stick click) show or hide the Secondary Screen. Holding the right stick click for 1 second recentres the view.
 
 The screen starts 3 m ahead, in the game's own shape and at the game's own scale, so nothing is magnified and the world stays put wherever you look on it. Make the screen smaller to bring the HUD at its edges in. Squeeze a grip and move your hand up or down to move it. The stick of that hand moves it farther or nearer (up or down) and makes it bigger or smaller (right or left), up to 2.5 times the starting size. The world stays where it is while you move the screen, and each game keeps it where you left it. Hold the right stick click for 1 second to put it back; that also recentres the view. SteamVR's recentre (hold the Steam button) only recentres the view and leaves the screen as it is.
 
@@ -382,11 +382,11 @@ Both Full modes have **World Scale** (how big the game world feels, 100% by defa
 
 ### Hide Secondary Screen
 
-Some games do not need the bottom screen. In a game's properties, on the **Graphics** tab, in the **VR** group, tick **Hide Secondary Screen** to show only the top screen. Hold both bumpers and press **View** to bring the bottom screen back, and again to hide it. A tap of the left stick click does the same. The setting is read when the game starts. [CONTROLS.md](CONTROLS.md) lists the controls for Ocarina of Time 3D with the Ocarina ReFramed single-screen mod, and the settings I use with Single Screen Experience.
+Some games do not need the Secondary Screen. In a game's properties, on the **Graphics** tab, in the **VR** group, tick **Hide Secondary Screen** to show only the Primary Screen. Hold both bumpers and press **View** to bring the Secondary Screen back, and again to hide it. A tap of the left stick click does the same. The setting is read when the game starts. [CONTROLS.md](CONTROLS.md) lists the controls for Ocarina of Time 3D with the Ocarina ReFramed single-screen mod, and the settings I use with Single Screen Experience.
 
 ### Screen Shape
 
-Some mods draw the top screen widescreen, squeezed into the 3DS's 5:3 picture. In a game's properties, on the **Graphics** tab, in the **VR** group, set **Screen Shape** to match: **Widescreen (16:9)** or **Ultrawide (21:9)** for a wider top screen, or **Standard (4:3)**, **3:2** or **16:10** for game cheats and mods that change the game's own aspect. The top screen keeps its height and its width follows the shape. The bottom screen stays where it was. It is also the shape of the screen in immersive mode. A change shows at once, also from the in-game menu, so you can match a mod's own aspect setting while you play. It must match what the game renders, or the picture stretches.
+Some mods draw the Primary Screen widescreen, squeezed into the 3DS's 5:3 picture. In a game's properties, on the **Graphics** tab, in the **VR** group, set **Screen Shape** to match: **Widescreen (16:9)** or **Ultrawide (21:9)** for a wider Primary Screen, or **Standard (4:3)**, **3:2** or **16:10** for game cheats and mods that change the game's own aspect. The Primary Screen keeps its height and its width follows the shape. The Secondary Screen stays where it was. It is also the shape of the screen in immersive mode. A change shows at once, also from the in-game menu, so you can match a mod's own aspect setting while you play. It must match what the game renders, or the picture stretches.
 
 ## Performance
 
@@ -461,7 +461,7 @@ A report holds the reason, the game's name and title ID, Azahar for Frame's vers
 
 ### Report a Problem
 
-For anything that isn't a crash, use **Report a Problem**: in VR it's in the menu under **Settings**, **General**, **Help**; in Flat it's under **Help**. Type what happened in **What Happened?** (Send Report needs it). Tick **Include a Screenshot** to add the game's top and bottom screens as they are now (never the VR view or the room). If the game is paused, it runs for one frame to take it. Then **See What's Sent**, **Save Report** or **Send Report**, as above; **Cancel** closes it. **About Azahar for Frame** is next to it in VR: the version, the GitHub and Ko-fi links, and the credits.
+For anything that isn't a crash, use **Report a Problem**: in VR it's in the menu under **Settings**, **General**, **Help**; in Flat it's under **Help**. Type what happened in **What Happened?** (Send Report needs it). Tick **Include a Screenshot** to add the game's Primary and Secondary Screens as they are now (never the VR view or the room). If the game is paused, it runs for one frame to take it. Then **See What's Sent**, **Save Report** or **Send Report**, as above; **Cancel** closes it. **About Azahar for Frame** is next to it in VR: the version, the GitHub and Ko-fi links, and the credits.
 
 ## Reporting a problem
 
