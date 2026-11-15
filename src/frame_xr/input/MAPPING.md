@@ -183,7 +183,10 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   mod's gyro gets zero, or, pointing into the **Turn Zone** at the screen's sides (and top and
   bottom) on the ground, the pixel at the box's edge and an outward gyro rate, depth 0 to 1
   across the zone x Turn Speed x 33.3 deg/s (`DirectAim::kTurnPushDps`): the mod drags the reticle
-  past the box and the game turns the camera by the overshoot, as with the C-Stick. In the air
+  past the box and the game turns the camera by the overshoot, as with the C-Stick. 1.2.0 RC2: the
+  push is written as that overshoot directly (the pixel past the box's edge by one game frame of
+  it, 12 px a degree), so turning no longer needs the mod's gyro; `AZAHARFRAME_KIU_TURN=mod`
+  (live) sends it to the mod's gyro as before. In the air
   nothing is pushed. While the game places the reticle itself (+0xD5) nothing is written. When
   the reticle cannot be read (not Kid Icarus, the mod's code patterns not found, no reticle, a
   value out of range) nothing is written and Light Gun uses Gyro instead and says why once in the

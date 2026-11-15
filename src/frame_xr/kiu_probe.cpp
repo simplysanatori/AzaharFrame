@@ -63,6 +63,7 @@ struct Probe {
     uint32_t gyro_polls = 0;
     Common::Vec3f last_gyro{};
     float last_scale = 1.0f;
+    bool direct_turn = true; ///< the Turn Zone writes past the box (not the mod's gyro)
 };
 
 Probe& TheProbe() {
@@ -254,21 +255,37 @@ void AimPoll(int64_t ticks) {
                      Input::DirectAim::Turn{frame.zone_fraction, frame.zone_from, frame.turn_speed,
                                             frame.turn_speed_vertical}, // AzaharFrame fixa
                      frame.clutch || frame.stick);
-    if (out.write && (out.x != reading.x || out.y != reading.y)) {
+    // 1.2.0 RC2 (the owner): the Turn Zone turns the game's camera itself, not through the mod's
+    // gyro. The game's clamp (0x6D2C08) turns the camera by what it clamps off the reticle past
+    // the aim box, so the pixel is written past the box's edge by one game frame of the push
+    // (kTurnPxPerDeg x the push's degrees a second / 60: one screen width a second at full depth
+    // and Turn Speed 1.0x, as the mod's drag was); the mod's gyro gets zero. Live test switch
+    // AZAHARFRAME_KIU_TURN=mod: the push goes to the mod's gyro as before.
+    const bool direct_turn =
+        Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_TURN").value_or("direct") != "mod";
+    Input::DirectAim::Out write = out;
+    if (direct_turn && out.write && out.turning) {
+        constexpr float kTurnPxPerDeg = 12.0f;
+        constexpr float kGameFrameS = 1.0f / 60.0f;
+        write.x += out.right_dps * kTurnPxPerDeg * kGameFrameS;
+        write.y += out.down_dps * kTurnPxPerDeg * kGameFrameS;
+    }
+    p.direct_turn = direct_turn;
+    if (write.write && (write.x != reading.x || write.y != reading.y)) {
         // Only these two floats of the object the guards just checked; the game reads them at
         // its next frame and adds its own moves.
         Core::System& system = Core::System::GetInstance();
         for (const std::shared_ptr<Kernel::Process>& process : system.Kernel().GetProcessList()) {
             if (process.get() == p.process) {
-                system.Memory().Write32(*process, p.object + kReticleX, FloatBits(out.x));
-                system.Memory().Write32(*process, p.object + kReticleY, FloatBits(out.y));
+                system.Memory().Write32(*process, p.object + kReticleX, FloatBits(write.x));
+                system.Memory().Write32(*process, p.object + kReticleY, FloatBits(write.y));
                 p.writes++;
                 break;
             }
         }
     }
-    p.push_right = out.right_dps;
-    p.push_down = out.down_dps;
+    p.push_right = direct_turn ? 0.0f : out.right_dps;
+    p.push_down = direct_turn ? 0.0f : out.down_dps;
     p.last_out = out;
     p.last_target = target;
     p.locked = true;
@@ -293,7 +310,7 @@ void AimPoll(int64_t ticks) {
                                            target.resting ? " resting" : "")
                              : std::string{},
                  !target.valid ? ", off the top screen"
-                 : out.write   ? fmt::format(", written {:.1f}, {:.1f}", out.x, out.y)
+                 : out.write   ? fmt::format(", written {:.1f}, {:.1f}", write.x, write.y)
                                : std::string{},
                  frame.stick           ? ", C-Stick steers"
                  : frame.clutch        ? ", paused"
@@ -302,9 +319,10 @@ void AimPoll(int64_t ticks) {
                  : out.turning         ? ", turning"
                                        : "",
                  // 1.2.0 RC2: the push and what the game's gyroscope was given
-                 fmt::format("; push {:.1f} right {:.1f} down dps, gyro {:.1f} {:.1f} {:.1f} "
+                 fmt::format("; {} push {:.1f} right {:.1f} down dps, gyro {:.1f} {:.1f} {:.1f} "
                              "(scale {:.2f}, {} polls)",
-                             out.right_dps, out.down_dps, p.last_gyro.x, p.last_gyro.y,
+                             p.direct_turn ? "direct" : "mod", out.right_dps, out.down_dps,
+                             p.last_gyro.x, p.last_gyro.y,
                              p.last_gyro.z, p.last_scale, p.gyro_polls));
         p.gyro_polls = 0;
     }
