@@ -38,6 +38,7 @@
 #include "frame_xr/toast_depth.h"   // AzaharFrame integ9: ScreenUse
 #include "frame_xr/ui_sound.h" // AzaharFrame menuux
 #include "frame_xr/vis/layer_plan.h" // AzaharFrame vis
+#include "frame_xr/vis/proj_path.h"   // AzaharFrame projdef
 #include "frame_xr/vis/proj_screen.h" // AzaharFrame projscreen
 #include "frame_xr/vis/proj_screen_layer.h"
 #include "frame_xr/watchdog.h"
@@ -569,18 +570,22 @@ void Runtime::FrameLoop() {
             Common::FrameTestSwitches::Value("AZAHARFRAME_XR_FLASH_BACKING"));
     };
     read_clarity_switches();
-    // AzaharFrame projscreen: AZAHARFRAME_XR_SCREENS_IN_PROJECTION and AZAHARFRAME_XR_PROJ_SCALE,
-    // live (vis/proj_screen.h): the top screen drawn into the projection layer, not sent as a quad.
+    // AzaharFrame projscreen: the top screen drawn into the projection layer, not sent as a quad
+    // (vis/proj_screen.h). projdef: the default in the Full modes with Motion Clarity off
+    // (vis/proj_path.h); AZAHARFRAME_XR_SCREENS_IN_PROJECTION (live) forces it on (1) or off (0)
+    // for an A/B; AZAHARFRAME_XR_PROJ_SCALE (live) sizes the pass.
     const auto read_proj = [] {
-        return TestSwitches::OnFrom(
+        return Vis::ProjForcedFrom(
             Common::FrameTestSwitches::Value(Vis::kScreensInProjectionSwitch));
     };
-    bool test_proj = read_proj();
+    std::optional<bool> proj_forced = read_proj();
     float test_proj_scale =
         Vis::ProjScaleFrom(Common::FrameTestSwitches::Value(Vis::kProjScaleSwitch));
-    if (test_proj) {
-        LOG_INFO(Frontend, "xr: projection screens on at start (scale {:.2f})", test_proj_scale);
+    if (proj_forced) {
+        LOG_INFO(Frontend, "xr: projection screens forced {} at start (scale {:.2f})",
+                 *proj_forced ? "on" : "off", test_proj_scale);
     }
+    Vis::PathChoice proj_choice; // AzaharFrame projdef
     Vis::ProjScreens proj;
     // The top screen's quads, sent instead while the projection layer has no image with it yet.
     struct TopFallback {
@@ -607,11 +612,13 @@ void Runtime::FrameLoop() {
                 read_clarity_switches(); // AzaharFrame flash
             } else if (c.name == Vis::kScreensInProjectionSwitch ||
                        c.name == Vis::kProjScaleSwitch) { // AzaharFrame projscreen
-                test_proj = read_proj();
+                proj_forced = read_proj();
                 test_proj_scale =
                     Vis::ProjScaleFrom(Common::FrameTestSwitches::Value(Vis::kProjScaleSwitch));
                 LOG_INFO(Frontend, "xr: projection screens {} (scale {:.2f})",
-                         test_proj ? "on" : "off", test_proj_scale);
+                         proj_forced ? (*proj_forced ? "forced on" : "forced off")
+                                     : "by the settings",
+                         test_proj_scale);
             } else if (c.name == Vis::kProjMarksSwitch || c.name == Vis::kProjAlsoQuadsSwitch) {
                 // read by the pass every frame
             } else if (c.name == "AZAHARFRAME_XR_IMAGE_LAG") {
@@ -816,8 +823,29 @@ void Runtime::FrameLoop() {
             }
         }
         ui_quads.clear();
+        // AzaharFrame projdef: the top screen's path from the settings (vis/proj_path.h), after the
+        // callbacks (Immersive's state for this frame), before the panels and the models' pass.
+        bool want_proj = false;
+        {
+            const Immersive::PathState ps = Immersive::ScreensPathState();
+            Vis::PathInputs pin;
+            pin.forced = proj_forced;
+            pin.game_on_view = ps.game_on_view;
+            pin.full_mode = ps.full_mode;
+            // AZAHARFRAME_XR_SINGLE_FLASH (Motion Clarity's override) counts as the setting.
+            pin.clarity = clarity_override.value_or(Settings::values.vr_motion_clarity.GetValue());
+            pin.now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                             Clock::now().time_since_epoch())
+                             .count();
+            want_proj = proj_choice.Next(pin);
+            if (proj_choice.TakeChanged()) {
+                LOG_INFO(Frontend, "xr: top screen path: {} ({})",
+                         want_proj ? "the projection layer" : "quads",
+                         Vis::PathWhyText(proj_choice.Why()));
+            }
+        }
         if (ui) {
-            ui->SetScreensInProjection(test_proj, test_proj_scale); // AzaharFrame projscreen
+            ui->SetScreensInProjection(want_proj, test_proj_scale); // AzaharFrame projscreen
             ui->Frame(*this, info, ui_quads);
         }
 
@@ -887,7 +915,7 @@ void Runtime::FrameLoop() {
         proj_fallback.clear();
         std::size_t proj_at = 0;
         bool proj_placed = false;
-        const bool proj_mode = test_proj && ui && fs.shouldRender;
+        const bool proj_mode = want_proj && ui && fs.shouldRender; // AzaharFrame projdef
         const bool proj_also_quads = // AzaharFrame projscreen: a mock check only
             proj_mode && TestSwitches::OnFrom(Common::FrameTestSwitches::Value(Vis::kProjAlsoQuadsSwitch));
         if (fs.shouldRender && screens_live) {

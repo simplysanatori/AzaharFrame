@@ -759,14 +759,32 @@ Two more switches with it, for every mode (docs/TECHNICAL_NOTES.md): both eyes' 
 swapchain (`AZAHARFRAME_XR_PACKED`) and one game frame's screens released together
 (`AZAHARFRAME_XR_SET_RELEASE`), so the two eyes never come from different game frames.
 
-### The top screen in the projection layer (AzaharFrame projscreen, a test switch)
+### The top screen in the projection layer (AzaharFrame projscreen; the Full modes' default since projdef)
 
 SteamVR 2.19.3 turns each quad layer into an overlay whose texture and transform it sets with
 separate calls, with no display time and no fence, and its compositor latches overlay textures on
 its own schedule (handoff report 55/flash/overlay-path.md). So a held picture's image and pose need
 not reach the display together: the likely cause of the doubling that no image lag setting fixes.
-`AZAHARFRAME_XR_SCREENS_IN_PROJECTION=1` (live, in the test-switch file) sends the top screen
-through the projection layer instead, the one submit that carries image and views together:
+The projection layer is the one submit that carries image and views together.
+
+Which path the top screen takes (projdef, `vis/proj_path.h`, after the owner's A/B in 1.1.1-590):
+
+- In the Full modes (2 and 3) with Motion Clarity not wanted there (`vr_motion_clarity` and
+  `vr_motion_clarity_immersive` not both on), the projection layer. With it, the quads, flashed
+  (Motion Clarity needs them: a dark refresh is a quad shrunk to nothing).
+- In the normal and the wide view (modes 0 and 1), the quads: a screen fixed in the room is not
+  exposed to the overlay race, and the quads are sharper and cheaper there (one resample, no pass).
+- The choice follows the settings, not a frame's state: a pause, the VR menu or the bottom screen
+  in focus keeps the path. With no game on view (a boot, a Quick Load, the session hidden) the
+  last choice holds 10 s (`kNoGameHoldNs`), then the quads. Each change is logged
+  (`xr: top screen path: ...`) and makes the models' pass again (the controllers are missing for
+  0.1 to 0.3 s); every slot of the old pass's swapchain leaves the layer list first
+  (`retired_swapchains.h`, `LayerSlots::Map::Forget`).
+- `AZAHARFRAME_XR_SCREENS_IN_PROJECTION` (live, in the test-switch file) is now an override for an
+  A/B: `1` forces the projection layer in every mode (and at home, as the test builds did), `0`
+  forces the quads; unset, the settings decide.
+
+On the projection path:
 
 - The controller models' pass (`vis/controller_models.cpp`) draws it each refresh on the XR thread
   (`FrameScreens`, after the screens are placed, under the screens lock), as a textured quad or a
@@ -782,8 +800,9 @@ through the projection layer instead, the one submit that carries image and view
   layer in screens mode, never the eye quads (they would be overlays again), and no occluders are
   drawn: the bottom screen, panels and menus are quads over the layer, so the controllers stay
   behind those whatever the choice.
-- Motion Clarity is not in effect while the switch is on (projb), whatever its setting or
-  `AZAHARFRAME_XR_SINGLE_FLASH`: the flashing hid a held picture shown with another picture's
+- Motion Clarity is not in effect on this path (projb), whatever its setting or
+  `AZAHARFRAME_XR_SINGLE_FLASH` (by the settings the path is only taken with it off; the switch
+  can force it): the flashing hid a held picture shown with another picture's
   pose, which this path does not do, and a refresh the pass is late shows the image before again,
   so a dark refresh would not stay one. No black backing is sent under a projected screen.
 - The pass is then made at the runtime's recommended eye size (`AZAHARFRAME_XR_PROJ_SCALE`, live,

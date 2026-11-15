@@ -2,7 +2,8 @@
 // Licensed under GPLv3 or any later version
 // Refer to the license.txt file included.
 
-// AzaharFrame projscreen (a spike behind the live test switch AZAHARFRAME_XR_SCREENS_IN_PROJECTION=1)
+// AzaharFrame projscreen (the Full modes' default since projdef, vis/proj_path.h; the live test switch
+// AZAHARFRAME_XR_SCREENS_IN_PROJECTION forces it on or off)
 //
 // SteamVR 2.19.3 turns every OpenXR quad layer into an IVROverlay overlay whose texture, transform
 // and visibility are separate calls with no display time and no fence (reports/55/flash/
@@ -10,7 +11,7 @@
 // picture held over two refreshes can be shown with the pose of the picture before or after it:
 // the doubling. A projection layer is one submit, image and views together.
 //
-// With the switch on, the top game screen is not sent as a quad: the XR thread draws it into the
+// On this path the top game screen is not sent as a quad: the XR thread draws it into the
 // controller models' projection layer (controller_models.h) every refresh, as a textured quad (or
 // a section of a cylinder) at exactly the pose and size the quad would have had (Immersive::Screens
 // and ScreenDraw, the same per-eye quads, HeldQuad warp included), seen through that refresh's own
@@ -30,7 +31,7 @@
 
 namespace FrameXr::Vis {
 
-/// The live test switch (test_switches.h kLive).
+/// The live test switch (test_switches.h kLive): an override of the settings' path (proj_path.h).
 inline constexpr const char* kScreensInProjectionSwitch = "AZAHARFRAME_XR_SCREENS_IN_PROJECTION";
 /// The eye buffer's size, a factor of the runtime's recommended size (live: the pass is made again).
 inline constexpr const char* kProjScaleSwitch = "AZAHARFRAME_XR_PROJ_SCALE";
