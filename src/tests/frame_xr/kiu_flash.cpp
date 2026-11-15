@@ -619,6 +619,47 @@ TEST_CASE("Projectiles: from the muzzle into the screen, several at once", "[kiu
     CHECK(p.Current(t - 2'000 * kMs).empty());
 }
 
+// AzaharFrame fixc: the 5 s summary: seen, fired, drawn, skipped by reason; quiet without shots.
+TEST_CASE("Projectiles: the 5 s summary", "[kiuflash][fixc]") {
+    Vis::ShotLog log;
+    constexpr int64_t s = 1'000'000'000;
+    CHECK_FALSE(log.Take(0)); // starts the count
+    CHECK_FALSE(log.Take(6 * s)); // nothing happened: nothing logged
+    log.Seen(4);
+    log.Fired(140'000'000, 1.62f, 0.07f);
+    log.SetOpacity(0.6f);
+    log.Fired(150'000'000, 1.70f, 0.07f);
+    log.Skipped(Vis::ShotSkip::NoTarget);
+    log.Skipped(Vis::ShotSkip::SameFrame, 1);
+    log.Drawn(1);
+    log.Drawn(1); // the same projectile again (the other eye): once
+    log.Drawn(2);
+    CHECK_FALSE(log.Take(10 * s)); // not 5 s yet
+    const auto line = log.Take(11 * s + 1);
+    REQUIRE(line);
+    CHECK(*line == "xr: projectiles (5 s): 4 shots seen, 2 fired, 2 drawn; skipped: 1 no point "
+                   "on the Primary Screen, 1 several in one refresh; last 150 ms over 1.70 m, "
+                   "7 cm across; Projectile Opacity 60%");
+    // Cleared; the drawn serials go on (an old one is not counted again).
+    CHECK_FALSE(log.Take(17 * s));
+    log.Seen(2);
+    log.Drawn(2);
+    const auto quiet = log.Take(23 * s);
+    REQUIRE(quiet);
+    CHECK(*quiet == "xr: projectiles (6 s): 2 shots seen, 0 fired, 0 drawn; skipped: 2 while the "
+                    "models' pass was not ready");
+    log.Seen(1);
+    log.Fired(110'000'000, 1.0f, 0.12f);
+    log.Drawn(3);
+    const auto all = log.Take(29 * s);
+    REQUIRE(all);
+    CHECK(all->find("1 shots seen, 1 fired, 1 drawn; none skipped") != std::string::npos);
+    // Projectiles::Fire gives the flight it chose.
+    Vis::Projectiles p;
+    CHECK(p.Fire({0, 0, 0}, {0, 0, -1.4f}, false, 0, 1.0f, 1.0f) ==
+          Vis::ShotFlightNs(1.4f, false, 1.0f));
+}
+
 TEST_CASE("Projectiles: a bullet turned the way it flies", "[kiuflash]") {
     std::mt19937 rng(11);
     std::uniform_real_distribution<float> u(-1.0f, 1.0f);

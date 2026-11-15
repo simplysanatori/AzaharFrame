@@ -362,6 +362,13 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   at once, turning slowly about the way they fly (the bullets' own animations are not read).
   Projectiles is mirrored in `vr_controls_preset_done` bits 30 and 31; Size and Speed are plain
   new keys. Test switch (live): `AZAHARFRAME_KIU_SHOT=speed,size` (factors on top).
+  AzaharFrame fixc: a cannon's fly from its mouth along its barrel (with Gyro Aim to where the
+  barrel's ray meets the top screen). Every 5 s with shots, one log line (`vis/projectile.h`
+  ShotLog): `xr: projectiles (5 s): N shots seen, N fired, N drawn; skipped: ...` with the reasons
+  (no point on the Primary Screen, no weapon fitted, the weapon in the other hand, the weapon not
+  loaded yet, several in one refresh, or the models' pass not ready), then the last shot's flight
+  (ms, metres), its size and Projectile Opacity. A refresh the runtime does not draw keeps the
+  shots' signal (it cleared the projectiles in flight and swallowed the next shot).
   **Projectile Opacity** (`vr_light_gun_projectile_opacity`, per game too, 20 to 100 %, 100 % by
   default; the first row under Projectiles while it is on, above Projectile Size; AzaharFrame
   kiuopacity): the same see-through drawing as Weapon Opacity for the bullets in flight (solid

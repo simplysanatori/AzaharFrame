@@ -786,6 +786,26 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         DestroyXr();
     }
 
+    // AzaharFrame fixc: the game's shots seen while Projectiles is on (the 5 s summary), here
+    // before anything can return early.
+    {
+        bool on = false;
+        for (const Hand& hand : hands) {
+            if (!hand.shots.on) {
+                continue;
+            }
+            if (on) {
+                break; // one hand's shots (the aiming hand's)
+            }
+            on = true;
+            if (shot_log_on && hand.shots.shots != shot_log_shots) {
+                shot_log.Seen(hand.shots.shots - shot_log_shots);
+            }
+            shot_log_shots = hand.shots.shots;
+        }
+        shot_log_on = on;
+    }
+
     // ---- The files, once a run, on a thread ----
     if (load_state == 0) {
         if (!any) {
@@ -912,9 +932,18 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                 shots_seen = sig.shots; // what came before is not fired
             }
             if (sig.shots != shots_seen) {
+                const uint32_t new_shots = sig.shots - shots_seen;
                 shots_seen = sig.shots;
-                if (sig.target_valid && muzzle && muzzle_hand == h && g.weapon_live &&
-                    g.weapon_live->id == hand.weapon) {
+                // AzaharFrame fixc: why a shot is not fired, for the 5 s summary.
+                const ShotSkip skip = !sig.target_valid ? ShotSkip::NoTarget
+                                      : !muzzle         ? ShotSkip::NoMuzzle
+                                      : muzzle_hand != h ? ShotSkip::OtherHand
+                                      : !g.weapon_live || g.weapon_live->id != hand.weapon
+                                          ? ShotSkip::NotLoaded
+                                          : ShotSkip::Count;
+                if (skip != ShotSkip::Count) {
+                    shot_log.Skipped(skip, new_shots);
+                } else {
                     const XrPosef aim = ToXr(hand.aim);
                     const Mat aim_m = FromPose(aim.orientation, aim.position);
                     const float push = (muzzle_fist ? g.weapon_live->flash_push_fist
@@ -925,8 +954,18 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
                     const ShotOrigin o =
                         ShotOriginFor(*muzzle, push, muzzle_barrel ? axis : std::nullopt);
                     const auto from = Apply(aim_m, o.from[0], o.from[1], o.from[2], 1.0f);
-                    projectiles.Fire({from[0], from[1], from[2]}, sig.target, sig.charged, now,
-                                     sig.speed, sig.size);
+                    const int64_t flight = projectiles.Fire({from[0], from[1], from[2]},
+                                                            sig.target, sig.charged, now,
+                                                            sig.speed, sig.size);
+                    const float dx = sig.target[0] - from[0], dy = sig.target[1] - from[1],
+                                dz = sig.target[2] - from[2];
+                    shot_log.Fired(flight, std::sqrt(dx * dx + dy * dy + dz * dz),
+                                   (sig.charged ? kChargedSizeM : kRapidSizeM) *
+                                       std::clamp(sig.size, 0.25f, 4.0f));
+                    shot_log.SetOpacity(sig.opacity);
+                    if (new_shots > 1) {
+                        shot_log.Skipped(ShotSkip::SameFrame, new_shots - 1);
+                    }
                 }
             }
         }
@@ -935,6 +974,9 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         }
         shots_was_on = on;
         shot_draws = projectiles.Current(now);
+        if (const auto line = shot_log.Take(now)) { // AzaharFrame fixc
+            LOG_INFO(Frontend, "{}", *line);
+        }
     }
     if (!any) {
         g.shown_fresh = false; // when they come back, a new image first
@@ -2589,6 +2631,9 @@ void ControllerModels::Record(const ViewPose& views, const std::array<Hand, 2>& 
                 if (!shot_draws.empty() && hand.shots.on) {
                     RecordShots(c, g, *g.weapon_live, view_proj, views.head, hand.fade,
                                 hand.shots.opacity, shot_draws);
+                    for (const ShotDraw& d : shot_draws) { // AzaharFrame fixc
+                        shot_log.Drawn(d.serial);
+                    }
                 }
                 continue;
             }

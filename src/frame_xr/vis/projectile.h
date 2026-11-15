@@ -68,8 +68,9 @@ class Projectiles {
 public:
     /// A shot: from the muzzle to the screen's point (the room), at `now_ns`. `speed` and `size`
     /// are Projectile Speed and Projectile Size as factors (1 = 100 %).
-    void Fire(const std::array<float, 3>& from, const std::array<float, 3>& to, bool charged,
-              int64_t now_ns, float speed, float size);
+    /// AzaharFrame fixc: returns its flight time (ns, ShotFlightNs).
+    int64_t Fire(const std::array<float, 3>& from, const std::array<float, 3>& to, bool charged,
+                 int64_t now_ns, float speed, float size);
     /// What to draw now (shots done are let go).
     std::vector<ShotDraw> Current(int64_t now_ns);
     std::size_t InFlight() const {
@@ -89,6 +90,60 @@ private:
     };
     std::vector<Shot> shots_;
     uint32_t serial_ = 0;
+};
+
+/// AzaharFrame fixc: why one of the game's shots was not fired as a projectile.
+enum class ShotSkip : uint8_t {
+    NoTarget,    ///< the aim ray met no point on the Primary Screen (ShotSignal::target_valid)
+    NoMuzzle,    ///< no weapon fitted in that hand this frame
+    OtherHand,   ///< the weapon is fitted in the other hand
+    NotLoaded,   ///< the weapon in hand is not the one on the GPU yet
+    SameFrame,   ///< more than one shot between two refreshes: one projectile for them
+    Count,
+};
+/// AzaharFrame fixc: a summary of the projectiles every kShotLogNs (logged by
+/// ControllerModels, only when there were shots): the game's shots seen while Projectiles is on,
+/// the projectiles fired and drawn, and the shots skipped by reason; seen shots neither fired
+/// nor skipped arrived while the models' pass was not ready. Also the last shot's flight (ms,
+/// metres) and size, and Projectile Opacity, so a shot that flew but was hard to see shows.
+inline constexpr int64_t kShotLogNs = 5'000'000'000;
+class ShotLog {
+public:
+    void Seen(uint32_t n) {
+        seen_ += n;
+    }
+    void Fired(int64_t flight_ns, float metres, float size_m) {
+        fired_++;
+        flight_ns_ = flight_ns;
+        metres_ = metres;
+        size_m_ = size_m;
+    }
+    void Skipped(ShotSkip why, uint32_t n = 1) {
+        if (why < ShotSkip::Count) {
+            skipped_[static_cast<std::size_t>(why)] += n;
+        }
+    }
+    /// A projectile drawn (each once: its serial, increasing).
+    void Drawn(uint32_t serial) {
+        if (serial > drawn_serial_) {
+            drawn_serial_ = serial;
+            drawn_++;
+        }
+    }
+    void SetOpacity(float opacity) {
+        opacity_ = opacity;
+    }
+    /// The line to log at `now_ns`, every kShotLogNs, when there were shots in that time
+    /// (cleared then); none otherwise.
+    std::optional<std::string> Take(int64_t now_ns);
+
+private:
+    int64_t start_ns_ = -1;
+    uint32_t seen_ = 0, fired_ = 0, drawn_ = 0;
+    std::array<uint32_t, static_cast<std::size_t>(ShotSkip::Count)> skipped_{};
+    uint32_t drawn_serial_ = 0;
+    int64_t flight_ns_ = 0;
+    float metres_ = 0.0f, size_m_ = 0.0f, opacity_ = 1.0f;
 };
 
 /// AZAHARFRAME_KIU_SHOT=speed,size (factors on top of the settings; unset: 1, 1).

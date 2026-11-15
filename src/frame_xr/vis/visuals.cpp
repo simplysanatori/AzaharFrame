@@ -1097,6 +1097,14 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             out.flash = h == m.weapon_hand ? m.flash : FlashFrame{}; // AzaharFrame kiuflash
             out.shots = h == m.shots_hand ? m.shots : ShotSignal{};
         }
+    } else if (ControllerModelsWanted(Settings::values.vr_show_controllers.GetValue(),
+                                      passthrough_shown)) {
+        // AzaharFrame fixc: a refresh the runtime does not draw still carries the shots' signal
+        // (nothing is shown): without it the projectiles in flight were cleared and the next
+        // shot was taken as already seen.
+        for (int h = 0; h < Input::kNumHands; h++) {
+            hands[static_cast<std::size_t>(h)].shots = h == m.shots_hand ? m.shots : ShotSignal{};
+        }
     }
     // AzaharFrame ctrlfront: "Controllers in Front of Screen", read every frame (model_plane.h).
     const ControllersInFront choice =

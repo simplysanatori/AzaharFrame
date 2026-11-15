@@ -156,6 +156,9 @@ private:
     std::vector<ShotDraw> shot_draws; ///< this frame's
     uint32_t shots_seen = 0;
     bool shots_was_on = false;
+    ShotLog shot_log;            ///< AzaharFrame fixc: the 5 s summary
+    uint32_t shot_log_shots = 0; ///< AzaharFrame fixc: the shots seen at the top of Frame
+    bool shot_log_on = false;
     float weapon_clip = 0.0f;         ///< FitClipX: a palm's forearm cut (weapon space)
     bool palm_elbow = false;          ///< the palm's forearm drawn apart, turned to the elbow
     FitMat palm_turn{};               ///< that turn about the wrist (LOCAL space)
