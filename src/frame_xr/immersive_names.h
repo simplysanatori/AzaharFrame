@@ -158,8 +158,7 @@ inline constexpr const char* kScreenAsPanelTip =
     "Experimental. Draws the Primary screen as a separate panel in the Full modes. It may double "
     "on fast head turns.";
 inline constexpr const char* kScreenAsPanelNote = "Used by Motion Clarity";
-inline constexpr const char* kScreenAsPanelOnToast =
-    "Primary Screen as Panel: Experimental \u00b7 May Double";
+inline constexpr const char* kScreenAsPanelOnToast = "Primary Screen as Panel: May Double";
 inline constexpr const char* kScreenAsPanelOffToast = "Primary Screen as Panel: Off";
 
 /// The toast after resizing the screen with Follow Screen Size on.
