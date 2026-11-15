@@ -66,7 +66,19 @@ struct Probe {
     Common::Vec3f last_gyro{};
     float last_scale = 1.0f;
     bool direct_turn = true; ///< the Turn Zone writes past the box (not the mod's gyro)
+    // 1.2.0 RC2: the mod's stick counter (state + kModStickCounter) and flags (+kModFlags) as
+    // last read, and how often the counter was cleared since the last trace line.
+    uint32_t mod_counter = 0;
+    uint8_t mod_flags = 0;
+    uint32_t counter_resets = 0;
 };
+
+// 1.2.0 RC2 (the owner: touching the C-Stick stopped the Turn Zone for good): the mod keeps a
+// counter of its stick (MAPPING.md: 0xF35D88 with the state at 0xF35D40) and, while it is set,
+// stretches the reticle's box to the whole screen (0xF45450, 0xF5B118), so a pixel past the
+// game's box is no longer clamped and nothing turns. Its flags (0xF35D74) are logged with it.
+constexpr uint32_t kModStickCounter = 0x48;
+constexpr uint32_t kModFlags = 0x34;
 
 Probe& TheProbe() {
     static Probe probe;
@@ -266,6 +278,33 @@ void AimPoll(int64_t ticks) {
     const bool direct_turn =
         Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_TURN").value_or("direct") != "mod";
     Input::DirectAim::Out write = out;
+    {
+        Memory::MemorySystem& memory = Core::System::GetInstance().Memory();
+        for (const std::shared_ptr<Kernel::Process>& process :
+             Core::System::GetInstance().Kernel().GetProcessList()) {
+            if (process.get() != p.process) {
+                continue;
+            }
+            const uint32_t counter_at = p.addr.state + kModStickCounter;
+            if (memory.IsValidVirtualAddress(*process, counter_at) &&
+                memory.IsValidVirtualAddress(*process, counter_at + 3) &&
+                memory.IsValidVirtualAddress(*process, p.addr.state + kModFlags)) {
+                p.mod_counter = memory.Read32(*process, counter_at);
+                p.mod_flags = memory.Read8(*process, p.addr.state + kModFlags);
+                // The Turn Zone wants a turn, the stick is let go and the counter is still set:
+                // clear it, so the game's box (and its turn) is back. Live test switch
+                // AZAHARFRAME_KIU_STICK_RESET=0 leaves it alone.
+                const bool reset = Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_STICK_RESET")
+                                       .value_or("1") != "0";
+                if (reset && direct_turn && out.turning && !frame.stick && !frame.clutch &&
+                    p.mod_counter != 0) {
+                    memory.Write32(*process, counter_at, 0);
+                    p.counter_resets++;
+                }
+            }
+            break;
+        }
+    }
     if (direct_turn && out.write && out.turning) {
         constexpr float kTurnPxPerDeg = 12.0f;
         constexpr float kGameFrameS = 1.0f / 60.0f;
@@ -341,11 +380,13 @@ void AimPoll(int64_t ticks) {
                                        : "",
                  // 1.2.0 RC2: the push and what the game's gyroscope was given
                  fmt::format("; {} push {:.1f} right {:.1f} down dps, gyro {:.1f} {:.1f} {:.1f} "
-                             "(scale {:.2f}, {} polls)",
+                             "(scale {:.2f}, {} polls); mod flags {:02X} stick {:08X}, {} cleared",
                              p.direct_turn ? "direct" : "mod", out.right_dps, out.down_dps,
                              p.last_gyro.x, p.last_gyro.y,
-                             p.last_gyro.z, p.last_scale, p.gyro_polls));
+                             p.last_gyro.z, p.last_scale, p.gyro_polls, p.mod_flags,
+                             p.mod_counter, p.counter_resets));
         p.gyro_polls = 0;
+        p.counter_resets = 0;
     }
 }
 
