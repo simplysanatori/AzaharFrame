@@ -101,8 +101,6 @@ struct Probe {
 /// the reticle back into the box and turns by the rest (MAPPING.md, the Frame mock's C-Stick run).
 constexpr uint32_t kReticleClampFlags = 0x84;
 constexpr uint32_t kClampBit = 0x08; // the owner's 698 trace: 0x41 at rest, 0x49 while the game turns
-/// A turn with no clamp flag seen for this long: the box is stretched (the mod's whole screen).
-constexpr int64_t kStretchedAfterNs = 80'000'000;
 
 // 1.2.0 RC2 (the owner: touching the C-Stick stopped the Turn Zone for good): the mod keeps a
 // counter of its stick (MAPPING.md: 0xF35D88 with the state at 0xF35D40) and, while it is set,
@@ -449,9 +447,7 @@ void AimPoll(int64_t ticks) {
                                     -kMaxOvershootPx, kMaxOvershootPx);
         const float oy = std::clamp(out.down_dps * kTurnPxPerDeg * kGameFrameS * gy,
                                     -kMaxOvershootPx, kMaxOvershootPx);
-        // Each turn starts on the box's edge; when the game's clamp flag has not shown within
-        // kStretchedAfterNs, the box is stretched and the pixel goes past the screen's edge for
-        // the rest of this turn (the clamp there may set the flag again: no flip-flop).
+        // The game's clamp flag is still read for the trace (clamp_seen).
         if (!p.was_turning) {
             p.was_turning = true;
             p.turn_start_ns = host_now;
@@ -461,28 +457,34 @@ void AimPoll(int64_t ticks) {
         if ((p.clamp_word & kClampBit) != 0) {
             p.clamp_seen = true;
         }
-        // Only a sideways push tells: the game's flag shows for its sideways clamp, never for the
-        // top or bottom (the owner's 699 trace), so a vertical turn never counts as stretched.
-        if (ox == 0.0f) {
-            p.turn_start_ns = host_now;
-        } else if (!p.clamp_seen && host_now - p.turn_start_ns > kStretchedAfterNs) {
-            p.stretched = true;
-        }
+        // The owner's 704 run (the reticle's +0x80 to +0x100 logged before and after): the only
+        // lasting change the C-Stick leaves is the reticle's bit 2 (+0x84: 0x41 -> 0x43, back to
+        // 0x41 when the battle is left; the game sets it again every frame). With it set the game
+        // no longer turns at its box's edge, only past the screen's edge (699, 701: 0x4B there).
+        // So with bit 2 set the pixel goes past the screen's edge by the overshoot x live test
+        // switch AZAHARFRAME_KIU_STRETCH_GAIN (sideways, default 0.25) and _GAIN_Y (up and down,
+        // default 0.25); AZAHARFRAME_KIU_STRETCH_EDGE=0 turns it off.
+        p.stretched = (p.clamp_word & kReticleStickBit) != 0;
         const bool screen_edge =
             p.stretched && Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_STRETCH_EDGE")
-                                   .value_or("0") == "1";
+                                   .value_or("1") != "0";
         if (screen_edge) {
-            // Past the screen's own edge sideways, the whole-screen box clamps there; the game turns
-            // far more per pixel there (the owner's 699 trace: a full spin), so the overshoot is
-            // scaled: live test switch AZAHARFRAME_KIU_STRETCH_GAIN (default 0.25). Up and down as
-            // usual.
             const float sg = gain("AZAHARFRAME_KIU_STRETCH_GAIN", 0.25f);
+            const float sgy = gain("AZAHARFRAME_KIU_STRETCH_GAIN_Y", 0.25f);
             if (ox > 0.0f) {
                 write.x = reading.w + ox * sg;
             } else if (ox < 0.0f) {
                 write.x = ox * sg;
+            } else {
+                write.x += ox;
             }
-            write.y += oy;
+            if (oy > 0.0f) {
+                write.y = reading.h + oy * sgy;
+            } else if (oy < 0.0f) {
+                write.y = oy * sgy;
+            } else {
+                write.y += oy;
+            }
         } else {
             write.x += ox;
             write.y += oy;
