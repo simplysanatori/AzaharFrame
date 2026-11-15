@@ -449,6 +449,27 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
     builds_queued_seen = builds_queued;
     builds_done_seen = builds_done;
     skips_seen = skips;
+    // AzaharFrame projdef: the GPU's real busy time a refresh (timestamps): the renderer's command
+    // buffers (the game, vk_gpu_busy.h) and the XR thread's controller and projection pass, against
+    // the refresh period (SteamVR's own work is not in it).
+    const std::string busy = [&] {
+        const uint64_t emu_ns = telemetry.gpu_busy_ns.exchange(0);
+        const uint64_t emu_n = telemetry.gpu_busy_buffers.exchange(0);
+        const uint64_t pass_ns = telemetry.xr_pass_gpu_ns.exchange(0);
+        const uint64_t pass_n = telemetry.xr_pass_gpu_n.exchange(0);
+        if (frames == 0 || (emu_n == 0 && pass_n == 0)) {
+            return std::string{};
+        }
+        const double per = 1e6 * static_cast<double>(frames);
+        const double emu_ms = static_cast<double>(emu_ns) / per;
+        const double pass_ms = static_cast<double>(pass_ns) / per;
+        const double period_ms = display_period_ns / 1e6;
+        return fmt::format(", GPU busy {:.2f} ms a refresh (emulator {:.2f} in {} command buffers, "
+                           "XR pass {:.2f} in {} draws; {:.0f} % of {:.2f} ms)",
+                           emu_ms + pass_ms, emu_ms, emu_n, pass_ms, pass_n,
+                           period_ms > 0.0 ? 100.0 * (emu_ms + pass_ms) / period_ms : 0.0,
+                           period_ms);
+    }();
     Vis::NoteXrSecond({seconds, frames, late[0], wait_max_ms}); // AzaharFrame vrvis: stats panel
     // AzaharFrame menuux: Dynamic Resolution judges the second (the headset's frames).
     const auto gpu = VideoCore::DynamicResolution::TakeGpuSecond();
@@ -478,7 +499,7 @@ void Runtime::LogSummary(double seconds, double wait_avg_ms, double wait_max_ms,
              StateName(state.load()), screens_live.load() ? "live" : "off", emu, window_presents,
              queue_wait_ms, emu_submit_ms, emu_submit_wait_ms, window_present_ms, alloc_ms, alloc_mib,
              worst.period_ms,
-             PhasesText(worst), eyes_mixed, builds);
+             PhasesText(worst), eyes_mixed, builds + busy);
 }
 
 void Runtime::LogFlatSummary(double seconds) {

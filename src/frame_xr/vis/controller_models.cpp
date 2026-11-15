@@ -18,6 +18,7 @@
 #include "common/frame_test_switches.h" // AzaharFrame kiuguns
 #include "common/logging/log.h"
 #include "common/settings.h" // AzaharFrame kiufix: Weapon Size
+#include "common/stall_telemetry.h" // AzaharFrame projdef
 #include "frame_xr/retired_swapchains.h" // AzaharFrame projdef
 #include "frame_xr/session.h"
 #include "frame_xr/vis/controller_models.h"
@@ -2320,6 +2321,11 @@ void ControllerModels::NoteGpuTime(int64_t now_ns) { // AzaharFrame ctrlfront
             g.gpu_images++;
             g.occluder_sum += g.drawn_occluders;
             g.stat_gpu_sum += ms; // AzaharFrame projscreen: the per-second line
+            // AzaharFrame projdef: the XR thread's GPU busy line (both paths)
+            auto& telemetry = Common::StallTelemetry::Get();
+            telemetry.xr_pass_gpu_ns.fetch_add(static_cast<uint64_t>(ms * 1e6),
+                                               std::memory_order_relaxed);
+            telemetry.xr_pass_gpu_n.fetch_add(1, std::memory_order_relaxed);
             g.stat_gpu_max = std::max(g.stat_gpu_max, ms);
             g.stat_gpu_n++;
         }

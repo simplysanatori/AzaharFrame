@@ -182,6 +182,8 @@ if (ENABLE_VULKAN)
         renderer_vulkan/vk_rasterizer_cache.cpp
         renderer_vulkan/vk_scheduler.cpp
         renderer_vulkan/vk_scheduler.h
+        renderer_vulkan/vk_gpu_busy.cpp # AzaharFrame projdef
+        renderer_vulkan/vk_gpu_busy.h
         renderer_vulkan/vk_resource_pool.cpp
         renderer_vulkan/vk_resource_pool.h
         renderer_vulkan/vk_instance.cpp

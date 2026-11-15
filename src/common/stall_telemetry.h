@@ -78,6 +78,14 @@ struct StallTelemetry {
     // AzaharFrame flash3: draws left out because their pipeline was still being built (Vulkan,
     // async shaders), cumulative; the XR thread's per-second line gives the second's.
     std::atomic<std::uint64_t> draws_skipped{0};
+    // AzaharFrame projdef: the GPU's busy time on the renderer's command buffers (timestamps,
+    // video_core/renderer_vulkan/vk_gpu_busy.h) and on the XR thread's controller and projection
+    // pass (frame_xr/vis/controller_models.cpp), cumulative in ns; the XR thread's per-second line
+    // takes (exchanges) them.
+    std::atomic<std::uint64_t> gpu_busy_ns{0};
+    std::atomic<std::uint64_t> gpu_busy_buffers{0};
+    std::atomic<std::uint64_t> xr_pass_gpu_ns{0};
+    std::atomic<std::uint64_t> xr_pass_gpu_n{0};
 
     static StallTelemetry& Get() {
         static StallTelemetry instance;
