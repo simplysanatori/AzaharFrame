@@ -186,8 +186,9 @@ inline constexpr const char* kMotionClarityImmersiveWindow =
     "Black Frame Insertion in Immersive Modes";
 inline constexpr const char* kMotionClarityNormalWindow =
     "Black Frame Insertion in Off and Wide Modes";
-inline constexpr const char* kMotionClarityImmersiveToast =
-    "Black Frame Insertion: Experimental \u00b7 May Flicker";
+/// fixa: "Black Frame Insertion: Experimental \u00b7 May Flicker" is wider than the toast's one line
+/// (958 of 944 px), so "Experimental" goes: the rows' chip says it.
+inline constexpr const char* kMotionClarityImmersiveToast = "Black Frame Insertion: May Flicker";
 /// AzaharFrame fixa: Settings::values.vr_motion_clarity_match_bottom: the row under each Black
 /// Frame Insertion row while that row is on (VR menu), its Configure box, its Send Report line.
 /// It names the 3DS's bottom screen: only the top screen flashes (the owner's exception to

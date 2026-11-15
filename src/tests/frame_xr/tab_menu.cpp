@@ -4231,7 +4231,7 @@ TEST_CASE("Tab menu: Motion Clarity's two rows", "[frame_xr][tabmenu][projdef][f
             static_cast<float>(FrameXr::ToastFit::kAtlasW) - 2.0f * FrameXr::ToastFit::kPadPx;
         CHECK(ui::TextWidth(ui::kFontLarge, Names::kMotionClarityImmersiveToast) <= kOneLine);
         CHECK(std::string{Names::kMotionClarityImmersiveToast} ==
-              "Black Frame Insertion: Experimental \xC2\xB7 May Flicker");
+              "Black Frame Insertion: May Flicker");
     }
     // Each row in its own section, a live switch in every mode (never locked), whatever the other
     // says.
