@@ -82,10 +82,10 @@ struct Probe {
     uint32_t clamp_word = 0;   ///< the reticle's +kReticleClampFlags as last read
 };
 
-/// The reticle object's flags; bit kClampBit is set by the game's clamp (0x6D2C08) when it pulls
+/// The reticle object's flags; kClampBit (value 8, MAPPING.md's "bit 8") is set by the game's clamp (0x6D2C08) when it pulls
 /// the reticle back into the box and turns by the rest (MAPPING.md, the Frame mock's C-Stick run).
 constexpr uint32_t kReticleClampFlags = 0x84;
-constexpr uint32_t kClampBit = 0x100;
+constexpr uint32_t kClampBit = 0x08; // the owner's 698 trace: 0x41 at rest, 0x49 while the game turns
 /// A turn with no clamp flag seen for this long: the box is stretched (the mod's whole screen).
 constexpr int64_t kStretchedAfterNs = 80'000'000;
 
