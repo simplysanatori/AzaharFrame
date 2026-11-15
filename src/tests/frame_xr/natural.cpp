@@ -890,9 +890,9 @@ TEST_CASE("FrameXr fixb: the resize toast", "[frame_xr][natural][fixb]") {
     CHECK(std::string(N::kWorldScaleFollowsToast) == "World Scale Follows");
 
     // The gain warning: the screen at the world's own scale is not locked; as the size grows the
-    // gain falls as 1 / size, and past about 1.4 it is under kLockedGain.
+    // gain falls as 1 / size, and past about 1.7 it is under kLockedGain.
     ViewFov view;
-    for (const float size : {1.0f, 1.2f, 1.6f, 2.2f}) {
+    for (const float size : {1.0f, 1.2f, 1.4f, 2.0f, 2.4f}) {
         Placement p;
         p.size = size;
         p.distance = 3.0f;
@@ -902,7 +902,7 @@ TEST_CASE("FrameXr fixb: the resize toast", "[frame_xr][natural][fixb]") {
         const HeadLocked s = SolveHeadLocked(p, 45.0f, 5.0f / 3.0f, view, 0.0f, o);
         INFO("size " << size << " gains " << s.gain_x << ", " << s.gain);
         CHECK(MayFeelLocked(s) == (std::min(s.gain, s.gain_x) < kLockedGain));
-        if (size <= 1.2f) {
+        if (size <= 1.4f) {
             CHECK(!MayFeelLocked(s));
         } else {
             CHECK(MayFeelLocked(s));
@@ -910,9 +910,9 @@ TEST_CASE("FrameXr fixb: the resize toast", "[frame_xr][natural][fixb]") {
     }
     HeadLocked one_axis;
     one_axis.gain = 0.9f;
-    one_axis.gain_x = 0.69f; // either axis
+    one_axis.gain_x = 0.59f; // either axis
     CHECK(MayFeelLocked(one_axis));
-    one_axis.gain_x = 0.7f;
+    one_axis.gain_x = 0.6f;
     CHECK(!MayFeelLocked(one_axis));
 }
 

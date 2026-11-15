@@ -105,8 +105,9 @@ inline constexpr float kMinGain = 0.4f;
 /// 1.2.0 fix lane B (session 651, triage item 5): under this gain (either axis) a head turn
 /// turns the game camera so little that the screen seems to follow the head (Super Mario 3D Land
 /// at gain 0.65/0.73 after a resize, 0.41/0.52 in mode 2): the resize toast adds "May Feel
-/// Locked" (MayFeelLocked).
-inline constexpr float kLockedGain = 0.7f;
+/// Locked" (MayFeelLocked). 0.6, not 0.7: the owner's own settled MK7 (0.65/0.62) and Majora's
+/// Mask (0.72/0.64) setups are fine and must not warn; mode 2's 0.41/0.52 does.
+inline constexpr float kLockedGain = 0.6f;
 inline constexpr float kMaxGain = 2.0f;
 /// Narrow Screen and Narrow Height (vr_immersive_squeeze, vr_immersive_squeeze_y): the screen
 /// this many percent narrower (lower) than the picture, in kNarrowStepPercent steps up to

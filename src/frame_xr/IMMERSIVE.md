@@ -1064,8 +1064,8 @@ the screen in metres; `d` its distance; `f` 3D Depth / 100):
   the toast "Screen Size: 137%" (1.2.0 fix lane B, `Names::ScreenSizeToast`, at the World Scale
   toast's rate); on release "· World Scale Follows" with Follow Screen Size on (it was only
   "Follow Screen Size: On", which read like a toggle), and "· May Feel Locked" while either gain
-  is under `kLockedGain` (0.7: session 651's Super Mario 3D Land at 0.65/0.73 after a resize to
-  137 % "couldn't look around"); logged as `xr: immersive: Screen Size 137 % by the grip (...)`.
+  is under `kLockedGain` (0.6: session 651's Super Mario 3D Land at 0.41/0.52 in mode 2 "couldn't look
+  around"; the owner's settled MK7 at 0.65/0.62 and Majora's Mask at 0.72/0.64 stay quiet); logged as `xr: immersive: Screen Size 137 % by the grip (...)`.
   The placement file's distance is no longer
   moved in the Full modes (it is the 1.2.0 distance, the fallback's and the migration's input).
 - **The fallback** where `K` cannot be read: the `K` saved from an earlier run
