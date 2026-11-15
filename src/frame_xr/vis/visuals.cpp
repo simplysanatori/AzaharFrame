@@ -1089,6 +1089,7 @@ void Visuals::Frame(Runtime& rt, const FrameInfo& info, Where where, const Windo
             auto& out = hands[static_cast<std::size_t>(h)];
             out.shown = m.activity[h].Tracked() && m.activity[h].Model() > 0.02f &&
                         !in.hand[static_cast<std::size_t>(h)].mouse; // AzaharFrame padsui
+            out.tracked = m.activity[h].Tracked(); // AzaharFrame fixc: the flicker count
             out.aim = m.activity[h].PoseAhead(); // AzaharFrame ctrlglitch: when it is on view
             out.fade = m.activity[h].Model();
             out.input = ModelInputsFor(in, h);
@@ -1191,6 +1192,8 @@ const XrCompositionLayerBaseHeader* Visuals::TopLayers(std::vector<Quad>& top,
     const XrCompositionLayerBaseHeader* models = room > 0 ? m.models_layer : nullptr;
     room -= models ? 1 : 0;
     const std::size_t beams = std::min(room, m.top_beams.size());
+    // AzaharFrame fixc: counted with the refreshes without the controllers' layer.
+    impl->models.NoteNoRoom(m.model_quads_ready && !model_quads, m.models_layer && !models);
     if (beams < m.top_beams.size() || dots < m.top_dots.size() || (m.models_layer && !models) ||
         (m.model_quads_ready && !model_quads)) {
         static int said = 0;

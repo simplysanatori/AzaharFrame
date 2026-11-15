@@ -774,8 +774,61 @@ bool ReadFiles(std::array<ModelFile, 2>& files) {
 
 } // namespace
 
+void ControllerModels::NoteLayerGap(int64_t now_ns) { // AzaharFrame fixc
+    LayerGapState s;
+    s.wanted = gap_wanted;
+    s.lost = gap_lost;
+    s.rebuilt = gap_rebuilt;
+    s.failed = load_state == 3 || (gpu && gpu->state == 3);
+    s.ready = load_state == 2 && gpu && gpu->state == 2;
+    s.screens = gpu ? gpu->screens : screens_mode;
+    s.screens_layer = layer_ready; // FrameScreens's (Frame gives none in screens mode)
+    s.as_quads = AsEyeQuads();
+    if (gpu) {
+        const Gpu& g = *gpu;
+        s.has_image = g.has_image;
+        s.fresh = g.shown_fresh;
+        s.canvas_on = g.canvas_on;
+        s.canvas_found = g.FindCanvas(g.step.canvas) != nullptr;
+        s.quads_shown = g.step.quads_shown;
+        s.projection = g.step.projection;
+    }
+    s.quads_dropped = gap_quads_dropped;
+    s.layer_dropped = gap_layer_dropped;
+    gap_quads_dropped = gap_layer_dropped = false;
+    if (const auto why = LayerGapFor(s)) {
+        gap_log.Gap(*why);
+    } else if (s.wanted) {
+        gap_rebuilt = false;
+    }
+    if (const auto line = gap_log.Take(now_ns)) {
+        LOG_INFO(Frontend, "{}", *line);
+    }
+}
+
+void ControllerModels::NoteHands(const std::array<Hand, 2>& hands, int64_t now_ns) {
+    gap_wanted = hands[0].shown || hands[1].shown;
+    gap_lost = false;
+    for (std::size_t h = 0; h < hands.size(); h++) {
+        if (hands[h].shown) {
+            gap_shown_ns[h] = now_ns;
+        } else if (!gap_wanted && !hands[h].tracked && gap_shown_ns[h] >= 0 &&
+                   now_ns - gap_shown_ns[h] <= kLayerGapLostNs) {
+            gap_lost = true;
+        }
+    }
+}
+
 void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::array<Hand, 2>& hands,
                              ControllersInFront choice, const std::vector<Occluder>& occluders) {
+    // AzaharFrame fixc: the refresh before, as it went out, before anything here changes it.
+    {
+        const int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                   std::chrono::steady_clock::now().time_since_epoch())
+                                   .count();
+        NoteLayerGap(now_ns);
+        NoteHands(hands, now_ns);
+    }
     layer_ready = false;
     over_ = choice; // AzaharFrame ctrlfront
     muzzle_hand = -1; // AzaharFrame kiuguns: FitWeapon sets it again
@@ -785,6 +838,7 @@ void ControllerModels::Frame(Runtime& rt, const ViewPose& views, const std::arra
         LOG_INFO(Frontend, "xr: projection screens {} (scale {:.2f}): the models' pass is made again",
                  screens_mode ? "on" : "off", screens_scale);
         DestroyXr();
+        gap_rebuilt = true; // AzaharFrame fixc
     }
 
     // AzaharFrame fixc: the game's shots seen while Projectiles is on (the 5 s summary), here

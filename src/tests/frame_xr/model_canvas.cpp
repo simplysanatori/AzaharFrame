@@ -316,3 +316,83 @@ TEST_CASE("Canvas: the old eye quads paired images with another refresh's place"
     CHECK(off > kFrames / 10);
     CHECK(worst * 180.0f / 3.14159265f == Approx(1.25f).margin(0.01f));
 }
+
+// AzaharFrame fixc: the controllers' flicker count: each refresh that showed a controller (or
+// had just lost one) and went out without the controllers' layer, with its reason.
+TEST_CASE("Controllers' layer gaps: the reason, in order", "[frame_xr][fixc]") {
+    using FrameXr::Vis::LayerGap;
+    using FrameXr::Vis::LayerGapFor;
+    using FrameXr::Vis::LayerGapState;
+    LayerGapState s; // nothing wanted, nothing lost
+    CHECK_FALSE(LayerGapFor(s));
+    s.lost = true;
+    CHECK(LayerGapFor(s) == LayerGap::TrackingLost);
+
+    // A controller shown: the pass, then the image, then how it goes out.
+    s = {};
+    s.wanted = true;
+    CHECK(LayerGapFor(s) == LayerGap::SettingUp);
+    s.rebuilt = true;
+    CHECK(LayerGapFor(s) == LayerGap::Rebuilt);
+    s.failed = true;
+    CHECK(LayerGapFor(s) == LayerGap::Failed);
+    s.failed = false;
+    s.ready = true;
+    CHECK(LayerGapFor(s) == LayerGap::Rebuilt); // set up again, no image yet
+    s.rebuilt = false;
+    CHECK(LayerGapFor(s) == LayerGap::NoImage);
+    s.has_image = true;
+    CHECK(LayerGapFor(s) == LayerGap::Returning);
+    s.fresh = true;
+    CHECK_FALSE(LayerGapFor(s)); // Off: the projection layer
+    s.layer_dropped = true;
+    CHECK(LayerGapFor(s) == LayerGap::NoRoom);
+
+    // The eye quads on their canvas.
+    s.layer_dropped = false;
+    s.as_quads = s.canvas_on = s.canvas_found = true;
+    s.quads_shown = true;
+    CHECK_FALSE(LayerGapFor(s));
+    s.quads_dropped = true;
+    CHECK(LayerGapFor(s) == LayerGap::NoRoom);
+    s.projection = true; // the layer goes too while the quads settle
+    CHECK_FALSE(LayerGapFor(s));
+    s.quads_dropped = false;
+    s.quads_shown = false; // shrunk while the canvas moves: the projection layer shows them
+    CHECK_FALSE(LayerGapFor(s));
+    s.projection = false;
+    CHECK(LayerGapFor(s) == LayerGap::CanvasMove);
+    s.canvas_found = false;
+    CHECK(LayerGapFor(s) == LayerGap::NoCanvas);
+    s.canvas_on = false; // AZAHARFRAME_XR_CANVAS=0: the quads at the eye views
+    CHECK_FALSE(LayerGapFor(s));
+
+    // Projection screens: the layer comes from FrameScreens.
+    s.screens = true;
+    CHECK(LayerGapFor(s) == LayerGap::NoScreens);
+    s.screens_layer = true;
+    CHECK_FALSE(LayerGapFor(s));
+}
+
+TEST_CASE("Controllers' layer gaps: a line a second, only with gaps", "[frame_xr][fixc]") {
+    using FrameXr::Vis::LayerGap;
+    using FrameXr::Vis::LayerGapLog;
+    constexpr int64_t kS = 1'000'000'000;
+    LayerGapLog log;
+    CHECK_FALSE(log.Take(5 * kS)); // starts the second
+    log.Gap(LayerGap::Rebuilt);
+    log.Gap(LayerGap::Rebuilt);
+    log.Gap(LayerGap::TrackingLost);
+    CHECK_FALSE(log.Take(5 * kS + kS / 2));
+    const auto line = log.Take(6 * kS);
+    REQUIRE(line);
+    CHECK(*line == "xr: controllers: 3 refreshes without their layer: 2 the pass made again "
+                   "(path change), 1 tracking lost");
+    CHECK_FALSE(log.Take(7 * kS)); // cleared: nothing to say
+    log.Gap(LayerGap::NoRoom);
+    const auto one = log.Take(8 * kS);
+    REQUIRE(one);
+    CHECK(*one == "xr: controllers: 1 refresh without their layer: 1 no room among the layers");
+    log.Gap(LayerGap::Count); // ignored
+    CHECK_FALSE(log.Take(9 * kS));
+}
