@@ -95,6 +95,12 @@ struct Probe {
     // The stick it reads is +0x0C, +0x10 (floats).
     uint32_t mod_40 = 0, mod_44 = 0, mod_64 = 0, mod_0c = 0, mod_10 = 0;
     std::array<uint32_t, 32> last_dump{}; ///< the reticle's +0x80 words last logged (trace on)
+    // The mod's held-stylus latches (state +kModTouchHeld, +kModStretchOn) as last read, when the
+    // C-Stick last steered, and how often they were released since the last trace line.
+    uint32_t latch_touch = 0;
+    uint32_t latch_stretch = 0;
+    int64_t stick_seen_ns = 0;
+    uint32_t latch_releases = 0;
 };
 
 /// The reticle object's flags; kClampBit (value 8, MAPPING.md's "bit 8") is set by the game's clamp (0x6D2C08) when it pulls
@@ -117,6 +123,17 @@ constexpr uint32_t kModFlags = 0x34;
 constexpr uint32_t kModEaseFromState = 0xF3E638 - 0xF35D40;
 constexpr uint32_t kModHold = 0x2C;
 constexpr uint32_t kReticleStickBit = 0x02;
+// 1.2.0 RC2 (the owner: after the C-Stick, edge turning stops until the battle is left): when
+// its stick steers, the mod sets two words of its state to 1 (0xF45230, 0xF45234) and clears
+// them only when the battle (its pad object) changes (0xF45048). The first holds a stylus touch
+// down for good (0xF4523C: the game's touch, which sets the reticle's bit 2 every frame,
+// 0x4D201C); with the second, the mod's box wrapper (0xF453E4 -> 0xF5A038) stretches the game's
+// aim box to take in the reticle, so a pixel past the box's edge is inside it and nothing turns.
+// Before the first C-Stick both are 0, which is the state the Turn Zone works in.
+constexpr uint32_t kModTouchHeld = 0x04;
+constexpr uint32_t kModStretchOn = 0x24;
+/// The C-Stick let go for this long before the latches are released (no flick on the lift).
+constexpr int64_t kLatchReleaseAfterNs = 150'000'000;
 
 Probe& TheProbe() {
     static Probe probe;
@@ -378,6 +395,31 @@ void AimPoll(int64_t ticks) {
                     p.ease_timer = memory.Read32(*process, ease + 0x4C);
                 }
                 p.mod_hold = memory.Read32(*process, p.addr.state + kModHold);
+                // Release the mod's latches once its stick has been let go for
+                // kLatchReleaseAfterNs (its stick, +0x0C and +0x10, back at zero and the right
+                // stick not steering). Live test switch AZAHARFRAME_KIU_STICK_LATCH=0 leaves them.
+                if (memory.IsValidVirtualAddress(*process, p.addr.state + kModStretchOn + 3)) {
+                    p.latch_touch = memory.Read32(*process, p.addr.state + kModTouchHeld);
+                    p.latch_stretch = memory.Read32(*process, p.addr.state + kModStretchOn);
+                    const uint32_t sx = memory.Read32(*process, p.addr.state + 0x0C);
+                    const uint32_t sy = memory.Read32(*process, p.addr.state + 0x10);
+                    const bool steering = frame.stick || (sx & 0x7FFFFFFFu) != 0 ||
+                                          (sy & 0x7FFFFFFFu) != 0;
+                    if (steering || p.stick_seen_ns == 0) {
+                        p.stick_seen_ns = host_now;
+                    }
+                    const bool release =
+                        Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_STICK_LATCH")
+                            .value_or("1") != "0";
+                    if (release && !steering &&
+                        host_now - p.stick_seen_ns > kLatchReleaseAfterNs &&
+                        (p.latch_touch != 0 || p.latch_stretch != 0)) {
+                        memory.Write32(*process, p.addr.state + kModTouchHeld, 0);
+                        memory.Write32(*process, p.addr.state + kModStretchOn, 0);
+                        p.latch_touch = p.latch_stretch = 0;
+                        p.latch_releases++;
+                    }
+                }
                 const bool wide_ok =
                     memory.IsValidVirtualAddress(*process, p.addr.state + 0x64 + 3);
                 if (wide_ok) {
@@ -463,11 +505,13 @@ void AimPoll(int64_t ticks) {
         // no longer turns at its box's edge, only past the screen's edge (699, 701: 0x4B there).
         // So with bit 2 set the pixel goes past the screen's edge by the overshoot x live test
         // switch AZAHARFRAME_KIU_STRETCH_GAIN (sideways, default 0.25) and _GAIN_Y (up and down,
-        // default 0.25); AZAHARFRAME_KIU_STRETCH_EDGE=0 turns it off.
+        // default 0.25). The owner's 706 run: past the screen's edge the game turns by the whole
+        // way from its box's edge, a spin at any strength, so this is off unless
+        // AZAHARFRAME_KIU_STRETCH_EDGE=1; the mod's latches are released instead (above).
         p.stretched = (p.clamp_word & kReticleStickBit) != 0;
         const bool screen_edge =
             p.stretched && Common::FrameTestSwitches::Value("AZAHARFRAME_KIU_STRETCH_EDGE")
-                                   .value_or("1") != "0";
+                                   .value_or("0") == "1";
         if (screen_edge) {
             const float sg = gain("AZAHARFRAME_KIU_STRETCH_GAIN", 0.25f);
             const float sgy = gain("AZAHARFRAME_KIU_STRETCH_GAIN_Y", 0.25f);
@@ -545,7 +589,7 @@ void AimPoll(int64_t ticks) {
                  fmt::format("; {} push {:.1f} right {:.1f} down dps, gyro {:.1f} {:.1f} {:.1f} "
                              "(scale {:.2f}, {} polls); mod flags {:02X} stick {:08X}, {} cleared, clamp {:08X}{}; "
                              "ease {:X} {:X} {:.3f}, hold {:X}, {} unstuck; mod stick {:.3f} {:.3f}, "
-                             "40 {:08X} 44 {:08X} 64 {:08X}",
+                             "40 {:08X} 44 {:08X} 64 {:08X}; latches {:X} {:X}, {} released",
                              p.direct_turn ? "direct" : "mod", out.right_dps, out.down_dps,
                              p.last_gyro.x, p.last_gyro.y,
                              p.last_gyro.z, p.last_scale, p.gyro_polls, p.mod_flags,
@@ -553,7 +597,9 @@ void AimPoll(int64_t ticks) {
                              p.stretched ? ", stretched" : "", p.ease_on_a, p.ease_on_b,
                              std::bit_cast<float>(p.ease_timer), p.mod_hold, p.unstick_writes,
                              std::bit_cast<float>(p.mod_0c), std::bit_cast<float>(p.mod_10),
-                             p.mod_40, p.mod_44, p.mod_64));
+                             p.mod_40, p.mod_44, p.mod_64, p.latch_touch, p.latch_stretch,
+                             p.latch_releases));
+        p.latch_releases = 0;
         p.unstick_writes = 0;
         p.gyro_polls = 0;
         // 1.2.0 RC2 (the owner's 703 run: none of the mod's values the box hook reads were set
