@@ -23,6 +23,7 @@
 #include "common/file_util.h"
 #include "common/hash.h"
 #include "common/lz11.h"
+#include "core/custom_tex/ktx_encode.h"
 #include "core/file_sys/romfs_reader.h"
 #include "core/frame_cgfx.h"
 #include "core/frame_weapon_models.h"
@@ -1359,6 +1360,140 @@ TEST_CASE("Weapon models: the texture pack's replacement, found by the game's ow
     FileUtil::UpdateUserPath(FileUtil::UserPath::LoadDir, before);
     std::filesystem::remove_all(root);
     std::filesystem::remove_all(dir);
+}
+
+// AzaharFrame fixc: a pack converted for the Frame (KTX, ASTC: "Original-astc4x4") replaces the
+// hand's texture too: decoded at its largest level of 1024 or less a side, the rows as a PNG's;
+// other formats are named and skipped. The KTX files are made here (astcenc), nothing from a game.
+TEST_CASE("Weapon models: a KTX (ASTC) replacement from the texture pack", "[kiuguns][fixc]") {
+    Bytes raw;
+    for (int i = 0; i < 64; i++) {
+        raw.insert(raw.end(), {0xFF, 0x30, 0x20, 0x10});
+    }
+    const u64 hash = VideoCore::CustomTexManager::NewHash(raw);
+    const std::string root = TestDir("frame_weapon_ktx_test");
+    const std::string before = FileUtil::GetUserPath(FileUtil::UserPath::LoadDir);
+    FileUtil::UpdateUserPath(FileUtil::UserPath::LoadDir, root);
+    constexpr u64 kTitle = 0x0004000000030200ull;
+    const std::string pack_dir = fmt::format("{}textures/{:016X}/", root, kTitle);
+    std::filesystem::create_directories(pack_dir + "weapons");
+    {
+        std::ofstream o(pack_dir + "pack.json");
+        o << R"({"author": "test", "options": {"use_new_hash": true, "flip_png_files": true}})";
+    }
+    // The picture (top row first, as the PNG was): its top four rows green 7, the rest 200, in
+    // whole 4x4 blocks so ASTC keeps them.
+    const auto picture = [](u32 w, u32 h) {
+        std::vector<u8> px;
+        for (u32 y = 0; y < h; y++) {
+            for (u32 x = 0; x < w; x++) {
+                px.insert(px.end(), {10, static_cast<u8>(y < 4 ? 7 : 200), 30, 128});
+            }
+        }
+        return px;
+    };
+    CustomTex::Convert::AstcEncoder encoder({4, 4}, 60.0f);
+    REQUIRE(encoder.Error().empty());
+    std::string error;
+    // As the pack converter makes it from a pack that flips its PNGs.
+    const auto ktx = encoder.EncodeRgba(16, 16, picture(16, 16), true, &error);
+    REQUIRE(!ktx.empty());
+    const std::string path = fmt::format("{}weapons/tex1_8x8_{:016X}_0_mip0.ktx", pack_dir, hash);
+    {
+        std::ofstream o(path, std::ios::binary);
+        o.write(reinterpret_cast<const char*>(ktx.data()), static_cast<std::streamsize>(ktx.size()));
+    }
+    FrameWeapons::TexturePack pack = FrameWeapons::ReadTexturePack(kTitle);
+    REQUIRE(pack.on);
+    REQUIRE(pack.files.count(hash) == 1);
+    CHECK(FrameWeapons::PackFileFormat(path) == "KTX ASTC 4x4");
+    FrameWeapons::Converted c;
+    REQUIRE(FrameWeapons::ConvertWeapon(24, ClawZrc(), c, error, &pack));
+    REQUIRE(c.info.parts.size() >= 1);
+    CHECK(std::filesystem::equivalent(c.info.parts[0].replaced, path));
+    std::vector<u8> rgba;
+    u32 w = 0, h = 0;
+    std::string why;
+    REQUIRE(FrameWeapons::LoadPackTexture(c.info.parts[0].replaced, true, rgba, w, h, false, &why));
+    CHECK(w == 16);
+    CHECK(h == 16);
+    REQUIRE(rgba.size() == 16u * 16u * 4u);
+    // The first row is the picture's top, as a PNG's with flip_png_files (and either way: the
+    // KTX holds the rows as the game's texture is uploaded).
+    CHECK(std::abs(int{rgba[1]} - 7) <= 2);
+    CHECK(std::abs(int{rgba[15 * 16 * 4 + 1]} - 200) <= 2);
+    CHECK(std::abs(int{rgba[0]} - 10) <= 2);
+    CHECK(rgba[3] == 255); // no ambient occlusion
+    REQUIRE(FrameWeapons::LoadPackTexture(path, false, rgba, w, h, true));
+    CHECK(std::abs(int{rgba[1]} - 7) <= 2); // the PNG flag does not apply to a KTX
+    CHECK(std::abs(int{rgba[3]} - 128) <= 2); // its own alpha when kept (a flash card)
+
+    // A large one: its largest level of 1024 or less a side, never the whole.
+    const auto big = encoder.EncodeRgba(2048, 1024, picture(2048, 1024), true, &error);
+    REQUIRE(!big.empty());
+    const std::string big_path = root + "big.ktx";
+    {
+        std::ofstream o(big_path, std::ios::binary);
+        o.write(reinterpret_cast<const char*>(big.data()), static_cast<std::streamsize>(big.size()));
+    }
+    REQUIRE(FrameWeapons::LoadPackTexture(big_path, true, rgba, w, h));
+    CHECK(w == 1024);
+    CHECK(h == 512);
+    CHECK(rgba.size() == 1024u * 512u * 4u);
+
+    // KTX 1 with another format: an RGBA8 one is read as it is; a BC7 one is named and skipped.
+    const auto ktx_header = [](u32 gl_type, u32 gl_format, u32 internal, u32 base, u32 wd, u32 ht) {
+        std::vector<u8> out = {0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
+        for (const u32 v : {0x04030201u, gl_type, gl_type ? 1u : 1u, gl_format, internal, base, wd, ht,
+                            0u, 0u, 1u, 1u, 0u}) {
+            for (int b = 0; b < 4; b++) {
+                out.push_back(static_cast<u8>(v >> (8 * b)));
+            }
+        }
+        return out;
+    };
+    const auto put32 = [](std::vector<u8>& out, u32 v) {
+        for (int b = 0; b < 4; b++) {
+            out.push_back(static_cast<u8>(v >> (8 * b)));
+        }
+    };
+    {
+        auto file = ktx_header(0x1401, 0x1908, 0x8058, 0x1908, 4, 4); // GL_RGBA8
+        put32(file, 64);
+        for (int i = 0; i < 16; i++) {
+            file.insert(file.end(), {static_cast<u8>(i < 4 ? 50 : 60), 70, 80, 90});
+        }
+        std::ofstream(root + "plain.ktx", std::ios::binary)
+            .write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
+        CHECK(FrameWeapons::PackFileFormat(root + "plain.ktx") == "KTX RGBA8");
+        REQUIRE(FrameWeapons::LoadPackTexture(root + "plain.ktx", true, rgba, w, h));
+        CHECK(w == 4);
+        CHECK(rgba[0] == 60);             // the file's last row first (turned over)
+        CHECK(rgba[3 * 4 * 4] == 50);     // its first row last
+    }
+    {
+        auto file = ktx_header(0, 0, 0x8E8C, 0x1908, 4, 4); // GL_COMPRESSED_RGBA_BPTC_UNORM: BC7
+        put32(file, 16);
+        file.insert(file.end(), 16, u8{0});
+        std::ofstream(root + "bc7.ktx", std::ios::binary)
+            .write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
+        std::string not_read;
+        CHECK(FrameWeapons::PackFileFormat(root + "bc7.ktx", &not_read).empty());
+        CHECK(not_read.find("BC7") != std::string::npos);
+        CHECK_FALSE(FrameWeapons::LoadPackTexture(root + "bc7.ktx", true, rgba, w, h, false, &not_read));
+        CHECK(not_read.find("BC7") != std::string::npos);
+    }
+    {
+        std::ofstream(root + "odd.tga") << "not a texture";
+        std::string not_read;
+        CHECK(FrameWeapons::PackFileFormat(root + "odd.tga", &not_read).empty());
+        CHECK_FALSE(not_read.empty());
+        CHECK_FALSE(FrameWeapons::LoadPackTexture(root + "odd.tga", true, rgba, w, h, false, &not_read));
+        CHECK_FALSE(FrameWeapons::LoadPackTexture(root + "missing.ktx", true, rgba, w, h, false, &not_read));
+        CHECK(not_read == "cannot be read");
+    }
+    FileUtil::UpdateUserPath(FileUtil::UserPath::LoadDir, before);
+    std::filesystem::remove_all(root);
 }
 
 // ---- AzaharFrame kiuflash: the muzzle flashes ----

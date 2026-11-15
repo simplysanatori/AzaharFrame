@@ -34,6 +34,8 @@
 #include "core/frontend/image_interface.h"
 #include "core/loader/loader.h"
 #include "video_core/custom_textures/custom_tex_manager.h"
+#include <astcenc.h>  // AzaharFrame fixc: a pack's ASTC replacements decoded for the hand
+#include <dds-ktx.h> // AzaharFrame fixc
 
 namespace FrameWeapons {
 
@@ -633,16 +635,235 @@ bool WriteFileAtomic(const std::string& path, const void* data, std::size_t size
 
 } // namespace
 
+namespace {
+
+/// AzaharFrame fixc: a replacement's kind, by its extension.
+enum class PackFileKind { Png, Ktx, Dds, Other };
+PackFileKind PackFileKindOf(const std::string& path) {
+    std::string ext = std::filesystem::path(path).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return ext == ".png" ? PackFileKind::Png
+           : ext == ".ktx" ? PackFileKind::Ktx
+           : ext == ".dds" ? PackFileKind::Dds
+                           : PackFileKind::Other;
+}
+
+const char* DdsKtxFormatName(ddsktx_format f) {
+    switch (f) {
+    case DDSKTX_FORMAT_RGBA8:
+        return "RGBA8";
+    case DDSKTX_FORMAT_ASTC4x4:
+        return "ASTC 4x4";
+    case DDSKTX_FORMAT_ASTC6x6:
+        return "ASTC 6x6";
+    case DDSKTX_FORMAT_ASTC8x6:
+        return "ASTC 8x6";
+    case DDSKTX_FORMAT_BC1:
+        return "BC1";
+    case DDSKTX_FORMAT_BC3:
+        return "BC3";
+    case DDSKTX_FORMAT_BC5:
+        return "BC5";
+    case DDSKTX_FORMAT_BC7:
+        return "BC7";
+    default:
+        return "an unknown format";
+    }
+}
+
+/// The block of an ASTC format; none for the others.
+std::optional<std::pair<u32, u32>> AstcBlock(ddsktx_format f) {
+    switch (f) {
+    case DDSKTX_FORMAT_ASTC4x4:
+        return std::pair<u32, u32>{4, 4};
+    case DDSKTX_FORMAT_ASTC6x6:
+        return std::pair<u32, u32>{6, 6};
+    case DDSKTX_FORMAT_ASTC8x6:
+        return std::pair<u32, u32>{8, 6};
+    default:
+        return std::nullopt;
+    }
+}
+
+/// AzaharFrame fixc: a KTX or DDS replacement (as the texture pack loader reads them,
+/// video_core/custom_textures/material.cpp LoadDDS): its largest mip level no larger than
+/// kPackDecodeMaxSide a side (a bigger one is never decoded, so the hand never holds more than
+/// 4 MB of it), decoded to RGBA8: ASTC through astcenc (the LDR profile the pack converter
+/// encodes with), RGBA8 as it is. The rows turned over: the file holds them as the game's
+/// texture is uploaded (a flipped PNG), the model keeps the picture's top first.
+bool DecodePackDdsKtx(const Bytes& file, std::vector<u8>& rgba, u32& width, u32& height,
+                      std::string& why) {
+    ddsktx_texture_info info{};
+    ddsktx_error err{};
+    if (file.empty() || !ddsktx_parse(&info, file.data(), static_cast<int>(file.size()), &err)) {
+        why = file.empty() ? "cannot be read" : std::string{"not a KTX or DDS file: "} + err.msg;
+        return false;
+    }
+    if ((info.flags & (DDSKTX_TEXTURE_FLAG_CUBEMAP | DDSKTX_TEXTURE_FLAG_VOLUME)) ||
+        info.num_layers > 1 || info.depth > 1 || info.width <= 0 || info.height <= 0) {
+        why = "not a plain 2D texture";
+        return false;
+    }
+    const auto block = AstcBlock(info.format);
+    if (!block && info.format != DDSKTX_FORMAT_RGBA8) {
+        why = fmt::format("{}: only ASTC and RGBA8 are read for the hand",
+                          DdsKtxFormatName(info.format));
+        return false;
+    }
+    const auto level_size = [&](u32 w, u32 h) -> std::size_t {
+        return block ? std::size_t{(w + block->first - 1) / block->first} *
+                           ((h + block->second - 1) / block->second) * 16
+                     : std::size_t{w} * h * 4;
+    };
+    const bool is_ktx = (info.flags & DDSKTX_TEXTURE_FLAG_KTX) != 0;
+    std::size_t offset = static_cast<std::size_t>(info.data_offset);
+    u32 w = static_cast<u32>(info.width), h = static_cast<u32>(info.height);
+    std::optional<std::size_t> at;
+    u32 at_w = 0, at_h = 0;
+    for (int level = 0; level < std::max(info.num_mips, 1); level++) {
+        const std::size_t size = level_size(w, h);
+        if (is_ktx) {
+            u32 image_size = 0;
+            if (offset + sizeof(image_size) > file.size()) {
+                break;
+            }
+            std::memcpy(&image_size, file.data() + offset, sizeof(image_size));
+            offset += sizeof(image_size);
+            if (image_size != size) {
+                break;
+            }
+        }
+        if (offset + size > file.size()) {
+            break;
+        }
+        if (w <= kPackDecodeMaxSide && h <= kPackDecodeMaxSide) {
+            at = offset;
+            at_w = w;
+            at_h = h;
+            break;
+        }
+        offset += size;
+        if (is_ktx) {
+            offset = (offset + 3) & ~std::size_t{3};
+        }
+        w = std::max(w >> 1, 1U);
+        h = std::max(h >> 1, 1U);
+    }
+    if (!at) {
+        why = fmt::format("{}x{} with no level of {} or less a side", info.width, info.height,
+                          kPackDecodeMaxSide);
+        return false;
+    }
+    std::vector<u8> px(std::size_t{at_w} * at_h * 4);
+    if (block) {
+        astcenc_config config{};
+        astcenc_error e = astcenc_config_init(ASTCENC_PRF_LDR, block->first, block->second, 1,
+                                              ASTCENC_PRE_FASTEST, ASTCENC_FLG_DECOMPRESS_ONLY,
+                                              &config);
+        astcenc_context* context = nullptr;
+        if (e == ASTCENC_SUCCESS) {
+            e = astcenc_context_alloc(&config, 1, &context, nullptr);
+        }
+        if (e == ASTCENC_SUCCESS) {
+            void* slices[1] = {px.data()};
+            astcenc_image image{at_w, at_h, 1, ASTCENC_TYPE_U8, slices};
+            const astcenc_swizzle swizzle{ASTCENC_SWZ_R, ASTCENC_SWZ_G, ASTCENC_SWZ_B,
+                                          ASTCENC_SWZ_A};
+            e = astcenc_decompress_image(context, file.data() + *at, level_size(at_w, at_h),
+                                         &image, &swizzle, 0);
+        }
+        if (context) {
+            astcenc_context_free(context);
+        }
+        if (e != ASTCENC_SUCCESS) {
+            why = fmt::format("{}: {}", DdsKtxFormatName(info.format), astcenc_get_error_string(e));
+            return false;
+        }
+    } else {
+        std::memcpy(px.data(), file.data() + *at, px.size());
+    }
+    for (u32 y = 0; y < at_h / 2; y++) {
+        std::swap_ranges(px.begin() + std::size_t{y} * at_w * 4,
+                         px.begin() + std::size_t{y + 1} * at_w * 4,
+                         px.begin() + std::size_t{at_h - 1 - y} * at_w * 4);
+    }
+    rgba = std::move(px);
+    width = at_w;
+    height = at_h;
+    return true;
+}
+
+} // namespace
+
+std::string PackFileFormat(const std::string& path, std::string* why) {
+    switch (PackFileKindOf(path)) {
+    case PackFileKind::Png:
+        return "PNG";
+    case PackFileKind::Ktx:
+    case PackFileKind::Dds: {
+        std::ifstream f(path, std::ios::binary);
+        const Bytes file((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        ddsktx_texture_info info{};
+        ddsktx_error err{};
+        const char* kind = PackFileKindOf(path) == PackFileKind::Ktx ? "KTX" : "DDS";
+        if (file.empty() ||
+            !ddsktx_parse(&info, file.data(), static_cast<int>(file.size()), &err)) {
+            if (why) {
+                *why = fmt::format("{} that cannot be read{}", kind,
+                                   file.empty() ? "" : std::string{": "} + err.msg);
+            }
+            return {};
+        }
+        if (!AstcBlock(info.format) && info.format != DDSKTX_FORMAT_RGBA8) {
+            if (why) {
+                *why = fmt::format("{} in {}: only PNG, and ASTC or RGBA8 in KTX or DDS, are read "
+                                   "for the hand",
+                                   kind, DdsKtxFormatName(info.format));
+            }
+            return {};
+        }
+        return fmt::format("{} {}", kind, DdsKtxFormatName(info.format));
+    }
+    case PackFileKind::Other:
+        break;
+    }
+    if (why) {
+        *why = "not a PNG, KTX or DDS file";
+    }
+    return {};
+}
+
 bool LoadPackTexture(const std::string& path, bool flip_png, std::vector<u8>& rgba, u32& width,
-                     u32& height, bool keep_alpha) {
+                     u32& height, bool keep_alpha, std::string* why) {
+    std::string reason;
+    const auto fail = [&](std::string r) {
+        if (why) {
+            *why = std::move(r);
+        }
+        return false;
+    };
     std::ifstream f(path, std::ios::binary);
     const Bytes png((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    // AzaharFrame fixc: KTX and DDS (ASTC or RGBA8), as a pack converted for the Frame holds.
+    if (const PackFileKind kind = PackFileKindOf(path); kind != PackFileKind::Png) {
+        if (kind == PackFileKind::Other) {
+            return fail("not a PNG, KTX or DDS file");
+        }
+        if (!DecodePackDdsKtx(png, rgba, width, height, reason)) {
+            return fail(reason);
+        }
+        for (std::size_t i = 3; i < rgba.size() && !keep_alpha; i += 4) {
+            rgba[i] = 255; // no ambient occlusion
+        }
+        return true;
+    }
     static Frontend::ImageInterface images; // lodepng
     u32 w = 0, h = 0;
     Bytes px;
     if (png.empty() || !images.DecodePNG(px, w, h, png) || w == 0 || h == 0 || w > 4096 ||
         h > 4096 || px.size() != std::size_t{w} * h * 4) {
-        return false;
+        return fail(png.empty() ? "cannot be read" : "not a PNG of 4096 or less a side");
     }
     // A pack flips its PNGs (flip_png_files, the default) so their first row is the top of the
     // picture, the first row of the game's texture in memory, which is how models keep them.
@@ -680,6 +901,22 @@ TexturePack ReadTexturePack(u64 title_id) {
     return pack;
 }
 
+namespace {
+
+/// AzaharFrame fixc: whether a pack's file can replace a model's texture (PackFileFormat); a
+/// file that cannot is logged with its format and why, and the game's texture is used.
+bool PackReplacementUsable(const std::string& path, std::string_view what) {
+    std::string why;
+    if (!PackFileFormat(path, &why).empty()) {
+        return true;
+    }
+    LOG_INFO(Frontend, "xr: {}: {} is {}: the game's texture is used", what,
+             std::filesystem::path(path).filename().string(), why);
+    return false;
+}
+
+} // namespace
+
 u64 PackKey(const TexturePack* pack, const std::vector<u64>& hashes) {
     if (!pack || !pack->on) {
         return 0;
@@ -695,6 +932,12 @@ u64 PackKey(const TexturePack* pack, const std::vector<u64>& hashes) {
         const auto time = std::filesystem::last_write_time(it->second, ec);
         key += fmt::format("{:016X}:{}:{}:{};", h, it->second, ec ? 0 : size,
                            ec ? 0 : time.time_since_epoch().count());
+        // AzaharFrame fixc: KTX and DDS replacements are read now: a weapon made when they
+        // were not (the game's texture) is made again, once; PNG packs keep their weapons.
+        if (PackFileKindOf(it->second) == PackFileKind::Ktx ||
+            PackFileKindOf(it->second) == PackFileKind::Dds) {
+            key += "read;";
+        }
     }
     return key.empty() ? 0 : Common::ComputeHash64(key.data(), key.size());
 }
@@ -1171,14 +1414,10 @@ bool ConvertWeapon(int id, std::span<const u8> zrc, Converted& out, std::string&
             }
             if (pack && pack->on) {
                 if (const auto it = pack->files.find(hash); it != pack->files.end()) {
-                    const auto ext = std::filesystem::path(it->second).extension().string();
-                    if (ext == ".png" || ext == ".PNG") {
+                    // AzaharFrame fixc: PNG, or ASTC or RGBA8 in KTX or DDS.
+                    if (PackReplacementUsable(it->second, "weapon models")) {
                         part.replaced = it->second;
                         part.replaced_flip = pack->flip_png;
-                    } else {
-                        LOG_INFO(Frontend, "xr: weapon models: {} is not a PNG: the game's "
-                                           "texture is used",
-                                 std::filesystem::path(it->second).filename().string());
                     }
                 }
             }
@@ -1566,8 +1805,8 @@ bool ConvertBullets(int id, std::span<const u8> zrc, Converted& out, const Textu
             part.hash = VideoCore::CustomTexManager::NewHash(tex->raw);
             if (pack && pack->on) {
                 if (const auto it = pack->files.find(part.hash); it != pack->files.end()) {
-                    const auto ext = std::filesystem::path(it->second).extension().string();
-                    if (ext == ".png" || ext == ".PNG") {
+                    // AzaharFrame fixc: PNG, or ASTC or RGBA8 in KTX or DDS.
+                    if (PackReplacementUsable(it->second, "projectiles")) {
                         part.replaced = it->second;
                         part.replaced_flip = pack->flip_png;
                     }
@@ -1878,8 +2117,8 @@ bool ConvertFlash(int id, std::span<const u8> source_zrc, int source, bool neutr
         part.cards = static_cast<u32>(group.size());
         if (pack && pack->on) {
             if (const auto it = pack->files.find(part.hash); it != pack->files.end()) {
-                const auto ext = std::filesystem::path(it->second).extension().string();
-                if (ext == ".png" || ext == ".PNG") {
+                // AzaharFrame fixc: PNG, or ASTC or RGBA8 in KTX or DDS.
+                if (PackReplacementUsable(it->second, "muzzle flash")) {
                     part.replaced = it->second;
                     part.replaced_flip = pack->flip_png;
                 }

@@ -272,7 +272,7 @@ Angel's Aim is an alpha. It aims Kid Icarus: Uprising with your controller and p
 
 - **Gyro Sensitivity**: scales the gyroscope, so the reticle moves more or less as you turn your hand. It scales **Motion Controls** too.
 - **Recoil** (on by default): a short buzz in the aiming controller on each shot. **Charged Shot** (100%) and **Rapid Fire** (50%) set how strong it is.
-- **Weapon in Hand** (on by default): the weapon Pit holds, in place of the aiming controller. Under it:
+- **Weapon in Hand** (on by default): the weapon Pit holds, in place of the aiming controller. With a texture pack on, the weapon takes the pack's textures, from PNG packs and from packs optimized for the Frame (KTX). Under it:
   - **Weapon Opacity** (20% to 100%), to see through the weapon.
   - **Weapon Size**: **Game Size** (default) or **Hand Size**, which shrinks big weapons to fit your hand. **Weapon Scale** (50% to 150%) makes it bigger or smaller.
   - **Muzzle Flash** (on by default): a flash at the weapon's tip on each shot. **Muzzle Flash Size** (50% to 300%) sets how big it is.

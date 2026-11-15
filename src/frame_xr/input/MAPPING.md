@@ -315,6 +315,15 @@ Aiming at Direct Aim when the mod is installed (`ControlsPreset::gyro_aim_with_m
   pistol palm point), claws and arms 7 to 11 cm (above and ahead, sideways by each weapon's
   muzzle), palms 6.2 cm; their muzzles now sit 4 to 9 cm off the controller's line (the aim ray
   starts at the muzzle, so the beam and the reticle still meet). Orbitars float by the hand.
+  AzaharFrame fixc: a texture pack's replacement for the weapon, its flash cards and its bullets
+  (found by the game's hash, `core/frame_weapon_models.cpp`) is read when the weapon loads from a
+  PNG, or from a KTX or DDS file in ASTC (4x4, 6x6, 8x6) or RGBA8, as a pack optimized for the
+  Frame holds (`LoadPackTexture`: its largest mip level of 1024 or less a side, decoded with
+  astcenc's LDR profile, rows turned over as the file holds them as uploaded; at most 4 MB a
+  texture, never the whole of a large one). Any other file (BC1 to BC7, another extension) is
+  logged with its format and why when the weapon is made, and one that fails to read when the
+  weapon loads, and the game's texture is used. A weapon made when KTX files were not read is
+  made again once (`PackKey` changes for them; PNG packs keep their weapons).
 - **Muzzle Flash** (`vr_light_gun_flash`, per game too, on by default; shown under Weapon in
   Hand while it is on; AzaharFrame kiuflash): a flash at the weapon's muzzle on each of the
   game's own shots (the same shots record as Recoil, read for either; `vis/muzzle_flash.h`). The

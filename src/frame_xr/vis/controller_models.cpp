@@ -6,6 +6,7 @@
 // GPLv3, same author), as a Vulkan pass of its own.
 
 #include <algorithm>
+#include <filesystem>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -2866,11 +2867,17 @@ void ControllerModels::UpdateWeapon(int id) {
                 if (!part.replaced.empty() && (file.flags & kModelFlagFlatSurface)) {
                     std::vector<u8> rgba;
                     u32 w = 0, h = 0;
-                    if (FrameWeapons::LoadPackTexture(part.replaced, part.replaced_flip, rgba, w, h)) {
+                    std::string not_read; // AzaharFrame fixc
+                    if (FrameWeapons::LoadPackTexture(part.replaced, part.replaced_flip, rgba, w, h,
+                                                      false, &not_read)) {
                         file.colour = std::move(rgba);
                         file.tex_width = w;
                         file.tex_height = h;
                         l.pack_textures++;
+                    } else {
+                        LOG_INFO(Frontend, "xr: weapon in hand: {}: {}; the game's texture is used",
+                                 std::filesystem::path(part.replaced).filename().string(),
+                                 not_read);
                     }
                 }
                 l.files.push_back(std::move(file));
@@ -2933,13 +2940,18 @@ void ControllerModels::UpdateWeapon(int id) {
                 if (!part.replaced.empty()) {
                     std::vector<u8> rgba;
                     u32 w = 0, h = 0;
+                    std::string not_read; // AzaharFrame fixc
                     if (FrameWeapons::LoadPackTexture(part.replaced, part.replaced_flip, rgba, w,
-                                                      h, true)) {
+                                                      h, true, &not_read)) {
                         FlashTextureFit(rgba, w, h); // a card needs no more
                         file.colour = std::move(rgba);
                         file.tex_width = w;
                         file.tex_height = h;
                         l.pack_textures++;
+                    } else {
+                        LOG_INFO(Frontend, "xr: muzzle flash: {}: {}; the game's texture is used",
+                                 std::filesystem::path(part.replaced).filename().string(),
+                                 not_read);
                     }
                 }
                 l.files.push_back(std::move(file));
@@ -2961,13 +2973,18 @@ void ControllerModels::UpdateWeapon(int id) {
                 if (!part.replaced.empty()) {
                     std::vector<u8> rgba;
                     u32 w = 0, h = 0;
+                    std::string not_read; // AzaharFrame fixc
                     if (FrameWeapons::LoadPackTexture(part.replaced, part.replaced_flip, rgba, w,
-                                                      h, true)) {
+                                                      h, true, &not_read)) {
                         FlashTextureFit(rgba, w, h);
                         file.colour = std::move(rgba);
                         file.tex_width = w;
                         file.tex_height = h;
                         l.pack_textures++;
+                    } else {
+                        LOG_INFO(Frontend, "xr: projectiles: {}: {}; the game's texture is used",
+                                 std::filesystem::path(part.replaced).filename().string(),
+                                 not_read);
                     }
                 }
                 l.files.push_back(std::move(file));
