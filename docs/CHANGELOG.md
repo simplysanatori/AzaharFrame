@@ -6,57 +6,53 @@ A Mods tab, controls you can edit for any controller, mouse and pointer controls
 
 ### What's Different From 1.1
 
-- Changes on the in-game menu's **Settings**, **Controls** and **Position** tabs now apply to the running game by default. Choose **Global** to change them for every game.
+- A complete redesign of every in-game menu, with **Per-Game** and **Global** settings and a new **Position** tab.
 - **Settings** is in three sections: **General**, **Graphics** and **Immersive**.
-- Homebrew has its own tab in the in-game menu.
-- Fast Forward keeps the sound at its normal pitch. **Fast Forward Audio** (**Sped Up**, **Normal Pitch**, **Normal Speed (Experimental)**, **Muted**) is on the VR **Settings** tab and in **Configure > Audio**, and can be set for one game. **Normal Speed (Experimental)** plays the sound at its real speed and skips ahead to keep up; the sound can rise and fall in volume as it does.
+- **Homebrew** is new: download 3DS homebrew directly from within the app.
+- Fast Forward's audio is fixed: it keeps its normal pitch. New **Fast Forward Audio** options: **Sped Up**, **Normal Pitch**, **Normal Speed (Experimental)** and **Muted**, on the VR **Settings** tab and in **Configure > Audio**, for one game or all.
 - **Preload Custom Textures** is off by default, and turning it on now asks first.
-- Save states from 1.1.1 are dimmed. They still load with **Load Anyway**.
-- Azahar runs under a memory limit. If a texture pack fills memory, Azahar closes instead of freezing the Frame.
+- Azahar now runs under a memory limit. If a texture pack fills too much memory, memory leaks or anything else goes wrong, Azahar closes itself rather than freezing the Frame or crashing the headset.
 
 ### Mods tab
 
 - New **Mods** tab in the VR menu, with **Cheats**, **Mods** and **Textures**.
 - **Cheats**: **Download** fetches the game's cheats from Sharkive and from my own repository.
 - Cheats, patches, mods and textures known to work on Azahar for Frame show a **Verified** chip after their name. My own picks show a check-mark badge instead, and are listed first, then the verified ones, then the most downloaded.
-- Cheats made for a different version of the game show which version. The version is the one the game itself shows, so Mario Kart 7 Ver. 1.2 and Fire Emblem Echoes 1.1 are no longer mistaken for other versions. A version I don't know yet shows as **Update Installed** or the cartridge's revision.
-- Code patches are matched to the game's own code. The European Fire Emblem Echoes with its update gets the 1.1 patches, not the 1.0 Ghosting Shader Fix, which makes the picture flash there. True 60 FPS says it can't be combined with the Ghosting Shader Fix.
+- Cheats made for a different version of the game show which version. The version is the one the game itself shows, so Mario Kart 7 Ver. 1.2 and Fire Emblem Echoes 1.1 are no longer mistaken for other versions. A version that can't be read shows as **Update Installed** or the cartridge's revision.
 - Cheats, mods and texture packs from outside sources link to their author's page, for credit.
 - **Mods**: **Install Mods** lists mods for the game and downloads them straight from their authors' pages on GitHub, GameBanana, MEGA or Google Drive.
 - Each mod shows its author, version, downloads and date on one line.
 - When two mods conflict, you choose which one to use.
 - Texture packs have their own section in the VR menu. **Download Packs** downloads packs from their original sources, all within the app.
-- **CTGP-7**: with Mario Kart 7 open, the **Mods** tab has a **CTGP-7** section with **Install**. It first checks that your Mario Kart 7 has its version 1.2 update and save data, and tells you what is missing. Then it downloads CTGP-7's own offline installer from its official GameBanana page, checks it, installs your Mario Kart 7 as a title if needed and runs the installer for you. A bar and **Installing CTGP-7: About 5 Minutes** show the progress, and **Cancel** stops it. Afterwards the section has **Launch** and **Uninstall**, and lists the mods that need CTGP-7. Nothing of CTGP-7 comes with Azahar for Frame: it is downloaded only from that official source and is not redistributed. CTGP-7 is made by PabloMK7 and the CTGP-7 team.
+- **CTGP-7**: with Mario Kart 7 open, the **Mods** tab has a **CTGP-7** section with **Install**. It first checks that your Mario Kart 7 has its version 1.2 update and save data, and tells you what is missing. Then it downloads CTGP-7's own offline installer from its official GameBanana page, checks it, installs your Mario Kart 7 as a title if needed and runs the installer for you. Installing CTGP-7 takes about 5 minutes to complete. Afterwards the section has **Launch** and **Uninstall**, and lists the mods that require CTGP-7 to run. Nothing of CTGP-7 comes with Azahar for Frame: it is downloaded only from that official source and is not redistributed. CTGP-7 is made by PabloMK7 and the CTGP-7 team.
 
 ### Texture packs
 
 - Several packs can be on at once, like Modern Pokemon Sprites on top of 5X Redrawn UI in Pokémon X and Y. I put the parts of every pack that's on in one list, **Enabled Textures**. When two change the same texture, the higher one wins, and **Move Up** and **Move Down** set the order. A pack made to go on top of another goes above it by itself.
-- **Customize** on a pack turns its parts on or off, such as characters or backgrounds. When two parts change the same texture, the one higher in the list wins. **Move Up** and **Move Down** set the order.
+- **Customize** on a pack turns its parts on or off, such as characters or backgrounds. When two parts change the same texture, the one higher in the priority order wins.
 - Packs that come in variants install as one pack. You pick the variant on its **Customize** page.
 - **Optimize for Frame** converts a PNG pack to ASTC, which the Frame's GPU reads as it is. It is now on a pack's **Customize** page in the headset too.
-- The converter is built in, so it needs no compiler. It uses Arm's astcenc.
+- The converter is built in (C++), so it needs no compiler. It uses Arm's astcenc.
 - **Remove Original** deletes the PNG pack once the optimized copy is in use.
 - A PNG pack over 1 GB suggests **Optimize for Frame** once.
 - In Flat, **Customize Texture Pack...** is in the game list's right-click menu, with the game's packs and their order at the top.
 
 ### Crash protection
 
-- Azahar runs under a memory limit. A texture pack that fills memory closes Azahar instead of freezing the Frame. The next start says **Azahar Ran Out of Memory**.
-- **Running Low on Memory** shows how many GB Azahar uses of its limit as it gets close.
-- Near the limit, the game pauses and offers **Turn Off Custom Textures**, **Resume** or **Stop Game**.
-- Turning on **Preload Custom Textures** asks first, with the pack's size, the memory in use and Azahar's limit. A pack too large to preload loads as you play instead.
+- Azahar now runs under a memory limit. A texture pack that fills memory closes Azahar rather than freezing the headset. After an unexpected shutdown, the next start says **Azahar Ran Out of Memory**.
+- **Running Low on Memory** shows how many GB Azahar uses of its limit. Near the limit, the game pauses and offers **Turn Off Custom Textures**, **Resume** or **Stop Game**.
+- Turning on **Preload Custom Textures** asks first, with the pack's size, the memory in use and Azahar's limit. A pack too large for **Preload Custom Textures** loads as you play instead.
 - Holding **Menu** or **View** for 3 seconds stops a game that takes too long to start.
 
 ### Save states
 
-- **About Save States** says it once: save states are NOT a replacement for saving in the game.
-- A state loads in the version that made it. States from 1.1.1 show **From 1.1.1**, dimmed.
-- **Load Anyway** still loads one. It backs up the game's save data and extdata first. If the game then closes unexpectedly within 10 minutes of play, the next start offers **Restore Save Data**.
+- The first time you use save states, a message reminds you once that they are not a replacement for saving in the game.
+- Newer versions of Azahar won't load a save state made in an earlier version. I want to leave that choice to you, so **Load Anyway** still loads one. It backs up the game's save data first. If the game then closes unexpectedly, the next start offers **Restore Save Data**.
 - **Restore** backs up your current save data first, so newer progress is never lost.
 - **Undo Load** takes back a load from a slot or an autosave, until the game closes.
-- A state that can't be read stops the game with a message instead of crashing it.
-- A state or Quick Save that can't be written shows **Couldn't Save State**. The game keeps running, and the slot keeps the state it had.
-- Quick Save and the slots pause the game for the moment the state is copied (about 0.1 to 0.3 seconds), not while it is compressed and written, and need a third of the memory they did.
+- A save state that can't be read stops the game with a message, rather than crashing.
+- If a save state or Quick Save can't be written, a message says it could not be saved. The game keeps running, and the slot keeps the state it had.
+- Quick Save and the slots pause the game for the moment the state is copied (about 0.1 to 0.3 seconds), not while it is compressed and written. They need a third of the memory they did before.
 
 ### Autosave
 
