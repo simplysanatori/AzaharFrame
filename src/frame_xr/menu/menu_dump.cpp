@@ -1123,6 +1123,34 @@ int main(int argc, char** argv) {
         v.tooltip_index = kLabelIndex;
         ok &= shot("fs-scale-mode-tip-label", sc, v);
     }
+    {
+        // AzaharFrame projdef: Motion Clarity's Experimental chip and its tooltip, In Immersive
+        // Modes under it off (the default) with its tooltip, then on; Motion Clarity off (no
+        // sub-row); the rows locked outside the Full modes; the toast.
+        MenuModel mc = pg;
+        MenuView mv = settings(SettingsSection::Immersive);
+        mv.scroll[static_cast<int>(Tab::Settings)] = -1.0f; // the end: Motion Clarity's rows
+        mv.hover = {Id::MotionClarity, kLabelIndex};
+        mv.tooltip = Id::MotionClarity;
+        ok &= shot("pd-1-motion-clarity-experimental-tooltip", mc, mv);
+        mv.hover = {Id::MotionClarityImmersive, kLabelIndex};
+        mv.tooltip = Id::MotionClarityImmersive;
+        ok &= shot("pd-2-in-immersive-modes-off-tooltip", mc, mv);
+        mc.motion_clarity_immersive = true;
+        mv.hover = {Id::MotionClarityImmersive};
+        mv.tooltip = Id::None;
+        ok &= shot("pd-3-in-immersive-modes-on", mc, mv);
+        mc.motion_clarity = false;
+        mv.hover = {Id::MotionClarity};
+        ok &= shot("pd-4-motion-clarity-off", mc, mv);
+        MenuModel flat = pg;
+        flat.immersive_mode = 0;
+        mv.hover = {Id::MotionClarityImmersive, kLabelIndex};
+        mv.tooltip = Id::MotionClarityImmersive;
+        ok &= shot("pd-5-locked-outside-full-modes", flat, mv);
+        ok &= toast_shot("motion-clarity-immersive-toast.png",
+                         {::FrameXr::Immersive::Names::kMotionClarityImmersiveToast});
+    }
     MenuModel gv = m; // Global chosen, the game has its own Immersive Mode
     gv.locked[static_cast<std::size_t>(Id::ImmersiveMode)] = Lock::GameValue;
     v = settings(SettingsSection::Immersive);

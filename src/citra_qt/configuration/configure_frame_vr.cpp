@@ -353,6 +353,15 @@ ConfigureFrameVr::ConfigureFrameVr(QWidget* parent) : QGroupBox(parent) {
     clarity_check->setObjectName(QStringLiteral("frame_vr_motion_clarity_check"));
     clarity_check->setToolTip(tr(Names::kMotionClarityWindowTip));
     layout->addWidget(clarity_check);
+    // AzaharFrame projdef: its Full modes' opt-in (vr_motion_clarity_immersive), right under it,
+    // usable while Motion Clarity is not off.
+    clarity_immersive_check = new QCheckBox(tr(Names::kMotionClarityImmersiveWindow), this);
+    clarity_immersive_check->setObjectName(QStringLiteral("frame_vr_motion_clarity_immersive_check"));
+    clarity_immersive_check->setToolTip(tr(Names::kMotionClarityImmersiveTip));
+    layout->addWidget(clarity_immersive_check);
+    connect(clarity_check, &QCheckBox::stateChanged, this, [this](int state) {
+        clarity_immersive_check->setEnabled(state != Qt::Unchecked);
+    });
 
     immersive_depth_scope = MakeScopeCombo(this);
     immersive_depth_spin = new QSpinBox(this);
@@ -432,6 +441,8 @@ void ConfigureFrameVr::SetupPerGameUI() {
         hint(world_slider, Settings::values.vr_immersive_world_scale.UsingGlobal()); // natural
         hint(follow_check, Settings::values.vr_immersive_follow_screen.UsingGlobal());
         hint(clarity_check, Settings::values.vr_motion_clarity.UsingGlobal()); // AzaharFrame flash
+        hint(clarity_immersive_check, // AzaharFrame projdef
+             Settings::values.vr_motion_clarity_immersive.UsingGlobal());
         hint(immersive_depth_spin, Settings::values.vr_immersive_depth.UsingGlobal());
         return;
     }
@@ -465,6 +476,9 @@ void ConfigureFrameVr::SetupPerGameUI() {
         follow_check, Settings::values.vr_immersive_follow_screen, follow_state);
     ConfigurationShared::SetColoredTristate( // AzaharFrame flash
         clarity_check, Settings::values.vr_motion_clarity, clarity_state);
+    ConfigurationShared::SetColoredTristate( // AzaharFrame projdef
+        clarity_immersive_check, Settings::values.vr_motion_clarity_immersive,
+        clarity_immersive_state);
     connect(world_scope, qOverload<int>(&QComboBox::activated), this, [this](int index) {
         world_slider->setEnabled(index == 1);
         ConfigurationShared::SetHighlight(depth_row, index == 1);
@@ -502,6 +516,9 @@ void ConfigureFrameVr::SetConfiguration() {
     hide_bottom_check->setChecked(Settings::values.vr_hide_bottom_screen.GetValue(global));
     follow_check->setChecked(Settings::values.vr_immersive_follow_screen.GetValue(global));
     clarity_check->setChecked(Settings::values.vr_motion_clarity.GetValue(global)); // flash
+    clarity_immersive_check->setChecked( // AzaharFrame projdef
+        Settings::values.vr_motion_clarity_immersive.GetValue(global));
+    clarity_immersive_check->setEnabled(clarity_check->checkState() != Qt::Unchecked);
     SetMatchCameraTips(); // AzaharFrame fovonce
     register_spin->setValue(reg.GetValue(global));
     fov_spin->setValue(Settings::values.vr_immersive_game_fov.GetValue(global));
@@ -710,6 +727,7 @@ void ConfigureFrameVr::ApplyConfiguration() {
     as_global(Settings::values.vr_immersive_world_scale); // AzaharFrame natural
     as_global(Settings::values.vr_immersive_follow_screen);
     as_global(Settings::values.vr_motion_clarity); // AzaharFrame flash
+    as_global(Settings::values.vr_motion_clarity_immersive); // AzaharFrame projdef
     as_global(Settings::values.vr_immersive_depth);
     as_global(Settings::values.vr_si_mode_register_offset);
     as_global(Settings::values.vr_immersive_eye_indicator);
@@ -745,6 +763,9 @@ void ConfigureFrameVr::ApplyConfiguration() {
                                              follow_check, follow_state);
     ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_clarity, clarity_check,
                                              clarity_state); // AzaharFrame flash
+    ConfigurationShared::ApplyPerGameSetting(&Settings::values.vr_motion_clarity_immersive,
+                                             clarity_immersive_check,
+                                             clarity_immersive_state); // AzaharFrame projdef
     ConfigurationShared::ApplyPerGameSetting(
         &Settings::values.vr_immersive_depth, immersive_depth_scope,
         [this](s32) { return static_cast<u32>(immersive_depth_spin->value()); });

@@ -17,6 +17,7 @@
 #include "common/frame_crash.h"
 #include "core/frame_crash_report.h"
 #include "core/frame_crash_send.h"
+#include "common/settings.h" // AzaharFrame projdef
 #include "frame_xr/menu/crash_note.h"
 #include "frame_xr/menu/swkbd_model.h"
 
@@ -528,4 +529,18 @@ TEST_CASE("Angel's Aim report: the payload has the fields and nothing of the mac
     CHECK(std::string(TypeKey(Type::Idea)) == "idea");
     // long text is cut
     CHECK(BuildPayload(Type::Bug, std::string(5000, 'a'), info, scrub).comments.size() == 2000);
+}
+
+// AzaharFrame projdef: Send Report's settings say whether Motion Clarity is on in the Full modes.
+TEST_CASE("Crash report: the settings list Motion Clarity in Immersive Modes", "[frame_xr][projdef]") {
+    auto& s = Settings::values.vr_motion_clarity_immersive;
+    const bool was = s.GetValue();
+    s.SetValue(false);
+    std::string text = CR::SettingsSummary();
+    CHECK(text.find("Motion Clarity: ") != std::string::npos);
+    CHECK(text.find("Motion Clarity in Immersive Modes: Off\n") != std::string::npos);
+    s.SetValue(true);
+    text = CR::SettingsSummary();
+    CHECK(text.find("Motion Clarity in Immersive Modes: On\n") != std::string::npos);
+    s.SetValue(was);
 }

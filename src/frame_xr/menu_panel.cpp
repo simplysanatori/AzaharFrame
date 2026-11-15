@@ -19,6 +19,7 @@
 #include "video_core/vr_cache_save.h"        // AzaharFrame flash3
 #include "frame_xr/immersive.h"          // AzaharFrame fovonce: MeasureCameraAgain
 #include "frame_xr/immersive_layout.h"   // AzaharFrame kiu: Horizontal and Vertical Scale
+#include "frame_xr/immersive_names.h"    // AzaharFrame projdef: Motion Clarity's toast
 #include "frame_xr/input/default_bindings.h"
 #include "frame_xr/input/devices.h" // AzaharFrame pads
 #include "frame_xr/input/geometry.h"
@@ -260,6 +261,8 @@ MenuSetting SettingOf(Id id) {
         return MenuSetting::FollowScreen;
     case Id::MotionClarity: // AzaharFrame flash
         return MenuSetting::MotionClarity;
+    case Id::MotionClarityImmersive: // AzaharFrame projdef
+        return MenuSetting::MotionClarityImmersive;
     case Id::Depth3d:
         return MenuSetting::Depth3d;
     case Id::InternalResolution:
@@ -1146,6 +1149,7 @@ void MenuPanel::BuildModel(const Host& host) {
     m.world_scale_stop = Immersive::Layout::WorldScaleStop(v.vr_immersive_world_scale.GetValue());
     m.follow_screen = v.vr_immersive_follow_screen.GetValue();
     m.motion_clarity = v.vr_motion_clarity.GetValue(); // AzaharFrame flash
+    m.motion_clarity_immersive = v.vr_motion_clarity_immersive.GetValue(); // AzaharFrame projdef
     // AzaharFrame autosave: the running game's values (its own, else the global ones)
     m.autosave = v.autosave_enabled.GetValue();
     m.autosave_every = 0;
@@ -1481,6 +1485,14 @@ void MenuPanel::SetSetting(Id id, int value, Host& host) {
     case Id::MotionClarity: // AzaharFrame flash: live
         Apply(v.vr_motion_clarity, value != 0, per_game);
         r.setting = MenuSetting::MotionClarity;
+        break;
+    case Id::MotionClarityImmersive: // AzaharFrame projdef: live (the path follows it)
+        // The warning once each time it is turned on.
+        if (value != 0 && !v.vr_motion_clarity_immersive.GetValue()) {
+            ShowToastText(Immersive::Names::kMotionClarityImmersiveToast, ToastTime::Long);
+        }
+        Apply(v.vr_motion_clarity_immersive, value != 0, per_game);
+        r.setting = MenuSetting::MotionClarityImmersive;
         break;
     case Id::Depth3d: // AzaharFrame depth3d: the HID's 3D slider reads it on every pad update
         // AzaharFrame natural: in the Full modes their own 3D Depth (percent of the natural 3D).
@@ -2212,6 +2224,9 @@ void MenuPanel::Click(Target t, Host& host) {
         break;
     case Id::MotionClarity: // AzaharFrame flash
         SetSetting(t.id, model.motion_clarity ? 0 : 1, host);
+        break;
+    case Id::MotionClarityImmersive: // AzaharFrame projdef
+        SetSetting(t.id, model.motion_clarity_immersive ? 0 : 1, host);
         break;
     case Id::AsyncShaders:
         SetSetting(t.id, model.async_shaders ? 0 : 1, host);

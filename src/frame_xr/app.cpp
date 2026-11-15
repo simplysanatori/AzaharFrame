@@ -833,7 +833,9 @@ void Runtime::FrameLoop() {
             pin.game_on_view = ps.game_on_view;
             pin.full_mode = ps.full_mode;
             // AZAHARFRAME_XR_SINGLE_FLASH (Motion Clarity's override) counts as the setting.
-            pin.clarity = clarity_override.value_or(Settings::values.vr_motion_clarity.GetValue());
+            pin.clarity = clarity_override.value_or(MotionClarity::WantedInFull(
+                Settings::values.vr_motion_clarity.GetValue(),
+                Settings::values.vr_motion_clarity_immersive.GetValue()));
             pin.now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                              Clock::now().time_since_epoch())
                              .count();
@@ -952,8 +954,12 @@ void Runtime::FrameLoop() {
                 // never reaches the display with another picture's pose, which is what the
                 // flashing hid; nor would a flashed picture stay one: a refresh the pass is late
                 // shows the image before again.
-                rf.on = MotionClarity::InEffect(Settings::values.vr_motion_clarity.GetValue(),
-                                                clarity_override, shown.full_mode) &&
+                // projdef: in the Full modes with "In Immersive Modes" on too (WantedInFull).
+                rf.on = MotionClarity::InEffect(
+                            MotionClarity::WantedInFull(
+                                Settings::values.vr_motion_clarity.GetValue(),
+                                Settings::values.vr_motion_clarity_immersive.GetValue()),
+                            clarity_override, shown.full_mode) &&
                         !proj_mode;
                 // flash2: in a Full mode, played only while immersive is engaged (paused, the
                 // top screen is not the head-driven one: on the beat).

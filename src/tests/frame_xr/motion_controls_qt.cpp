@@ -309,3 +309,63 @@ TEST_CASE("VR group: Scale Mode", "[frame_xr][fovscale]") {
     CHECK(v.vr_immersive_scale_mode.GetValue() == 1u);
     Settings::SetConfiguringGlobal(true);
 }
+
+// AzaharFrame projdef: Motion Clarity in Immersive Modes, per game, right under Motion Clarity,
+// usable while Motion Clarity is not off; its tooltip and the experimental Motion Clarity one.
+TEST_CASE("VR group: Motion Clarity in Immersive Modes", "[frame_xr][projdef]") {
+    App();
+    auto& v = Settings::values;
+    Keep<bool, false> k1{v.vr_motion_clarity};
+    Keep<bool, false> k2{v.vr_motion_clarity_immersive};
+    CHECK_FALSE(v.vr_motion_clarity_immersive.GetDefault());
+    Settings::SetConfiguringGlobal(true);
+    v.vr_motion_clarity.SetGlobal(true);
+    v.vr_motion_clarity_immersive.SetGlobal(true);
+    v.vr_motion_clarity.SetValue(true);
+    v.vr_motion_clarity_immersive.SetValue(false);
+    {
+        ConfigureFrameVr w;
+        auto* mc = w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_check"));
+        auto* box =
+            w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_immersive_check"));
+        REQUIRE(mc);
+        REQUIRE(box);
+        CHECK(mc->text() == QStringLiteral("Motion Clarity"));
+        CHECK(mc->toolTip() == QStringLiteral("Experimental. A clearer, more solid picture, but it "
+                                              "may flicker or double in demanding scenes."));
+        CHECK(box->text() == QStringLiteral("Motion Clarity in Immersive Modes"));
+        CHECK(box->toolTip() ==
+              QStringLiteral("Experimental. May flicker, mostly in demanding games."));
+        auto* layout = w.layout();
+        REQUIRE(layout);
+        CHECK(layout->indexOf(box) == layout->indexOf(mc) + 1);
+        CHECK(box->isEnabled());
+        CHECK_FALSE(box->isChecked()); // off by default
+        Shot(w, "qt-vr-motion-clarity-immersive.png");
+        mc->setChecked(false);
+        CHECK_FALSE(box->isEnabled()); // nothing to opt into with Motion Clarity off
+        mc->setChecked(true);
+        CHECK(box->isEnabled());
+        box->setChecked(true);
+        w.ApplyConfiguration();
+    }
+    CHECK(v.vr_motion_clarity_immersive.GetValue(true));
+    CHECK(v.vr_motion_clarity.GetValue(true)); // its parent kept
+    // A game's Properties: its own value, or Use global.
+    Settings::SetConfiguringGlobal(false);
+    Values(v.vr_motion_clarity_immersive, true, false);
+    {
+        ConfigureFrameVr w;
+        auto* box =
+            w.findChild<QCheckBox*>(QStringLiteral("frame_vr_motion_clarity_immersive_check"));
+        REQUIRE(box);
+        CHECK_FALSE(box->isChecked()); // the game's own Off
+        CHECK(box->isEnabled());
+        box->click(); // its own On
+        CHECK(box->isChecked());
+        w.ApplyConfiguration();
+    }
+    CHECK_FALSE(v.vr_motion_clarity_immersive.UsingGlobal());
+    CHECK(v.vr_motion_clarity_immersive.GetValue());
+    Settings::SetConfiguringGlobal(true);
+}

@@ -498,6 +498,27 @@ TEST_CASE("Motion Clarity: the override, the setting and the picture ids", "[fra
     CHECK(Settings::values.vr_motion_clarity.GetLabel() == "vr_motion_clarity");
 }
 
+// AzaharFrame projdef: Motion Clarity in the Full modes needs In Immersive Modes too (a new key,
+// off by default); an older build reads vr_motion_clarity alone.
+TEST_CASE("Motion Clarity: In Immersive Modes, and older builds", "[frame_xr][projdef]") {
+    CHECK_FALSE(Settings::values.vr_motion_clarity_immersive.GetDefault());
+    CHECK(Settings::values.vr_motion_clarity_immersive.GetLabel() ==
+          "vr_motion_clarity_immersive");
+    CHECK(MC::WantedInFull(true, true));
+    CHECK_FALSE(MC::WantedInFull(true, false)); // the default: not in the Full modes
+    CHECK_FALSE(MC::WantedInFull(false, true)); // Motion Clarity off: off everywhere
+    CHECK_FALSE(MC::WantedInFull(false, false));
+    // This build, in a Full mode, with the defaults (On, Off): not in effect (the projection
+    // layer takes the screen). An older build reads the first key alone: in effect, as before.
+    CHECK_FALSE(MC::InEffect(MC::WantedInFull(true, false), std::nullopt, true));
+    CHECK(MC::InEffect(true, std::nullopt, true));
+    // Opted in: in effect in the Full modes only.
+    CHECK(MC::InEffect(MC::WantedInFull(true, true), std::nullopt, true));
+    CHECK_FALSE(MC::InEffect(MC::WantedInFull(true, true), std::nullopt, false));
+    // AZAHARFRAME_XR_SINGLE_FLASH still overrides.
+    CHECK(MC::InEffect(MC::WantedInFull(true, false), true, true));
+}
+
 TEST_CASE("Motion Clarity: the 30 a second game through the release serials", "[frame_xr][flash]") {
     // A 30 a second game releases each picture twice (60 releases a second): two serials, one
     // game picture. With the swap count both releases are one picture, so it is learnt as 4

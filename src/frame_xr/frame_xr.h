@@ -308,6 +308,8 @@ enum class MenuSetting {
     WorldScale,   ///< AzaharFrame natural: `value` hundredths of a percent (vr_immersive_world_scale)
     FollowScreen, ///< AzaharFrame natural: `value` 0 or 1 (vr_immersive_follow_screen)
     MotionClarity, ///< AzaharFrame flash: `value` 0 or 1 (vr_motion_clarity)
+    /// AzaharFrame projdef: `value` 0 or 1 (vr_motion_clarity_immersive)
+    MotionClarityImmersive,
     /// AzaharFrame natural: set while the game plays (Immersive::TakeWorldScaleSave), for its own
     /// file: `value` World Scale in hundredths of a percent (below 0: unchanged; `text` "migrated"
     /// sets vr_immersive_world_set too), `text` also "k=<eye per far>" for vr_immersive_eye_per_far.
