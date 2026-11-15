@@ -49,6 +49,8 @@ void ForEachMenuKey(F&& f) {
     f(v.vr_immersive_scale_mode); // AzaharFrame fovscale
     f(v.vr_motion_clarity_immersive); // AzaharFrame projdef, fixa: Immersive's Motion Clarity
     f(v.vr_screens_in_projection);
+    f(v.vr_show_controllers);     // 1.2.0 RC2 (the owner): per game
+    f(v.vr_controllers_in_front);
     // Graphics, General
     f(v.factor_3d); // AzaharFrame depth3d
     f(v.vr_motion_clarity_normal); // AzaharFrame fixa: Graphics' Motion Clarity

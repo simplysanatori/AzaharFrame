@@ -337,6 +337,8 @@ bool PerGameSetting(Id id) {
     case Id::MatchBottom:
     case Id::MatchBottomNormal:
     case Id::ScreenAsPanel:
+    case Id::ShowControllers:    // 1.2.0 RC2 (the owner): per game, e.g. on for Kid Icarus
+    case Id::ControllersInFront: // and its weapon, off in another game
     case Id::Depth3d: // AzaharFrame depth3d
     case Id::InternalResolution: // AzaharFrame menuux: Azahar's own per-game settings
     case Id::TextureFilter:

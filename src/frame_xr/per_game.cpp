@@ -64,6 +64,12 @@ bool WithSetting(Menu::Id id, F&& f) {
     case Id::ScreenAsPanel: // AzaharFrame projdef
         f(v.vr_screens_in_projection);
         return true;
+    case Id::ShowControllers: // 1.2.0 RC2 (the owner): per game
+        f(v.vr_show_controllers);
+        return true;
+    case Id::ControllersInFront:
+        f(v.vr_controllers_in_front);
+        return true;
     case Id::Depth3d: // AzaharFrame natural: the Full modes' own in them
         if (v.vr_immersive_mode.GetValue() >= 2) {
             f(v.vr_immersive_depth);

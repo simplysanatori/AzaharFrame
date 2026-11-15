@@ -544,6 +544,8 @@ void QtConfig::ReadVrValues() {
     ReadGlobalSetting(Settings::values.vr_immersive_world_set);
     ReadGlobalSetting(Settings::values.vr_immersive_eye_per_far);
     ReadGlobalSetting(Settings::values.vr_hide_bottom_screen);
+    ReadGlobalSetting(Settings::values.vr_show_controllers);     // 1.2.0 RC2: per game
+    ReadGlobalSetting(Settings::values.vr_controllers_in_front); // 1.2.0 RC2: per game
     ReadGlobalSetting(Settings::values.vr_top_aspect);
     ReadGlobalSetting(Settings::values.vr_immersive_game_fov);
     ReadGlobalSetting(Settings::values.vr_immersive_match_camera); // AzaharFrame depth
@@ -673,9 +675,7 @@ void QtConfig::ReadVrValues() {
     if (global) {
         ReadGlobalSetting(Settings::values.vr_face_buttons);
         ReadGlobalSetting(Settings::values.vr_background);
-        ReadGlobalSetting(Settings::values.vr_show_controllers); // AzaharFrame vrvis
         ReadGlobalSetting(Settings::values.vr_show_stats);       // AzaharFrame vrvis
-        ReadGlobalSetting(Settings::values.vr_controllers_in_front); // AzaharFrame ctrlfront
         ReadGlobalSetting(Settings::values.vr_stats_position);   // AzaharFrame statspos
         ReadGlobalSetting(Settings::values.vr_window_scale);
         ReadGlobalSetting(Settings::values.vr_immersive_offset_x); // AzaharFrame vrsize
@@ -1342,6 +1342,8 @@ void QtConfig::SaveVrValues() {
     WriteGlobalSetting(Settings::values.vr_immersive_world_set);
     WriteGlobalSetting(Settings::values.vr_immersive_eye_per_far);
     WriteGlobalSetting(Settings::values.vr_hide_bottom_screen);
+    WriteGlobalSetting(Settings::values.vr_show_controllers);     // 1.2.0 RC2: per game
+    WriteGlobalSetting(Settings::values.vr_controllers_in_front); // 1.2.0 RC2: per game
     WriteGlobalSetting(Settings::values.vr_top_aspect);
     WriteGlobalSetting(Settings::values.vr_immersive_game_fov);
     WriteGlobalSetting(Settings::values.vr_immersive_match_camera_mode); // AzaharFrame fovonce
@@ -1404,9 +1406,7 @@ void QtConfig::SaveVrValues() {
     if (global) {
         WriteGlobalSetting(Settings::values.vr_face_buttons);
         WriteGlobalSetting(Settings::values.vr_background);
-        WriteGlobalSetting(Settings::values.vr_show_controllers); // AzaharFrame vrvis
         WriteGlobalSetting(Settings::values.vr_show_stats);       // AzaharFrame vrvis
-        WriteGlobalSetting(Settings::values.vr_controllers_in_front); // AzaharFrame ctrlfront
         WriteGlobalSetting(Settings::values.vr_stats_position);   // AzaharFrame statspos
         WriteGlobalSetting(Settings::values.vr_window_scale);
         WriteGlobalSetting(Settings::values.vr_immersive_offset_x); // AzaharFrame vrsize
