@@ -503,3 +503,31 @@ TEST_CASE("Aim lock: the other controller points and touches while the aiming on
         CHECK(out.commands.drag_hand == HandIndex(other));
     }
 }
+
+// 1.2.0 RC2 (the owner aims with the arm low): past the bottom edge never turns down, past a side
+// edge with the arm low still turns sideways, and past the top edge still turns up.
+TEST_CASE("Keep Reticle on Screen: past the bottom edge does not turn down",
+          "[frame_xr][kiuaim3]") {
+    const ReticleReading r = Ground();
+    LightGunTarget low = At(0.5f, 1.0f);
+    low.edge = true;
+    low.past_v = 1;
+    low.past_deg = 20.0f;
+    CHECK(TurnDepthFor(r, low, 0.1f, TurnZoneFrom::AimBox).y == 0.0f);
+    CHECK(TurnDepthFor(r, low, 0.1f, TurnZoneFrom::ScreenEdge).y == 0.0f);
+    LightGunTarget low_right = At(1.0f, 1.0f);
+    low_right.edge = true;
+    low_right.past_u = 1;
+    low_right.past_v = 1;
+    low_right.past_deg = 30.0f;
+    const Vec2f d = TurnDepthFor(r, low_right, 0.1f, TurnZoneFrom::AimBox);
+    CHECK(d.x == 1.0f);
+    CHECK(d.y == 0.0f);
+    LightGunTarget up = At(0.5f, 0.0f);
+    up.edge = true;
+    up.past_v = -1;
+    up.past_deg = 20.0f;
+    CHECK(TurnDepthFor(r, up, 0.1f, TurnZoneFrom::AimBox).y == -1.0f);
+    // On the screen below the aim box (not past its edge): the Turn Zone still looks down.
+    CHECK(TurnDepthFor(r, At(0.5f, 0.9f), 0.1f, TurnZoneFrom::AimBox).y > 0.0f);
+}
