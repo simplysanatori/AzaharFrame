@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 (November 2026)
+
+- Fixed a crash when starting a game that has save states from an earlier version. In 1.2.0, such a game closed as soon as it started.
+
 ## 1.2.0 (November 2026)
 
 The biggest update yet, and maybe the biggest there will ever be.
