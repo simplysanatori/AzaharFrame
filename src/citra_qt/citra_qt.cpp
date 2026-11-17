@@ -4136,11 +4136,15 @@ void GMainWindow::UpdateSaveStates() {
                   : QDateTime::fromSecsSinceEpoch(savestate.time)
                         .toString(QStringLiteral("yyyy-MM-dd hh:mm:ss"));
         if (other) {
-            for (QAction* a :
-                 savestate.slot == 0
-                     ? std::initializer_list<QAction*>{ui->action_Quick_Load, ui->action_Quick_Save}
-                     : std::initializer_list<QAction*>{actions_load_state[savestate.slot],
-                                                       actions_save_state[savestate.slot]}) {
+            // AzaharFrame fix121: a std::array by value. The two initializer_lists of a ?: died
+            // at the end of the range-for's init, before the loop read them: 1.2.0 crashed in
+            // QAction::font() at the boot of any game with a save state from another build.
+            const std::array<QAction*, 2> pair =
+                savestate.slot == 0
+                    ? std::array<QAction*, 2>{ui->action_Quick_Load, ui->action_Quick_Save}
+                    : std::array<QAction*, 2>{actions_load_state[savestate.slot],
+                                              actions_save_state[savestate.slot]};
+            for (QAction* a : pair) {
                 QFont font = a->font();
                 font.setItalic(true);
                 a->setFont(font);
